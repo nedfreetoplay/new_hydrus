@@ -4,7 +4,22 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+chardetng = "0.1.17"
+chrono = "0.4"
 dirs = "7.0.0"
-rusqlite = "0.40.2"
+encoding_rs = "0.8.35"
+flate2 = "1.0"
+indexmap = "2"
+lz4_flex = "0.11"
+rand = "0.8"
+regex = "1.11"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde_json = { version = "1.0", features = ["preserve_order"] }
+sha2 = "0.10"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_yaml = "0.9.34"
+rcgen = { version = "0.14.10", default-features = false, features = ["pem", "ring", "crypto"] }
+time = "0.3"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

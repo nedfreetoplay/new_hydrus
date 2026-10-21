@@ -1,0 +1,10 @@
+[package]
+name = "hydrus_core"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+dirs = "7.0.0"
+rusqlite = "0.40.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_yaml = "0.9.34"

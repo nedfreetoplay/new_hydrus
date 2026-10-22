@@ -76,7 +76,7 @@ impl SubprocessCommand {
             }
             Self::Shell(cmd) => {
                 #[cfg(windows)]
-                let mut command = {
+                let command = {
                     let mut command = StdCommand::new("cmd");
 
                     command.arg("/C").arg(cmd);
@@ -85,7 +85,7 @@ impl SubprocessCommand {
                 };
 
                 #[cfg(not(windows))]
-                let mut command = {
+                let command = {
                     let mut command = StdCommand::new("/bin/sh");
 
                     command.arg("-c").arg(cmd);

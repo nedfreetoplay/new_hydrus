@@ -528,7 +528,7 @@ int_enum!(Filter : u8 {
     Blacklist = 1 => "blacklist",
 });
 
-/// Python's `HYDRUS_CLIENT`/`HYDRUS_SERVER`/`HYDRUS_TEST`.
+// Python's `HYDRUS_CLIENT`/`HYDRUS_SERVER`/`HYDRUS_TEST`.
 int_enum!(HydrusMode : u8 {
     Client = 0 => "client",
     Server = 1 => "server",
@@ -676,6 +676,36 @@ impl ServiceType {
         }
     }
 
+    /// `service_string_lookup`
+    pub const fn long_str(self) -> &'static str {
+        match self {
+            ServiceType::TagRepository => "hydrus tag repository",
+            ServiceType::FileRepository => "hydrus file repository",
+            ServiceType::LocalFileDomain => "local file domain",
+            ServiceType::LocalFileTrashDomain => "local trash file domain",
+            ServiceType::LocalFileUpdateDomain => "local update file domain",
+            ServiceType::HydrusLocalFileStorage => "virtual combined local file domain",
+            ServiceType::CombinedLocalFileDomains => "virtual combined local media domain",
+            ServiceType::MessageDepot => "hydrus message depot",
+            ServiceType::LocalTag => "local tag domain",
+            ServiceType::LocalRatingIncDec => "local inc/dec rating service",
+            ServiceType::LocalRatingNumerical => "local numerical rating service",
+            ServiceType::LocalRatingLike => "local like/dislike rating service",
+            ServiceType::RatingNumericalRepository => "hydrus numerical rating repository",
+            ServiceType::RatingLikeRepository => "hydrus like/dislike rating repository",
+            ServiceType::CombinedTag => "virtual combined tag domain",
+            ServiceType::CombinedFile => "virtual combined file domain",
+            ServiceType::LocalBooru => "client local booru",
+            ServiceType::ClientApiService => "client api",
+            ServiceType::Ipfs => "ipfs daemon",
+            ServiceType::TestService => "test service",
+            ServiceType::LocalNotes => "local file notes service",
+            ServiceType::ServerAdmin => "hydrus server administration service",
+            ServiceType::CombinedDeletedFile => "virtual deleted file service",
+            ServiceType::NullService => "null service",
+        }
+    }
+
     /// `service_description_lookup`
     pub const fn description(self) -> &'static str {
         match self {
@@ -781,7 +811,7 @@ int_enum!(UrlType : u8 {
     SubGallery = 9 => "sub-gallery url (is queued even if creator found no post/file urls)",
 });
 
-/// `DELETE_FILES_PETITION` / `DELETE_TAG_PETITION`.
+// `DELETE_FILES_PETITION` / `DELETE_TAG_PETITION`.
 int_enum_numbers!(PetitionType : u8 {
     DeleteFiles = 0,
     DeleteTags = 1,
@@ -2055,7 +2085,7 @@ pub const TAG_REPOSITORY_SERVICE_INFO_TYPES: &[ServiceInfoType] = &[
 // 10. MISC ENUMS USED BY OTHER MODULES
 // ============================================================================
 
-/// Python's `ADD`/`DELETE`/`EDIT`/`SET`.
+// Python's `ADD`/`DELETE`/`EDIT`/`SET`.
 int_enum_numbers!(ContentAction : u8 {
     Add = 0,
     Delete = 1,

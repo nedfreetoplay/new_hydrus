@@ -2343,6 +2343,14 @@ mod tests {
     use crate::hydrus_db_base::JobDatabase;
     use crate::hydrus_temp;
 
+    /// Keep DB tests from clearing the process-global temporary table name
+    /// cache while another test has a name checked out.
+    fn lock_temp_tables() -> std::sync::MutexGuard<'static, ()> {
+        crate::hydrus_db_base::TEMP_TABLE_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+    }
+
     fn temp_dir(name: &str) -> PathBuf {
         hydrus_temp::get_sub_temp_dir(&format!("hydrus_db_{name}")).expect("temp dir")
     }
@@ -2454,6 +2462,8 @@ mod tests {
 
     #[test]
     fn approx_durations_and_vacuum_paths() {
+        let _guard = lock_temp_tables();
+
         assert_eq!(get_approx_vacuum_duration(1_048_576), 1);
         assert_eq!(get_approx_vacuum_duration(0), 0);
         assert_eq!(get_approx_vacuum_into_duration(10 * 1_048_576), 1);
@@ -2472,6 +2482,8 @@ mod tests {
 
     #[test]
     fn check_can_vacuum_reports_the_important_numbers() {
+        let _guard = lock_temp_tables();
+
         let dir = temp_dir("vacuum_check");
         let path = dir.join("test.db");
 
@@ -2500,6 +2512,8 @@ mod tests {
 
     #[test]
     fn vacuum_db_keeps_the_data() {
+        let _guard = lock_temp_tables();
+
         let dir = temp_dir("vacuum");
         let path = dir.join("test.db");
 
@@ -2534,6 +2548,8 @@ mod tests {
 
     #[test]
     fn vacuum_db_into_replaces_the_original() {
+        let _guard = lock_temp_tables();
+
         let dir = temp_dir("vacuum_into");
         let path = dir.join("test.db");
 
@@ -2570,6 +2586,8 @@ mod tests {
 
     #[test]
     fn vacuum_db_into_refuses_stale_sidecars() {
+        let _guard = lock_temp_tables();
+
         let dir = temp_dir("vacuum_sidecar");
         let path = dir.join("test.db");
 
@@ -2588,6 +2606,8 @@ mod tests {
 
     #[test]
     fn large_id_queries_are_chunked() {
+        let _guard = lock_temp_tables();
+
         let connection = Connection::open_in_memory().expect("db");
 
         connection
@@ -2617,6 +2637,8 @@ mod tests {
 
     #[test]
     fn db_lifecycle_runs_jobs_and_shuts_down() {
+        let _guard = lock_temp_tables();
+
         let dir = temp_dir("lifecycle");
         let hooks = TestHooks::new();
         let status_updates = hooks.status_updates.clone();
@@ -2677,6 +2699,8 @@ mod tests {
 
     #[test]
     fn dropping_the_last_reference_cleans_up_the_thread() {
+        let _guard = lock_temp_tables();
+
         let dir = temp_dir("drop");
 
         {
@@ -2707,6 +2731,8 @@ mod tests {
 
     #[test]
     fn external_databases_are_attached_and_sized() {
+        let _guard = lock_temp_tables();
+
         let dir = temp_dir("external");
 
         struct ExternalHooks;
@@ -2798,6 +2824,8 @@ mod tests {
 
     #[test]
     fn db_updates_to_the_software_version() {
+        let _guard = lock_temp_tables();
+
         let dir = temp_dir("update");
         let updates = Arc::new(AtomicUsize::new(0));
 
@@ -2837,6 +2865,8 @@ mod tests {
 
     #[test]
     fn missing_version_table_is_fatal() {
+        let _guard = lock_temp_tables();
+
         let dir = temp_dir("missing_version");
         let path = dir.join("test.db");
 
@@ -2863,6 +2893,8 @@ mod tests {
 
     #[test]
     fn read_write_actions_use_the_read_map() {
+        let _guard = lock_temp_tables();
+
         let dir = temp_dir("read_write");
 
         struct ReadWriteHooks;
@@ -2919,6 +2951,8 @@ mod tests {
 
     #[test]
     fn job_database_still_hands_results_across() {
+        let _guard = lock_temp_tables();
+
         // The older `JobDatabase` remains the primitive for callers that want
         // to run a closure directly; make sure the two job types agree on the
         // synchronous result protocol.

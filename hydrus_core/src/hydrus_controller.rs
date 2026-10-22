@@ -19,9 +19,9 @@
 //!
 //! `start_twisted_if_needed`/`stop_twisted_if_running` have no Rust equivalent;
 //! they are hooks with no-op defaults so a client/server layer can plug in its
-//! own event loop later. Likewise, `initialise_mimes_to_default_thumbnail_paths`
-//! lives in the unported `files/` subdir, so it is a hook that defaults to a
-//! no-op.
+//! own event loop later. `initialise_mimes_to_default_thumbnail_paths` is
+//! supplied by [`crate::hydrus_file_handling`] but remains a hook so a client
+//! can replace the static-directory lookup.
 
 use std::any::Any;
 use std::collections::HashMap;
@@ -83,7 +83,9 @@ pub trait ControllerHooks: Send + Sync {
     }
 
     /// `initialise_mimes_to_default_thumbnail_paths()`
-    fn initialise_mimes_to_default_thumbnail_paths(&self) {}
+    fn initialise_mimes_to_default_thumbnail_paths(&self) {
+        crate::hydrus_file_handling::initialise_mimes_to_default_thumbnail_paths();
+    }
 
     /// Extra setup run at the end of `init_model`.
     fn after_init_model(&self, _controller: &Arc<HydrusController>) -> HydrusResult<()> {
@@ -1293,6 +1295,10 @@ mod tests {
     use super::*;
     use crate::hydrus_threading::thread_call;
     use std::sync::atomic::AtomicUsize;
+    use std::sync::Mutex as StdMutex;
+
+    /// The temp-dir tests touch a process-global path, so keep them apart.
+    static TEMP_DIR_TEST_LOCK: StdMutex<()> = StdMutex::new(());
 
     struct TestHooks {
         thumbnails_initialised: AtomicBool,
@@ -1503,6 +1509,8 @@ mod tests {
 
     #[test]
     fn init_model_starts_schedulers_and_runs_queued_calls() {
+        let _guard = TEMP_DIR_TEST_LOCK.lock().unwrap();
+
         let hooks = TestHooks::new(15000);
         let controller = make_controller(Arc::clone(&hooks));
 
@@ -1546,6 +1554,8 @@ mod tests {
 
     #[test]
     fn init_view_registers_daemons_and_shutdown_view_clears_them() {
+        let _guard = TEMP_DIR_TEST_LOCK.lock().unwrap();
+
         let hooks = TestHooks::new(15000);
         let controller = make_controller(hooks);
 
@@ -1617,6 +1627,8 @@ mod tests {
 
     #[test]
     fn temp_dir_is_created_and_reused() {
+        let _guard = TEMP_DIR_TEST_LOCK.lock().unwrap();
+
         let controller = make_controller(TestHooks::new(15000));
 
         let first = controller.get_hydrus_temp_dir().unwrap();
@@ -1636,7 +1648,9 @@ mod tests {
         assert!(third.exists());
         assert_ne!(first, third);
 
-        std::fs::remove_dir_all(&third).unwrap();
+        // Leave `third` in place: it is the process-global temp dir that the
+        // rest of the test binary uses. Deleting it here would make unrelated
+        // tests race against a missing parent directory.
     }
 
     #[test]
@@ -1658,6 +1672,8 @@ mod tests {
 
     #[test]
     fn shutdown_model_stops_everything_without_a_database() {
+        let _guard = TEMP_DIR_TEST_LOCK.lock().unwrap();
+
         let controller = make_controller(TestHooks::new(15000));
 
         controller.init_model().unwrap();
@@ -1670,7 +1686,9 @@ mod tests {
         assert!(!temp_dir.exists());
         assert!(controller.db().is_none());
 
-        // Restore the global for the other tests in this binary.
+        // Restore the globals for the other tests in this binary. Shutdown
+        // removed the temp dir, so make a fresh one for them to use.
         hydrus_globals::set_model_shutdown(false);
+        let _ = hydrus_temp::initialise_hydrus_temp_dir();
     }
 }

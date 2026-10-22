@@ -22,9 +22,13 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 use serde_json::{Map, Value};
 
-use crate::hydrus_constants::ContentType;
+use crate::hydrus_constants::{
+    mimes_with_thumbnails, ContentType, DECOMPRESSION_BOMB_IMAGES, SERVER_THUMBNAIL_DIMENSIONS,
+};
 use crate::hydrus_data::{hex_decode, hex_encode};
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
+use crate::hydrus_file_handling;
+use crate::hydrus_image_handling::{self, ThumbnailScale};
 use crate::hydrus_network::{
     generate_service_from_serialisable_tuple, Account, AccountIdentifier, Content, ContentData,
     ServerService,
@@ -98,7 +102,38 @@ pub enum ArgValue {
     Dict(IndexMap<String, ArgValue>),
     /// A Python `dict[bytes, bytes]`, used by `service_keys_to_access_keys`.
     BytesDict(IndexMap<Vec<u8>, Vec<u8>>),
-    Object(Arc<dyn SerialisableObject>),
+    Object(ArgValueObject),
+}
+
+/// A Python object held in an argument dictionary.
+///
+/// Most network objects are `HydrusSerialisable` subclasses, but a few (for
+/// example `Account` and `ServerService`) are plain Python objects. Keeping
+/// both cases lets the network helpers carry them exactly like Python does.
+#[derive(Clone)]
+pub enum ArgValueObject {
+    Serialisable(Arc<dyn SerialisableObject>),
+    Other(Arc<dyn Any + Send + Sync>),
+}
+
+impl fmt::Debug for ArgValueObject {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ArgValueObject::Serialisable(value) => f.debug_tuple("Serialisable").field(value).finish(),
+            ArgValueObject::Other(_) => f.write_str("Other(<object>)"),
+        }
+    }
+}
+
+impl PartialEq for ArgValueObject {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ArgValueObject::Serialisable(a), ArgValueObject::Serialisable(b)) => {
+                a.get_serialisable_tuple() == b.get_serialisable_tuple()
+            }
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Debug for ArgValue {
@@ -109,10 +144,7 @@ impl fmt::Debug for ArgValue {
             ArgValue::List(value) => f.debug_tuple("List").field(value).finish(),
             ArgValue::Dict(value) => f.debug_tuple("Dict").field(value).finish(),
             ArgValue::BytesDict(value) => f.debug_tuple("BytesDict").field(value).finish(),
-            ArgValue::Object(value) => f
-                .debug_tuple("Object")
-                .field(&value.get_serialisable_description())
-                .finish(),
+            ArgValue::Object(value) => f.debug_tuple("Object").field(value).finish(),
         }
     }
 }
@@ -125,9 +157,7 @@ impl PartialEq for ArgValue {
             (ArgValue::List(a), ArgValue::List(b)) => a == b,
             (ArgValue::Dict(a), ArgValue::Dict(b)) => a == b,
             (ArgValue::BytesDict(a), ArgValue::BytesDict(b)) => a == b,
-            (ArgValue::Object(a), ArgValue::Object(b)) => {
-                a.get_serialisable_tuple() == b.get_serialisable_tuple()
-            }
+            (ArgValue::Object(a), ArgValue::Object(b)) => a == b,
             _ => false,
         }
     }
@@ -181,7 +211,12 @@ impl fmt::Display for ArgValue {
 
                 f.write_str("}")
             }
-            ArgValue::Object(value) => f.write_str(&value.get_serialisable_description()),
+            ArgValue::Object(value) => match value {
+                ArgValueObject::Serialisable(value) => {
+                    f.write_str(&value.get_serialisable_description())
+                }
+                ArgValueObject::Other(_) => f.write_str("<object>"),
+            },
         }
     }
 }
@@ -267,37 +302,59 @@ impl ArgValue {
 
     pub fn as_object(&self) -> Option<&dyn SerialisableObject> {
         match self {
-            ArgValue::Object(value) => Some(value.as_ref()),
+            ArgValue::Object(ArgValueObject::Serialisable(value)) => Some(value.as_ref()),
             _ => None,
         }
     }
 
     pub fn as_object_arc(&self) -> Option<&Arc<dyn SerialisableObject>> {
         match self {
-            ArgValue::Object(value) => Some(value),
+            ArgValue::Object(ArgValueObject::Serialisable(value)) => Some(value),
             _ => None,
         }
     }
 
-    /// Downcast a nested serialisable to a concrete type.
+    /// Build a value around a Hydrus serialisable object.
+    pub fn object<T: SerialisableObject + 'static>(value: Arc<T>) -> Self {
+        ArgValue::Object(ArgValueObject::Serialisable(value))
+    }
+
+    /// Build a value around a plain object, such as `Account` or
+    /// `ServerService`.
+    pub fn other_object<T: Any + Send + Sync + 'static>(value: Arc<T>) -> Self {
+        ArgValue::Object(ArgValueObject::Other(value))
+    }
+
+    /// Downcast a nested object to a concrete type.
     pub fn downcast_object<T: 'static>(&self) -> Option<&T> {
-        self.as_object()?.as_any().downcast_ref::<T>()
+        match self {
+            ArgValue::Object(ArgValueObject::Serialisable(value)) => {
+                value.as_any().downcast_ref::<T>()
+            }
+            ArgValue::Object(ArgValueObject::Other(value)) => value.downcast_ref::<T>(),
+            _ => None,
+        }
     }
 
     /// Convert back to the representation used by
     /// [`SerialisableDictionary`]. Lists and dictionaries are expanded into
     /// nested serialisable objects, matching Python's dictionary coercion.
-    pub fn to_serialisable_value(&self) -> SerialisableValue {
+    ///
+    /// Plain objects cannot be represented; callers such as
+    /// [`dump_hydrus_args_to_network_bytes`] convert them first.
+    pub fn to_serialisable_value(&self) -> HydrusResult<SerialisableValue> {
         match self {
-            ArgValue::Json(value) => SerialisableValue::Json(value.clone()),
-            ArgValue::Bytes(value) => SerialisableValue::Bytes(value.clone()),
+            ArgValue::Json(value) => Ok(SerialisableValue::Json(value.clone())),
+            ArgValue::Bytes(value) => Ok(SerialisableValue::Bytes(value.clone())),
             ArgValue::List(items) => {
                 let items = items
                     .iter()
                     .map(ArgValue::to_serialisable_value)
-                    .collect::<Vec<_>>();
+                    .collect::<HydrusResult<Vec<_>>>()?;
 
-                SerialisableValue::Object(Arc::new(SerialisableList::from_values(items)))
+                Ok(SerialisableValue::Object(Arc::new(
+                    SerialisableList::from_values(items),
+                )))
             }
             ArgValue::Dict(entries) => {
                 let mut dictionary = SerialisableDictionary::new();
@@ -305,11 +362,11 @@ impl ArgValue {
                 for (key, value) in entries {
                     dictionary.insert(
                         SerialisableValue::Json(Value::String(key.clone())),
-                        value.to_serialisable_value(),
+                        value.to_serialisable_value()?,
                     );
                 }
 
-                SerialisableValue::Object(Arc::new(dictionary))
+                Ok(SerialisableValue::Object(Arc::new(dictionary)))
             }
             ArgValue::BytesDict(entries) => {
                 let mut dictionary = SerialisableDictionary::new();
@@ -321,9 +378,14 @@ impl ArgValue {
                     );
                 }
 
-                SerialisableValue::Object(Arc::new(dictionary))
+                Ok(SerialisableValue::Object(Arc::new(dictionary)))
             }
-            ArgValue::Object(value) => SerialisableValue::Object(value.clone()),
+            ArgValue::Object(ArgValueObject::Serialisable(value)) => {
+                Ok(SerialisableValue::Object(value.clone()))
+            }
+            ArgValue::Object(ArgValueObject::Other(_)) => Err(bad_request(
+                "A plain object cannot be serialised as a network argument!",
+            )),
         }
     }
 
@@ -344,7 +406,12 @@ impl ArgValue {
                     .map(|(key, value)| Ok((key.clone(), value.to_json_value()?)))
                     .collect::<HydrusResult<Map<String, Value>>>()?,
             )),
-            ArgValue::Object(value) => Ok(value.get_serialisable_tuple()),
+            ArgValue::Object(ArgValueObject::Serialisable(value)) => {
+                Ok(value.get_serialisable_tuple())
+            }
+            ArgValue::Object(ArgValueObject::Other(_)) => Err(bad_request(
+                "Could not convert a plain object argument into plain JSON!",
+            )),
             ArgValue::Bytes(_) | ArgValue::BytesDict(_) => Err(bad_request(
                 "Could not convert a bytestring argument into plain JSON!",
             )),
@@ -377,7 +444,7 @@ impl ArgValue {
                     }
                 }
 
-                ArgValue::Object(object)
+                ArgValue::Object(ArgValueObject::Serialisable(object))
             }
         }
     }
@@ -480,7 +547,7 @@ macro_rules! arg_value_from_int {
     };
 }
 
-arg_value_from_int!(i32, u16, u32, u64, usize);
+arg_value_from_int!(i8, i16, i32, i64, u8, u16, u32, u64, usize);
 
 impl From<Vec<ArgValue>> for ArgValue {
     fn from(value: Vec<ArgValue>) -> Self {
@@ -494,8 +561,14 @@ impl From<IndexMap<String, ArgValue>> for ArgValue {
     }
 }
 
-impl<T: SerialisableObject + 'static> From<Arc<T>> for ArgValue {
-    fn from(value: Arc<T>) -> Self {
+impl From<Arc<dyn SerialisableObject>> for ArgValue {
+    fn from(value: Arc<dyn SerialisableObject>) -> Self {
+        ArgValue::Object(ArgValueObject::Serialisable(value))
+    }
+}
+
+impl From<ArgValueObject> for ArgValue {
+    fn from(value: ArgValueObject) -> Self {
         ArgValue::Object(value)
     }
 }
@@ -521,6 +594,26 @@ impl ParsedRequestArguments {
         value: impl Into<ArgValue>,
     ) -> Option<ArgValue> {
         self.values.insert(key.into(), value.into())
+    }
+
+    /// Insert a Hydrus serialisable object.
+    pub fn insert_object(
+        &mut self,
+        key: impl Into<String>,
+        value: Arc<dyn SerialisableObject>,
+    ) -> Option<ArgValue> {
+        self.values
+            .insert(key.into(), ArgValue::Object(ArgValueObject::Serialisable(value)))
+    }
+
+    /// Insert a plain object, such as `Account` or `ServerService`.
+    pub fn insert_other_object<T: Any + Send + Sync + 'static>(
+        &mut self,
+        key: impl Into<String>,
+        value: Arc<T>,
+    ) -> Option<ArgValue> {
+        self.values
+            .insert(key.into(), ArgValue::Object(ArgValueObject::Other(value)))
     }
 
     pub fn remove(&mut self, key: &str) -> Option<ArgValue> {
@@ -576,17 +669,17 @@ impl ParsedRequestArguments {
 
     /// Convert to a `SerialisableDictionary` without applying the network
     /// parameter conventions.
-    pub fn to_serialisable_dictionary(&self) -> SerialisableDictionary {
+    pub fn to_serialisable_dictionary(&self) -> HydrusResult<SerialisableDictionary> {
         let mut dictionary = SerialisableDictionary::new();
 
         for (key, value) in &self.values {
             dictionary.insert(
                 SerialisableValue::Json(Value::String(key.clone())),
-                value.to_serialisable_value(),
+                value.to_serialisable_value()?,
             );
         }
 
-        dictionary
+        Ok(dictionary)
     }
 
     pub fn from_serialisable_dictionary(dictionary: &SerialisableDictionary) -> Self {
@@ -910,7 +1003,7 @@ fn bytes_from_hex(value: &str) -> Option<Vec<u8>> {
     hex_decode(&cleaned).ok()
 }
 
-fn strip_hash_prefix(value: &str, param_name: &str) -> &str {
+fn strip_hash_prefix<'a>(value: &'a str, param_name: &str) -> &'a str {
     if HASH_BYTE_PARAMS.contains(&param_name) {
         if let Some((_prefix, hex)) = value.split_once(':') {
             return hex;
@@ -968,7 +1061,7 @@ pub fn dump_hydrus_args_to_network_bytes(
 
             let mut encoded = Vec::with_capacity(items.len());
 
-            for item in items {
+            for item in items.iter_mut() {
                 let ArgValue::Bytes(bytes) = item else {
                     return Err(bad_request(format!(
                         "The parameter \"{param_name}\" held an item that was not a bytestring!"
@@ -983,23 +1076,20 @@ pub fn dump_hydrus_args_to_network_bytes(
     }
 
     if let Some(value) = args.values.get_mut("account") {
-        if let ArgValue::Object(object) = value {
-            if let Some(account) = object.as_any().downcast_ref::<Account>() {
-                *value =
-                    ArgValue::Json(Account::generate_serialisable_tuple_from_account(account)?);
-            }
+        if let Some(account) = value.downcast_object::<Account>() {
+            let account = Account::generate_serialisable_tuple_from_account(account)?;
+
+            *value = ArgValue::Json(account);
         }
     }
 
     if let Some(value) = args.values.get_mut("accounts") {
         if let ArgValue::List(items) = value {
-            for item in items {
-                if let ArgValue::Object(object) = item {
-                    if let Some(account) = object.as_any().downcast_ref::<Account>() {
-                        *item = ArgValue::Json(
-                            Account::generate_serialisable_tuple_from_account(account)?,
-                        );
-                    }
+            for item in items.iter_mut() {
+                if let Some(account) = item.downcast_object::<Account>() {
+                    let account = Account::generate_serialisable_tuple_from_account(account)?;
+
+                    *item = ArgValue::Json(account);
                 }
             }
         }
@@ -1023,17 +1113,17 @@ pub fn dump_hydrus_args_to_network_bytes(
 
     if let Some(value) = args.values.get_mut("services") {
         if let ArgValue::List(items) = value {
-            for item in items {
-                if let ArgValue::Object(object) = item {
-                    if let Some(service) = object.as_any().downcast_ref::<ServerService>() {
-                        *item = ArgValue::Json(service.to_serialisable_tuple());
-                    }
+            for item in items.iter_mut() {
+                if let Some(service) = item.downcast_object::<ServerService>() {
+                    let service = service.to_serialisable_tuple();
+
+                    *item = ArgValue::Json(service);
                 }
             }
         }
     }
 
-    args.to_serialisable_dictionary().dump_to_network_bytes()
+    args.to_serialisable_dictionary()?.dump_to_network_bytes()
 }
 
 /// `dump_to_get_query`.
@@ -1041,13 +1131,9 @@ pub fn dump_to_get_query(args: &ParsedRequestArguments) -> HydrusResult<String> 
     let mut args = args.clone();
 
     if let Some(subject_identifier) = args.values.shift_remove("subject_identifier") {
-        let ArgValue::Object(object) = subject_identifier else {
-            return Err(bad_request(
-                "The subject identifier was not an AccountIdentifier!",
-            ));
-        };
-
-        let Some(subject_identifier) = object.as_any().downcast_ref::<AccountIdentifier>() else {
+        let Some(subject_identifier) =
+            subject_identifier.downcast_object::<AccountIdentifier>()
+        else {
             return Err(bad_request(
                 "The subject identifier was not an AccountIdentifier!",
             ));
@@ -1091,7 +1177,7 @@ pub fn dump_to_get_query(args: &ParsedRequestArguments) -> HydrusResult<String> 
     }
 
     for name in INT_PARAMS {
-        if let Some(value) = args.values.get(name) {
+        if let Some(value) = args.values.get(*name) {
             let value = value_as_query_string(value, name)?;
 
             args.values
@@ -1161,7 +1247,7 @@ pub fn parse_hydrus_network_get_args(
 
         args.insert(
             "subject_identifier",
-            Arc::new(AccountIdentifier::new_content(content)),
+            ArgValue::object(Arc::new(AccountIdentifier::new_content(content))),
         );
     }
 
@@ -1243,7 +1329,7 @@ pub fn parse_network_bytes_to_parsed_hydrus_args(
         let account = Account::generate_account_from_serialisable_tuple(&value.to_json_value()?)?;
 
         args.values
-            .insert("account".to_string(), ArgValue::Object(Arc::new(account)));
+            .insert("account".to_string(), ArgValue::other_object(Arc::new(account)));
     }
 
     if let Some(value) = args.values.shift_remove("accounts") {
@@ -1257,7 +1343,7 @@ pub fn parse_network_bytes_to_parsed_hydrus_args(
             let account =
                 Account::generate_account_from_serialisable_tuple(&item.to_json_value()?)?;
 
-            accounts.push(ArgValue::Object(Arc::new(account)));
+            accounts.push(ArgValue::other_object(Arc::new(account)));
         }
 
         args.values
@@ -1315,7 +1401,7 @@ pub fn parse_network_bytes_to_parsed_hydrus_args(
         for item in items {
             let service = generate_service_from_serialisable_tuple(&item.to_json_value()?)?;
 
-            services.push(ArgValue::Object(Arc::new(service)));
+            services.push(ArgValue::other_object(Arc::new(service)));
         }
 
         args.values
@@ -1613,18 +1699,103 @@ pub fn get_value_from_dict(
     }
 }
 
-/// `parse_file_arguments`.
-///
-/// TODO: this needs `files/HydrusFileHandling.py` and
-/// `files/images/HydrusImageHandling.py`, neither of which is ported yet.
+/// `parse_file_arguments( path, decompression_bombs_ok = False )`
 pub fn parse_file_arguments(
-    _path: impl AsRef<std::path::Path>,
-    _decompression_bombs_ok: bool,
+    path: impl AsRef<std::path::Path>,
+    decompression_bombs_ok: bool,
 ) -> HydrusResult<ParsedRequestArguments> {
-    Err(HydrusException::new(
-        ErrorKind::Unknown,
-        "parse_file_arguments is unavailable until the files modules are ported!",
-    ))
+    let path = path.as_ref();
+
+    let hash = hydrus_file_handling::get_hash_from_path(path)?;
+    let hash_hex = hex_encode(&hash);
+
+    let parsed = (|| -> HydrusResult<(hydrus_file_handling::FileInfo, Option<Vec<u8>>)> {
+        let mime = hydrus_file_handling::get_mime(path, false)?;
+
+        if DECOMPRESSION_BOMB_IMAGES.contains(&mime)
+            && !decompression_bombs_ok
+            && hydrus_image_handling::is_decompression_bomb(path, None)
+        {
+            return Err(HydrusException::new(
+                ErrorKind::InsufficientCredentials,
+                "File seemed to be a Decompression Bomb, which you cannot upload!",
+            ));
+        }
+
+        let file_info = hydrus_file_handling::get_file_info(path, Some(mime), false)?;
+
+        let thumbnail = if mimes_with_thumbnails().contains(&mime) {
+            let image_resolution = (
+                file_info.width.unwrap_or(1),
+                file_info.height.unwrap_or(1),
+            );
+
+            let target_resolution = hydrus_image_handling::get_thumbnail_resolution(
+                image_resolution,
+                SERVER_THUMBNAIL_DIMENSIONS,
+                ThumbnailScale::DownOnly,
+                100,
+            );
+
+            Some(hydrus_file_handling::generate_thumbnail_bytes(
+                path,
+                target_resolution,
+                mime,
+                file_info.duration_ms,
+                file_info.num_frames,
+                35.0,
+            )?)
+        } else {
+            None
+        };
+
+        Ok((file_info, thumbnail))
+    })();
+
+    let (file_info, thumbnail) = match parsed {
+        Ok(parsed) => parsed,
+        Err(error) => {
+            return Err(HydrusException::new(
+                ErrorKind::BadRequest,
+                format!("File {hash_hex} could not parse: {error}"),
+            ));
+        }
+    };
+
+    let mut args = ParsedRequestArguments::new();
+
+    args.insert("path", path.to_string_lossy().into_owned());
+    args.insert("hash", hash);
+    args.insert("size", file_info.size);
+    args.insert("mime", u64::from(file_info.mime.as_int()));
+
+    if let Some(width) = file_info.width {
+        args.insert("width", u64::from(width));
+    }
+
+    if let Some(height) = file_info.height {
+        args.insert("height", u64::from(height));
+    }
+
+    if let Some(duration_ms) = file_info.duration_ms {
+        args.insert("duration", duration_ms);
+    }
+
+    if let Some(num_frames) = file_info.num_frames {
+        args.insert("num_frames", u64::from(num_frames));
+    }
+
+    args.insert("has_audio", file_info.has_audio);
+
+    if let Some(num_words) = file_info.num_words {
+        args.insert("num_words", num_words);
+    }
+
+    if let Some(thumbnail) = thumbnail {
+        args.insert("thumbnail", thumbnail);
+    }
+
+    Ok(args)
 }
 
 #[cfg(test)]
@@ -1737,9 +1908,9 @@ mod tests {
         args.insert("reason", "hello world/blue");
         args.insert(
             "subject_identifier",
-            Arc::new(AccountIdentifier::new_content(Content::files(vec![
-                vec![0x00, 0x11],
-            ]))),
+            ArgValue::object(Arc::new(AccountIdentifier::new_content(Content::files(
+                vec![vec![0x00, 0x11]],
+            )))),
         );
 
         let query = dump_to_get_query(&args).unwrap();
@@ -1757,7 +1928,9 @@ mod tests {
 
         args.insert(
             "subject_identifier",
-            Arc::new(AccountIdentifier::new_account_key(vec![0xDE, 0xAD])),
+            ArgValue::object(Arc::new(AccountIdentifier::new_account_key(vec![
+                0xDE, 0xAD,
+            ]))),
         );
 
         let query = dump_to_get_query(&args).unwrap();
@@ -1817,7 +1990,7 @@ mod tests {
         let account = Arc::new(Account::generate_unknown_account(vec![0x01, 0x02, 0x03]));
 
         let mut args = ParsedRequestArguments::new();
-        args.insert("account", account.clone());
+        args.insert("account", ArgValue::other_object(account.clone()));
 
         let network_bytes = dump_hydrus_args_to_network_bytes(&args).unwrap();
         let parsed = parse_network_bytes_to_parsed_hydrus_args(&network_bytes).unwrap();
@@ -1847,7 +2020,10 @@ mod tests {
         );
 
         let mut args = ParsedRequestArguments::new();
-        args.insert("services", ArgValue::List(vec![ArgValue::Object(service)]));
+        args.insert(
+            "services",
+            ArgValue::List(vec![ArgValue::other_object(service)]),
+        );
 
         let network_bytes = dump_hydrus_args_to_network_bytes(&args).unwrap();
         let parsed = parse_network_bytes_to_parsed_hydrus_args(&network_bytes).unwrap();

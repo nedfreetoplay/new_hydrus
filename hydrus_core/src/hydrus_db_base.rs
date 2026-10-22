@@ -39,10 +39,6 @@ fn db_error(context: impl Display, error: rusqlite::Error) -> HydrusException {
     HydrusException::new(ErrorKind::Db, format!("{context}: {error}"))
 }
 
-fn access_error(message: impl Into<String>) -> HydrusException {
-    HydrusException::new(ErrorKind::DbAccess, message)
-}
-
 fn lock_connection(connection: &SharedConnection) -> MutexGuard<'_, Connection> {
     connection.lock().unwrap_or_else(|error| error.into_inner())
 }
@@ -1179,13 +1175,15 @@ impl DBCursorTransactionWrapper {
     }
 }
 
+/// The temporary-table name cache is process-global; tests that create or
+/// close a database must take this lock so another test cannot clear the cache
+/// while a name is in flight.
+#[cfg(test)]
+pub(crate) static TEMP_TABLE_TEST_LOCK: Mutex<()> = Mutex::new(());
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// The temporary-table name cache is process-global; these tests must not
-    /// clear it while another test has a table open.
-    static TEMP_TABLE_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     fn temp_db(name: &str) -> std::path::PathBuf {
         let dir = hydrus_temp::get_sub_temp_dir(&format!("db_base_{name}")).expect("temp dir");

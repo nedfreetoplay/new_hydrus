@@ -2,7 +2,7 @@
 //! `hydrus/core/files/HydrusVideoHandling.py`.
 //!
 //! The renderer at the end of the Python module is deliberately not part of
-//! this file. Rendering is provided by [`crate::hydrus_ffmpeg_rendering`], and
+//! this file. Rendering is provided by [`crate::files::hydrus_ffmpeg_rendering`], and
 //! keeping the ffprobe-output parsing here means the file handling layer can
 //! ask for MIME type and properties without depending on a renderer object.
 
@@ -11,13 +11,13 @@ use std::path::Path;
 use image::{DynamicImage, RgbImage, RgbaImage};
 use regex::Regex;
 
-use crate::hydrus_audio_handling;
+use crate::files::hydrus_audio_handling;
 use crate::hydrus_constants::{running_from_source, MIMES_THAT_WE_CAN_CHECK_FOR_TRANSPARENCY, ANIMATIONS, Mime};
 use crate::hydrus_data;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::hydrus_ffmpeg;
-use crate::hydrus_ffmpeg_parsing;
-use crate::hydrus_subprocess::{SubprocessCommand, SubprocessContext};
+use crate::files::hydrus_ffmpeg;
+use crate::files::hydrus_ffmpeg_parsing;
+use crate::processes::hydrus_subprocess::{SubprocessCommand, SubprocessContext};
 use crate::hydrus_time;
 
 fn damaged(message: impl Into<String>) -> HydrusException {

@@ -27,9 +27,9 @@ use crate::hydrus_constants::{
 };
 use crate::hydrus_data::{hex_decode, hex_encode};
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::hydrus_file_handling;
-use crate::hydrus_image_handling::{self, ThumbnailScale};
-use crate::hydrus_network::{
+use crate::files::hydrus_file_handling;
+use crate::files::images::hydrus_image_handling::{self, ThumbnailScale};
+use crate::networking::hydrus_network::{
     generate_service_from_serialisable_tuple, Account, AccountIdentifier, Content, ContentData,
     ServerService,
 };
@@ -2009,7 +2009,7 @@ mod tests {
         crate::initialise();
 
         let service = Arc::new(
-            crate::hydrus_network::generate_service(
+            crate::networking::hydrus_network::generate_service(
                 vec![0x10, 0x20],
                 crate::hydrus_constants::ServiceType::ServerAdmin,
                 "admin service",

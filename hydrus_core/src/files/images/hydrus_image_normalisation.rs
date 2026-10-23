@@ -12,10 +12,10 @@ use image::metadata::Orientation;
 use image::{DynamicImage, Rgba, RgbaImage};
 
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::hydrus_image_colours;
-use crate::hydrus_image_icc_profiles;
-use crate::hydrus_image_math_slop::{self, Matrix3};
-use crate::hydrus_image_metadata::{self, MetadataMap, MetadataValue};
+use crate::files::images::hydrus_image_colours;
+use crate::files::images::hydrus_image_icc_profiles;
+use crate::files::images::hydrus_image_math_slop::{self, Matrix3};
+use crate::files::images::hydrus_image_metadata::{self, MetadataMap, MetadataValue};
 
 static DO_ICC_PROFILE_NORMALISATION: AtomicBool = AtomicBool::new(true);
 
@@ -375,7 +375,7 @@ mod tests {
 
     #[test]
     fn opaque_rgba_loses_its_useless_alpha() {
-        let _guard = crate::hydrus_image_colours::TEST_LOCK.lock().unwrap();
+        let _guard = crate::files::images::hydrus_image_colours::TEST_LOCK.lock().unwrap();
 
         let image = DynamicImage::ImageRgba8(RgbaImage::from_pixel(
             4,
@@ -390,7 +390,7 @@ mod tests {
 
     #[test]
     fn interesting_alpha_is_kept() {
-        let _guard = crate::hydrus_image_colours::TEST_LOCK.lock().unwrap();
+        let _guard = crate::files::images::hydrus_image_colours::TEST_LOCK.lock().unwrap();
 
         let mut buffer = RgbaImage::from_pixel(10, 10, Rgba([10, 20, 30, 255]));
         buffer.put_pixel(0, 0, Rgba([10, 20, 30, 128]));

@@ -16,7 +16,7 @@ use image::GenericImageView;
 
 use crate::hydrus_constants::Mime;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::hydrus_image_handling;
+use crate::files::images::hydrus_image_handling;
 
 const FALLBACK_FRAME_DURATION_MS: u32 = 83;
 const APNG_FALLBACK_FRAME_DURATION_S: f64 = 0.1;

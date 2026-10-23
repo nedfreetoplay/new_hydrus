@@ -11,7 +11,7 @@ use image::imageops::FilterType;
 use image::DynamicImage;
 use roxmltree::Document;
 
-use crate::hydrus_archive_handling;
+use crate::files::hydrus_archive_handling;
 use crate::hydrus_constants::Mime;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 

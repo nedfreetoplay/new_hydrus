@@ -2,7 +2,7 @@
 //!
 //! Hydrus invokes the `ffmpeg` executable rather than linking a codec library.
 //! The port keeps that design: [`hydrus_subprocess`] drains stderr, and the
-//! small parsers in [`crate::hydrus_ffmpeg_parsing`] read the stream lines.
+//! small parsers in [`crate::files::hydrus_ffmpeg_parsing`] read the stream lines.
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -11,7 +11,7 @@ use crate::hydrus_constants::{PLATFORM_WINDOWS, dirs};
 use crate::hydrus_data;
 use crate::hydrus_environment;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::hydrus_subprocess::{self, SubprocessCommand, SubprocessResult};
+use crate::processes::hydrus_subprocess::{self, SubprocessCommand, SubprocessResult};
 
 /// `FFMPEG_SUBPROCESS_TIMEOUT`
 pub const FFMPEG_SUBPROCESS_TIMEOUT: u64 = 15;

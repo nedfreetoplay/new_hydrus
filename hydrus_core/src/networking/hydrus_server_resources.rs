@@ -30,7 +30,7 @@ use crate::hydrus_constants::{
 use crate::hydrus_data::hex_decode;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::hydrus_serialisable::{SerialisableObject, python_json_dumps};
-use crate::hydrus_server_request::{HydrusRequest, RequestHeaders};
+use crate::networking::hydrus_server_request::{HydrusRequest, RequestHeaders};
 
 /// The service information the resource layer needs.
 ///

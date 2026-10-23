@@ -24,7 +24,7 @@ use crate::hydrus_data::{generate_key, hex_decode, hex_encode, safe_print};
 use crate::hydrus_exceptions::{data_missing, ErrorKind, HydrusException, HydrusResult};
 use crate::hydrus_globals;
 use crate::hydrus_lists::split_list_into_chunks;
-use crate::hydrus_networking::{BandwidthRules, BandwidthTracker};
+use crate::networking::hydrus_networking::{BandwidthRules, BandwidthTracker};
 use crate::hydrus_numbers::base_to_human_int;
 use crate::hydrus_serialisable::{
     create_from_string, register_serialisable_type, SerialisableDictionary, SerialisableList,

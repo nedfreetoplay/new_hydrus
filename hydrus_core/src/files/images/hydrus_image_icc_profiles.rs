@@ -8,8 +8,8 @@
 use chrono::{Datelike, Timelike};
 
 use crate::hydrus_date_time;
-use crate::hydrus_image_icc_profiles_tag_slop as tag_slop;
-use crate::hydrus_image_math_slop::{float_to_s15_fixed16, Matrix3};
+use crate::files::images::hydrus_image_icc_profiles_tag_slop as tag_slop;
+use crate::files::images::hydrus_image_math_slop::{float_to_s15_fixed16, Matrix3};
 
 const ICC_HEADER_SIZE: usize = 128;
 

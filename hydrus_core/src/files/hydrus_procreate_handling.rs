@@ -9,7 +9,7 @@ use std::path::Path;
 
 use plist::Value;
 
-use crate::hydrus_archive_handling;
+use crate::files::hydrus_archive_handling;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 
 pub const PROCREATE_THUMBNAIL_FILE_PATH: &str = "QuickLook/Thumbnail.png";

@@ -6,8 +6,8 @@
 use std::path::Path;
 
 use crate::hydrus_exceptions::HydrusResult;
-use crate::hydrus_ffmpeg;
-use crate::hydrus_ffmpeg_parsing;
+use crate::files::hydrus_ffmpeg;
+use crate::files::hydrus_ffmpeg_parsing;
 
 /// Build the command that extracts an attached still image.
 pub fn build_attached_still_command(

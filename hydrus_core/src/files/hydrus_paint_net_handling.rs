@@ -11,7 +11,7 @@ use image::DynamicImage;
 use roxmltree::Document;
 
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::hydrus_image_handling;
+use crate::files::images::hydrus_image_handling;
 
 fn no_thumbnail(message: impl Into<String>) -> HydrusException {
     HydrusException::new(ErrorKind::NoThumbnailFile, message)

@@ -10,8 +10,8 @@ use std::path::Path;
 use image::DynamicImage;
 
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::hydrus_ffmpeg_rendering;
-use crate::hydrus_image_handling;
+use crate::files::hydrus_ffmpeg_rendering;
+use crate::files::images::hydrus_image_handling;
 
 /// `( resource_id, size, data_offset )`
 pub type PsdImageResource = (u16, u32, u64);

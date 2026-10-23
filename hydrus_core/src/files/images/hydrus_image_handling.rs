@@ -26,12 +26,12 @@ use sha2::{Digest, Sha256};
 
 use crate::hydrus_constants::Mime;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::hydrus_image_colours;
-use crate::hydrus_image_metadata::{self, ImageMetadata};
-use crate::hydrus_image_normalisation;
-use crate::hydrus_krita_handling;
-use crate::hydrus_ora_handling;
-use crate::hydrus_psd_handling;
+use crate::files::images::hydrus_image_colours;
+use crate::files::images::hydrus_image_metadata::{self, ImageMetadata};
+use crate::files::images::hydrus_image_normalisation;
+use crate::files::hydrus_krita_handling;
+use crate::files::hydrus_ora_handling;
+use crate::files::hydrus_psd_handling;
 
 /// `PILImage.MAX_IMAGE_PIXELS = ( 512 * ( 1024 ** 2 ) ) // 3`
 pub const MAX_IMAGE_PIXELS: u64 = (512 * (1024 * 1024)) / 3;

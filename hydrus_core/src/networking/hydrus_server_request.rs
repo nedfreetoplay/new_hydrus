@@ -20,9 +20,9 @@ use indexmap::IndexMap;
 
 use crate::hydrus_constants::Mime;
 use crate::hydrus_data::safe_print;
-use crate::hydrus_network::Account;
-use crate::hydrus_network_variable_handling::ParsedRequestArguments;
-use crate::hydrus_server_resources::ResponseContext;
+use crate::networking::hydrus_network::Account;
+use crate::networking::hydrus_network_variable_handling::ParsedRequestArguments;
+use crate::networking::hydrus_server_resources::ResponseContext;
 use crate::hydrus_temp::clean_up_temp_path;
 use crate::hydrus_time::{get_now_precise, time_delta_to_pretty_timedelta};
 

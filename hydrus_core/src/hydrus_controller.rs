@@ -20,7 +20,7 @@
 //! `start_twisted_if_needed`/`stop_twisted_if_running` have no Rust equivalent;
 //! they are hooks with no-op defaults so a client/server layer can plug in its
 //! own event loop later. `initialise_mimes_to_default_thumbnail_paths` is
-//! supplied by [`crate::hydrus_file_handling`] but remains a hook so a client
+//! supplied by [`crate::files::hydrus_file_handling`] but remains a hook so a client
 //! can replace the static-directory lookup.
 
 use std::any::Any;
@@ -38,11 +38,11 @@ use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::hydrus_globals;
 use crate::hydrus_logger::HydrusLogger;
 use crate::hydrus_paths::delete_path;
-use crate::hydrus_process;
+use crate::processes::hydrus_process;
 use crate::hydrus_pubsub::{PubSub, PubSubMessage, Subscriber};
-use crate::hydrus_subprocess;
+use crate::processes::hydrus_subprocess;
 use crate::hydrus_temp;
-use crate::hydrus_threading::{
+use crate::processes::hydrus_threading::{
     JobCall, JobScheduler, SchedulableJob, ThreadCall, ThreadCallToThread, ThreadWorkerPool,
     ThreadingController,
 };
@@ -84,7 +84,7 @@ pub trait ControllerHooks: Send + Sync {
 
     /// `initialise_mimes_to_default_thumbnail_paths()`
     fn initialise_mimes_to_default_thumbnail_paths(&self) {
-        crate::hydrus_file_handling::initialise_mimes_to_default_thumbnail_paths();
+        crate::files::hydrus_file_handling::initialise_mimes_to_default_thumbnail_paths();
     }
 
     /// Extra setup run at the end of `init_model`.
@@ -1293,7 +1293,7 @@ impl ThreadingController for HydrusController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hydrus_threading::thread_call;
+    use crate::processes::hydrus_threading::thread_call;
     use std::sync::atomic::AtomicUsize;
     use std::sync::Mutex as StdMutex;
 

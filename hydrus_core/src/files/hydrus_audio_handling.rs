@@ -7,7 +7,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
-use crate::hydrus_ffmpeg_parsing;
+use crate::files::hydrus_ffmpeg_parsing;
 
 fn audio_format_regex() -> &'static Regex {
     static REGEX: OnceLock<Regex> = OnceLock::new();

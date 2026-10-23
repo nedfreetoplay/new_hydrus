@@ -13,10 +13,10 @@ use image::DynamicImage;
 use serde_json::Value;
 use zip::ZipArchive;
 
-use crate::hydrus_archive_handling;
+use crate::files::hydrus_archive_handling;
 use crate::hydrus_constants::IMAGE_FILE_EXTS;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::hydrus_image_handling;
+use crate::files::images::hydrus_image_handling;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UgoiraFrame {

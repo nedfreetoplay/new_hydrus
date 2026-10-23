@@ -17,9 +17,9 @@ use md5::Md5;
 use sha1::Sha1;
 use sha2::{Digest, Sha256, Sha512};
 
-use crate::hydrus_animation_handling;
-use crate::hydrus_archive_handling;
-use crate::hydrus_clip_handling;
+use crate::files::hydrus_animation_handling;
+use crate::files::hydrus_archive_handling;
+use crate::files::hydrus_clip_handling;
 use crate::hydrus_constants::{
     allowed_mimes, mimes_that_definitely_have_audio, Mime, ANIMATIONS, ARCHIVES,
     AUDIO, HEIF_TYPE_SEQUENCES, IMAGES, PIL_AVIF_MIMES, PIL_HEIF_MIMES,
@@ -27,24 +27,24 @@ use crate::hydrus_constants::{
 };
 use crate::hydrus_data;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::hydrus_ffmpeg;
-use crate::hydrus_ffmpeg_rendering;
-use crate::hydrus_image_handling;
-use crate::hydrus_krita_handling;
-use crate::hydrus_ora_handling;
-use crate::hydrus_office_open_xml_handling;
-use crate::hydrus_ole_handling;
-use crate::hydrus_paint_net_handling;
+use crate::files::hydrus_ffmpeg;
+use crate::files::hydrus_ffmpeg_rendering;
+use crate::files::images::hydrus_image_handling;
+use crate::files::hydrus_krita_handling;
+use crate::files::hydrus_ora_handling;
+use crate::files::hydrus_office_open_xml_handling;
+use crate::files::hydrus_ole_handling;
+use crate::files::hydrus_paint_net_handling;
 use crate::hydrus_paths;
-use crate::hydrus_procreate_handling;
-use crate::hydrus_psd_handling;
+use crate::files::hydrus_procreate_handling;
+use crate::files::hydrus_psd_handling;
 use crate::hydrus_serialisable;
 use crate::hydrus_static_dir;
-use crate::hydrus_svg_handling;
+use crate::files::hydrus_svg_handling;
 use crate::hydrus_temp;
 use crate::hydrus_text;
-use crate::hydrus_ugoira_handling;
-use crate::hydrus_video_handling;
+use crate::files::hydrus_ugoira_handling;
+use crate::files::hydrus_video_handling;
 
 /// Python loads this through `HydrusStaticDir.get_static_path`.
 pub const DEFAULT_THUMBNAIL_FILENAME: &str = "hydrus.png";
@@ -691,7 +691,7 @@ pub fn generate_thumbnail_numpy_weird_application_gubbins(
     }
 
     if mime == Mime::Pdf {
-        let thumbnail = crate::hydrus_pdf_handling::base_generate_thumbnail_numpy_from_pdf_path(
+        let thumbnail = crate::files::hydrus_pdf_handling::base_generate_thumbnail_numpy_from_pdf_path(
             path,
             target_resolution,
         )?;
@@ -814,7 +814,7 @@ fn find_header_mime(first_bytes_of_file: &[u8]) -> Option<Mime> {
 
 fn update_mime_from_bytes(bytes: &[u8]) -> Option<Mime> {
     hydrus_serialisable::initialise_serialisable_registry();
-    crate::hydrus_network::register_serialisable_types();
+    crate::networking::hydrus_network::register_serialisable_types();
 
     let update = hydrus_serialisable::create_from_network_bytes(bytes, false).ok()?;
 
@@ -978,7 +978,7 @@ pub fn get_mime_from_ffmpeg(path: impl AsRef<Path>) -> HydrusResult<Mime> {
     let lines = hydrus_ffmpeg::get_ffmpeg_info_lines(path, None)?;
 
     let (has_video, video_format, _) = hydrus_video_handling::parse_ffmpeg_video_format(&lines);
-    let (has_audio, audio_format, _, _) = crate::hydrus_audio_handling::parse_ffmpeg_audio(&lines);
+    let (has_audio, audio_format, _, _) = crate::files::hydrus_audio_handling::parse_ffmpeg_audio(&lines);
 
     if !has_video && !has_audio {
         return Ok(Mime::Unknown);
@@ -1252,7 +1252,7 @@ pub fn get_file_info(
         num_words = hydrus_ole_handling::office_ole_document_word_count(path).unwrap_or(None);
     } else if mime == Mime::Flash {
         if let Ok(((flash_width, flash_height), flash_duration, flash_frames)) =
-            crate::hydrus_flash_handling::get_flash_properties(path)
+            crate::files::hydrus_flash_handling::get_flash_properties(path)
         {
             width = Some(flash_width as u32);
             height = Some(flash_height as u32);

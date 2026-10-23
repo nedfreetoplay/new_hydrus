@@ -693,7 +693,7 @@ pub struct SubprocessContext {
     timeout: u64,
     process: Arc<Mutex<Child>>,
     chunk_queue: Arc<(Mutex<ChunkQueue>, Condvar)>,
-    new_chunk_desired: Arc<crate::hydrus_threading::Event>,
+    new_chunk_desired: Arc<crate::processes::hydrus_threading::Event>,
     finished: Arc<AtomicBool>,
     reader: Mutex<Option<std::thread::JoinHandle<()>>>,
 }
@@ -731,7 +731,7 @@ impl SubprocessContext {
             }),
             Condvar::new(),
         ));
-        let new_chunk_desired = Arc::new(crate::hydrus_threading::Event::new());
+        let new_chunk_desired = Arc::new(crate::processes::hydrus_threading::Event::new());
         let finished = Arc::new(AtomicBool::new(false));
 
         let reader = {
@@ -779,7 +779,7 @@ impl SubprocessContext {
         mut stdout: std::process::ChildStdout,
         process: &Arc<Mutex<Child>>,
         chunk_queue: &Arc<(Mutex<ChunkQueue>, Condvar)>,
-        new_chunk_desired: &Arc<crate::hydrus_threading::Event>,
+        new_chunk_desired: &Arc<crate::processes::hydrus_threading::Event>,
         finished: &Arc<AtomicBool>,
         bufsize: usize,
     ) {

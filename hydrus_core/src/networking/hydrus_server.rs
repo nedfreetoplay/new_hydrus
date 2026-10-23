@@ -19,7 +19,7 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 
 use crate::hydrus_constants::{CLIENT_API_VERSION, Mime, NETWORK_VERSION, SOFTWARE_VERSION, ServiceType};
-use crate::hydrus_server_resources::{
+use crate::networking::hydrus_server_resources::{
     HydrusDomain, HydrusResourceService, ResponseContext, robots_txt_response, welcome_response,
 };
 use crate::hydrus_static_dir::get_static_path;
@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(robots.get_mime(), Mime::PlainText);
         assert_eq!(
             robots.get_body_bytes(),
-            Some(crate::hydrus_server_resources::ROBOTS_TXT.as_bytes())
+            Some(crate::networking::hydrus_server_resources::ROBOTS_TXT.as_bytes())
         );
 
         assert!(service.render_resource("nope").unwrap().is_none());

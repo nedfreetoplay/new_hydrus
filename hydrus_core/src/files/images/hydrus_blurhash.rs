@@ -10,7 +10,7 @@ use std::f64::consts::PI;
 use image::{DynamicImage, RgbImage};
 
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::hydrus_image_handling;
+use crate::files::images::hydrus_image_handling;
 
 const BASE83_ALPHABET: &[u8; 83] =
     b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%*+,-.:;=?@[]^_{|}~";

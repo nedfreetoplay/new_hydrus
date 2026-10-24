@@ -90,6 +90,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 ## 6. Файлы
 
 - [x] `ClientFilesPhysical` — `FilesStorageBaseLocation`, `FilesStorageSubfolder`, префиксы.
+  Сверено с `TestClientFileStorage.py`: weights/eager/would/needs и вложенные префиксы.
 - [x] `ClientFilesManager` — раскладка файлов/миниатюр, миграция хранилищ.
 - [x] `ClientFiles` — операции чтения/записи, блокировки.
 - [~] `ClientFilesMaintenance`/`ClientFilesMaintenanceManager` — очередь обслуживания.

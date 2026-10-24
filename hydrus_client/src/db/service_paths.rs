@@ -151,8 +151,8 @@ fn directory_id(dirname: &str) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::master::get_hash_id;
     use crate::db::ClientDB;
+    use crate::db::master::get_hash_id;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(
@@ -173,7 +173,9 @@ mod tests {
         set_service_filename(db.db(), 2, hash_id, "two.png").unwrap();
 
         assert_eq!(
-            get_service_filename(db.db(), 1, hash_id).unwrap().as_deref(),
+            get_service_filename(db.db(), 1, hash_id)
+                .unwrap()
+                .as_deref(),
             Some("one.png")
         );
         assert_eq!(
@@ -199,7 +201,9 @@ mod tests {
         assert_eq!(info[0].num_files, 2);
         assert_eq!(info[0].total_size, 2048);
         assert_eq!(
-            get_service_directory_hashes(db.db(), 1, "album").unwrap().len(),
+            get_service_directory_hashes(db.db(), 1, "album")
+                .unwrap()
+                .len(),
             2
         );
 

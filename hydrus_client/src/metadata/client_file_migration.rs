@@ -42,8 +42,12 @@ pub fn build_local_file_migration_package(
     if action == MoveAction::Move {
         if let Some(source_service_key) = source_service_key {
             updates.push(
-                ContentUpdate::new(ContentAction::Delete, source_service_key, ContentType::Files)
-                    .with_hashes(hashes),
+                ContentUpdate::new(
+                    ContentAction::Delete,
+                    source_service_key,
+                    ContentType::Files,
+                )
+                .with_hashes(hashes),
             );
         }
     }

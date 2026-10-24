@@ -106,10 +106,7 @@ pub fn drop_hash_ids_from_cache(db: &DBBase, hash_ids: &[i64]) -> HydrusResult<(
 
 pub fn drop_tag_ids_from_cache(db: &DBBase, tag_ids: &[i64]) -> HydrusResult<()> {
     for tag_id in tag_ids {
-        db.execute(
-            "DELETE FROM local_tags_cache WHERE tag_id = ?",
-            &[tag_id],
-        )?;
+        db.execute("DELETE FROM local_tags_cache WHERE tag_id = ?", &[tag_id])?;
     }
 
     Ok(())
@@ -144,9 +141,9 @@ pub fn repopulate_tag_cache(db: &DBBase) -> HydrusResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::ClientDB;
     use crate::db::master::get_hash_id;
     use crate::db::master_tags::get_tag_id;
-    use crate::db::ClientDB;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(

@@ -124,7 +124,8 @@ impl PagesNotebook {
     }
 
     pub fn get_current_page_mut(&mut self) -> Option<&mut Page> {
-        self.current_index.and_then(|index| self.pages.get_mut(index))
+        self.current_index
+            .and_then(|index| self.pages.get_mut(index))
     }
 
     pub fn set_current_index(&mut self, index: usize) -> bool {

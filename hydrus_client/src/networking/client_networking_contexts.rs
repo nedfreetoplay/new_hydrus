@@ -224,11 +224,10 @@ mod tests {
 
     #[test]
     fn page_contexts_are_ephemeral() {
-        assert!(NetworkContext::for_key(
-            client_constants::NETWORK_CONTEXT_DOWNLOADER_PAGE,
-            vec![1]
-        )
-        .is_ephemeral());
+        assert!(
+            NetworkContext::for_key(client_constants::NETWORK_CONTEXT_DOWNLOADER_PAGE, vec![1])
+                .is_ephemeral()
+        );
         assert!(!NetworkContext::for_domain("example.com").is_ephemeral());
     }
 }

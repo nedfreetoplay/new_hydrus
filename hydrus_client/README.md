@@ -41,8 +41,8 @@ contexts, мост системных предикатов), медиа-моде
 операции, `ClientServices`, контроллер и каркас Qt-окна, `QtInit`/стиль/shortcuts.
 
 БД: схема, сервисы, хэши, master-теги, mappings, files_info/storage/timestamps/inbox,
-viewing stats, storage configuration, notes/ratings/urls и применение
-`ContentUpdatePackage`.
+viewing stats, storage configuration, notes/ratings/urls/service paths, definitions cache,
+сборка `MediaResult` и применение `ContentUpdatePackage`.
 
 Актуальный план и флаги: [PORTING_TODO.md](PORTING_TODO.md).
 Архитектура: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

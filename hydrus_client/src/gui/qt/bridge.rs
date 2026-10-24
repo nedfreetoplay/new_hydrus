@@ -85,7 +85,11 @@ pub fn run_application(title: &str, status: &str) {
     ffi::hydrus_panel_add_button(panel.pin_mut(), "Search");
     ffi::hydrus_panel_add_checkbox(panel.pin_mut(), "Darkmode", false);
     ffi::hydrus_panel_add_stretch(panel.pin_mut());
-    ffi::hydrus_add_page_widget(window.pin_mut(), model.pages.first().copied().unwrap_or("Welcome"), panel.pin_mut());
+    ffi::hydrus_add_page_widget(
+        window.pin_mut(),
+        model.pages.first().copied().unwrap_or("Welcome"),
+        panel.pin_mut(),
+    );
 
     for menu in model.menus {
         for action in menu.actions {

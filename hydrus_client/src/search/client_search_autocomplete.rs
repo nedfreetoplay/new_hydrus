@@ -1,8 +1,8 @@
 //! Autocomplete parsing from `hydrus/client/search/ClientSearchAutocomplete.py`.
 
 use crate::search::client_search_predicate::{Predicate, PredicateValue};
-use crate::search::predicate_constants::{PREDICATE_TYPE_TAG, PREDICATE_TYPE_WILDCARD};
 use crate::search::parse_system_predicate;
+use crate::search::predicate_constants::{PREDICATE_TYPE_TAG, PREDICATE_TYPE_WILDCARD};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TagAutocompleteOptions {
@@ -76,7 +76,9 @@ impl ParsedAutocompleteText {
     pub fn is_tag_search(&self, allow_auto_wildcard_conversion: bool) -> bool {
         let text = self.get_search_text(false, false);
 
-        !text.is_empty() && !text.starts_with("system:") && !self.is_namespace_search()
+        !text.is_empty()
+            && !text.starts_with("system:")
+            && !self.is_namespace_search()
             && !self.is_explicit_wildcard(allow_auto_wildcard_conversion)
     }
 
@@ -98,7 +100,9 @@ impl ParsedAutocompleteText {
             return None;
         }
 
-        parse_system_predicate(&text).ok().map(|predicate| vec![predicate])
+        parse_system_predicate(&text)
+            .ok()
+            .map(|predicate| vec![predicate])
     }
 
     pub fn get_immediate_file_search_predicate(
@@ -106,13 +110,15 @@ impl ParsedAutocompleteText {
         allow_auto_wildcard_conversion: bool,
     ) -> Option<Predicate> {
         if self.is_possible_system_predicate() {
-            return self.get_valid_system_predicates().and_then(|mut predicates| {
-                if predicates.len() == 1 {
-                    predicates.pop()
-                } else {
-                    None
-                }
-            });
+            return self
+                .get_valid_system_predicates()
+                .and_then(|mut predicates| {
+                    if predicates.len() == 1 {
+                        predicates.pop()
+                    } else {
+                        None
+                    }
+                });
         }
 
         let text = self.get_search_text(false, false);
@@ -127,7 +133,10 @@ impl ParsedAutocompleteText {
                 PredicateValue::Text(text),
             ))
         } else if self.is_tag_search(allow_auto_wildcard_conversion) {
-            Some(Predicate::new(PREDICATE_TYPE_TAG, PredicateValue::Text(text)))
+            Some(Predicate::new(
+                PREDICATE_TYPE_TAG,
+                PredicateValue::Text(text),
+            ))
         } else {
             None
         }

@@ -92,7 +92,9 @@ impl CallAfterQueue {
     }
 
     fn calls(&self) -> MutexGuard<'_, Vec<ScheduledCall>> {
-        self.calls.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.calls
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 }
 
@@ -195,12 +197,18 @@ mod tests {
         let first = counter.clone();
         let second = counter.clone();
 
-        queue.schedule(10, Box::new(move || {
-            first.fetch_add(1, Ordering::SeqCst);
-        }));
-        queue.schedule(20, Box::new(move || {
-            second.fetch_add(10, Ordering::SeqCst);
-        }));
+        queue.schedule(
+            10,
+            Box::new(move || {
+                first.fetch_add(1, Ordering::SeqCst);
+            }),
+        );
+        queue.schedule(
+            20,
+            Box::new(move || {
+                second.fetch_add(10, Ordering::SeqCst);
+            }),
+        );
 
         assert_eq!(queue.run_due(9), 0);
         assert_eq!(queue.run_due(10), 1);

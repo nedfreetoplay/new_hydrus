@@ -6,8 +6,7 @@ pub const MAGIC_TEXT_PADDING: f64 = 1.1;
 pub type Colour = (u8, u8, u8);
 
 pub fn colour_is_bright(colour: Colour) -> bool {
-    let luminance =
-        0.299 * colour.0 as f64 + 0.587 * colour.1 as f64 + 0.114 * colour.2 as f64;
+    let luminance = 0.299 * colour.0 as f64 + 0.587 * colour.1 as f64 + 0.114 * colour.2 as f64;
 
     luminance > 127.5
 }
@@ -72,7 +71,11 @@ pub fn convert_pixels_to_text_width(char_width: f64, pixels: i32, round_down: bo
 
     let value = pixels as f64 / (char_width * MAGIC_TEXT_PADDING);
 
-    if round_down { value.floor() as i32 } else { value.round() as i32 }
+    if round_down {
+        value.floor() as i32
+    } else {
+        value.round() as i32
+    }
 }
 
 pub fn convert_text_to_pixel_height(char_height: f64, char_rows: f64) -> i32 {

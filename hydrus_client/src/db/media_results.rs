@@ -16,8 +16,7 @@ pub fn get_media_result(db: &DBBase, hash_id: i64) -> HydrusResult<Option<MediaR
         return Ok(None);
     };
 
-    let Some(hash) = definitions_cache::get_hash(db, hash_id)?
-        .or(master::get_hash(db, hash_id)?)
+    let Some(hash) = definitions_cache::get_hash(db, hash_id)?.or(master::get_hash(db, hash_id)?)
     else {
         return Ok(None);
     };
@@ -53,12 +52,8 @@ pub fn get_media_result(db: &DBBase, hash_id: i64) -> HydrusResult<Option<MediaR
                 }
             }
             ServiceType::LocalTag => {
-                let tags = mappings::get_tags(
-                    db,
-                    service.service_id,
-                    ContentStatus::Current,
-                    hash_id,
-                )?;
+                let tags =
+                    mappings::get_tags(db, service.service_id, ContentStatus::Current, hash_id)?;
 
                 media_result.tags_manager.tags.add_tags(
                     service.service_key.clone(),
@@ -97,9 +92,9 @@ pub fn get_media_result(db: &DBBase, hash_id: i64) -> HydrusResult<Option<MediaR
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::ClientDB;
     use crate::db::master_tags::get_tag_id;
     use crate::db::{files_metadata, notes, ratings};
-    use crate::db::ClientDB;
     use crate::metadata::Rating;
     use hydrus_core::files::hydrus_file_handling::FileInfo;
     use hydrus_core::hydrus_constants::Mime;
@@ -179,7 +174,10 @@ mod tests {
         assert_eq!(media.get_size(), 1024);
         assert!(media.get_inbox());
         assert!(media.locations_manager.is_current(b"my files"));
-        assert_eq!(media.tags_manager.get_tags(b"local tags"), vec!["blue eyes"]);
+        assert_eq!(
+            media.tags_manager.get_tags(b"local tags"),
+            vec!["blue eyes"]
+        );
         assert_eq!(
             media.ratings_manager.get_rating(b"rating"),
             Some(Rating::Numerical(0.5))

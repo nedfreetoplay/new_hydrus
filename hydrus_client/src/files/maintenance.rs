@@ -68,9 +68,7 @@ pub fn regen_file_enum_to_str(job_type: i32) -> &'static str {
             "if file is missing/incorrect, try URL, else remove record"
         }
         REGENERATE_FILE_DATA_JOB_FIX_PERMISSIONS => "fix file permissions",
-        REGENERATE_FILE_DATA_JOB_FILE_MODIFIED_TIMESTAMP => {
-            "regenerate file modified time"
-        }
+        REGENERATE_FILE_DATA_JOB_FILE_MODIFIED_TIMESTAMP => "regenerate file modified time",
         REGENERATE_FILE_DATA_JOB_CHECK_POTENTIAL_DUPLICATE_PAIR_SEARCH_MEMBERSHIP => {
             "check potential duplicate pair search membership"
         }
@@ -115,7 +113,11 @@ mod tests {
     #[test]
     fn every_known_job_has_a_description() {
         for job_type in 0..=26 {
-            assert_ne!(regen_file_enum_to_str(job_type), "unknown job", "{job_type}");
+            assert_ne!(
+                regen_file_enum_to_str(job_type),
+                "unknown job",
+                "{job_type}"
+            );
         }
     }
 
@@ -125,6 +127,9 @@ mod tests {
             normalised_weight(REGENERATE_FILE_DATA_JOB_BLURHASH),
             NORMALISED_BIG_JOB_WEIGHT
         );
-        assert_eq!(normalised_weight(REGENERATE_FILE_DATA_JOB_FIX_PERMISSIONS), 1);
+        assert_eq!(
+            normalised_weight(REGENERATE_FILE_DATA_JOB_FIX_PERMISSIONS),
+            1
+        );
     }
 }

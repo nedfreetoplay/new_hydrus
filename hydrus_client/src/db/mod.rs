@@ -1,12 +1,12 @@
 //! Client database facade.
 //!
-//! This milestone opens `client.db` synchronously with `hydrus_core::DBBase`
-//! and owns the initial schema. The threaded `HydrusDB` facade and the
-//! 619→689 migration chain are ported in the DB milestone that follows.
+//! The client opens `client.db` synchronously with `hydrus_core::DBBase` and
+//! owns the initial schema. Migration steps from 619 to the current version
+//! live in [`migrations`]; the threaded `HydrusDB` job queue is not needed by
+//! the client's synchronous DB layer.
 
 use std::path::{Path, PathBuf};
 
-use hydrus_core::hydrus_constants::SOFTWARE_VERSION;
 use hydrus_core::hydrus_db_base::DBBase;
 use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_core::hydrus_paths;
@@ -26,6 +26,7 @@ pub mod mappings;
 pub mod master;
 pub mod master_tags;
 pub mod media_results;
+pub mod migrations;
 pub mod module;
 pub mod notes;
 pub mod ratings;
@@ -80,18 +81,7 @@ impl ClientDB {
     }
 
     pub fn update_db(&self) -> HydrusResult<i64> {
-        let mut version = self.get_version()?;
-
-        // Individual schema/data migrations are added by later milestones.
-        // Until then we only advance the recorded version so the boot path can
-        // report a consistent database.
-        if version < SOFTWARE_VERSION as i64 {
-            version = SOFTWARE_VERSION as i64;
-            self.db
-                .execute("UPDATE version SET version = ?", &[&version])?;
-        }
-
-        Ok(version)
+        migrations::migrate(&self.db, self.get_version()?)
     }
 
     pub fn read_options_text(&self) -> HydrusResult<Option<String>> {
@@ -148,7 +138,10 @@ mod tests {
 
         assert!(db.db().table_exists("version").unwrap());
         assert!(db.db().table_exists("services").unwrap());
-        assert_eq!(db.get_version().unwrap(), SOFTWARE_VERSION as i64);
+        assert_eq!(
+            db.get_version().unwrap(),
+            hydrus_core::hydrus_constants::SOFTWARE_VERSION as i64
+        );
 
         drop(db);
         let _ = std::fs::remove_dir_all(directory);

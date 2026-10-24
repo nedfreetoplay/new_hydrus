@@ -272,7 +272,10 @@ mod tests {
     fn multi_character_prefixes_nest_like_python() {
         let subfolder = FilesStorageSubfolder::new("fab3", base());
 
-        assert_eq!(subfolder.path(), Path::new("C:/hydrus/files").join("fab").join("3"));
+        assert_eq!(
+            subfolder.path(),
+            Path::new("C:/hydrus/files").join("fab").join("3")
+        );
         assert!(subfolder.get_file_path("abc").ends_with("fab/3/abc"));
     }
 
@@ -306,11 +309,8 @@ mod tests {
         ));
         assert!(unlimited.able_to_accept_subfolders(subfolder_size * 128, subfolder_size));
 
-        let limited = FilesStorageBaseLocation::new(
-            "C:/hydrus/files",
-            2,
-            Some(subfolder_size * 20),
-        );
+        let limited =
+            FilesStorageBaseLocation::new("C:/hydrus/files", 2, Some(subfolder_size * 20));
 
         assert!(!limited.needs_to_remove_subfolders(subfolder_size * 16));
         assert!(limited.needs_to_remove_subfolders(subfolder_size * 32));

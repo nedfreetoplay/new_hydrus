@@ -158,8 +158,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Портированы WatcherImport/MultipleWatcherImport, Subscription и менеджер; работа с сетью дальше.
 - [~] `ClientImportLocal` — импорт-папки.
   Портированы ImportFolder/ImportFoldersManager и планирование; HDDImport-очередь дальше.
-- [~] `importing/options/*` — ImportOptions/TagImportOptions/FileFiltering.
-  Портированы file filtering, tag import options и контейнер; manager/legacy дальше.
+- [x] `importing/options/*` — ImportOptions/TagImportOptions/FileFiltering.
+  File filtering, tag import options, контейнер и `ImportOptionsManager`.
 - [~] `ClientDuplicates*`, `ClientPotentialDuplicates*`.
   Портированы merge options, pair decisions и очередь пар; авто-разрешение и сравнение дальше.
 

@@ -2,6 +2,7 @@ pub mod file_seeds;
 pub mod gallery_and_urls;
 pub mod import_folders;
 pub mod options;
+pub mod options_manager;
 pub mod watchers_subscriptions;
 
 pub use file_seeds::{FileSeed, FileSeedCache};
@@ -12,6 +13,7 @@ pub use import_folders::{ImportFolder, ImportFolderAction, ImportFoldersManager}
 pub use options::{
     FileFilteringImportOptions, ImportOptionsContainer, ServiceTagImportOptions, TagImportOptions,
 };
+pub use options_manager::ImportOptionsManager;
 pub use watchers_subscriptions::{
     MultipleWatcherImport, Subscription, SubscriptionsManager, WatcherImport,
 };

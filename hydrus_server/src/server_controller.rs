@@ -1,4 +1,4 @@
-//! Rust port of `hydrus/server/ServerController.py`.
+﻿//! Rust port of `hydrus/server/ServerController.py`.
 //!
 //! The controller is being built up in layers. This first layer owns the
 //! server directory layout and installs the process-global controller that
@@ -6,13 +6,18 @@
 //! will be added on top of this bootstrap without changing that contract.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock, Weak};
 
 use hydrus_core::hydrus_db::DBController;
-use hydrus_core::hydrus_exceptions::HydrusResult;
+use hydrus_core::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use hydrus_core::hydrus_pubsub::PubSubMessage;
 use hydrus_core::hydrus_sessions::HydrusSessionManagerServer;
+use hydrus_core::networking::hydrus_server_request::HydrusRequest;
+use hydrus_core::networking::hydrus_server_resources::ResponseContext;
 
+use crate::networking::server_server::ServerResourceTree;
+use crate::networking::server_server_resources::{ServerResourceRuntime, render_resource};
 use crate::server_db::{ServerDB, ServerSessionController};
 use crate::server_files::ServerFiles;
 use crate::server_globals::{self, ServerController};
@@ -23,6 +28,8 @@ pub struct Controller {
     files_dir: PathBuf,
     db: OnceLock<Arc<ServerDB>>,
     session_manager: OnceLock<Arc<HydrusSessionManagerServer>>,
+    busy: Arc<AtomicBool>,
+    shutdown_requested: Arc<AtomicBool>,
 }
 
 impl Controller {
@@ -36,6 +43,8 @@ impl Controller {
             files_dir,
             db: OnceLock::new(),
             session_manager: OnceLock::new(),
+            busy: Arc::new(AtomicBool::new(false)),
+            shutdown_requested: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -86,6 +95,71 @@ impl Controller {
         let _ = self.session_manager.set(Arc::clone(&manager));
 
         Ok(manager)
+    }
+
+    #[allow(dead_code)]
+    pub fn busy(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.busy)
+    }
+
+    #[allow(dead_code)]
+    pub fn shutdown_requested(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.shutdown_requested)
+    }
+
+    /// Build the runtime object a service's resource handlers need.
+    pub fn resource_runtime(
+        self: &Arc<Self>,
+        service_key: &[u8],
+    ) -> HydrusResult<ServerResourceRuntime> {
+        let db = self.open_database()?;
+        let session_manager = self.open_session_manager()?;
+        let service = db
+            .get_services(None)?
+            .into_iter()
+            .find(|service| service.get_service_key() == service_key)
+            .ok_or_else(|| {
+                HydrusException::new(
+                    ErrorKind::DataMissing,
+                    "Could not find the requested server service.",
+                )
+            })?;
+
+        Ok(ServerResourceRuntime {
+            db,
+            session_manager,
+            service: Arc::new(service),
+            busy: Arc::clone(&self.busy),
+            shutdown_requested: Arc::clone(&self.shutdown_requested),
+        })
+    }
+
+    /// Render one path for a service through its route tree.
+    pub fn render_service_request(
+        self: &Arc<Self>,
+        service_key: &[u8],
+        path: &str,
+        request: &mut HydrusRequest,
+    ) -> HydrusResult<ResponseContext> {
+        let runtime = self.resource_runtime(service_key)?;
+        let routes = ServerResourceTree::for_service_type(runtime.service.get_service_type())?;
+
+        let route = routes.get_child(path).copied().ok_or_else(|| {
+            HydrusException::new(
+                ErrorKind::NotFound,
+                format!("No server resource is registered at \"{path}\"."),
+            )
+        })?;
+
+        render_resource(route.kind, route, &runtime, request)
+    }
+
+    /// The administration service sets this from /shutdown.
+    #[allow(dead_code)]
+    pub fn shutdown_from_server(&self) -> HydrusResult<()> {
+        self.shutdown_requested.store(true, Ordering::Relaxed);
+
+        Ok(())
     }
 
     /// Install this controller in the `ServerGlobals` slot.

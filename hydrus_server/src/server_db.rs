@@ -419,6 +419,23 @@ impl ServerDB {
         get_account_key_from_access_key(&self.db.db_base()?, service_id, access_key)
     }
 
+    /// `_get_all_accounts( service_key, admin_account )`
+    pub fn get_all_accounts(&self, service_key: &[u8]) -> HydrusResult<Vec<NetworkAccount>> {
+        let service_id = self.get_service_id(service_key)?;
+        let db = self.db.db_base()?;
+
+        let account_ids = db.query_all(
+            "SELECT account_id FROM accounts WHERE service_id = ? ORDER BY account_id;",
+            &[&service_id],
+            |row| row.get::<_, i64>(0),
+        )?;
+
+        account_ids
+            .into_iter()
+            .map(|account_id| get_account(&db, service_id, account_id))
+            .collect()
+    }
+
     /// `_get_account( service_id, account_id )`
     pub fn get_account(&self, service_id: i64, account_id: i64) -> HydrusResult<NetworkAccount> {
         get_account(&self.db.db_base()?, service_id, account_id)

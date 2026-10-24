@@ -15,7 +15,8 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use hydrus_core::hydrus_constants::ServiceType;
-use hydrus_core::hydrus_exceptions::HydrusResult;
+use hydrus_core::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
+use hydrus_core::networking::hydrus_server_request::HydrusRequest;
 
 use networking::server_server::ServerResourceTree;
 use server_controller::Controller;
@@ -51,6 +52,19 @@ fn run() -> HydrusResult<()> {
     let files = controller.files();
 
     let admin_routes = ServerResourceTree::for_service_type(ServiceType::ServerAdmin)?;
+    let admin_key = services
+        .iter()
+        .find(|service| service.get_service_type() == ServiceType::ServerAdmin)
+        .map(|service| service.get_service_key().to_vec())
+        .ok_or_else(|| {
+            HydrusException::new(
+                ErrorKind::DataMissing,
+                "No administration service was found.",
+            )
+        })?;
+
+    let mut busy_request = HydrusRequest::new("GET", "/busy").with_client_ip("127.0.0.1");
+    let busy_response = controller.render_service_request(&admin_key, "busy", &mut busy_request)?;
 
     println!(
         "hydrus_server: database directory at \"{}\"",
@@ -68,6 +82,10 @@ fn run() -> HydrusResult<()> {
     println!(
         "hydrus_server: administration service has {} routes",
         admin_routes.len()
+    );
+    println!(
+        "hydrus_server: /busy -> {}",
+        String::from_utf8_lossy(busy_response.get_body_bytes().unwrap_or_default())
     );
 
     Ok(())

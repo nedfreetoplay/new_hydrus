@@ -110,6 +110,8 @@ pub struct HydrusRequest {
     pub path: String,
     pub client_ip: String,
     pub request_headers: RequestHeaders,
+    /// Raw request body, corresponding to Twisted's `request.content`.
+    pub body: Vec<u8>,
 
     pub start_time: Instant,
     pub parsed_request_args: ParsedRequestArguments,
@@ -134,6 +136,7 @@ impl HydrusRequest {
             path: path.into(),
             client_ip: String::new(),
             request_headers: RequestHeaders::new(),
+            body: Vec::new(),
             start_time: get_now_precise(),
             parsed_request_args: ParsedRequestArguments::new(),
             hydrus_response_context: None,

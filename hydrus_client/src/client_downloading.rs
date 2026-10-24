@@ -1,11 +1,14 @@
 //! Quick download state from `hydrus/client/ClientDownloading.py`.
 
 use std::any::Any;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_core::hydrus_serialisable::{self, SerialisableObject};
 use serde_json::{Value, json};
+
+use crate::networking::client_networking::{HttpTransport, NetworkEngine};
+use crate::networking::client_networking_jobs::NetworkJob;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GalleryIdentifier {
@@ -84,6 +87,7 @@ pub struct QuickDownloadManager {
     active: BTreeSet<Vec<u8>>,
     finished: BTreeSet<Vec<u8>>,
     failed: BTreeSet<Vec<u8>>,
+    urls: BTreeMap<Vec<u8>, String>,
 }
 
 impl QuickDownloadManager {
@@ -124,6 +128,60 @@ impl QuickDownloadManager {
 
     pub fn is_queued(&self, hash: &[u8]) -> bool {
         self.pending.contains(hash)
+    }
+
+    /// Queues a download with the file URL used to fetch it.
+    pub fn download_urls(
+        &mut self,
+        pairs: impl IntoIterator<Item = (Vec<u8>, String)>,
+    ) {
+        for (hash, url) in pairs {
+            if self.finished.contains(&hash) || self.active.contains(&hash) {
+                continue;
+            }
+
+            self.urls.insert(hash.clone(), url);
+            self.pending.insert(hash);
+        }
+    }
+
+    /// Runs one queued download and returns the downloaded bytes.
+    pub fn run_next_download<T: HttpTransport>(
+        &mut self,
+        engine: &mut NetworkEngine<T>,
+    ) -> Option<(Vec<u8>, HydrusResult<Vec<u8>>)> {
+        let hash = self.pop_next()?;
+
+        let Some(url) = self.urls.get(&hash).cloned() else {
+            self.fail(&hash);
+            return Some((
+                hash,
+                Err(hydrus_core::hydrus_exceptions::unknown(
+                    "no URL was registered for this hash",
+                )),
+            ));
+        };
+
+        engine.add_job(NetworkJob::get(url));
+        let job = engine.run_next()?;
+
+        match job.get_response() {
+            Some(body) => {
+                self.finish(&hash);
+                self.urls.remove(&hash);
+                Some((hash, Ok(body.to_vec())))
+            }
+            None => {
+                self.fail(&hash);
+                let message = job
+                    .error
+                    .unwrap_or_else(|| "download failed".to_string());
+                Some((
+                    hash,
+                    Err(hydrus_core::hydrus_exceptions::unknown(message)),
+                ))
+            }
+        }
     }
 
     pub fn is_active(&self, hash: &[u8]) -> bool {
@@ -216,5 +274,60 @@ mod tests {
         assert!(manager.is_failed(&hash));
         assert!(!manager.is_finished(&hash));
         assert!(manager.is_idle());
+    }
+
+    struct MockTransport {
+        body: Vec<u8>,
+        fail: bool,
+    }
+
+    impl crate::networking::client_networking::HttpTransport for MockTransport {
+        fn execute(
+            &self,
+            _request: &crate::networking::client_networking::NetworkRequest,
+        ) -> HydrusResult<crate::networking::client_networking::NetworkResponse> {
+            if self.fail {
+                return Err(hydrus_core::hydrus_exceptions::unknown("mock failure"));
+            }
+
+            Ok(crate::networking::client_networking::NetworkResponse {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: self.body.clone(),
+            })
+        }
+    }
+
+    #[test]
+    fn queued_urls_download_through_network_engine() {
+        let mut manager = QuickDownloadManager::new();
+        manager.download_urls([(vec![1], "https://example.com/a".to_string())]);
+
+        let mut engine = NetworkEngine::new(MockTransport {
+            body: b"file bytes".to_vec(),
+            fail: false,
+        });
+
+        let (hash, result) = manager.run_next_download(&mut engine).unwrap();
+
+        assert_eq!(hash, vec![1]);
+        assert_eq!(result.unwrap(), b"file bytes");
+        assert!(manager.is_finished(&hash));
+    }
+
+    #[test]
+    fn download_errors_mark_the_hash_failed() {
+        let mut manager = QuickDownloadManager::new();
+        manager.download_urls([(vec![2], "https://example.com/b".to_string())]);
+
+        let mut engine = NetworkEngine::new(MockTransport {
+            body: Vec::new(),
+            fail: true,
+        });
+
+        let (hash, result) = manager.run_next_download(&mut engine).unwrap();
+
+        assert!(result.is_err());
+        assert!(manager.is_failed(&hash));
     }
 }

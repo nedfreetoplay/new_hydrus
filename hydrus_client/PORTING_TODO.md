@@ -142,8 +142,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   URL/domain/encoding helpers и state-machine/queue job-ов; encoding сверен с `TestClientNetworking.py`.
 - [x] `ClientNetworking` — `NetworkEngine` на `reqwest`/`tokio`.
   `NetworkEngine` + `HttpTransport`, blocking reqwest-транспорт и тестовый mock.
-- [~] `ClientDownloading` — quick download manager.
-  Портированы `GalleryIdentifier` и очередь quick-download; сетевой слой дальше.
+- [x] `ClientDownloading` — quick download manager.
+  `GalleryIdentifier`, очередь и реальная загрузка через `NetworkEngine` (+mock тесты).
 - [x] `ClientAPI` + `networking/api` — локальный Client API сервер.
   `ApiManager` (routes/access key) + `ApiServer` на TcpListener с JSON-ответами и тестами.
 

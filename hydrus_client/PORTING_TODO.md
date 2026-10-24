@@ -195,7 +195,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   hover/media modal actions и mpv дальше.
 - [~] `ClientGUIPopupMessages`, `ClientGUISubscriptions`, `ClientGUITime`.
   Портирована очередь popup-сообщений; subscriptions/time-панели дальше.
-- [ ] `ClientGUINetworking*`, `ClientGUILogin`.
+- [~] `ClientGUINetworking*`, `ClientGUILogin`.
+  Портированы модели networking/login панелей (контексты, headers, login state); Qt-панели дальше.
 - [ ] `ClientGUIDuplicates*`, `ClientGUIImport*`, `ClientGUIParsing*`.
 - [ ] `panels/options/*` — панели настроек.
 - [ ] `ClientGUIStringPanels`, строковые диалоги и редакторы.

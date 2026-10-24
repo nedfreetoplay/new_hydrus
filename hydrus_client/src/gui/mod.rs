@@ -2,6 +2,7 @@ pub mod call_after;
 pub mod frame_gui;
 pub mod functions;
 pub mod list_model;
+pub mod networking_panels;
 pub mod pages;
 pub mod popup_messages;
 pub mod qt_init;

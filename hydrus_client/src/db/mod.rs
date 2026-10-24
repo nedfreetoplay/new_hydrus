@@ -12,6 +12,7 @@ use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_core::hydrus_paths;
 
 pub mod files_metadata;
+pub mod files_storage;
 pub mod master;
 pub mod schema;
 pub mod serialisable;

@@ -50,6 +50,8 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
         );
         CREATE INDEX IF NOT EXISTS files_info_mime_index ON files_info ( mime );
 
+        CREATE TABLE IF NOT EXISTS file_inbox ( hash_id INTEGER PRIMARY KEY );
+
         CREATE TABLE IF NOT EXISTS json_dumps (
             name TEXT PRIMARY KEY,
             dump_type INTEGER,

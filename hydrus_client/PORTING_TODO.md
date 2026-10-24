@@ -102,7 +102,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Портирован `json_dumps`; остальные варианты добавятся вместе с импортом.
 - [x] `ClientDBFilesMetadataBasic` — files_info и флаги метаданных.
   Портирована таблица `files_info`; флаги (icc/exif/xmp/…) дальше.
-- [ ] `ClientDBFilesStorage` — current/deleted/pending/petitioned files, inbox.
+- [x] `ClientDBFilesStorage` — current/deleted/pending/petitioned files, inbox.
 - [ ] `ClientDBFilesTimestamps`, `ClientDBFilesInbox`, `ClientDBFilesViewingStats`.
 - [ ] `ClientDBFilesPhysicalStorage` — конфигурация хранилищ.
 - [ ] `ClientDBMappingsStorage`/`ClientDBMappingsCounts`/кэши.

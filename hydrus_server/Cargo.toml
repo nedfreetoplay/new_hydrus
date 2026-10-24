@@ -3,6 +3,9 @@ name = "hydrus_server"
 version = "0.1.0"
 edition = "2024"
 
+[dev-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
 [dependencies]
 bytes = "1"
 chrono = "0.4"
@@ -15,5 +18,6 @@ rustls = "0.23"
 rustls-pemfile = "2"
 serde_json = "1.0"
 sha2 = "0.10"
+socket2 = { version = "0.6", features = ["all"] }
 tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "time"] }
 tokio-rustls = "0.26"

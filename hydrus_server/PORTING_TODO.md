@@ -4,7 +4,7 @@ Current state: the server starts, creates its database and file storage, opens
 the session manager, and can render a resource tree in-process. It does not yet
 accept real HTTP/TLS requests.
 
-## 1. HTTP/TLS listener and controller loop — mostly done
+## 1. HTTP/TLS listener and controller loop — done
 
 - [x] Add the async HTTP/TLS runtime and dependencies.
 - [x] Load `server.crt`/`server.key` through `hydrus_core` TLS settings.
@@ -14,10 +14,9 @@ accept real HTTP/TLS requests.
 - [x] Convert `RenderPlan` into real HTTP responses, including files, ranges,
       cookies and CORS headers.
 - [x] Add the controller run loop, Ctrl+C handling and graceful shutdown.
-- [ ] Add IPv6 dual-stack binding.
-- [ ] Add request-size and `FatHTTPChannel` limits.
-- [ ] Add an automated integration test over a real local TLS socket.
-      A manual smoke test currently verifies `GET /busy` and `POST /shutdown`.
+- [x] Add IPv6 dual-stack binding with v6-only sockets.
+- [x] Add request-size and `FatHTTPChannel` limits.
+- [x] Add an automated integration test over a real local TLS socket.
 
 ## 2. Controller lifecycle
 
@@ -33,9 +32,10 @@ accept real HTTP/TLS requests.
 
 ## 3. ServerDB files and repository metadata
 
-- [ ] Port `_add_file`, master hash IDs and `files_info`.
-- [ ] Port physical file/thumbnail storage and deferred deletes.
-- [ ] Port master tag IDs and tag lookup.
+- [x] Port `_add_file`, master hash IDs and `files_info`.
+- [x] Port physical file/thumbnail storage.
+- [ ] Port deferred physical deletes.
+- [x] Port master tag IDs and tag lookup.
 - [ ] Port IP address tracking.
 - [ ] Port service-info creation, updates and regeneration.
 - [ ] Port repository table creation migrations for existing databases.

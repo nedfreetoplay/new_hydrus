@@ -7,20 +7,20 @@
 
 use std::convert::Infallible;
 use std::io::Cursor;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use bytes::Bytes;
-use http_body_util::{BodyExt, Full};
+use http_body_util::{BodyExt, Full, Limited};
 use hyper::body::Incoming;
 use hyper::service::service_fn;
 use hyper::{Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use indexmap::IndexMap;
 use rustls::pki_types::CertificateDer;
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpSocket};
 use tokio_rustls::TlsAcceptor;
 
 use hydrus_core::hydrus_constants::ServiceType;
@@ -30,7 +30,9 @@ use hydrus_core::networking::hydrus_network_variable_handling::{
     ParsedRequestArguments, parse_hydrus_network_get_args,
     parse_network_bytes_to_parsed_hydrus_args, percent_decode,
 };
-use hydrus_core::networking::hydrus_server::HydrusService;
+use hydrus_core::networking::hydrus_server::{
+    FAT_HTTP_CHANNEL_MAX_LENGTH, HydrusService,
+};
 use hydrus_core::networking::hydrus_server_context_factory::{
     TlsContextSettings, generate_ssl_context_settings,
 };
@@ -124,11 +126,16 @@ pub async fn serve(controller: Arc<Controller>) -> HydrusResult<()> {
         let port = service.get_port();
         let runtime = Arc::new(controller.resource_runtime(service.get_service_key())?);
         let context = Arc::new(ServiceContext { runtime });
-        let acceptor = Arc::clone(&acceptor);
+        let listeners = bind_listeners(port).await?;
 
-        handles.push(tokio::spawn(async move {
-            serve_service(port, context, acceptor).await
-        }));
+        for listener in listeners {
+            let context = Arc::clone(&context);
+            let acceptor = Arc::clone(&acceptor);
+
+            handles.push(tokio::spawn(async move {
+                serve_listener(listener, context, acceptor).await
+            }));
+        }
     }
 
     if handles.is_empty() {
@@ -160,29 +167,137 @@ pub async fn serve(controller: Arc<Controller>) -> HydrusResult<()> {
     Ok(())
 }
 
-async fn serve_service(
-    port: u16,
+async fn bind_listeners(port: u16) -> HydrusResult<Vec<TcpListener>> {
+    let mut listeners = Vec::new();
+    let mut errors = Vec::new();
+
+    match bind_ipv6(port).await {
+        Ok(listener) => listeners.push(listener),
+        Err(error) => errors.push(format!("IPv6: {error}")),
+    }
+
+    match bind_ipv4(port).await {
+        Ok(listener) => listeners.push(listener),
+        Err(error) => errors.push(format!("IPv4: {error}")),
+    }
+
+    if listeners.is_empty() {
+        return Err(HydrusException::new(
+            ErrorKind::Network,
+            format!(
+                "Could not bind server service port {port} on either IPv4 or IPv6 ({})",
+                errors.join("; ")
+            ),
+        ));
+    }
+
+    Ok(listeners)
+}
+
+async fn bind_ipv4(port: u16) -> HydrusResult<TcpListener> {
+    let socket = TcpSocket::new_v4().map_err(|error| {
+        HydrusException::new(
+            ErrorKind::Network,
+            format!("Could not create an IPv4 socket: {error}"),
+        )
+    })?;
+
+    socket.bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, port))).map_err(|error| {
+        HydrusException::new(
+            ErrorKind::Network,
+            format!("Could not bind the IPv4 listener: {error}"),
+        )
+    })?;
+
+    socket.listen(1024).map_err(|error| {
+        HydrusException::new(
+            ErrorKind::Network,
+            format!("Could not listen on the IPv4 listener: {error}"),
+        )
+    })
+}
+
+async fn bind_ipv6(port: u16) -> HydrusResult<TcpListener> {
+    let socket = socket2::Socket::new(
+        socket2::Domain::IPV6,
+        socket2::Type::STREAM,
+        Some(socket2::Protocol::TCP),
+    )
+    .map_err(|error| {
+        HydrusException::new(
+            ErrorKind::Network,
+            format!("Could not create an IPv6 socket: {error}"),
+        )
+    })?;
+
+    // Keep IPv4 and IPv6 as separate listeners so a dual-stack bind cannot
+    // conflict with the IPv4 socket on Windows.
+    socket.set_only_v6(true).map_err(|error| {
+        HydrusException::new(
+            ErrorKind::Network,
+            format!("Could not make the IPv6 socket v6-only: {error}"),
+        )
+    })?;
+
+    socket
+        .bind(&SocketAddr::from((Ipv6Addr::UNSPECIFIED, port)).into())
+        .map_err(|error| {
+            HydrusException::new(
+                ErrorKind::Network,
+                format!("Could not bind the IPv6 listener: {error}"),
+            )
+        })?;
+
+    socket.listen(1024).map_err(|error| {
+        HydrusException::new(
+            ErrorKind::Network,
+            format!("Could not listen on the IPv6 listener: {error}"),
+        )
+    })?;
+
+    socket.set_nonblocking(true).map_err(|error| {
+        HydrusException::new(
+            ErrorKind::Network,
+            format!("Could not make the IPv6 listener non-blocking: {error}"),
+        )
+    })?;
+
+    let std_listener: std::net::TcpListener = socket.into();
+
+    TcpListener::from_std(std_listener).map_err(|error| {
+        HydrusException::new(
+            ErrorKind::Network,
+            format!("Could not register the IPv6 listener with tokio: {error}"),
+        )
+    })
+}
+
+async fn serve_listener(
+    listener: TcpListener,
     context: Arc<ServiceContext>,
     acceptor: Arc<TlsAcceptor>,
 ) -> HydrusResult<()> {
-    let address = SocketAddr::from(([0, 0, 0, 0], port));
-    let listener = TcpListener::bind(address).await.map_err(|error| {
+    let local_address = listener.local_addr().map_err(|error| {
         HydrusException::new(
             ErrorKind::Network,
-            format!("Could not bind server service port {port}: {error}"),
+            format!("Could not read the listener address: {error}"),
         )
     })?;
 
     println!(
-        "hydrus_server: listening for \"{}\" on https://0.0.0.0:{port}",
-        context.service_name()
+        "hydrus_server: listening for \"{}\" on https://{}",
+        context.service_name(),
+        local_address
     );
 
     loop {
         let (stream, peer_address) = match listener.accept().await {
             Ok(connection) => connection,
             Err(error) => {
-                eprintln!("hydrus_server: accept failed on port {port}: {error}");
+                eprintln!(
+                    "hydrus_server: accept failed on {}: {error}",
+                    local_address
+                );
 
                 continue;
             }
@@ -293,8 +408,7 @@ async fn build_hydrus_request(
         }
     }
 
-    let body = request
-        .into_body()
+    let body = Limited::new(request.into_body(), FAT_HTTP_CHANNEL_MAX_LENGTH)
         .collect()
         .await
         .map_err(|error| {
@@ -450,6 +564,8 @@ fn plain_error_response(error: &HydrusException) -> Response<Full<Bytes>> {
 }
 
 fn build_tls_acceptor(settings: &TlsContextSettings) -> HydrusResult<TlsAcceptor> {
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
     let certificates: Vec<CertificateDer<'static>> = settings
         .certificates
         .iter()
@@ -484,6 +600,90 @@ fn build_tls_acceptor(settings: &TlsContextSettings) -> HydrusResult<TlsAcceptor
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    struct TestDir {
+        path: PathBuf,
+    }
+
+    impl TestDir {
+        fn new() -> Self {
+            let suffix = format!(
+                "{}_{}",
+                std::process::id(),
+                TEST_COUNTER.fetch_add(1, Ordering::Relaxed)
+            );
+
+            let path = std::env::temp_dir()
+                .join("hydrus-server-http-tests")
+                .join(suffix);
+
+            std::fs::create_dir_all(&path).unwrap();
+
+            Self { path }
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    #[tokio::test]
+    async fn tls_listener_serves_busy_and_shutdown() {
+        hydrus_core::initialise();
+
+        let dir = TestDir::new();
+        let controller = Arc::new(Controller::new(&dir.path));
+        let db = controller.open_database().unwrap();
+        let admin_key = db
+            .get_services(None)
+            .unwrap()
+            .into_iter()
+            .find(|service| service.get_service_type() == ServiceType::ServerAdmin)
+            .unwrap()
+            .get_service_key()
+            .to_vec();
+        let runtime = Arc::new(controller.resource_runtime(&admin_key).unwrap());
+        let (cert_path, key_path) = db.db().get_ssl_paths().unwrap();
+        let tls_settings = generate_ssl_context_settings(&cert_path, &key_path).unwrap();
+        let acceptor = Arc::new(build_tls_acceptor(&tls_settings).unwrap());
+
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let context = Arc::new(ServiceContext {
+            runtime: Arc::clone(&runtime),
+        });
+        let handle = tokio::spawn(serve_listener(listener, context, acceptor));
+
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .no_proxy()
+            .build()
+            .unwrap();
+        let base = format!("https://127.0.0.1:{port}");
+
+        let response = client.get(format!("{base}/busy")).send().await.unwrap();
+
+        assert_eq!(response.status(), 200);
+        assert_eq!(response.text().await.unwrap(), "0");
+
+        let response = client
+            .post(format!("{base}/shutdown"))
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), 200);
+        assert!(runtime.shutdown_requested.load(Ordering::Relaxed));
+
+        handle.abort();
+    }
 
     #[test]
     fn query_parser_handles_repeated_and_percent_encoded_values() {

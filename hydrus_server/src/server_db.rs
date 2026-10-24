@@ -16,7 +16,7 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 
 use hydrus_core::hydrus_constants::{
-    DEFAULT_SERVER_ADMIN_PORT, REPOSITORIES, SERVER_ADMIN_KEY, SOFTWARE_VERSION, ServiceType,
+    DEFAULT_SERVER_ADMIN_PORT, Mime, REPOSITORIES, SERVER_ADMIN_KEY, SOFTWARE_VERSION, ServiceType,
     TIMEZONE_LOCAL,
 };
 use hydrus_core::hydrus_data::generate_key;
@@ -37,6 +37,21 @@ use hydrus_core::networking::hydrus_network::{
 };
 
 use crate::server_files::ServerFiles;
+
+/// The file dictionary Python passes to `_add_file`.
+#[derive(Clone, Debug)]
+pub struct ServerFileInput {
+    pub hash: Vec<u8>,
+    pub size: u64,
+    pub mime: Mime,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub duration_ms: Option<i64>,
+    pub num_frames: Option<u32>,
+    pub num_words: Option<i64>,
+    pub path: PathBuf,
+    pub thumbnail: Option<Vec<u8>>,
+}
 
 /// `generate_repository_master_map_table_names( service_id )`
 pub fn generate_repository_master_map_table_names(service_id: i64) -> (String, String) {
@@ -342,6 +357,188 @@ impl ServerDB {
         )?;
 
         Ok(rows.into_iter().collect())
+    }
+
+    /// `_hash_exists( hash )`
+    pub fn hash_exists(&self, hash: &[u8]) -> HydrusResult<bool> {
+        let db = self.db.db_base()?;
+
+        Ok(db
+            .query_one(
+                "SELECT 1 FROM external_master.hashes WHERE hash = ?;",
+                &[&hash],
+                |row| row.get::<_, i64>(0),
+            )?
+            .is_some())
+    }
+
+    /// `_master_hash_exists( hash )`
+    pub fn master_hash_exists(&self, hash: &[u8]) -> HydrusResult<bool> {
+        self.hash_exists(hash)
+    }
+
+    /// `_get_master_hash_id( hash )`
+    pub fn get_master_hash_id(&self, hash: &[u8]) -> HydrusResult<i64> {
+        let db = self.db.db_base()?;
+
+        if let Some(master_hash_id) = db.query_one(
+            "SELECT master_hash_id FROM external_master.hashes WHERE hash = ?;",
+            &[&hash],
+            |row| row.get::<_, i64>(0),
+        )? {
+            return Ok(master_hash_id);
+        }
+
+        db.execute(
+            "INSERT OR IGNORE INTO external_master.hashes ( hash ) VALUES ( ? );",
+            &[&hash],
+        )?;
+
+        db.query_one(
+            "SELECT master_hash_id FROM external_master.hashes WHERE hash = ?;",
+            &[&hash],
+            |row| row.get::<_, i64>(0),
+        )?
+        .ok_or_else(|| {
+            HydrusException::new(ErrorKind::DataMissing, "Could not create the master hash id.")
+        })
+    }
+
+    /// `_get_master_hash_ids( hashes )`
+    pub fn get_master_hash_ids(&self, hashes: &[Vec<u8>]) -> HydrusResult<Vec<i64>> {
+        hashes
+            .iter()
+            .map(|hash| self.get_master_hash_id(hash))
+            .collect()
+    }
+
+    /// `_get_hash( master_hash_id )`
+    pub fn get_hash(&self, master_hash_id: i64) -> HydrusResult<Vec<u8>> {
+        let db = self.db.db_base()?;
+
+        db.query_one(
+            "SELECT hash FROM external_master.hashes WHERE master_hash_id = ?;",
+            &[&master_hash_id],
+            |row| row.get::<_, Vec<u8>>(0),
+        )?
+        .ok_or_else(|| HydrusException::new(ErrorKind::DataMissing, "Hash error in database"))
+    }
+
+    /// `_get_hashes( master_hash_ids )`
+    pub fn get_hashes(&self, master_hash_ids: &[i64]) -> HydrusResult<Vec<Vec<u8>>> {
+        master_hash_ids
+            .iter()
+            .map(|master_hash_id| self.get_hash(*master_hash_id))
+            .collect()
+    }
+
+    /// `_master_tag_exists( tag )`
+    pub fn master_tag_exists(&self, tag: &str) -> HydrusResult<bool> {
+        let db = self.db.db_base()?;
+
+        Ok(db
+            .query_one(
+                "SELECT 1 FROM external_master.tags WHERE tag = ?;",
+                &[&tag],
+                |row| row.get::<_, i64>(0),
+            )?
+            .is_some())
+    }
+
+    /// `_get_master_tag_id( tag )`
+    pub fn get_master_tag_id(&self, tag: &str) -> HydrusResult<i64> {
+        let db = self.db.db_base()?;
+
+        if let Some(master_tag_id) = db.query_one(
+            "SELECT master_tag_id FROM external_master.tags WHERE tag = ?;",
+            &[&tag],
+            |row| row.get::<_, i64>(0),
+        )? {
+            return Ok(master_tag_id);
+        }
+
+        db.execute(
+            "INSERT OR IGNORE INTO external_master.tags ( tag ) VALUES ( ? );",
+            &[&tag],
+        )?;
+
+        db.query_one(
+            "SELECT master_tag_id FROM external_master.tags WHERE tag = ?;",
+            &[&tag],
+            |row| row.get::<_, i64>(0),
+        )?
+        .ok_or_else(|| {
+            HydrusException::new(ErrorKind::DataMissing, "Could not create the master tag id.")
+        })
+    }
+
+    /// `_get_tag( master_tag_id )`
+    pub fn get_tag(&self, master_tag_id: i64) -> HydrusResult<String> {
+        let db = self.db.db_base()?;
+
+        db.query_one(
+            "SELECT tag FROM external_master.tags WHERE master_tag_id = ?;",
+            &[&master_tag_id],
+            |row| row.get::<_, String>(0),
+        )?
+        .ok_or_else(|| HydrusException::new(ErrorKind::DataMissing, "Tag error in database"))
+    }
+
+    /// `_add_file( file_dict )`
+    pub fn add_file(&self, file: &ServerFileInput) -> HydrusResult<i64> {
+        let master_hash_id = self.get_master_hash_id(&file.hash)?;
+        let db = self.db.db_base()?;
+
+        if db
+            .query_one(
+                "SELECT 1 FROM files_info WHERE master_hash_id = ?;",
+                &[&master_hash_id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .is_none()
+        {
+            db.execute(
+                "INSERT OR IGNORE INTO files_info ( master_hash_id, size, mime, width, height, duration, num_frames, num_words ) VALUES ( ?, ?, ?, ?, ?, ?, ?, ? );",
+                &[
+                    &master_hash_id,
+                    &(file.size as i64),
+                    &i64::from(file.mime.as_int()),
+                    &file.width.map(i64::from),
+                    &file.height.map(i64::from),
+                    &file.duration_ms,
+                    &file.num_frames.map(i64::from),
+                    &file.num_words,
+                ],
+            )?;
+        }
+
+        let dest_path = self.files.get_expected_file_path(&file.hash);
+
+        if !dest_path.exists() {
+            hydrus_core::hydrus_paths::mirror_file(&file.path, &dest_path)?;
+        }
+
+        if let Some(thumbnail) = &file.thumbnail {
+            let thumbnail_path = self.files.get_expected_thumbnail_path(&file.hash);
+
+            if !thumbnail_path.exists() {
+                if let Some(parent) = thumbnail_path.parent() {
+                    hydrus_core::hydrus_paths::make_sure_directory_exists(parent)?;
+                }
+
+                std::fs::write(&thumbnail_path, thumbnail).map_err(|error| {
+                    HydrusException::new(
+                        ErrorKind::FileMissing,
+                        format!(
+                            "Could not write the thumbnail \"{}\": {error}",
+                            thumbnail_path.display()
+                        ),
+                    )
+                })?;
+            }
+        }
+
+        Ok(master_hash_id)
     }
 
     /// `_add_account_type( service_id, account_type )`
@@ -1560,6 +1757,77 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn file_addition_stores_bytes_thumbnail_and_metadata() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+
+        let source_path = dir.path.join("source.bin");
+        std::fs::write(&source_path, b"data").unwrap();
+
+        let hash = vec![0xAB; 32];
+        let file = ServerFileInput {
+            hash: hash.clone(),
+            size: 4,
+            mime: Mime::OctetStream,
+            width: Some(10),
+            height: Some(20),
+            duration_ms: None,
+            num_frames: None,
+            num_words: None,
+            path: source_path,
+            thumbnail: Some(b"thumbnail".to_vec()),
+        };
+
+        let master_hash_id = db.add_file(&file).unwrap();
+
+        assert_eq!(db.get_master_hash_id(&hash).unwrap(), master_hash_id);
+        assert_eq!(db.get_hash(master_hash_id).unwrap(), hash);
+        assert!(db.hash_exists(&hash).unwrap());
+        assert!(db.master_hash_exists(&hash).unwrap());
+
+        let server_files = ServerFiles::new(db.get_files_dir());
+        let stored_path = server_files.get_expected_file_path(&hash);
+        let thumbnail_path = server_files.get_expected_thumbnail_path(&hash);
+
+        assert_eq!(std::fs::read(stored_path).unwrap(), b"data");
+        assert_eq!(std::fs::read(thumbnail_path).unwrap(), b"thumbnail");
+
+        let db_base = db.db().db_base().unwrap();
+        let (size, mime, width, height) = db_base
+            .query_one(
+                "SELECT size, mime, width, height FROM files_info WHERE master_hash_id = ?;",
+                &[&master_hash_id],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, i64>(3)?,
+                    ))
+                },
+            )
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(size, 4);
+        assert_eq!(mime, i64::from(Mime::OctetStream.as_int()));
+        assert_eq!((width, height), (10, 20));
+    }
+
+    #[test]
+    fn master_tags_are_created_once_and_read_back() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+
+        let tag_id = db.get_master_tag_id("blue sky").unwrap();
+
+        assert_eq!(db.get_master_tag_id("blue sky").unwrap(), tag_id);
+        assert_eq!(db.get_tag(tag_id).unwrap(), "blue sky");
+        assert!(db.master_tag_exists("blue sky").unwrap());
+        assert!(!db.master_tag_exists("green sky").unwrap());
     }
 
     #[test]

@@ -1253,6 +1253,270 @@ impl ServerDB {
         Ok((mime.is_some(), mime))
     }
 
+    /// `_repository_get_service_tag_id( service_id, master_tag_id, timestamp )`
+    pub fn repository_get_service_tag_id(
+        &self,
+        service_id: i64,
+        master_tag_id: i64,
+        timestamp: i64,
+    ) -> HydrusResult<i64> {
+        let (_, tag_map) = generate_repository_master_map_table_names(service_id);
+        let db = self.db.db_base()?;
+
+        if let Some(service_tag_id) = db.query_one(
+            &format!(
+                "SELECT service_tag_id FROM {tag_map} WHERE master_tag_id = ?;"
+            ),
+            &[&master_tag_id],
+            |row| row.get::<_, i64>(0),
+        )? {
+            return Ok(service_tag_id);
+        }
+
+        db.execute(
+            &format!(
+                "INSERT INTO {tag_map} ( master_tag_id, tag_id_timestamp ) VALUES ( ?, ? );"
+            ),
+            &[&master_tag_id, &timestamp],
+        )?;
+
+        self.update_service_info(service_id, ServiceInfoType::NumTags, 1)?;
+
+        Ok(db.get_last_row_id())
+    }
+
+    /// `_repository_get_service_tag_ids( service_id, master_tag_ids, timestamp )`
+    pub fn repository_get_service_tag_ids(
+        &self,
+        service_id: i64,
+        master_tag_ids: &[i64],
+        timestamp: i64,
+    ) -> HydrusResult<Vec<i64>> {
+        master_tag_ids
+            .iter()
+            .map(|master_tag_id| {
+                self.repository_get_service_tag_id(service_id, *master_tag_id, timestamp)
+            })
+            .collect()
+    }
+
+    /// `_repository_get_master_tag_id( service_id, service_tag_id )`
+    pub fn repository_get_master_tag_id(
+        &self,
+        service_id: i64,
+        service_tag_id: i64,
+    ) -> HydrusResult<i64> {
+        let (_, tag_map) = generate_repository_master_map_table_names(service_id);
+
+        self.db
+            .db_base()?
+            .query_one(
+                &format!(
+                    "SELECT master_tag_id FROM {tag_map} WHERE service_tag_id = ?;"
+                ),
+                &[&service_tag_id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .ok_or_else(|| {
+                HydrusException::new(
+                    ErrorKind::DataMissing,
+                    "Missing master_tag_id map error!",
+                )
+            })
+    }
+
+    /// `_repository_service_tag_id_exists( service_id, master_tag_id )`
+    pub fn repository_service_tag_id_exists(
+        &self,
+        service_id: i64,
+        master_tag_id: i64,
+    ) -> HydrusResult<bool> {
+        let (_, tag_map) = generate_repository_master_map_table_names(service_id);
+
+        Ok(self
+            .db
+            .db_base()?
+            .query_one(
+                &format!(
+                    "SELECT 1 FROM {tag_map} WHERE master_tag_id = ?;"
+                ),
+                &[&master_tag_id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .is_some())
+    }
+
+    /// `_repository_add_mappings( service_id, account_id, master_tag_id, master_hash_ids, overwrite_deleted, timestamp )`
+    pub fn repository_add_mappings(
+        &self,
+        service_id: i64,
+        account_id: i64,
+        master_tag_id: i64,
+        master_hash_ids: &[i64],
+        overwrite_deleted: bool,
+        timestamp: i64,
+    ) -> HydrusResult<()> {
+        let service_tag_id =
+            self.repository_get_service_tag_id(service_id, master_tag_id, timestamp)?;
+        let mut service_hash_ids =
+            self.repository_get_service_hash_ids(service_id, master_hash_ids, timestamp)?;
+
+        let (current_mappings, deleted_mappings, _, _) =
+            generate_repository_mappings_table_names(service_id);
+        let db = self.db.db_base()?;
+
+        if overwrite_deleted {
+            let mut deleted = 0_usize;
+
+            for service_hash_id in &service_hash_ids {
+                deleted += db.execute(
+                    &format!(
+                        "DELETE FROM {deleted_mappings} WHERE service_tag_id = ? AND service_hash_id = ?;"
+                    ),
+                    &[&service_tag_id, service_hash_id],
+                )?;
+            }
+
+            if deleted > 0 {
+                self.update_service_info(
+                    service_id,
+                    ServiceInfoType::NumDeletedMappings,
+                    -(deleted as i64),
+                )?;
+            }
+        } else {
+            service_hash_ids.retain(|service_hash_id| {
+                !db.query_one(
+                    &format!(
+                        "SELECT 1 FROM {deleted_mappings} WHERE service_tag_id = ? AND service_hash_id = ?;"
+                    ),
+                    &[&service_tag_id, service_hash_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map(|result| result.is_some())
+                .unwrap_or(false)
+            });
+        }
+
+        let mut inserted = 0_i64;
+
+        for service_hash_id in &service_hash_ids {
+            inserted += db.execute(
+                &format!(
+                    "INSERT OR IGNORE INTO {current_mappings} ( service_tag_id, service_hash_id, account_id, mapping_timestamp ) VALUES ( ?, ?, ?, ? );"
+                ),
+                &[&service_tag_id, service_hash_id, &account_id, &timestamp],
+            )? as i64;
+        }
+
+        if inserted > 0 {
+            self.update_service_info(
+                service_id,
+                ServiceInfoType::NumMappings,
+                inserted,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    /// `_repository_delete_mappings( service_id, account_id, service_tag_id, service_hash_ids, timestamp )`
+    pub fn repository_delete_mappings(
+        &self,
+        service_id: i64,
+        account_id: i64,
+        service_tag_id: i64,
+        service_hash_ids: &[i64],
+        timestamp: i64,
+    ) -> HydrusResult<()> {
+        let (current_mappings, deleted_mappings, _, petitioned_mappings) =
+            generate_repository_mappings_table_names(service_id);
+        let db = self.db.db_base()?;
+        let mut valid_service_hash_ids = Vec::new();
+
+        for service_hash_id in service_hash_ids {
+            if db
+                .query_one(
+                    &format!(
+                        "SELECT 1 FROM {current_mappings} WHERE service_tag_id = ? AND service_hash_id = ?;"
+                    ),
+                    &[&service_tag_id, service_hash_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .is_some()
+            {
+                valid_service_hash_ids.push(*service_hash_id);
+            }
+        }
+
+        for service_hash_id in &valid_service_hash_ids {
+            db.execute(
+                &format!(
+                    "DELETE FROM {current_mappings} WHERE service_tag_id = ? AND service_hash_id = ?;"
+                ),
+                &[&service_tag_id, service_hash_id],
+            )?;
+            db.execute(
+                &format!(
+                    "DELETE FROM {petitioned_mappings} WHERE service_tag_id = ? AND service_hash_id = ?;"
+                ),
+                &[&service_tag_id, service_hash_id],
+            )?;
+        }
+
+        if !valid_service_hash_ids.is_empty() {
+            self.update_service_info(
+                service_id,
+                ServiceInfoType::NumMappings,
+                -(valid_service_hash_ids.len() as i64),
+            )?;
+        }
+
+        let mut inserted_deleted = 0_i64;
+
+        for service_hash_id in &valid_service_hash_ids {
+            inserted_deleted += db.execute(
+                &format!(
+                    "INSERT OR IGNORE INTO {deleted_mappings} ( service_tag_id, service_hash_id, account_id, mapping_timestamp ) VALUES ( ?, ?, ?, ? );"
+                ),
+                &[&service_tag_id, service_hash_id, &account_id, &timestamp],
+            )? as i64;
+        }
+
+        if inserted_deleted > 0 {
+            self.update_service_info(
+                service_id,
+                ServiceInfoType::NumDeletedMappings,
+                inserted_deleted,
+            )?;
+        }
+
+        Ok(())
+    }
+
+    /// `_repository_get_current_mappings_count( service_id, service_tag_id )`
+    pub fn repository_get_current_mappings_count(
+        &self,
+        service_id: i64,
+        service_tag_id: i64,
+    ) -> HydrusResult<i64> {
+        let (current_mappings, _, _, _) =
+            generate_repository_mappings_table_names(service_id);
+
+        self.db
+            .db_base()?
+            .query_one(
+                &format!(
+                    "SELECT COUNT( * ) FROM {current_mappings} WHERE service_tag_id = ?;"
+                ),
+                &[&service_tag_id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .ok_or_else(|| {
+                HydrusException::new(ErrorKind::DataMissing, "Could not count mappings.")
+            })
+    }
+
     /// `_add_account_type( service_id, account_type )`
     pub fn add_account_type(
         &self,
@@ -2981,6 +3245,100 @@ mod tests {
         assert_eq!(
             db.get_deferred_physical_delete().unwrap(),
             (Some(hash.clone()), Some(hash))
+        );
+    }
+
+    fn create_tag_repository(db: &ServerDB, label: &str) -> (i64, Vec<u8>) {
+        let service = generate_service(
+            vec![0x44; 32],
+            ServiceType::TagRepository,
+            format!("{label} repository"),
+            DEFAULT_SERVICE_PORT,
+            None,
+        )
+        .unwrap();
+        let service_id = db.add_service(&service).unwrap();
+
+        (service_id, service.get_service_key().to_vec())
+    }
+
+    #[test]
+    fn repository_mappings_add_delete_and_count() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+        let (service_id, _service_key) = create_tag_repository(&db, "mappings");
+
+        let master_tag_id = db.get_master_tag_id("blue sky").unwrap();
+        let hashes = vec![vec![0xC1; 32], vec![0xC2; 32]];
+        let master_hash_ids = db.get_master_hash_ids(&hashes).unwrap();
+        let timestamp = hydrus_time::get_now();
+
+        db.repository_add_mappings(
+            service_id,
+            1,
+            master_tag_id,
+            &master_hash_ids,
+            false,
+            timestamp,
+        )
+        .unwrap();
+
+        let service_tag_id = db
+            .repository_get_service_tag_id(service_id, master_tag_id, timestamp)
+            .unwrap();
+
+        assert_eq!(
+            db.repository_get_master_tag_id(service_id, service_tag_id)
+                .unwrap(),
+            master_tag_id
+        );
+        assert!(
+            db.repository_service_tag_id_exists(service_id, master_tag_id)
+                .unwrap()
+        );
+        assert_eq!(
+            db.repository_get_current_mappings_count(service_id, service_tag_id)
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumMappings)
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumTags)
+                .unwrap(),
+            1
+        );
+
+        let service_hash_ids = db
+            .repository_get_service_hash_ids(service_id, &master_hash_ids, timestamp)
+            .unwrap();
+
+        db.repository_delete_mappings(
+            service_id,
+            1,
+            service_tag_id,
+            &[service_hash_ids[0]],
+            timestamp,
+        )
+        .unwrap();
+
+        assert_eq!(
+            db.repository_get_current_mappings_count(service_id, service_tag_id)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumMappings)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumDeletedMappings)
+                .unwrap(),
+            1
         );
     }
 

@@ -51,28 +51,29 @@ accept real HTTP/TLS requests.
 - [x] Port current/deleted tag parents and tag siblings.
 - [x] Port pending and petitioned tag parent/sibling flows, including deny operations.
 - [x] Port file and mapping petition creation/denial.
-- [ ] Port file/mapping petition summaries and approval.
-- [ ] Port `ClientToServerUpdate` processing.
+- [x] Port file, mapping, tag-parent and tag-sibling petition summaries.
+- [x] Port petition approval/denial processing.
+- [x] Port basic `ClientToServerUpdate` processing for files, mappings and tag relations.
 - [ ] Port `Metadata` and update generation.
 - [ ] Port `nullify_history`.
 - [ ] Port account reward processing.
 
 ## 5. Account and option mutations
 
-- [ ] Port account information and account-key-from-content.
-- [ ] Port account-type changes.
-- [ ] Port ban, unban, expiry, message and delete-all-content.
-- [ ] Port options nullification/update period changes.
-- [ ] Port account-type create/update/delete.
+- [x] Port account information and account-key-from-content.
+- [x] Port account-type changes.
+- [x] Port ban, unban, expiry, message and delete-all-content.
+- [x] Port options nullification/update period changes.
+- [x] Port account-type create/update/delete.
 - [ ] Refresh account/session caches after mutations.
 
 ## 6. Remaining resources
 
-- [ ] `options_nullification_period` and `options_update_period`.
-- [ ] `other_account`, `account_info`, `account_key_from_content`.
-- [ ] All `modify_account_*` resources.
-- [ ] `maintenance_regen_service_info`, `backup`, `lock_on`, `lock_off`,
-      `restart_services`, `services` POST, `vacuum`.
+- [x] `options_nullification_period` and `options_update_period`.
+- [x] `other_account`, `account_info`, `account_key_from_content`.
+- [x] All `modify_account_*` resources.
+- [x] `maintenance_regen_service_info`.
+- [ ] `backup`, `lock_on`, `lock_off`, `restart_services`, `services` POST, `vacuum`.
 - [ ] `num_petitions`, `petition`, `petitions_summary`, `update`, `metadata`.
 - [ ] `file`, `ip`, `thumbnail`, `tag_filter`.
 - [ ] Replace the 501 fallback with real handlers.

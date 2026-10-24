@@ -17,7 +17,7 @@ use hydrus_core::hydrus_data::hex_to_none_or_bytes;
 use hydrus_core::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use hydrus_core::hydrus_sessions::{Account as SessionAccountTrait, HydrusSessionManagerServer};
 use hydrus_core::hydrus_time::get_now;
-use hydrus_core::networking::hydrus_network::ServerService;
+use hydrus_core::networking::hydrus_network::{Content, ServerService};
 use hydrus_core::networking::hydrus_network_variable_handling::{
     ArgValue, ParsedRequestArguments, dump_hydrus_args_to_network_bytes,
 };
@@ -103,6 +103,40 @@ pub fn render_resource(
         }
         ServerResourceKind::RestrictedServiceInfo => service_info_response(runtime)?,
         ServerResourceKind::RestrictedServices => services_response(runtime)?,
+        ServerResourceKind::RestrictedOptionsModifyNullificationPeriod => {
+            nullification_period_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedOptionsModifyUpdatePeriod => {
+            update_period_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedAccountOtherAccount => {
+            other_account_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedAccountInfo => account_info_response(runtime, request)?,
+        ServerResourceKind::RestrictedAccountKeyFromContent => {
+            account_key_from_content_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedAccountModifyAccountType => {
+            modify_account_type_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedAccountModifyBan => {
+            modify_account_ban_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedAccountModifyDeleteAllContent => {
+            modify_account_delete_all_content_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedAccountModifyExpires => {
+            modify_account_expires_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedAccountModifySetMessage => {
+            modify_account_set_message_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedAccountModifyUnban => {
+            modify_account_unban_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedMaintenanceRegenServiceInfo => {
+            regenerate_service_info_response(runtime)?
+        }
         _ => ResponseContext::with_status_and_body(
             501,
             "This server resource is not ported yet.",
@@ -363,6 +397,202 @@ fn account_types_response(runtime: &ServerResourceRuntime) -> HydrusResult<Respo
     network_response(("account_types", ArgValue::List(account_types)))
 }
 
+fn nullification_period_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let period = request
+        .parsed_request_args
+        .get_i64("nullification_period")?;
+
+    runtime
+        .db
+        .set_service_nullification_period(runtime.service.get_service_key(), period)?;
+
+    Ok(ResponseContext::with_status_and_body(200, ""))
+}
+
+fn update_period_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let period = request.parsed_request_args.get_i64("update_period")?;
+
+    runtime
+        .db
+        .set_service_update_period(runtime.service.get_service_key(), period)?;
+
+    Ok(ResponseContext::with_status_and_body(200, ""))
+}
+
+fn subject_account_key(request: &HydrusRequest) -> HydrusResult<Vec<u8>> {
+    request
+        .parsed_request_args
+        .get_bytes("subject_account_key")
+}
+
+fn other_account_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let subject_key = subject_account_key(request)?;
+    let account = runtime
+        .db
+        .get_account_from_account_key(runtime.service.get_service_key(), &subject_key)?;
+
+    network_response(("account", ArgValue::other_object(Arc::new(account))))
+}
+
+fn account_info_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let subject_key = subject_account_key(request)?;
+    let subject_id = runtime.db.get_account_id(&subject_key)?;
+    let info = runtime
+        .db
+        .get_account_info(runtime.service.get_service_key(), subject_id)?;
+
+    let mut values = IndexMap::new();
+
+    for (key, value) in info {
+        values.insert(key, ArgValue::from(value));
+    }
+
+    network_response(("account_info", ArgValue::Dict(values)))
+}
+
+fn account_key_from_content_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let hash = request.parsed_request_args.get_bytes("subject_hash")?;
+    let content = match request
+        .parsed_request_args
+        .get_string_or_none("subject_tag")?
+    {
+        Some(tag) => Content::mapping(tag, hash),
+        None => Content::files(vec![hash]),
+    };
+
+    let account_key = runtime
+        .db
+        .get_account_key_from_content(runtime.service.get_service_key(), &content)?;
+
+    network_response(("subject_account_key", ArgValue::from(account_key)))
+}
+
+fn modify_account_type_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let subject_key = subject_account_key(request)?;
+    let account_type_key = request
+        .parsed_request_args
+        .get_bytes("account_type_key")?;
+
+    runtime.db.modify_account_account_type(
+        runtime.service.get_service_key(),
+        &subject_key,
+        &account_type_key,
+    )?;
+
+    Ok(ResponseContext::with_status_and_body(200, ""))
+}
+
+fn modify_account_ban_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let subject_key = subject_account_key(request)?;
+    let reason = request.parsed_request_args.get_string("reason")?;
+    let expires = request.parsed_request_args.get_i64_or_none("expires")?;
+
+    runtime.db.modify_account_ban(
+        runtime.service.get_service_key(),
+        &subject_key,
+        &reason,
+        expires,
+    )?;
+
+    Ok(ResponseContext::with_status_and_body(200, ""))
+}
+
+fn modify_account_delete_all_content_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let subject_key = subject_account_key(request)?;
+    let admin = request.hydrus_account.as_ref().ok_or_else(|| {
+        HydrusException::new(ErrorKind::MissingCredentials, "No admin account on request!")
+    })?;
+
+    let deleted = runtime.db.modify_account_delete_all_content(
+        runtime.service.get_service_key(),
+        &admin.get_account_key(),
+        &subject_key,
+    )?;
+
+    network_response(("everything_was_deleted", ArgValue::from(deleted)))
+}
+
+fn modify_account_expires_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let subject_key = subject_account_key(request)?;
+    let expires = request.parsed_request_args.get_i64_or_none("expires")?;
+
+    runtime.db.modify_account_expires(
+        runtime.service.get_service_key(),
+        &subject_key,
+        expires,
+    )?;
+
+    Ok(ResponseContext::with_status_and_body(200, ""))
+}
+
+fn modify_account_set_message_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let subject_key = subject_account_key(request)?;
+    let message = request.parsed_request_args.get_string("message")?;
+
+    runtime.db.modify_account_set_message(
+        runtime.service.get_service_key(),
+        &subject_key,
+        &message,
+    )?;
+
+    Ok(ResponseContext::with_status_and_body(200, ""))
+}
+
+fn modify_account_unban_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let subject_key = subject_account_key(request)?;
+
+    runtime
+        .db
+        .modify_account_unban(runtime.service.get_service_key(), &subject_key)?;
+
+    Ok(ResponseContext::with_status_and_body(200, ""))
+}
+
+fn regenerate_service_info_response(
+    runtime: &ServerResourceRuntime,
+) -> HydrusResult<ResponseContext> {
+    let service_id = runtime
+        .db
+        .get_service_id(runtime.service.get_service_key())?;
+
+    runtime.db.regenerate_service_info(Some(service_id), None)?;
+
+    Ok(ResponseContext::with_status_and_body(200, ""))
+}
+
 fn registration_keys_response(
     runtime: &ServerResourceRuntime,
     request: &HydrusRequest,
@@ -536,6 +766,22 @@ fn check_account_rules(
         }
         ServerResourceKind::RestrictedServices => {
             check_permission(request, ContentType::Services, PermissionAction::Moderate)?;
+        }
+        ServerResourceKind::RestrictedOptionsModifyNullificationPeriod
+        | ServerResourceKind::RestrictedOptionsModifyUpdatePeriod
+        | ServerResourceKind::RestrictedMaintenanceRegenServiceInfo => {
+            check_permission(request, ContentType::Options, PermissionAction::Moderate)?;
+        }
+        ServerResourceKind::RestrictedAccountOtherAccount
+        | ServerResourceKind::RestrictedAccountInfo
+        | ServerResourceKind::RestrictedAccountKeyFromContent
+        | ServerResourceKind::RestrictedAccountModifyAccountType
+        | ServerResourceKind::RestrictedAccountModifyBan
+        | ServerResourceKind::RestrictedAccountModifyDeleteAllContent
+        | ServerResourceKind::RestrictedAccountModifyExpires
+        | ServerResourceKind::RestrictedAccountModifySetMessage
+        | ServerResourceKind::RestrictedAccountModifyUnban => {
+            check_permission(request, ContentType::Accounts, PermissionAction::Moderate)?;
         }
         _ => {}
     }

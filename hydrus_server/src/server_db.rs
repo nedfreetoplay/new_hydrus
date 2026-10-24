@@ -1,4 +1,4 @@
-//! Rust port of the server database layer from
+﻿//! Rust port of the server database layer from
 //! `hydrus/server/ServerDB.py`.
 //!
 //! This first slice ports the schema, service registry and repository table
@@ -17,8 +17,8 @@ use sha2::{Digest, Sha256};
 
 use hydrus_core::hydrus_constants::{
     DEFAULT_SERVER_ADMIN_PORT, FILE_REPOSITORY_SERVICE_INFO_TYPES, Mime, REPOSITORIES,
-    SERVER_ADMIN_KEY, SOFTWARE_VERSION, ServiceInfoType, ServiceType,
-    TAG_REPOSITORY_SERVICE_INFO_TYPES, TIMEZONE_LOCAL,
+    SERVER_ADMIN_KEY, SOFTWARE_VERSION, ContentStatus, ContentType, ContentUpdate,
+    ServiceInfoType, ServiceType, TAG_REPOSITORY_SERVICE_INFO_TYPES, TIMEZONE_LOCAL,
 };
 use hydrus_core::hydrus_data::generate_key;
 use hydrus_core::hydrus_db::{DBController, DBHooks, HydrusDB, HydrusDBConfig};
@@ -33,8 +33,8 @@ use hydrus_core::hydrus_sessions::{
 };
 use hydrus_core::hydrus_time;
 use hydrus_core::networking::hydrus_network::{
-    Account as NetworkAccount, AccountType, ServerService, generate_service,
-    generate_service_from_serialisable_tuple,
+    Account as NetworkAccount, AccountType, ClientToServerUpdate, Content, ContentData, Petition,
+    PetitionHeader, ServerService, generate_service, generate_service_from_serialisable_tuple,
 };
 
 use crate::server_files::ServerFiles;
@@ -2407,6 +2407,652 @@ impl ServerDB {
         Ok(())
     }
 
+    /// `_repository_get_file_petitions_summary`
+    pub fn repository_get_file_petitions_summary(
+        &self,
+        service_id: i64,
+        limit: usize,
+        account_id: Option<i64>,
+        reason_id: Option<i64>,
+    ) -> HydrusResult<Vec<PetitionHeader>> {
+        let (_, _, _, petitioned_files, _) =
+            generate_repository_files_table_names(service_id);
+
+        self.petition_summary(
+            petitioned_files,
+            ContentType::Files,
+            ContentStatus::Petitioned,
+            limit,
+            account_id,
+            reason_id,
+        )
+    }
+
+    /// `_repository_get_mapping_petitions_summary`
+    pub fn repository_get_mapping_petitions_summary(
+        &self,
+        service_id: i64,
+        limit: usize,
+        account_id: Option<i64>,
+        reason_id: Option<i64>,
+    ) -> HydrusResult<Vec<PetitionHeader>> {
+        let (_, _, _, petitioned_mappings) =
+            generate_repository_mappings_table_names(service_id);
+
+        self.petition_summary(
+            petitioned_mappings,
+            ContentType::Mappings,
+            ContentStatus::Petitioned,
+            limit,
+            account_id,
+            reason_id,
+        )
+    }
+
+    /// `_repository_get_tag_parent_petitions_summary`
+    pub fn repository_get_tag_parent_petitions_summary(
+        &self,
+        service_id: i64,
+        limit: usize,
+        account_id: Option<i64>,
+        reason_id: Option<i64>,
+    ) -> HydrusResult<Vec<PetitionHeader>> {
+        let (_, _, _, petitioned_parents) =
+            generate_repository_tag_parents_table_names(service_id);
+
+        self.petition_summary(
+            petitioned_parents,
+            ContentType::TagParents,
+            ContentStatus::Petitioned,
+            limit,
+            account_id,
+            reason_id,
+        )
+    }
+
+    /// `_repository_get_tag_sibling_petitions_summary`
+    pub fn repository_get_tag_sibling_petitions_summary(
+        &self,
+        service_id: i64,
+        limit: usize,
+        account_id: Option<i64>,
+        reason_id: Option<i64>,
+    ) -> HydrusResult<Vec<PetitionHeader>> {
+        let (_, _, _, petitioned_siblings) =
+            generate_repository_tag_siblings_table_names(service_id);
+
+        self.petition_summary(
+            petitioned_siblings,
+            ContentType::TagSiblings,
+            ContentStatus::Petitioned,
+            limit,
+            account_id,
+            reason_id,
+        )
+    }
+
+    fn petition_summary(
+        &self,
+        table: String,
+        content_type: ContentType,
+        status: ContentStatus,
+        limit: usize,
+        account_id: Option<i64>,
+        reason_id: Option<i64>,
+    ) -> HydrusResult<Vec<PetitionHeader>> {
+        let rows = self.db.db_base()?.query_all(
+            &format!(
+                "SELECT DISTINCT account_id, reason_id FROM {table} ORDER BY account_id;"
+            ),
+            &[],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )?;
+
+        let mut headers = Vec::new();
+
+        for (row_account_id, row_reason_id) in rows {
+            if let Some(account_id) = account_id
+                && row_account_id != account_id
+            {
+                continue;
+            }
+
+            if let Some(reason_id) = reason_id
+                && row_reason_id != reason_id
+            {
+                continue;
+            }
+
+            if headers.len() >= limit {
+                break;
+            }
+
+            headers.push(PetitionHeader::new(
+                content_type,
+                status,
+                self.get_account_key_from_account_id(row_account_id)?,
+                self.get_reason(row_reason_id)?,
+            ));
+        }
+
+        Ok(headers)
+    }
+
+    /// Existing service-hash ids, without creating new map rows.
+    pub fn repository_get_existing_service_hash_ids(
+        &self,
+        service_id: i64,
+        master_hash_ids: &[i64],
+    ) -> HydrusResult<Vec<i64>> {
+        let (hash_map, _) = generate_repository_master_map_table_names(service_id);
+        let db = self.db.db_base()?;
+        let mut service_hash_ids = Vec::new();
+
+        for master_hash_id in master_hash_ids {
+            if let Some(service_hash_id) = db.query_one(
+                &format!(
+                    "SELECT service_hash_id FROM {hash_map} WHERE master_hash_id = ?;"
+                ),
+                &[master_hash_id],
+                |row| row.get::<_, i64>(0),
+            )? {
+                service_hash_ids.push(service_hash_id);
+            }
+        }
+
+        Ok(service_hash_ids)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn process_mapping_update(
+        &self,
+        service_id: i64,
+        account_id: i64,
+        account: &NetworkAccount,
+        tag: &str,
+        hashes: &[Vec<u8>],
+        action: ContentUpdate,
+        reason_id: i64,
+        timestamp: i64,
+        overwrite_deleted: bool,
+    ) -> HydrusResult<()> {
+        let master_tag_id = self.get_master_tag_id(tag)?;
+        let master_hash_ids = self.get_master_hash_ids(hashes)?;
+        let service_tag_id =
+            self.repository_get_service_tag_id(service_id, master_tag_id, timestamp)?;
+
+        match action {
+            ContentUpdate::Add => {
+                account.check_permission(
+                    ContentType::Mappings,
+                    hydrus_core::hydrus_constants::PermissionAction::Create,
+                )?;
+                self.repository_add_mappings(
+                    service_id,
+                    account_id,
+                    master_tag_id,
+                    &master_hash_ids,
+                    overwrite_deleted,
+                    timestamp,
+                )?;
+            }
+            ContentUpdate::Delete => {
+                account.check_permission(
+                    ContentType::Mappings,
+                    hydrus_core::hydrus_constants::PermissionAction::Moderate,
+                )?;
+                let service_hash_ids = self
+                    .repository_get_existing_service_hash_ids(service_id, &master_hash_ids)?;
+                self.repository_delete_mappings(
+                    service_id,
+                    account_id,
+                    service_tag_id,
+                    &service_hash_ids,
+                    timestamp,
+                )?;
+            }
+            ContentUpdate::Petition => {
+                account.check_permission(
+                    ContentType::Mappings,
+                    hydrus_core::hydrus_constants::PermissionAction::Petition,
+                )?;
+                let service_hash_ids = self
+                    .repository_get_existing_service_hash_ids(service_id, &master_hash_ids)?;
+                self.repository_petition_mappings(
+                    service_id,
+                    account_id,
+                    service_tag_id,
+                    &service_hash_ids,
+                    reason_id,
+                )?;
+            }
+            ContentUpdate::DenyPetition => {
+                account.check_permission(
+                    ContentType::Mappings,
+                    hydrus_core::hydrus_constants::PermissionAction::Moderate,
+                )?;
+                let service_hash_ids = self
+                    .repository_get_existing_service_hash_ids(service_id, &master_hash_ids)?;
+                self.repository_deny_mapping_petition(
+                    service_id,
+                    service_tag_id,
+                    &service_hash_ids,
+                )?;
+            }
+            _ => {
+                return Err(HydrusException::new(
+                    ErrorKind::BadRequest,
+                    format!("Unsupported mapping update action: {action}"),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// `_repository_process_client_to_server_update`
+    pub fn repository_process_client_to_server_update(
+        &self,
+        service_key: &[u8],
+        account: &NetworkAccount,
+        update: &ClientToServerUpdate,
+        timestamp: i64,
+    ) -> HydrusResult<()> {
+        let service_id = self.get_service_id(service_key)?;
+        let account_id = self.get_account_id(&account.get_account_key())?;
+
+        for (action, content, reason) in update.iterate_all_actions_and_contents_and_reasons() {
+            let reason_id = self.get_reason_id(reason)?;
+            let overwrite_deleted =
+                account.has_permission(content.get_content_type(), hydrus_core::hydrus_constants::PermissionAction::Moderate);
+
+            match content.get_content_data() {
+                ContentData::Files(hashes) => {
+                    let master_hash_ids = self.get_master_hash_ids(hashes)?;
+                    let service_hash_ids =
+                        self.repository_get_existing_service_hash_ids(service_id, &master_hash_ids)?;
+
+                    match action {
+                        ContentUpdate::Delete => {
+                            account.check_permission(
+                                ContentType::Files,
+                                hydrus_core::hydrus_constants::PermissionAction::Moderate,
+                            )?;
+                            self.repository_delete_files(
+                                service_id,
+                                account_id,
+                                &service_hash_ids,
+                                timestamp,
+                            )?;
+                        }
+                        ContentUpdate::Petition => {
+                            account.check_permission(
+                                ContentType::Files,
+                                hydrus_core::hydrus_constants::PermissionAction::Petition,
+                            )?;
+                            self.repository_petition_files(
+                                service_id,
+                                account_id,
+                                &service_hash_ids,
+                                reason_id,
+                            )?;
+                        }
+                        ContentUpdate::DenyPetition => {
+                            account.check_permission(
+                                ContentType::Files,
+                                hydrus_core::hydrus_constants::PermissionAction::Moderate,
+                            )?;
+                            self.repository_deny_file_petition(service_id, &service_hash_ids)?;
+                        }
+                        _ => {
+                            return Err(HydrusException::new(
+                                ErrorKind::BadRequest,
+                                format!("Unsupported file update action: {action}"),
+                            ));
+                        }
+                    }
+                }
+                ContentData::Mapping(tag, hash) => {
+                    self.process_mapping_update(
+                        service_id,
+                        account_id,
+                        account,
+                        tag,
+                        &[hash.clone()],
+                        action,
+                        reason_id,
+                        timestamp,
+                        overwrite_deleted,
+                    )?;
+                }
+                ContentData::Mappings(tag, hashes) => {
+                    self.process_mapping_update(
+                        service_id,
+                        account_id,
+                        account,
+                        tag,
+                        hashes,
+                        action,
+                        reason_id,
+                        timestamp,
+                        overwrite_deleted,
+                    )?;
+                }
+                ContentData::TagParents(child_tag, parent_tag) => {
+                    let child_master_tag_id = self.get_master_tag_id(child_tag)?;
+                    let parent_master_tag_id = self.get_master_tag_id(parent_tag)?;
+
+                    match action {
+                        ContentUpdate::Add => {
+                            account.check_permission(
+                                ContentType::TagParents,
+                                hydrus_core::hydrus_constants::PermissionAction::Moderate,
+                            )?;
+                            self.repository_add_tag_parent(
+                                service_id,
+                                account_id,
+                                child_master_tag_id,
+                                parent_master_tag_id,
+                                overwrite_deleted,
+                                timestamp,
+                            )?;
+                        }
+                        ContentUpdate::Delete => {
+                            account.check_permission(
+                                ContentType::TagParents,
+                                hydrus_core::hydrus_constants::PermissionAction::Moderate,
+                            )?;
+                            let child_service_tag_id = self.repository_get_service_tag_id(
+                                service_id,
+                                child_master_tag_id,
+                                timestamp,
+                            )?;
+                            let parent_service_tag_id = self.repository_get_service_tag_id(
+                                service_id,
+                                parent_master_tag_id,
+                                timestamp,
+                            )?;
+                            self.repository_delete_tag_parent(
+                                service_id,
+                                account_id,
+                                child_service_tag_id,
+                                parent_service_tag_id,
+                                timestamp,
+                            )?;
+                        }
+                        ContentUpdate::Pend => {
+                            account.check_permission(
+                                ContentType::TagParents,
+                                hydrus_core::hydrus_constants::PermissionAction::Petition,
+                            )?;
+                            self.repository_pend_tag_parent(
+                                service_id,
+                                account_id,
+                                child_master_tag_id,
+                                parent_master_tag_id,
+                                reason_id,
+                            )?;
+                        }
+                        ContentUpdate::DenyPend => {
+                            account.check_permission(
+                                ContentType::TagParents,
+                                hydrus_core::hydrus_constants::PermissionAction::Moderate,
+                            )?;
+                            self.repository_deny_tag_parent_pend(
+                                service_id,
+                                child_master_tag_id,
+                                parent_master_tag_id,
+                            )?;
+                        }
+                        ContentUpdate::Petition => {
+                            account.check_permission(
+                                ContentType::TagParents,
+                                hydrus_core::hydrus_constants::PermissionAction::Petition,
+                            )?;
+                            let child_service_tag_id = self.repository_get_service_tag_id(
+                                service_id,
+                                child_master_tag_id,
+                                timestamp,
+                            )?;
+                            let parent_service_tag_id = self.repository_get_service_tag_id(
+                                service_id,
+                                parent_master_tag_id,
+                                timestamp,
+                            )?;
+                            self.repository_petition_tag_parent(
+                                service_id,
+                                account_id,
+                                child_service_tag_id,
+                                parent_service_tag_id,
+                                reason_id,
+                            )?;
+                        }
+                        ContentUpdate::DenyPetition => {
+                            account.check_permission(
+                                ContentType::TagParents,
+                                hydrus_core::hydrus_constants::PermissionAction::Moderate,
+                            )?;
+                            let child_service_tag_id = self.repository_get_service_tag_id(
+                                service_id,
+                                child_master_tag_id,
+                                timestamp,
+                            )?;
+                            let parent_service_tag_id = self.repository_get_service_tag_id(
+                                service_id,
+                                parent_master_tag_id,
+                                timestamp,
+                            )?;
+                            self.repository_deny_tag_parent_petition(
+                                service_id,
+                                child_service_tag_id,
+                                parent_service_tag_id,
+                            )?;
+                        }
+                        _ => {
+                            return Err(HydrusException::new(
+                                ErrorKind::BadRequest,
+                                format!("Unsupported tag parent update action: {action}"),
+                            ));
+                        }
+                    }
+                }
+                ContentData::TagSiblings(bad_tag, good_tag) => {
+                    let bad_master_tag_id = self.get_master_tag_id(bad_tag)?;
+                    let good_master_tag_id = self.get_master_tag_id(good_tag)?;
+
+                    match action {
+                        ContentUpdate::Add => {
+                            account.check_permission(
+                                ContentType::TagSiblings,
+                                hydrus_core::hydrus_constants::PermissionAction::Moderate,
+                            )?;
+                            self.repository_add_tag_sibling(
+                                service_id,
+                                account_id,
+                                bad_master_tag_id,
+                                good_master_tag_id,
+                                overwrite_deleted,
+                                timestamp,
+                            )?;
+                        }
+                        ContentUpdate::Delete => {
+                            account.check_permission(
+                                ContentType::TagSiblings,
+                                hydrus_core::hydrus_constants::PermissionAction::Moderate,
+                            )?;
+                            let bad_service_tag_id = self.repository_get_service_tag_id(
+                                service_id,
+                                bad_master_tag_id,
+                                timestamp,
+                            )?;
+                            let good_service_tag_id = self.repository_get_service_tag_id(
+                                service_id,
+                                good_master_tag_id,
+                                timestamp,
+                            )?;
+                            self.repository_delete_tag_sibling(
+                                service_id,
+                                account_id,
+                                bad_service_tag_id,
+                                good_service_tag_id,
+                                timestamp,
+                            )?;
+                        }
+                        ContentUpdate::Pend => {
+                            account.check_permission(
+                                ContentType::TagSiblings,
+                                hydrus_core::hydrus_constants::PermissionAction::Petition,
+                            )?;
+                            self.repository_pend_tag_sibling(
+                                service_id,
+                                account_id,
+                                bad_master_tag_id,
+                                good_master_tag_id,
+                                reason_id,
+                            )?;
+                        }
+                        ContentUpdate::DenyPend => {
+                            account.check_permission(
+                                ContentType::TagSiblings,
+                                hydrus_core::hydrus_constants::PermissionAction::Moderate,
+                            )?;
+                            self.repository_deny_tag_sibling_pend(
+                                service_id,
+                                bad_master_tag_id,
+                                good_master_tag_id,
+                            )?;
+                        }
+                        ContentUpdate::Petition => {
+                            account.check_permission(
+                                ContentType::TagSiblings,
+                                hydrus_core::hydrus_constants::PermissionAction::Petition,
+                            )?;
+                            let bad_service_tag_id = self.repository_get_service_tag_id(
+                                service_id,
+                                bad_master_tag_id,
+                                timestamp,
+                            )?;
+                            let good_service_tag_id = self.repository_get_service_tag_id(
+                                service_id,
+                                good_master_tag_id,
+                                timestamp,
+                            )?;
+                            self.repository_petition_tag_sibling(
+                                service_id,
+                                account_id,
+                                bad_service_tag_id,
+                                good_service_tag_id,
+                                reason_id,
+                            )?;
+                        }
+                        ContentUpdate::DenyPetition => {
+                            account.check_permission(
+                                ContentType::TagSiblings,
+                                hydrus_core::hydrus_constants::PermissionAction::Moderate,
+                            )?;
+                            let bad_service_tag_id = self.repository_get_service_tag_id(
+                                service_id,
+                                bad_master_tag_id,
+                                timestamp,
+                            )?;
+                            let good_service_tag_id = self.repository_get_service_tag_id(
+                                service_id,
+                                good_master_tag_id,
+                                timestamp,
+                            )?;
+                            self.repository_deny_tag_sibling_petition(
+                                service_id,
+                                bad_service_tag_id,
+                                good_service_tag_id,
+                            )?;
+                        }
+                        _ => {
+                            return Err(HydrusException::new(
+                                ErrorKind::BadRequest,
+                                format!("Unsupported tag sibling update action: {action}"),
+                            ));
+                        }
+                    }
+                }
+                _ => {
+                    return Err(HydrusException::new(
+                        ErrorKind::BadRequest,
+                        format!("Unsupported content type for update: {action}"),
+                    ));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Approve every item in the petition and apply the corresponding server
+    /// update. Pending additions become adds; petitions become deletes.
+    pub fn repository_approve_petition(
+        &self,
+        service_key: &[u8],
+        petition: &mut Petition,
+        timestamp: i64,
+    ) -> HydrusResult<()> {
+        let account = Arc::clone(petition.get_petitioner_account());
+        let reason = petition.get_reason().to_string();
+
+        for (action, contents) in petition.get_actions_and_contents() {
+            let applied_action = match action {
+                ContentUpdate::Pend => ContentUpdate::Add,
+                ContentUpdate::Petition => ContentUpdate::Delete,
+                action => *action,
+            };
+
+            for content in contents {
+                let mut update = ClientToServerUpdate::new();
+                update.add_content(applied_action, content.clone(), reason.clone());
+
+                self.repository_process_client_to_server_update(
+                    service_key,
+                    account.as_ref(),
+                    &update,
+                    timestamp,
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Deny every item in the petition and apply the corresponding deny update.
+    pub fn repository_deny_petition(
+        &self,
+        service_key: &[u8],
+        petition: &mut Petition,
+        timestamp: i64,
+    ) -> HydrusResult<()> {
+        let account = Arc::clone(petition.get_petitioner_account());
+        let reason = petition.get_reason().to_string();
+
+        for (action, contents) in petition.get_actions_and_contents() {
+            let applied_action = match action {
+                ContentUpdate::Pend => ContentUpdate::DenyPend,
+                ContentUpdate::Petition => ContentUpdate::DenyPetition,
+                action => *action,
+            };
+
+            for content in contents {
+                let mut update = ClientToServerUpdate::new();
+                update.add_content(applied_action, content.clone(), reason.clone());
+
+                self.repository_process_client_to_server_update(
+                    service_key,
+                    account.as_ref(),
+                    &update,
+                    timestamp,
+                )?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// `_repository_get_current_mappings_count( service_id, service_tag_id )`
     pub fn repository_get_current_mappings_count(
         &self,
@@ -2428,6 +3074,65 @@ impl ServerDB {
             .ok_or_else(|| {
                 HydrusException::new(ErrorKind::DataMissing, "Could not count mappings.")
             })
+    }
+
+    /// Save a service's serialisable dictionary back to the services table.
+    pub fn save_service(&self, service: &ServerService) -> HydrusResult<()> {
+        let (service_key, _, _, _, dictionary) = service.to_tuple()?;
+
+        self.db.db_base()?.execute(
+            "UPDATE services SET dictionary_string = ? WHERE service_key = ?;",
+            &[&dictionary.dump_to_string(), &service_key],
+        )?;
+
+        service.set_clean();
+
+        Ok(())
+    }
+
+    /// `_save_services`
+    pub fn save_services(&self, services: &[ServerService]) -> HydrusResult<()> {
+        for service in services {
+            self.save_service(service)?;
+        }
+
+        Ok(())
+    }
+
+    /// `_modify_account_types`'s supporting option mutation.
+    pub fn set_service_nullification_period(
+        &self,
+        service_key: &[u8],
+        period: i64,
+    ) -> HydrusResult<()> {
+        let service = self
+            .get_services(None)?
+            .into_iter()
+            .find(|service| service.get_service_key() == service_key)
+            .ok_or_else(|| {
+                HydrusException::new(ErrorKind::DataMissing, "Service not found.")
+            })?;
+
+        service.set_nullification_period(period);
+        self.save_service(&service)
+    }
+
+    /// `_modify_account_types`'s supporting option mutation.
+    pub fn set_service_update_period(
+        &self,
+        service_key: &[u8],
+        period: i64,
+    ) -> HydrusResult<()> {
+        let service = self
+            .get_services(None)?
+            .into_iter()
+            .find(|service| service.get_service_key() == service_key)
+            .ok_or_else(|| {
+                HydrusException::new(ErrorKind::DataMissing, "Service not found.")
+            })?;
+
+        service.set_update_period(period)?;
+        self.save_service(&service)
     }
 
     /// `_add_account_type( service_id, account_type )`
@@ -2520,6 +3225,582 @@ impl ServerDB {
             .into_iter()
             .map(|account_id| get_account(&db, service_id, account_id))
             .collect()
+    }
+
+    fn is_null_account(&self, service_id: i64, account_id: i64) -> HydrusResult<bool> {
+        Ok(self
+            .get_account(service_id, account_id)?
+            .get_account_type()
+            .is_null_account())
+    }
+
+    fn save_account(&self, account: &NetworkAccount) -> HydrusResult<()> {
+        let (account_key, _, _, _, dictionary) =
+            NetworkAccount::generate_tuple_from_account(account)?;
+
+        self.db.db_base()?.execute(
+            "UPDATE accounts SET dictionary_string = ? WHERE account_key = ?;",
+            &[&dictionary.dump_to_string(), &account_key],
+        )?;
+
+        account.set_clean();
+
+        Ok(())
+    }
+
+    /// `_repository_get_account_info( service_id, account_id )`
+    pub fn get_account_info(
+        &self,
+        service_key: &[u8],
+        account_id: i64,
+    ) -> HydrusResult<std::collections::HashMap<String, i64>> {
+        let service_id = self.get_service_id(service_key)?;
+        let service_type = self.get_service_type(service_id)?;
+        let db = self.db.db_base()?;
+        let mut info = std::collections::HashMap::new();
+
+        if service_type == ServiceType::FileRepository {
+            let (hash_map, _) = generate_repository_master_map_table_names(service_id);
+            let (current_files, _, _, _, _) =
+                generate_repository_files_table_names(service_id);
+            let (num_files, num_bytes) = db
+                .query_one(
+                    &format!(
+                        "SELECT COUNT( * ), COALESCE( SUM( size ), 0 ) FROM files_info NATURAL JOIN {hash_map} NATURAL JOIN {current_files} WHERE account_id = ?;"
+                    ),
+                    &[&account_id],
+                    |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+                )?
+                .unwrap_or((0, 0));
+
+            info.insert("num_files".to_string(), num_files);
+            info.insert("num_files_bytes".to_string(), num_bytes);
+        } else if service_type == ServiceType::TagRepository {
+            let (current_mappings, _, _, petitioned_mappings) =
+                generate_repository_mappings_table_names(service_id);
+            let (current_siblings, _, pending_siblings, petitioned_siblings) =
+                generate_repository_tag_siblings_table_names(service_id);
+            let (current_parents, _, pending_parents, petitioned_parents) =
+                generate_repository_tag_parents_table_names(service_id);
+
+            info.insert(
+                "num_mappings".to_string(),
+                db.query_one(
+                    &format!(
+                        "SELECT COUNT( * ) FROM {current_mappings} WHERE account_id = ?;"
+                    ),
+                    &[&account_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .unwrap_or(0),
+            );
+            info.insert(
+                "num_mappings_petitioned".to_string(),
+                db.query_one(
+                    &format!(
+                        "SELECT COUNT( * ) FROM {petitioned_mappings} WHERE account_id = ?;"
+                    ),
+                    &[&account_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .unwrap_or(0),
+            );
+            info.insert(
+                "num_siblings".to_string(),
+                db.query_one(
+                    &format!(
+                        "SELECT COUNT( * ) FROM {current_siblings} WHERE account_id = ?;"
+                    ),
+                    &[&account_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .unwrap_or(0),
+            );
+            info.insert(
+                "num_siblings_pending".to_string(),
+                db.query_one(
+                    &format!(
+                        "SELECT COUNT( * ) FROM {pending_siblings} WHERE account_id = ?;"
+                    ),
+                    &[&account_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .unwrap_or(0),
+            );
+            info.insert(
+                "num_siblings_petitioned".to_string(),
+                db.query_one(
+                    &format!(
+                        "SELECT COUNT( * ) FROM {petitioned_siblings} WHERE account_id = ?;"
+                    ),
+                    &[&account_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .unwrap_or(0),
+            );
+            info.insert(
+                "num_parents".to_string(),
+                db.query_one(
+                    &format!(
+                        "SELECT COUNT( * ) FROM {current_parents} WHERE account_id = ?;"
+                    ),
+                    &[&account_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .unwrap_or(0),
+            );
+            info.insert(
+                "num_parents_pending".to_string(),
+                db.query_one(
+                    &format!(
+                        "SELECT COUNT( * ) FROM {pending_parents} WHERE account_id = ?;"
+                    ),
+                    &[&account_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .unwrap_or(0),
+            );
+            info.insert(
+                "num_parents_petitioned".to_string(),
+                db.query_one(
+                    &format!(
+                        "SELECT COUNT( * ) FROM {petitioned_parents} WHERE account_id = ?;"
+                    ),
+                    &[&account_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .unwrap_or(0),
+            );
+        }
+
+        let petition_score = db
+            .query_one(
+                "SELECT score FROM account_scores WHERE service_id = ? AND account_id = ? AND score_type = ?;",
+                &[&service_id, &account_id, &i64::from(hydrus_core::hydrus_constants::SCORE_PETITION)],
+                |row| row.get::<_, i64>(0),
+            )?
+            .unwrap_or(0);
+
+        info.insert("petition_score".to_string(), petition_score);
+
+        Ok(info)
+    }
+
+    /// `_get_account_key_from_content`
+    pub fn get_account_key_from_content(
+        &self,
+        service_key: &[u8],
+        content: &Content,
+    ) -> HydrusResult<Vec<u8>> {
+        let service_id = self.get_service_id(service_key)?;
+        let service_type = self.get_service_type(service_id)?;
+        let account_id = match content.get_content_data() {
+            ContentData::Files(hashes) => {
+                if service_type != ServiceType::FileRepository {
+                    return Err(HydrusException::new(
+                        ErrorKind::NotFound,
+                        "Only File Repositories support file account lookups!",
+                    ));
+                }
+
+                let hash = hashes.first().ok_or_else(|| {
+                    HydrusException::new(ErrorKind::NotFound, "No file hash in content!")
+                })?;
+
+                if !self.master_hash_exists(hash)? {
+                    return Err(HydrusException::new(
+                        ErrorKind::NotFound,
+                        "The service could not find that hash in its database.",
+                    ));
+                }
+
+                let master_hash_id = self.get_master_hash_id(hash)?;
+                let (hash_map, _) = generate_repository_master_map_table_names(service_id);
+                let (current_files, _, _, _, _) =
+                    generate_repository_files_table_names(service_id);
+
+                self.db
+                    .db_base()?
+                    .query_one(
+                        &format!(
+                            "SELECT account_id FROM {current_files} NATURAL JOIN {hash_map} WHERE master_hash_id = ?;"
+                        ),
+                        &[&master_hash_id],
+                        |row| row.get::<_, i64>(0),
+                    )?
+                    .ok_or_else(|| {
+                        HydrusException::new(
+                            ErrorKind::NotFound,
+                            "The service could not find that hash in its database.",
+                        )
+                    })?
+            }
+            ContentData::Mapping(tag, hash) => {
+                if service_type != ServiceType::TagRepository {
+                    return Err(HydrusException::new(
+                        ErrorKind::NotFound,
+                        "Only Tag Repositories support mapping account lookups!",
+                    ));
+                }
+
+                if !self.master_hash_exists(hash)? || !self.master_tag_exists(tag)? {
+                    return Err(HydrusException::new(
+                        ErrorKind::NotFound,
+                        "The service could not find that mapping in its database.",
+                    ));
+                }
+
+                let master_hash_id = self.get_master_hash_id(hash)?;
+                let master_tag_id = self.get_master_tag_id(tag)?;
+                let (hash_map, tag_map) =
+                    generate_repository_master_map_table_names(service_id);
+                let (current_mappings, _, _, _) =
+                    generate_repository_mappings_table_names(service_id);
+
+                self.db
+                    .db_base()?
+                    .query_one(
+                        &format!(
+                            "SELECT account_id FROM {current_mappings} NATURAL JOIN {hash_map} NATURAL JOIN {tag_map} WHERE master_hash_id = ? AND master_tag_id = ?;"
+                        ),
+                        &[&master_hash_id, &master_tag_id],
+                        |row| row.get::<_, i64>(0),
+                    )?
+                    .ok_or_else(|| {
+                        HydrusException::new(
+                            ErrorKind::NotFound,
+                            "The service could not find that mapping in its database.",
+                        )
+                    })?
+            }
+            _ => {
+                return Err(HydrusException::new(
+                    ErrorKind::NotFound,
+                    "The service could not understand the submitted content.",
+                ));
+            }
+        };
+
+        self.get_account_key_from_account_id(account_id)
+    }
+
+    /// `_modify_account_types`
+    pub fn modify_account_types(
+        &self,
+        service_key: &[u8],
+        account_types: &[AccountType],
+        deletee_keys_to_replacements: &std::collections::HashMap<Vec<u8>, Vec<u8>>,
+    ) -> HydrusResult<()> {
+        let service_id = self.get_service_id(service_key)?;
+        let current = self.get_account_types(service_key)?;
+
+        let mut future: std::collections::HashMap<Vec<u8>, AccountType> = account_types
+            .iter()
+            .filter(|account_type| !account_type.is_null_account())
+            .map(|account_type| {
+                (
+                    account_type.get_account_type_key().to_vec(),
+                    account_type.clone(),
+                )
+            })
+            .collect();
+
+        for account_type in &current {
+            if account_type.is_null_account() {
+                future.insert(
+                    account_type.get_account_type_key().to_vec(),
+                    account_type.as_ref().clone(),
+                );
+            }
+        }
+
+        let current_by_key: std::collections::HashMap<Vec<u8>, Arc<AccountType>> = current
+            .into_iter()
+            .map(|account_type| {
+                (
+                    account_type.get_account_type_key().to_vec(),
+                    account_type,
+                )
+            })
+            .collect();
+
+        let mut key_to_id: std::collections::HashMap<Vec<u8>, i64> =
+            std::collections::HashMap::new();
+
+        for (key, account_type) in &future {
+            if let Some(existing) = current_by_key.get(key) {
+                let id = self.get_account_type_id(service_id, key)?;
+
+                self.db.db_base()?.execute(
+                    "UPDATE account_types SET dump = ? WHERE service_id = ? AND account_type_id = ?;",
+                    &[&account_type.dump_to_string(), &service_id, &id],
+                )?;
+
+                key_to_id.insert(key.clone(), id);
+
+                let _ = existing;
+            } else {
+                let id = self.add_account_type(service_id, account_type)?;
+                key_to_id.insert(key.clone(), id);
+            }
+        }
+
+        for (deletee_key, deletee) in current_by_key {
+            if future.contains_key(&deletee_key) {
+                continue;
+            }
+
+            let Some(replacement_key) = deletee_keys_to_replacements.get(&deletee_key)
+            else {
+                return Err(HydrusException::new(
+                    ErrorKind::BadRequest,
+                    "Was missing a replacement account_type_key.",
+                ));
+            };
+
+            let Some(replacement_id) = key_to_id.get(replacement_key) else {
+                return Err(HydrusException::new(
+                    ErrorKind::BadRequest,
+                    "A replacement account_type_key was not in the future account types.",
+                ));
+            };
+
+            let deletee_id = self.get_account_type_id(service_id, &deletee_key)?;
+
+            self.db.db_base()?.execute(
+                "UPDATE accounts SET account_type_id = ? WHERE service_id = ? AND account_type_id = ?;",
+                &[replacement_id, &service_id, &deletee_id],
+            )?;
+            self.db.db_base()?.execute(
+                "DELETE FROM account_types WHERE service_id = ? AND account_type_id = ?;",
+                &[&service_id, &deletee_id],
+            )?;
+
+            let _ = deletee;
+        }
+
+        Ok(())
+    }
+
+    /// `_modify_account_account_type`
+    pub fn modify_account_account_type(
+        &self,
+        service_key: &[u8],
+        subject_account_key: &[u8],
+        new_account_type_key: &[u8],
+    ) -> HydrusResult<()> {
+        let service_id = self.get_service_id(service_key)?;
+        let account_id = self.get_account_id(subject_account_key)?;
+
+        if self.is_null_account(service_id, account_id)? {
+            return Err(HydrusException::new(
+                ErrorKind::BadRequest,
+                "You cannot reassign the null account!",
+            ));
+        }
+
+        let new_account_type_id =
+            self.get_account_type_id(service_id, new_account_type_key)?;
+        let new_account_type = self.get_account_type(service_id, new_account_type_id)?;
+
+        if new_account_type.is_null_account() {
+            return Err(HydrusException::new(
+                ErrorKind::BadRequest,
+                "You cannot reassign anyone to the null account!",
+            ));
+        }
+
+        self.db.db_base()?.execute(
+            "UPDATE accounts SET account_type_id = ? WHERE account_id = ?;",
+            &[&new_account_type_id, &account_id],
+        )?;
+
+        Ok(())
+    }
+
+    /// `_modify_account_ban`
+    pub fn modify_account_ban(
+        &self,
+        service_key: &[u8],
+        subject_account_key: &[u8],
+        reason: &str,
+        expires: Option<i64>,
+    ) -> HydrusResult<()> {
+        let service_id = self.get_service_id(service_key)?;
+        let account_id = self.get_account_id(subject_account_key)?;
+
+        if self.is_null_account(service_id, account_id)? {
+            return Err(HydrusException::new(
+                ErrorKind::BadRequest,
+                "You cannot ban the null account!",
+            ));
+        }
+
+        let account = self.get_account(service_id, account_id)?;
+        account.ban(reason, hydrus_time::get_now(), expires);
+        self.save_account(&account)?;
+        self.delete_repository_petitions(service_id, &[account_id])?;
+
+        Ok(())
+    }
+
+    /// `_modify_account_unban`
+    pub fn modify_account_unban(
+        &self,
+        service_key: &[u8],
+        subject_account_key: &[u8],
+    ) -> HydrusResult<()> {
+        let service_id = self.get_service_id(service_key)?;
+        let account_id = self.get_account_id(subject_account_key)?;
+
+        if self.is_null_account(service_id, account_id)? {
+            return Err(HydrusException::new(
+                ErrorKind::BadRequest,
+                "You cannot unban the null account!",
+            ));
+        }
+
+        let account = self.get_account(service_id, account_id)?;
+        account.unban();
+        self.save_account(&account)?;
+
+        Ok(())
+    }
+
+    /// `_modify_account_expires`
+    pub fn modify_account_expires(
+        &self,
+        service_key: &[u8],
+        subject_account_key: &[u8],
+        expires: Option<i64>,
+    ) -> HydrusResult<()> {
+        let service_id = self.get_service_id(service_key)?;
+        let account_id = self.get_account_id(subject_account_key)?;
+
+        if self.is_null_account(service_id, account_id)? {
+            return Err(HydrusException::new(
+                ErrorKind::BadRequest,
+                "You cannot modify the null account!",
+            ));
+        }
+
+        self.db.db_base()?.execute(
+            "UPDATE accounts SET expires = ? WHERE account_id = ?;",
+            &[&expires, &account_id],
+        )?;
+
+        Ok(())
+    }
+
+    /// `_modify_account_set_message`
+    pub fn modify_account_set_message(
+        &self,
+        service_key: &[u8],
+        subject_account_key: &[u8],
+        message: &str,
+    ) -> HydrusResult<()> {
+        let service_id = self.get_service_id(service_key)?;
+        let account_id = self.get_account_id(subject_account_key)?;
+
+        if self.is_null_account(service_id, account_id)? {
+            return Err(HydrusException::new(
+                ErrorKind::BadRequest,
+                "You cannot tell the null account anything!",
+            ));
+        }
+
+        let account = self.get_account(service_id, account_id)?;
+        account.set_message(message, hydrus_time::get_now());
+        self.save_account(&account)?;
+
+        Ok(())
+    }
+
+    /// `_modify_account_delete_all_content`
+    pub fn modify_account_delete_all_content(
+        &self,
+        service_key: &[u8],
+        admin_account_key: &[u8],
+        subject_account_key: &[u8],
+    ) -> HydrusResult<bool> {
+        let service_id = self.get_service_id(service_key)?;
+        let subject_account_id = self.get_account_id(subject_account_key)?;
+        let admin_account_id = self.get_account_id(admin_account_key)?;
+
+        if self.is_null_account(service_id, subject_account_id)? {
+            return Err(HydrusException::new(
+                ErrorKind::BadRequest,
+                "You cannot delete the null account's content!",
+            ));
+        }
+
+        self.delete_repository_petitions(service_id, &[subject_account_id])?;
+
+        if !REPOSITORIES.contains(&self.get_service_type(service_id)?) {
+            return Ok(true);
+        }
+
+        loop {
+            let (current_files, _, _, _, _) =
+                generate_repository_files_table_names(service_id);
+            let service_hash_ids = self.db.db_base()?.query_all(
+                &format!(
+                    "SELECT service_hash_id FROM {current_files} WHERE account_id = ? LIMIT 500;"
+                ),
+                &[&subject_account_id],
+                |row| row.get::<_, i64>(0),
+            )?;
+
+            if service_hash_ids.is_empty() {
+                break;
+            }
+
+            self.repository_delete_files(
+                service_id,
+                admin_account_id,
+                &service_hash_ids,
+                hydrus_time::get_now(),
+            )?;
+        }
+
+        Ok(true)
+    }
+
+    fn delete_repository_petitions(
+        &self,
+        service_id: i64,
+        account_ids: &[i64],
+    ) -> HydrusResult<()> {
+        if !REPOSITORIES.contains(&self.get_service_type(service_id)?) {
+            return Ok(());
+        }
+
+        let (_, _, _, petitioned_files, _) =
+            generate_repository_files_table_names(service_id);
+        let (_, _, _, petitioned_mappings) =
+            generate_repository_mappings_table_names(service_id);
+        let (_, _, _, petitioned_parents) =
+            generate_repository_tag_parents_table_names(service_id);
+        let (_, _, _, petitioned_siblings) =
+            generate_repository_tag_siblings_table_names(service_id);
+
+        for table in [
+            petitioned_files,
+            petitioned_mappings,
+            petitioned_parents,
+            petitioned_siblings,
+        ] {
+            for account_id in account_ids {
+                self.db.db_base()?.execute(
+                    &format!("DELETE FROM {table} WHERE account_id = ?;"),
+                    &[account_id],
+                )?;
+            }
+        }
+
+        self.regenerate_service_info(Some(service_id), None)?;
+
+        Ok(())
     }
 
     /// `_get_account( service_id, account_id )`
@@ -4070,6 +5351,28 @@ mod tests {
         (service_id, service.get_service_key().to_vec())
     }
 
+    fn create_file_repository_with_access(
+        db: &ServerDB,
+        label: &str,
+    ) -> (i64, Vec<u8>, Vec<u8>) {
+        let service = generate_service(
+            vec![0x34; 32],
+            ServiceType::FileRepository,
+            format!("{label} repository"),
+            DEFAULT_SERVICE_PORT,
+            None,
+        )
+        .unwrap();
+        let (service_id, access_key) =
+            db.add_service_with_admin_access_key(&service).unwrap();
+
+        (
+            service_id,
+            service.get_service_key().to_vec(),
+            access_key,
+        )
+    }
+
     #[test]
     fn repository_add_and_delete_files_updates_tables_and_info() {
         let dir = TestDir::new();
@@ -4468,6 +5771,13 @@ mod tests {
             1
         );
 
+        let summaries = db
+            .repository_get_file_petitions_summary(service_id, 100, None, None)
+            .unwrap();
+
+        assert_eq!(summaries.len(), 1);
+        assert_eq!(summaries[0].content_type, ContentType::Files);
+
         db.repository_deny_file_petition(service_id, &[service_hash_id])
             .unwrap();
 
@@ -4521,6 +5831,13 @@ mod tests {
             1
         );
 
+        let summaries = db
+            .repository_get_mapping_petitions_summary(service_id, 100, None, None)
+            .unwrap();
+
+        assert_eq!(summaries.len(), 1);
+        assert_eq!(summaries[0].content_type, ContentType::Mappings);
+
         db.repository_deny_mapping_petition(service_id, service_tag_id, &[service_hash_id])
             .unwrap();
 
@@ -4529,6 +5846,255 @@ mod tests {
                 .unwrap(),
             0
         );
+    }
+
+    #[test]
+    fn client_to_server_mapping_update_and_petition_approval_work() {
+        use hydrus_core::networking::hydrus_network::Content;
+
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+        let (service_id, service_key) = create_tag_repository(&db, "updates");
+        let timestamp = hydrus_time::get_now();
+
+        let admin_key = db
+            .get_service_keys(Some(&[ServiceType::ServerAdmin]))
+            .unwrap()[0]
+            .clone();
+        let access_key = db.get_access_key(&admin_key, b"init").unwrap();
+        let account_key = db
+            .get_account_key_from_access_key(&admin_key, &access_key)
+            .unwrap();
+        let account = db
+            .get_account_from_account_key(&admin_key, &account_key)
+            .unwrap();
+
+        let content = Content::mapping("updated tag", vec![0xE1; 32]);
+        let mut update = ClientToServerUpdate::new();
+        update.add_content(ContentUpdate::Add, content.clone(), "accept mapping");
+
+        db.repository_process_client_to_server_update(
+            &service_key,
+            &account,
+            &update,
+            timestamp,
+        )
+        .unwrap();
+
+        let master_tag_id = db.get_master_tag_id("updated tag").unwrap();
+        let service_tag_id = db
+            .repository_get_service_tag_id(service_id, master_tag_id, timestamp)
+            .unwrap();
+
+        assert_eq!(
+            db.repository_get_current_mappings_count(service_id, service_tag_id)
+                .unwrap(),
+            1
+        );
+
+        let master_hash_ids = db.get_master_hash_ids(&[vec![0xE2; 32]]).unwrap();
+        let mut petition = Petition::new(
+            Arc::new(account),
+            PetitionHeader::new(
+                ContentType::Mappings,
+                ContentStatus::Pending,
+                account_key,
+                "approve mapping",
+            ),
+            vec![(
+                ContentUpdate::Add,
+                vec![Content::mapping("approved tag", vec![0xE2; 32])],
+            )],
+        );
+
+        db.repository_approve_petition(&service_key, &mut petition, timestamp)
+            .unwrap();
+
+        let approved_tag_id = db.get_master_tag_id("approved tag").unwrap();
+        let approved_service_tag_id = db
+            .repository_get_service_tag_id(service_id, approved_tag_id, timestamp)
+            .unwrap();
+
+        assert_eq!(
+            db.repository_get_current_mappings_count(service_id, approved_service_tag_id)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.repository_get_master_hash_ids(service_id, &master_hash_ids)
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn account_info_and_mutations_work() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+        let (service_id, service_key, access_key) =
+            create_file_repository_with_access(&db, "account mutations");
+        let timestamp = hydrus_time::get_now();
+
+        let admin_service_key = db
+            .get_service_keys(Some(&[ServiceType::ServerAdmin]))
+            .unwrap()[0]
+            .clone();
+        let admin_access_key = db.get_access_key(&admin_service_key, b"init").unwrap();
+        let _admin_account_key = db
+            .get_account_key_from_access_key(&admin_service_key, &admin_access_key)
+            .unwrap();
+        let admin_account_key = db
+            .get_account_key_from_access_key(&service_key, &access_key)
+            .unwrap();
+        let admin_account_id = db.get_account_id(&admin_account_key).unwrap();
+
+        let source_path = dir.path.join("account file.bin");
+        std::fs::write(&source_path, b"account file").unwrap();
+        let hash = vec![0xF1; 32];
+        let file = ServerFileInput {
+            hash: hash.clone(),
+            size: 12,
+            mime: Mime::OctetStream,
+            width: None,
+            height: None,
+            duration_ms: None,
+            num_frames: None,
+            num_words: None,
+            path: source_path,
+            thumbnail: None,
+        };
+        db.repository_add_file(
+            service_id,
+            admin_account_id,
+            &file,
+            false,
+            timestamp,
+            None,
+        )
+        .unwrap();
+
+        let info = db.get_account_info(&service_key, admin_account_id).unwrap();
+        assert_eq!(info.get("num_files"), Some(&1));
+
+        let account_from_content = db
+            .get_account_key_from_content(&service_key, &Content::files(vec![hash]))
+            .unwrap();
+        assert_eq!(account_from_content, admin_account_key);
+
+        db.modify_account_set_message(&service_key, &admin_account_key, "hello")
+            .unwrap();
+        let account = db
+            .get_account_from_account_key(&service_key, &admin_account_key)
+            .unwrap();
+        assert_eq!(account.get_message_and_timestamp().0, "hello");
+
+        db.modify_account_ban(&service_key, &admin_account_key, "bad", None)
+            .unwrap();
+        assert!(
+            db.get_account_from_account_key(&service_key, &admin_account_key)
+                .unwrap()
+                .is_banned()
+        );
+
+        db.modify_account_unban(&service_key, &admin_account_key)
+            .unwrap();
+
+        db.modify_account_expires(
+            &service_key,
+            &admin_account_key,
+            Some(timestamp + 1000),
+        )
+        .unwrap();
+        assert_eq!(
+            db.get_account_from_account_key(&service_key, &admin_account_key)
+                .unwrap()
+                .get_expires(),
+            Some(timestamp + 1000)
+        );
+
+        assert!(
+            db.modify_account_delete_all_content(
+                &service_key,
+                &admin_account_key,
+                &admin_account_key,
+            )
+            .unwrap()
+        );
+
+        let info = db.get_account_info(&service_key, admin_account_id).unwrap();
+        assert_eq!(info.get("num_files"), Some(&0));
+    }
+
+    #[test]
+    fn account_types_can_be_replaced_and_accounts_reassigned() {
+        use std::sync::Arc;
+        use indexmap::IndexMap;
+        use hydrus_core::networking::hydrus_networking::BandwidthRules;
+
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+        let (service_id, service_key, access_key) =
+            create_file_repository_with_access(&db, "account types");
+        let account_key = db
+            .get_account_key_from_access_key(&service_key, &access_key)
+            .unwrap();
+
+        let current_types = db.get_account_types(&service_key).unwrap();
+        let admin_type = current_types
+            .iter()
+            .find(|account_type| account_type.get_title() == "administrator")
+            .unwrap()
+            .as_ref()
+            .clone();
+        let new_type = AccountType::generate_new_account_type(
+            "replacement type",
+            IndexMap::new(),
+            Arc::new(BandwidthRules::new()),
+        );
+
+        let mut replacements = std::collections::HashMap::new();
+        replacements.insert(
+            admin_type.get_account_type_key().to_vec(),
+            new_type.get_account_type_key().to_vec(),
+        );
+
+        db.modify_account_types(&service_key, &[new_type.clone()], &replacements)
+            .unwrap();
+
+        let account = db
+            .get_account_from_account_key(&service_key, &account_key)
+            .unwrap();
+
+        assert_eq!(account.get_account_type().get_title(), "replacement type");
+        assert_eq!(db.get_account_types(&service_key).unwrap().len(), 2);
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumFiles)
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn service_period_options_are_persisted() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+        let (_service_id, service_key) = create_tag_repository(&db, "service options");
+
+        db.set_service_nullification_period(&service_key, 12345)
+            .unwrap();
+        db.set_service_update_period(&service_key, 67890)
+            .unwrap();
+
+        let service = db
+            .get_services(None)
+            .unwrap()
+            .into_iter()
+            .find(|service| service.get_service_key() == service_key)
+            .unwrap();
+
+        assert_eq!(service.get_nullification_period(), 12345);
+        assert_eq!(service.get_update_period(), 67890);
     }
 
     #[test]

@@ -34,7 +34,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   `resolution_to_pretty_string`, `Booru`, `Credentials`, `Imageboard`.
 - [x] `ClientEnvironment` — настройка `REQUESTS_CA_BUNDLE`/путей CA.
 - [x] `ClientPaths` — удаление в корзину, открытие файла/каталога, нативные свойства файла.
-- [ ] `ClientTime` — `CalendarDelta`, `ParseDate`, `MergeModifiedTimes`, pretty-форматтеры.
+- [x] `ClientTime` — `CalendarDelta`, `ParseDate`, `MergeModifiedTimes`, pretty-форматтеры.
 - [ ] `ClientThreading` — `JobStatus`, `ThreadCall`, повторяющиеся задачи, pub/sub-мост в Qt.
 - [ ] `ClientLocation` — `LocationContext`, `LocationType`, сериализация.
 - [ ] `ClientApplicationCommand` — enum команд, горячие клавиши, обработчики.

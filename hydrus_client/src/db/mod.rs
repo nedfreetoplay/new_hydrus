@@ -64,19 +64,22 @@ impl ClientDB {
         // report a consistent database.
         if version < SOFTWARE_VERSION as i64 {
             version = SOFTWARE_VERSION as i64;
-            self.db.execute("UPDATE version SET version = ?", &[&version])?;
+            self.db
+                .execute("UPDATE version SET version = ?", &[&version])?;
         }
 
         Ok(version)
     }
 
     pub fn read_options_text(&self) -> HydrusResult<Option<String>> {
-        self.db.query_one("SELECT options FROM options", &[], |row| row.get(0))
+        self.db
+            .query_one("SELECT options FROM options", &[], |row| row.get(0))
     }
 
     pub fn write_options_text(&self, options: &str) -> HydrusResult<()> {
         self.db.execute("DELETE FROM options", &[])?;
-        self.db.execute("INSERT INTO options ( options ) VALUES ( ? )", &[&options])?;
+        self.db
+            .execute("INSERT INTO options ( options ) VALUES ( ? )", &[&options])?;
 
         Ok(())
     }
@@ -147,10 +150,16 @@ mod tests {
     fn services_round_trip() {
         let (db, directory) = temporary_db();
 
-        let service_id =
-            services::get_or_add_service(db.db(), b"my files", ServiceType::LocalFileDomain, "my files")
-                .unwrap();
-        let service = services::get_service(db.db(), b"my files").unwrap().unwrap();
+        let service_id = services::get_or_add_service(
+            db.db(),
+            b"my files",
+            ServiceType::LocalFileDomain,
+            "my files",
+        )
+        .unwrap();
+        let service = services::get_service(db.db(), b"my files")
+            .unwrap()
+            .unwrap();
 
         assert_eq!(service.service_id, service_id);
         assert_eq!(service.name, "my files");
@@ -176,7 +185,10 @@ mod tests {
 
         files_metadata::set_file_info(db.db(), hash_id, &info).unwrap();
 
-        assert_eq!(files_metadata::get_file_info(db.db(), hash_id).unwrap(), Some(info));
+        assert_eq!(
+            files_metadata::get_file_info(db.db(), hash_id).unwrap(),
+            Some(info)
+        );
 
         drop(db);
         let _ = std::fs::remove_dir_all(directory);
@@ -191,10 +203,7 @@ mod tests {
 
         db.set_serialisable("client options", &options).unwrap();
         let loaded = db.get_serialisable("client options").unwrap().unwrap();
-        let loaded = loaded
-            .as_any()
-            .downcast_ref::<ClientOptions>()
-            .unwrap();
+        let loaded = loaded.as_any().downcast_ref::<ClientOptions>().unwrap();
 
         assert!(loaded.get_boolean("advanced_mode"));
 

@@ -34,7 +34,12 @@ impl TagSort {
     }
 
     pub fn static_get_text_asc_default() -> Self {
-        Self::new(SORT_BY_HUMAN_TAG, client_constants::SORT_ASC, true, String::new())
+        Self::new(
+            SORT_BY_HUMAN_TAG,
+            client_constants::SORT_ASC,
+            true,
+            String::new(),
+        )
     }
 
     pub fn static_get_text_asc_user_grouped_default() -> Self {

@@ -125,7 +125,10 @@ impl ServiceKeysToTags {
                 let tag = tag.as_array()?;
                 let name = tag.first()?.as_str()?.to_string();
                 let status = TagStatus::try_from_int(tag.get(1)?.as_u64()? as u8)?;
-                self.tags.entry(service_key.clone()).or_default().insert(name, status);
+                self.tags
+                    .entry(service_key.clone())
+                    .or_default()
+                    .insert(name, status);
             }
         }
 
@@ -155,7 +158,11 @@ mod tests {
     #[test]
     fn tags_are_grouped_by_service_and_status() {
         let mut tags = ServiceKeysToTags::new();
-        tags.add_tags(b"local tags", ["blue eyes", "blonde hair"], TagStatus::Current);
+        tags.add_tags(
+            b"local tags",
+            ["blue eyes", "blonde hair"],
+            TagStatus::Current,
+        );
         tags.add_status(b"local tags", "deleted tag", TagStatus::Deleted);
 
         assert_eq!(

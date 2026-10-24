@@ -14,11 +14,7 @@ mod ffi {
         fn build_hydrus_shell(window: Pin<&mut HydrusMainWindow>);
         fn hydrus_add_page(window: Pin<&mut HydrusMainWindow>, title: &str) -> i32;
         fn hydrus_add_sidebar_item(window: Pin<&mut HydrusMainWindow>, title: &str);
-        fn hydrus_add_menu_action(
-            window: Pin<&mut HydrusMainWindow>,
-            menu: &str,
-            action: &str,
-        );
+        fn hydrus_add_menu_action(window: Pin<&mut HydrusMainWindow>, menu: &str, action: &str);
         fn hydrus_add_exit_action(window: Pin<&mut HydrusMainWindow>, menu: &str, action: &str);
         fn hydrus_set_status(window: Pin<&mut HydrusMainWindow>, message: &str);
         fn hydrus_set_title(window: Pin<&mut HydrusMainWindow>, title: &str);

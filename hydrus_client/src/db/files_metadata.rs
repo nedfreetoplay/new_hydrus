@@ -59,11 +59,13 @@ pub fn get_file_info(db: &DBBase, hash_id: i64) -> HydrusResult<Option<FileInfo>
 }
 
 pub fn has_file_info(db: &DBBase, hash_id: i64) -> HydrusResult<bool> {
-    let count: i64 = db.query_one(
-        "SELECT COUNT(*) FROM files_info WHERE hash_id = ?",
-        &[&hash_id],
-        |row| row.get(0),
-    )?.unwrap_or(0);
+    let count: i64 = db
+        .query_one(
+            "SELECT COUNT(*) FROM files_info WHERE hash_id = ?",
+            &[&hash_id],
+            |row| row.get(0),
+        )?
+        .unwrap_or(0);
 
     Ok(count > 0)
 }

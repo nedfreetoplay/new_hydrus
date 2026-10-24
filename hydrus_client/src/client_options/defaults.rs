@@ -149,7 +149,8 @@ fn integers() -> Map<String, Value> {
         ("treeview_row_height", 20),
         (
             "media_viewer_tags_scrolling_behaviour",
-            client_constants::MEDIA_VIEWER_TAGS_SCROLLING_BEHAVIOUR_ONLY_PROPAGATE_AFTER_DELAY as i64,
+            client_constants::MEDIA_VIEWER_TAGS_SCROLLING_BEHAVIOUR_ONLY_PROPAGATE_AFTER_DELAY
+                as i64,
         ),
     ];
 
@@ -171,7 +172,10 @@ fn strings() -> Map<String, Value> {
         ("or_connector", " OR "),
         ("export_phrase", "{hash}"),
         ("current_colourset", "default"),
-        ("favourite_simple_downloader_formula", "all files linked by images in page"),
+        (
+            "favourite_simple_downloader_formula",
+            "all files linked by images in page",
+        ),
         ("thumbnail_scroll_rate", "1.0"),
         ("pause_character", "\u{23f8}"),
         ("stop_character", "\u{23f9}"),
@@ -315,14 +319,8 @@ fn keys() -> Map<String, Value> {
 
 fn colours() -> Value {
     let mut sets = Map::new();
-    sets.insert(
-        "default".to_string(),
-        Value::Object(default_colours()),
-    );
-    sets.insert(
-        "darkmode".to_string(),
-        Value::Object(darkmode_colours()),
-    );
+    sets.insert("default".to_string(), Value::Object(default_colours()));
+    sets.insert("darkmode".to_string(), Value::Object(darkmode_colours()));
 
     Value::Object(sets)
 }

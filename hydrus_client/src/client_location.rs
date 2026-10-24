@@ -23,7 +23,9 @@ impl LocationContext {
         }
     }
 
-    pub fn static_create_all_current(current_service_keys: impl IntoIterator<Item = Vec<u8>>) -> Self {
+    pub fn static_create_all_current(
+        current_service_keys: impl IntoIterator<Item = Vec<u8>>,
+    ) -> Self {
         Self::new(current_service_keys, std::iter::empty())
     }
 
@@ -76,7 +78,8 @@ impl LocationContext {
 
     /// Returns `(service_keys, file_location_is_cross_referenced)`.
     pub fn get_covering_current_file_service_keys(&self) -> (Vec<Vec<u8>>, bool) {
-        let file_location_is_cross_referenced = !(self.is_all_known_files() || self.includes_deleted());
+        let file_location_is_cross_referenced =
+            !(self.is_all_known_files() || self.includes_deleted());
 
         let mut keys: Vec<Vec<u8>> = self.current_service_keys.iter().cloned().collect();
 
@@ -95,9 +98,8 @@ impl LocationContext {
     }
 
     pub fn get_statuses_and_service_keys_list(&self) -> Vec<(ContentStatus, Vec<u8>)> {
-        let mut statuses = Vec::with_capacity(
-            self.current_service_keys.len() + self.deleted_service_keys.len(),
-        );
+        let mut statuses =
+            Vec::with_capacity(self.current_service_keys.len() + self.deleted_service_keys.len());
 
         for key in &self.current_service_keys {
             statuses.push((ContentStatus::Current, key.clone()));

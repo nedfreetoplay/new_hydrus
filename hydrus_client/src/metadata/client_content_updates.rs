@@ -130,8 +130,7 @@ impl ContentUpdatePackage {
         self.updates
             .iter()
             .filter(|update| {
-                update.content_type == ContentType::Mappings
-                    && update.service_key == service_key
+                update.content_type == ContentType::Mappings && update.service_key == service_key
             })
             .collect()
     }
@@ -169,14 +168,27 @@ mod tests {
 
     #[test]
     fn statuses_match_python_actions() {
-        let add = ContentUpdate::new(ContentAction::Add, b"local tags".to_vec(), ContentType::Mappings);
-        let petition =
-            ContentUpdate::new(ContentAction::Petition, b"local tags".to_vec(), ContentType::Mappings);
-        let rescind =
-            ContentUpdate::new(ContentAction::Rescind, b"local tags".to_vec(), ContentType::Mappings);
+        let add = ContentUpdate::new(
+            ContentAction::Add,
+            b"local tags".to_vec(),
+            ContentType::Mappings,
+        );
+        let petition = ContentUpdate::new(
+            ContentAction::Petition,
+            b"local tags".to_vec(),
+            ContentType::Mappings,
+        );
+        let rescind = ContentUpdate::new(
+            ContentAction::Rescind,
+            b"local tags".to_vec(),
+            ContentType::Mappings,
+        );
 
         assert_eq!(add.status_for_action(), Some(ContentStatus::Current));
-        assert_eq!(petition.status_for_action(), Some(ContentStatus::Petitioned));
+        assert_eq!(
+            petition.status_for_action(),
+            Some(ContentStatus::Petitioned)
+        );
         assert_eq!(rescind.status_for_action(), None);
     }
 
@@ -184,9 +196,13 @@ mod tests {
     fn packages_filter_updates_by_service_and_type() {
         let mut package = ContentUpdatePackage::new();
         package.add_update(
-            ContentUpdate::new(ContentAction::Add, b"local tags".to_vec(), ContentType::Mappings)
-                .with_tags(["blue eyes"])
-                .with_hashes([hash()]),
+            ContentUpdate::new(
+                ContentAction::Add,
+                b"local tags".to_vec(),
+                ContentType::Mappings,
+            )
+            .with_tags(["blue eyes"])
+            .with_hashes([hash()]),
         );
         package.add_update(ContentUpdate::new(
             ContentAction::Add,

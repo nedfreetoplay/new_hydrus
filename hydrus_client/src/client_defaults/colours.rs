@@ -43,9 +43,7 @@ pub fn darkmode_colours() -> Map<String, Value> {
 fn build(entries: &[(i32, (u8, u8, u8))]) -> Map<String, Value> {
     entries
         .iter()
-        .map(|(id, (red, green, blue))| {
-            (id.to_string(), json!([red, green, blue]))
-        })
+        .map(|(id, (red, green, blue))| (id.to_string(), json!([red, green, blue])))
         .collect()
 }
 

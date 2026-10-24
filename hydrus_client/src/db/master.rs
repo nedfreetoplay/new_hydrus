@@ -31,11 +31,13 @@ pub fn get_hash(db: &DBBase, hash_id: i64) -> HydrusResult<Option<Vec<u8>>> {
 }
 
 pub fn has_hash(db: &DBBase, hash: &[u8]) -> HydrusResult<bool> {
-    let count: i64 = db.query_one(
-        "SELECT COUNT(*) FROM hashes WHERE hash = ?",
-        &[&hash],
-        |row| row.get(0),
-    )?.unwrap_or(0);
+    let count: i64 = db
+        .query_one(
+            "SELECT COUNT(*) FROM hashes WHERE hash = ?",
+            &[&hash],
+            |row| row.get(0),
+        )?
+        .unwrap_or(0);
 
     Ok(count > 0)
 }

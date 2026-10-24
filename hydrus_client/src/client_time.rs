@@ -52,7 +52,9 @@ pub fn parse_date(date_string: &str) -> Option<f64> {
     let date_string = date_string.trim();
 
     if let Ok(datetime) = chrono::DateTime::parse_from_rfc3339(date_string) {
-        return Some(datetime.timestamp() as f64 + f64::from(datetime.timestamp_subsec_nanos()) / 1e9);
+        return Some(
+            datetime.timestamp() as f64 + f64::from(datetime.timestamp_subsec_nanos()) / 1e9,
+        );
     }
 
     for format in [
@@ -130,7 +132,10 @@ mod tests {
         let january_31 = dt(2024, 1, 31);
         let february = calendar_delta(january_31, 1, 0);
 
-        assert_eq!(february.date(), NaiveDate::from_ymd_opt(2024, 2, 29).unwrap());
+        assert_eq!(
+            february.date(),
+            NaiveDate::from_ymd_opt(2024, 2, 29).unwrap()
+        );
     }
 
     #[test]
@@ -138,7 +143,10 @@ mod tests {
         let march = dt(2024, 3, 15);
         let january = calendar_delta(march, -2, 5);
 
-        assert_eq!(january.date(), NaiveDate::from_ymd_opt(2024, 1, 20).unwrap());
+        assert_eq!(
+            january.date(),
+            NaiveDate::from_ymd_opt(2024, 1, 20).unwrap()
+        );
     }
 
     #[test]

@@ -101,8 +101,7 @@ pub fn convert_stars_to_rating(num_stars: i32, allow_zero: bool, stars: i32) -> 
 
     let denominator = num_stars.max(1) as f64;
 
-    (stars.clamp(if allow_zero { 0 } else { 1 }, num_stars) as f64 / denominator)
-        .clamp(0.0, 1.0)
+    (stars.clamp(if allow_zero { 0 } else { 1 }, num_stars) as f64 / denominator).clamp(0.0, 1.0)
 }
 
 #[cfg(test)]

@@ -59,10 +59,15 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
         ",
     )?;
 
-    let count: i64 = db.query_one("SELECT COUNT(*) FROM version", &[], |row| row.get(0))?.unwrap_or(0);
+    let count: i64 = db
+        .query_one("SELECT COUNT(*) FROM version", &[], |row| row.get(0))?
+        .unwrap_or(0);
 
     if count == 0 {
-        db.execute("INSERT INTO version ( version ) VALUES ( ? )", &[&SOFTWARE_VERSION])?;
+        db.execute(
+            "INSERT INTO version ( version ) VALUES ( ? )",
+            &[&SOFTWARE_VERSION],
+        )?;
     }
 
     Ok(())

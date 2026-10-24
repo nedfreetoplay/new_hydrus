@@ -229,10 +229,7 @@ impl SerialisableObject for ClientOptions {
     }
 
     fn initialise_from_serialisable_info(&mut self, serialisable_info: &Value) -> HydrusResult<()> {
-        self.dictionary = serialisable_info
-            .as_object()
-            .cloned()
-            .unwrap_or_default();
+        self.dictionary = serialisable_info.as_object().cloned().unwrap_or_default();
 
         Ok(())
     }
@@ -255,10 +252,9 @@ impl SerialisableObject for ClientOptions {
 }
 
 pub fn register_serialisable_type() -> bool {
-    hydrus_core::hydrus_serialisable::register_serialisable_type(
-        SERIALISABLE_TYPE,
-        || Box::new(ClientOptions::new()),
-    )
+    hydrus_core::hydrus_serialisable::register_serialisable_type(SERIALISABLE_TYPE, || {
+        Box::new(ClientOptions::new())
+    })
 }
 
 pub fn is_registered() -> bool {

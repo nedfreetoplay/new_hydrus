@@ -76,7 +76,10 @@ impl MediaList {
     }
 
     pub fn get_hashes(&self) -> Vec<Vec<u8>> {
-        self.media.iter().map(|media| media.get_hash().to_vec()).collect()
+        self.media
+            .iter()
+            .map(|media| media.get_hash().to_vec())
+            .collect()
     }
 
     pub fn get_media_results(&self) -> Vec<&MediaResult> {
@@ -123,8 +126,8 @@ impl MediaList {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hydrus_core::hydrus_constants::Mime;
     use hydrus_core::files::hydrus_file_handling::FileInfo;
+    use hydrus_core::hydrus_constants::Mime;
 
     fn result(hash: u8) -> MediaResult {
         MediaResult::new(

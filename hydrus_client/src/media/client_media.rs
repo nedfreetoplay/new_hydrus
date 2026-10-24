@@ -74,8 +74,8 @@ impl MediaCollection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hydrus_core::hydrus_constants::Mime;
     use hydrus_core::files::hydrus_file_handling::FileInfo;
+    use hydrus_core::hydrus_constants::Mime;
 
     fn single(size: u64) -> Arc<MediaSingle> {
         Arc::new(MediaSingle::new(MediaResult::new(

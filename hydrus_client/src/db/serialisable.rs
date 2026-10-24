@@ -22,9 +22,11 @@ pub fn set_json_dump(
 }
 
 pub fn get_json_dump(db: &DBBase, name: &str) -> HydrusResult<Option<String>> {
-    db.query_one("SELECT dump FROM json_dumps WHERE name = ?", &[&name], |row| {
-        row.get(0)
-    })
+    db.query_one(
+        "SELECT dump FROM json_dumps WHERE name = ?",
+        &[&name],
+        |row| row.get(0),
+    )
 }
 
 pub fn set_serialisable(

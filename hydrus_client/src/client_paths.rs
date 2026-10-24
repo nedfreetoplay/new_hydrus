@@ -71,9 +71,7 @@ pub fn open_native_file_properties(path: &Path) -> HydrusResult<()> {
         Command::new("explorer.exe")
             .arg(format!("/select,{}", path.display()))
             .spawn()
-            .map_err(|error| {
-                HydrusException::new(ErrorKind::FileMissing, error.to_string())
-            })?;
+            .map_err(|error| HydrusException::new(ErrorKind::FileMissing, error.to_string()))?;
     }
 
     Ok(())
@@ -90,10 +88,8 @@ mod tests {
 
     #[test]
     fn delete_removes_a_file() {
-        let path = std::env::temp_dir().join(format!(
-            "hydrus_client_delete_{}.tmp",
-            std::process::id()
-        ));
+        let path =
+            std::env::temp_dir().join(format!("hydrus_client_delete_{}.tmp", std::process::id()));
         std::fs::write(&path, b"x").unwrap();
 
         delete_path(&path, true, false).unwrap();

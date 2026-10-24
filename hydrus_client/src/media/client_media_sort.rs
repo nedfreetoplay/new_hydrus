@@ -72,8 +72,8 @@ impl MediaCollect {
 mod tests {
     use super::*;
     use crate::media::client_media_result::MediaResult;
-    use hydrus_core::hydrus_constants::Mime;
     use hydrus_core::files::hydrus_file_handling::FileInfo;
+    use hydrus_core::hydrus_constants::Mime;
 
     fn media(size: u64, timestamps: u8) -> Arc<MediaSingle> {
         Arc::new(MediaSingle::new(MediaResult::new(
@@ -102,7 +102,10 @@ mod tests {
         .sort_media(&mut values);
 
         assert_eq!(
-            values.iter().map(|media| media.get_size()).collect::<Vec<_>>(),
+            values
+                .iter()
+                .map(|media| media.get_size())
+                .collect::<Vec<_>>(),
             vec![10, 20, 30]
         );
     }
@@ -118,7 +121,10 @@ mod tests {
         .sort_media(&mut values);
 
         assert_eq!(
-            values.iter().map(|media| media.get_size()).collect::<Vec<_>>(),
+            values
+                .iter()
+                .map(|media| media.get_size())
+                .collect::<Vec<_>>(),
             vec![30, 20, 10]
         );
     }

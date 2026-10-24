@@ -57,14 +57,18 @@ impl FilesStorageBaseLocation {
         total_num_bytes_to_hold: u64,
         base_locations: &[Self],
     ) -> BTreeMap<PathBuf, f64> {
-        let total_weight: i64 = base_locations.iter().map(|location| location.ideal_weight).sum();
+        let total_weight: i64 = base_locations
+            .iter()
+            .map(|location| location.ideal_weight)
+            .sum();
         let mut weights = BTreeMap::new();
 
         for location in base_locations {
             let weight = if total_weight == 0 {
                 0.0
             } else {
-                total_num_bytes_to_hold as f64 * (location.ideal_weight as f64 / total_weight as f64)
+                total_num_bytes_to_hold as f64
+                    * (location.ideal_weight as f64 / total_weight as f64)
             };
 
             weights.insert(location.path.clone(), weight);

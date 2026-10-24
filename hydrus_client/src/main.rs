@@ -7,7 +7,10 @@ use hydrus_client::controller::Controller;
 fn main() {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
 
-    if arguments.iter().any(|argument| argument == "--help" || argument == "-h") {
+    if arguments
+        .iter()
+        .any(|argument| argument == "--help" || argument == "-h")
+    {
         println!("hydrus_client [--db_dir PATH] [--version]");
         return;
     }
@@ -32,7 +35,10 @@ fn main() {
     let controller = match Controller::new(&db_dir) {
         Ok(controller) => Arc::new(controller),
         Err(error) => {
-            eprintln!("Could not open the client database at {}: {error}", db_dir.display());
+            eprintln!(
+                "Could not open the client database at {}: {error}",
+                db_dir.display()
+            );
             return;
         }
     };
@@ -52,7 +58,9 @@ fn main() {
 }
 
 fn db_dir_from_arguments(arguments: &[String]) -> Option<PathBuf> {
-    let position = arguments.iter().position(|argument| argument == "--db_dir")?;
+    let position = arguments
+        .iter()
+        .position(|argument| argument == "--db_dir")?;
 
     arguments.get(position + 1).map(PathBuf::from)
 }

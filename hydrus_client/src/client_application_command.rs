@@ -64,10 +64,7 @@ pub struct ApplicationCommand {
 
 impl ApplicationCommand {
     pub fn new(command_type: i32, data: Option<Value>) -> Self {
-        Self {
-            command_type,
-            data,
-        }
+        Self { command_type, data }
     }
 
     pub fn simple(command_type: i32) -> Self {
@@ -137,9 +134,7 @@ pub fn command_type_string(command_type: i32) -> &'static str {
         SIMPLE_SET_SEARCH_FOCUS => "set search focus",
         SIMPLE_SHOW_HIDE_SPLITTERS => "show/hide splitters",
         SIMPLE_SHOW_MENU => "show menu",
-        SIMPLE_SWITCH_BETWEEN_100_PERCENT_AND_CANVAS_ZOOM => {
-            "switch between 100% and canvas zoom"
-        }
+        SIMPLE_SWITCH_BETWEEN_100_PERCENT_AND_CANVAS_ZOOM => "switch between 100% and canvas zoom",
         SIMPLE_SWITCH_BETWEEN_FULLSCREEN_BORDERLESS_AND_REGULAR_FRAMED_WINDOW => {
             "switch between fullscreen borderless and regular framed window"
         }

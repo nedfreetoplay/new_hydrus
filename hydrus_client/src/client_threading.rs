@@ -122,19 +122,25 @@ impl JobStatus {
     }
 
     pub fn set_gauge(&self, num_done: Option<i64>, num_to_do: Option<i64>) {
-        self.inner.gauges.lock().unwrap().push((
-            num_done.unwrap_or(-1),
-            num_to_do.unwrap_or(-1),
-        ));
+        self.inner
+            .gauges
+            .lock()
+            .unwrap()
+            .push((num_done.unwrap_or(-1), num_to_do.unwrap_or(-1)));
     }
 
     pub fn get_gauge(&self) -> Option<(Option<i64>, Option<i64>)> {
-        self.inner.gauges.lock().unwrap().last().map(|(done, total)| {
-            (
-                (*done >= 0).then_some(*done),
-                (*total >= 0).then_some(*total),
-            )
-        })
+        self.inner
+            .gauges
+            .lock()
+            .unwrap()
+            .last()
+            .map(|(done, total)| {
+                (
+                    (*done >= 0).then_some(*done),
+                    (*total >= 0).then_some(*total),
+                )
+            })
     }
 
     pub fn add_url(&self, url: impl Into<String>) {

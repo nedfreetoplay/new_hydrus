@@ -9,7 +9,9 @@ use hydrus_core::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 /// `OpenFileProperties( path )`
 pub fn open_file_properties(path: &Path) -> HydrusResult<()> {
     if !hydrus_constants::PLATFORM_WINDOWS {
-        return Err(unsupported("file properties are only implemented on Windows"));
+        return Err(unsupported(
+            "file properties are only implemented on Windows",
+        ));
     }
 
     if !path.exists() {

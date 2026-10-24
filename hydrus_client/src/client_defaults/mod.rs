@@ -6,7 +6,7 @@ use crate::client_constants;
 
 mod colours;
 
-pub use colours::{default_colours, darkmode_colours};
+pub use colours::{darkmode_colours, default_colours};
 
 /// Legacy YAML-backed options (the `options` table).
 pub fn legacy_options() -> Map<String, Value> {
@@ -40,7 +40,10 @@ pub fn legacy_options() -> Map<String, Value> {
     options.insert("animation_start_position".to_string(), json!(0.0));
     options.insert("hide_preview".to_string(), json!(false));
     options.insert("regex_favourites".to_string(), json!([]));
-    options.insert("namespace_colours".to_string(), Value::Object(default_colours()));
+    options.insert(
+        "namespace_colours".to_string(),
+        Value::Object(default_colours()),
+    );
     options.insert("proxy".to_string(), Value::Null);
     options.insert("confirm_client_exit".to_string(), json!(false));
 

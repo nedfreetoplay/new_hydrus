@@ -35,4 +35,9 @@ cargo run -p hydrus_client
 
 ## Статус портирования
 
+Готовы: инфраструктура клиента, `ClientOptions`/`ClientDefaults`, метаданные,
+медиа-модель, физические хранилища, базовый `ClientDB` (схема, сервисы, хэши,
+`files_info`, сериализация), контроллер и каркас Qt-окна.
+
 Актуальный план и флаги: [PORTING_TODO.md](PORTING_TODO.md).
+Архитектура: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

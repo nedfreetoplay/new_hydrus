@@ -34,7 +34,10 @@ fn migrate_one(version: u16, mut info: Value) -> Value {
 /// v3 stored `(media_show, preview_show, zoom)`; v4 expands both show actions
 /// into `(show, start_paused, start_with_embed)`.
 fn migrate_media_view_to_v4(dictionary: &mut Map<String, Value>) {
-    let Some(media_view) = dictionary.get_mut("media_view").and_then(Value::as_object_mut) else {
+    let Some(media_view) = dictionary
+        .get_mut("media_view")
+        .and_then(Value::as_object_mut)
+    else {
         return;
     };
 
@@ -56,7 +59,10 @@ fn migrate_media_view_to_v4(dictionary: &mut Map<String, Value>) {
 }
 
 fn migrate_neighbouring_tags_to_routers(dictionary: &mut Map<String, Value>) {
-    if let Some(key_list) = dictionary.get_mut("key_list").and_then(Value::as_object_mut) {
+    if let Some(key_list) = dictionary
+        .get_mut("key_list")
+        .and_then(Value::as_object_mut)
+    {
         key_list.remove("default_neighbouring_txt_tag_service_keys");
     }
 
@@ -85,7 +91,10 @@ fn migrate_default_tag_sort(dictionary: &mut Map<String, Value>) {
 }
 
 fn migrate_qmediaplayer_action(dictionary: &mut Map<String, Value>) {
-    let Some(media_view) = dictionary.get_mut("media_view").and_then(Value::as_object_mut) else {
+    let Some(media_view) = dictionary
+        .get_mut("media_view")
+        .and_then(Value::as_object_mut)
+    else {
         return;
     };
 
@@ -96,9 +105,13 @@ fn migrate_qmediaplayer_action(dictionary: &mut Map<String, Value>) {
 
         for index in [0, 3] {
             if values.get(index).and_then(Value::as_i64)
-                == Some(client_constants::MEDIA_VIEWER_ACTION_SHOW_WITH_QMEDIAPLAYER_VIDEO_WIDGET as i64)
+                == Some(
+                    client_constants::MEDIA_VIEWER_ACTION_SHOW_WITH_QMEDIAPLAYER_VIDEO_WIDGET
+                        as i64,
+                )
             {
-                values[index] = json!(client_constants::MEDIA_VIEWER_ACTION_SHOW_WITH_QTMEDIAPLAYER);
+                values[index] =
+                    json!(client_constants::MEDIA_VIEWER_ACTION_SHOW_WITH_QTMEDIAPLAYER);
             }
         }
     }

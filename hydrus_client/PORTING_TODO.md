@@ -175,7 +175,12 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 ## 12. Финализация
 
-- [ ] Документация crate и архитектурные заметки.
-- [ ] `cargo test -p hydrus_client`, `cargo clippy`, `cargo fmt`.
-- [ ] Проверка лимита 200 строк на файл.
+- [x] Документация crate и архитектурные заметки.
+- [~] `cargo test -p hydrus_client`, `cargo clippy`, `cargo fmt`.
+  Тесты и `fmt` проходят; `clippy` упирается в уже существующие замечания
+  `hydrus_core`, а не в `hydrus_client`.
+- [~] Проверка лимита 200 строк на файл.
+  Большинство файлов укладывается; `client_options/defaults.rs` (304),
+  `client_constants.rs` (292), `client_options/mod.rs` (277),
+  `client_threading.rs` (233) требуют разбиения при следующем проходе.
 - [ ] Удалить `PORTING_TODO.md` после закрытия всех пунктов.

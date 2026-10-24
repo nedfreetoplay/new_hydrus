@@ -1,6 +1,9 @@
 //! Client image helpers from `hydrus/client/files/images/ClientImageHandling.py`
 //! and friends. Most work delegates to the already ported `hydrus_core`.
 
+pub mod metadata;
+pub mod perceptual;
+
 use std::path::Path;
 
 use hydrus_core::files::images::hydrus_image_handling as core_image;
@@ -39,25 +42,10 @@ pub fn get_blur_hash(image: &DynamicImage) -> String {
     hydrus_core::files::images::hydrus_blurhash::get_blur_hash_from_numpy(image)
 }
 
-/// `GenerateShapePerceptualHashNumPy`
-///
-/// This is the simple average-hash shape used by the first port pass. It is
-/// deterministic and stable, but does not yet match the Python DCT bit layout.
-pub fn generate_shape_perceptual_hash(image: &DynamicImage) -> Vec<u8> {
-    let grayscale = image.to_luma8();
-    let small = image::imageops::resize(&grayscale, 8, 8, image::imageops::FilterType::Nearest);
-
-    let average: u64 = small.pixels().map(|pixel| pixel.0[0] as u64).sum::<u64>() / 64;
-    let mut hash = vec![0u8; 8];
-
-    for (index, pixel) in small.pixels().enumerate() {
-        if pixel.0[0] as u64 >= average {
-            hash[index / 8] |= 1 << (7 - (index % 8));
-        }
-    }
-
-    hash
-}
+pub use metadata::{ImageMetadataFlags, get_metadata_flags, read_image_metadata};
+pub use perceptual::{
+    BLANK_PERCEPTUAL_HASH, discard_blank_perceptual_hashes, generate_shape_perceptual_hash,
+};
 
 #[cfg(test)]
 mod tests {

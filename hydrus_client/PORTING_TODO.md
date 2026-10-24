@@ -96,8 +96,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientFilesMaintenance`/`ClientFilesMaintenanceManager` — очередь обслуживания.
   Очередь + `FilesMaintenanceExecutor` (metadata, thumbnail, blurhash, transparency, modified time).
 - [x] `ClientTrashManager` — корзина и отложенное удаление.
-- [~] `ClientImageHandling` и обёртки `hydrus_core` (метаданные, perceptual hashes).
-  Портированы resize/thumbnail/blurhash/transparency и aHash-заглушка perceptual hash;
+- [x] `ClientImageHandling` и обёртки `hydrus_core` (метаданные, perceptual hashes).
+  Resize/thumbnail/blurhash/transparency, DCT shape phash (совпадает с `hydrus.png`) и metadata flags.
   точный Python DCT-хэш и EXIF/IPTC-обёртки дальше.
 
 ## 7. База данных

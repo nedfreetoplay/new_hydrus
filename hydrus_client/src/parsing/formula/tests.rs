@@ -1,4 +1,3 @@
-
 use super::*;
 
 fn posts_json() -> String {

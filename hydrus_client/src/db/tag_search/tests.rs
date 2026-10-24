@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::db::master::get_hash_id;
 use crate::db::master_tags::get_tag_id;

@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::media::MediaResult;
 use hydrus_core::files::hydrus_file_handling::FileInfo;

@@ -1,4 +1,3 @@
-
 use super::*;
 
 fn parsed(text: &str) -> ParsedAutocompleteText {

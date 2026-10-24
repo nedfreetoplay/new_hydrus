@@ -80,98 +80,11 @@ impl Controller {
 
         Ok(())
     }
+}
 
-    fn init_domain_manager(&self) {
-        if let Ok(mut manager) = self.domain_manager.write() {
-            apply_default_domain_manager_data(&mut manager);
-        }
+mod boot;
 
-        if let Ok(mut manager) = self.bandwidth_manager.write() {
-            apply_default_bandwidth_rules(&mut manager);
-        }
-    }
-
-    pub fn domain_manager(&self) -> &RwLock<DomainManager> {
-        &self.domain_manager
-    }
-
-    pub fn bandwidth_manager(&self) -> &RwLock<NetworkBandwidthManager> {
-        &self.bandwidth_manager
-    }
-
-    fn init_client_files_manager(&self) -> HydrusResult<()> {
-        let locations = files_physical_storage::get_current_locations(self.db.db())?;
-        let locations = if locations.is_empty() {
-            vec![
-                FilesStorageBaseLocation::new(self.db_dir.join("files"), 1, None),
-                FilesStorageBaseLocation::new(self.db_dir.join("thumbs"), 1, None),
-            ]
-        } else {
-            locations
-        };
-
-        let subfolders = files_physical_storage::get_subfolders(self.db.db(), &locations)?;
-        let subfolders = if subfolders.is_empty() {
-            vec![
-                FilesStorageSubfolder::new("f", locations[0].clone()),
-                FilesStorageSubfolder::new("t", locations[locations.len() - 1].clone()),
-            ]
-        } else {
-            subfolders
-        };
-
-        let manager = ClientFilesManager::new(subfolders);
-        manager.make_sure_exists()?;
-
-        *self.files_manager.write().unwrap() = manager;
-
-        Ok(())
-    }
-
-    fn init_shortcuts(&self) {
-        let mut shortcuts = ShortcutSet::new("global");
-        shortcuts.set_command(
-            Shortcut::new(
-                SHORTCUT_TYPE_KEYBOARD_CHARACTER,
-                b'r' as i32,
-                SHORTCUT_PRESS_TYPE_PRESS,
-                vec![SHORTCUT_MODIFIER_CTRL],
-            ),
-            ApplicationCommand::simple(SIMPLE_REFRESH),
-        );
-        shortcuts.set_command(
-            Shortcut::new(
-                SHORTCUT_TYPE_KEYBOARD_CHARACTER,
-                b'z' as i32,
-                SHORTCUT_PRESS_TYPE_PRESS,
-                vec![SHORTCUT_MODIFIER_CTRL],
-            ),
-            ApplicationCommand::simple(SIMPLE_UNDO),
-        );
-
-        *self.shortcuts.write().unwrap() = shortcuts;
-    }
-
-    fn load_options(&self) -> HydrusResult<()> {
-        if let Some(object) = self.db.get_serialisable(OPTIONS_NAME)? {
-            if let Some(options) = object.as_any().downcast_ref::<ClientOptions>() {
-                *self.options.write().unwrap() = options.clone();
-                return Ok(());
-            }
-        }
-
-        *self.options.write().unwrap() = ClientOptions::new();
-
-        Ok(())
-    }
-
-    fn ensure_local_services(&self) -> HydrusResult<()> {
-        let manager = ServicesManager::ensure_local_services(self.db.db())?;
-        *self.services.write().unwrap() = manager;
-
-        Ok(())
-    }
-
+impl Controller {
     pub fn options(&self) -> ClientOptions {
         self.options.read().unwrap().clone()
     }
@@ -260,25 +173,9 @@ impl Controller {
     }
 }
 
-fn default_session() -> GuiSession {
-    let mut notebook = PagesNotebook::new();
-    notebook.add_page(Page::new("Welcome", PageType::Search));
-
-    GuiSession::from_notebook(&notebook)
-}
-
-impl ClientControllerHandle for Controller {
-    fn publish_message(&self, message: &str) {
-        crate::gui::pubsub_bridge::post("message", message);
-
-        if let Some(logger) = crate::client_boot::logger() {
-            logger.write(message);
-            logger.write("\n");
-        } else {
-            println!("{message}");
-        }
-    }
-}
+mod runtime;
+use runtime::default_session;
+pub use runtime::*;
 
 #[cfg(test)]
 mod tests;

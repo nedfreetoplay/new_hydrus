@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::search::client_number_test::{NUMBER_TEST_OPERATOR_EQUAL, NumberTest};
 

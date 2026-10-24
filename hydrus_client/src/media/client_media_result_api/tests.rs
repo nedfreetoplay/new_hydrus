@@ -1,4 +1,3 @@
-
 use super::*;
 use hydrus_core::files::hydrus_file_handling::FileInfo;
 use hydrus_core::hydrus_constants::Mime;

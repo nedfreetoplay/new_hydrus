@@ -1,4 +1,3 @@
-
 use super::*;
 
 fn hash() -> Vec<u8> {

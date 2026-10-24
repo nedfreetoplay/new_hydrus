@@ -1,4 +1,3 @@
-
 use super::*;
 
 fn url_class() -> UrlClass {

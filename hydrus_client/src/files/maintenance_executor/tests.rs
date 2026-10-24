@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::db::ClientDB;
 use crate::db::master::get_hash_id;

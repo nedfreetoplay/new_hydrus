@@ -1,4 +1,3 @@
-
 use super::*;
 
 fn temporary_controller() -> (Controller, PathBuf) {

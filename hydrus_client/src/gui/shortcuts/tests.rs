@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::client_application_command::{SIMPLE_EXIT_APPLICATION, SIMPLE_UNDO};
 

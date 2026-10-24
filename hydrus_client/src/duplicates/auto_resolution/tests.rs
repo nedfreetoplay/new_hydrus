@@ -1,4 +1,3 @@
-
 use super::*;
 use crate::metadata::TagStatus;
 use hydrus_core::files::hydrus_file_handling::FileInfo;

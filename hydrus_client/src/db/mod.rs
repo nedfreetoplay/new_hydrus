@@ -31,6 +31,7 @@ pub mod schema;
 pub mod serialisable;
 pub mod service_paths;
 pub mod services;
+pub mod tag_search;
 pub mod url_map;
 
 pub use services::Service;

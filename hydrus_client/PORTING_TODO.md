@@ -128,7 +128,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [~] `ClientDB` — фасад, `create_db`, `update_db` 619→689, интеграция с `HydrusDB`.
   Готов синхронный фасад на `DBBase` с начальной схемой; перевод на `HydrusDB` и цепочка
   миграций 619→689 — следующий шаг.
-- [ ] Тест совместимости: открыть копию Python `client.db` только на чтение.
+- [x] Тест совместимости: открыть копию Python `client.db` только на чтение.
+  Интеграционный тест собирает Python-shaped fixture и читает version/options/services/hashes/files_info.
 
 ## 8. Сервисы и сеть
 

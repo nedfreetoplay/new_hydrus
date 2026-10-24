@@ -9,7 +9,9 @@ const URL_ENCODE_SET: &AsciiSet = &CONTROLS
     .add(b'>')
     .add(b'`')
     .add(b'{')
-    .add(b'}');
+    .add(b'}')
+    .add(b'[')
+    .add(b']');
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedUrl {
@@ -155,21 +157,39 @@ pub fn convert_http_to_https(url: &str) -> String {
 
 /// `EnsureURLIsEncoded`
 pub fn ensure_url_is_encoded(url: &str, keep_fragment: bool) -> String {
-    let (url, fragment) = if keep_fragment {
-        (url, None)
-    } else {
-        match url.split_once('#') {
-            Some((url, fragment)) => (url, Some(fragment.to_string())),
-            None => (url, None),
-        }
+    let (url, fragment) = match url.split_once('#') {
+        Some((url, fragment)) => (url, Some(fragment.to_string())),
+        None => (url, None),
     };
 
-    let encoded = utf8_percent_encode(url, URL_ENCODE_SET).to_string();
+    let encoded = utf8_percent_encode(&escape_stray_percent(url), URL_ENCODE_SET).to_string();
 
     match fragment {
-        Some(fragment) => format!("{encoded}#{fragment}"),
-        None => encoded,
+        Some(fragment) if keep_fragment => format!("{encoded}#{fragment}"),
+        _ => encoded,
     }
+}
+
+fn escape_stray_percent(value: &str) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    let mut result = String::with_capacity(value.len());
+
+    for (index, character) in chars.iter().enumerate() {
+        if *character == '%' {
+            let is_escape = index + 2 < chars.len()
+                && chars[index + 1].is_ascii_hexdigit()
+                && chars[index + 2].is_ascii_hexdigit();
+
+            if !is_escape {
+                result.push_str("%25");
+                continue;
+            }
+        }
+
+        result.push(*character);
+    }
+
+    result
 }
 
 /// `NormaliseAndFilterAssociableURLs`
@@ -268,6 +288,46 @@ mod tests {
         assert_eq!(
             convert_url_to_human_string("https://example.com/a%20b/"),
             "example.com/a b"
+        );
+    }
+
+    #[test]
+    fn encoding_matches_python_examples() {
+        assert_eq!(
+            ensure_url_is_encoded("https://testbooru.cx/post/page.php?id=1234 56&s=view", true),
+            "https://testbooru.cx/post/page.php?id=1234%2056&s=view"
+        );
+        assert_eq!(
+            ensure_url_is_encoded(
+                "https://testbooru.cx/post/page.php?id=1234%2056&s=view",
+                true
+            ),
+            "https://testbooru.cx/post/page.php?id=1234%2056&s=view"
+        );
+        assert_eq!(
+            ensure_url_is_encoded("https://weouthere.site/post?yo=1&name[id]=wew", true),
+            "https://weouthere.site/post?yo=1&name%5Bid%5D=wew"
+        );
+        assert_eq!(
+            ensure_url_is_encoded(
+                "https://testbooru.cx/po@s%20t/page.php?id=1234 56&s=view%%25",
+                true
+            ),
+            "https://testbooru.cx/po@s%20t/page.php?id=1234%2056&s=view%25%25"
+        );
+    }
+
+    #[test]
+    fn fragment_is_kept_or_dropped_as_requested() {
+        let url = "https://testbooru.cx/post/page.php?id=1234 56#hello";
+
+        assert_eq!(
+            ensure_url_is_encoded(url, true),
+            "https://testbooru.cx/post/page.php?id=1234%2056#hello"
+        );
+        assert_eq!(
+            ensure_url_is_encoded(url, false),
+            "https://testbooru.cx/post/page.php?id=1234%2056"
         );
     }
 }

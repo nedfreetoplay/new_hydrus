@@ -139,7 +139,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientNetworkingDomain`, `ClientNetworkingLogin`, `ClientNetworkingURLClass`.
   URLClass matching/normalisation, DomainManager (headers/classes) и NetworkLoginManager.
 - [x] `ClientNetworkingFunctions`, `ClientNetworkingJobs`.
-  URL/domain/encoding helpers и state-machine/queue сетевых job-ов портированы.
+  URL/domain/encoding helpers и state-machine/queue job-ов; encoding сверен с `TestClientNetworking.py`.
 - [x] `ClientNetworking` — `NetworkEngine` на `reqwest`/`tokio`.
   `NetworkEngine` + `HttpTransport`, blocking reqwest-транспорт и тестовый mock.
 - [~] `ClientDownloading` — quick download manager.

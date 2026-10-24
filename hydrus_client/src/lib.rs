@@ -12,6 +12,7 @@ pub mod client_paths;
 pub mod client_threading;
 pub mod client_time;
 pub mod client_windows_integration;
+pub mod files;
 pub mod gui;
 pub mod media;
 pub mod metadata;

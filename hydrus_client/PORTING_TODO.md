@@ -50,8 +50,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   PNG-загрузчик и менеджеры.
 - [x] `ClientOptions` — `SerialisableObject` (type 22, version 8), группы booleans/integers/
   strings/keys/colours, typed get/set.
-- [~] `ClientOptions` — миграции версий 1→8 и значения по умолчанию.
-  Портированы шаги 3→8; шаги 1→2 и точные GUI-структуры появятся вместе с медиа-опциями.
+- [x] `ClientOptions` — миграции версий 1→8 и значения по умолчанию.
+  Портированы шаги 1→8 (media_view, portable paths, routers, tag sorts, launch paths).
 - [x] `ClientSerialisable` — импорт/экспорт объектов через PNG (после GUI-фазы).
   Реализован совместимый пиксельный payload (header height + длина + compressed bytes).
 

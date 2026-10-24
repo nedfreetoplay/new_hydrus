@@ -20,6 +20,8 @@ fn migrate_one(version: u16, mut info: Value) -> Value {
     };
 
     match version {
+        1 => migrate_media_view_to_v2(dictionary),
+        2 => migrate_portable_paths(dictionary),
         3 => migrate_media_view_to_v4(dictionary),
         4 => migrate_neighbouring_tags_to_routers(dictionary),
         5 => migrate_default_tag_sort(dictionary),
@@ -29,6 +31,57 @@ fn migrate_one(version: u16, mut info: Value) -> Value {
     }
 
     info
+}
+
+/// v1 stored six values per mime; v2 drops the zoom flags back to a single
+/// default zoom tuple.
+fn migrate_media_view_to_v2(dictionary: &mut Map<String, Value>) {
+    let Some(media_view) = dictionary.get_mut("media_view").and_then(Value::as_object_mut) else {
+        return;
+    };
+
+    for (_, entry) in media_view.iter_mut() {
+        let Some(values) = entry.as_array() else {
+            continue;
+        };
+
+        if values.len() != 6 {
+            continue;
+        }
+
+        *entry = json!([values[0].clone(), values[1].clone(), values[2].clone()]);
+    }
+}
+
+fn migrate_portable_paths(dictionary: &mut Map<String, Value>) {
+    let normalize = |value: &Value| -> Value {
+        match value {
+            Value::String(path) => Value::String(path.replace('\\', "/")),
+            other => other.clone(),
+        }
+    };
+
+    if let Some(weights) = dictionary
+        .get_mut("client_files_locations_ideal_weights")
+        .and_then(Value::as_array_mut)
+    {
+        for row in weights.iter_mut() {
+            if let Some(pair) = row.as_array_mut() {
+                if let Some(path) = pair.first_mut() {
+                    *path = normalize(path);
+                }
+            }
+        }
+    }
+
+    for key in [
+        "client_files_locations_resized_thumbnail_override",
+        "client_files_locations_full_size_thumbnail_override",
+    ] {
+        if let Some(value) = dictionary.get_mut(key) {
+            *value = normalize(value);
+        }
+    }
 }
 
 /// v3 stored `(media_show, preview_show, zoom)`; v4 expands both show actions
@@ -141,6 +194,41 @@ fn migrate_launch_paths(dictionary: &mut Map<String, Value>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn v1_media_view_is_upgraded_through_all_versions() {
+        let info = json!({
+            "media_view": {
+                "0": [0, 1, true, false, 3, 4]
+            }
+        });
+
+        let (_, migrated) = migrate(1, info).unwrap();
+        let entry = migrated["media_view"]["0"].as_array().unwrap();
+
+        assert_eq!(entry.len(), 7);
+        assert_eq!(entry[0], json!(0));
+        assert_eq!(entry[3], json!(1));
+    }
+
+    #[test]
+    fn v2_portable_paths_use_forward_slashes() {
+        let info = json!({
+            "client_files_locations_ideal_weights": [["C:\\hydrus\\files", 1]],
+            "client_files_locations_full_size_thumbnail_override": "C:\\hydrus\\thumbs"
+        });
+
+        let (_, migrated) = migrate(2, info).unwrap();
+
+        assert_eq!(
+            migrated["client_files_locations_ideal_weights"][0][0],
+            json!("C:/hydrus/files")
+        );
+        assert_eq!(
+            migrated["client_files_locations_full_size_thumbnail_override"],
+            json!("C:/hydrus/thumbs")
+        );
+    }
 
     #[test]
     fn old_versions_are_upgraded_to_current() {

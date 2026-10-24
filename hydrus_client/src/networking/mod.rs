@@ -1,3 +1,4 @@
+pub mod client_networking;
 pub mod client_networking_bandwidth;
 pub mod client_networking_contexts;
 pub mod client_networking_functions;

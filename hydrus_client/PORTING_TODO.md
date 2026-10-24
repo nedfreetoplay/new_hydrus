@@ -139,7 +139,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Портированы URLClass (matching/normalisation); domain/login managers дальше.
 - [x] `ClientNetworkingFunctions`, `ClientNetworkingJobs`.
   URL/domain/encoding helpers и state-machine/queue сетевых job-ов портированы.
-- [ ] `ClientNetworking` — `NetworkEngine` на `reqwest`/`tokio`.
+- [x] `ClientNetworking` — `NetworkEngine` на `reqwest`/`tokio`.
+  `NetworkEngine` + `HttpTransport`, blocking reqwest-транспорт и тестовый mock.
 - [~] `ClientDownloading` — quick download manager.
   Портированы `GalleryIdentifier` и очередь quick-download; сетевой слой дальше.
 - [ ] `ClientAPI` + `networking/api` — локальный Client API сервер.

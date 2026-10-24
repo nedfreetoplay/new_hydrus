@@ -1,6 +1,7 @@
 pub mod call_after;
 pub mod frame_gui;
 pub mod functions;
+pub mod import_panels;
 pub mod list_model;
 pub mod networking_panels;
 pub mod pages;

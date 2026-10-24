@@ -1,4 +1,4 @@
-﻿//! Integration tests against a real FFmpeg executable.
+//! Integration tests against a real FFmpeg executable.
 //!
 //! These tests are ignored by default because they need `ffmpeg` (and a build
 //! with libx264/libmp3lame) on `PATH`. Run them with:
@@ -288,8 +288,8 @@ fn detects_video_with_audio_and_probes_file_info() {
 
     make_video(&path, true);
 
-    let mime = hydrus_file_handling::get_mime(&path, false)
-        .expect("the MP4 MIME type is recognised");
+    let mime =
+        hydrus_file_handling::get_mime(&path, false).expect("the MP4 MIME type is recognised");
     assert_eq!(mime, Mime::Mp4Video);
 
     let info = hydrus_file_handling::get_file_info(&path, None, false)

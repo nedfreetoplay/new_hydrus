@@ -190,8 +190,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [~] `ClientGUICanvas*`, `ClientGUIMPV`, `ClientGUIMediaModalActions`.
   Готов Qt `HydrusCanvas` (QGraphicsView, загрузка/масштабирование pixmap, вкладка Canvas);
   hover/media modal actions и mpv дальше.
-- [~] `ClientGUIPopupMessages`, `ClientGUISubscriptions`, `ClientGUITime`.
-  Портирована очередь popup-сообщений; subscriptions/time-панели дальше.
+- [x] `ClientGUIPopupMessages`, `ClientGUISubscriptions`, `ClientGUITime`.
+  Модель popup-очереди, `SubscriptionsPanelState` и time-formatting helpers.
 - [~] `ClientGUINetworking*`, `ClientGUILogin`.
   Портированы модели networking/login панелей (контексты, headers, login state); Qt-панели дальше.
 - [~] `ClientGUIDuplicates*`, `ClientGUIImport*`, `ClientGUIParsing*`.

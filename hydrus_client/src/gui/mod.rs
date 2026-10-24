@@ -15,6 +15,7 @@ pub mod shortcuts;
 pub mod splash;
 pub mod string_panels;
 pub mod style;
+pub mod time;
 pub mod top_level_windows;
 
 mod qt;

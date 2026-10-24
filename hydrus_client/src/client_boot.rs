@@ -21,6 +21,7 @@ pub fn boot() -> HydrusResult<()> {
     crate::client_location::register_serialisable_type();
     crate::search::register_serialisable_types();
     crate::metadata::register_serialisable_types();
+    crate::networking::client_networking_contexts::register_serialisable_type();
 
     let logger = HydrusLogger::new(db_dir, "client")?;
     let _ = LOGGER.set(logger);

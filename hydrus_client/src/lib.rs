@@ -18,5 +18,6 @@ pub mod files;
 pub mod gui;
 pub mod media;
 pub mod metadata;
+pub mod networking;
 pub mod search;
 pub mod services;

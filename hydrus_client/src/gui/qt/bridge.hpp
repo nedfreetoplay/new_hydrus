@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMainWindow>
 #include <QMenu>
 #include <QPushButton>
@@ -16,6 +17,7 @@
 #include <memory>
 
 class HydrusPanel;
+class HydrusMediaPanel;
 
 class HydrusMainWindow : public QMainWindow {
 public:
@@ -23,6 +25,7 @@ public:
     void build_shell();
     int add_page(rust::Str title);
     int add_page_widget(rust::Str title, HydrusPanel *panel);
+    int add_media_page(rust::Str title, HydrusMediaPanel *panel);
     void add_sidebar_item(rust::Str title);
     void add_menu_action(rust::Str menu_title, rust::Str action_title);
     void add_exit_action(rust::Str menu_title, rust::Str action_title);
@@ -51,6 +54,17 @@ private:
     QVBoxLayout *layout = nullptr;
 };
 
+class HydrusMediaPanel : public QWidget {
+public:
+    explicit HydrusMediaPanel(QWidget *parent = nullptr);
+    void add_item(rust::Str label);
+    void clear_items();
+    int item_count() const;
+
+private:
+    QListWidget *list = nullptr;
+};
+
 std::unique_ptr<QApplication> new_application();
 int exec_application(QApplication &application);
 void quit_application(QApplication &application);
@@ -73,6 +87,12 @@ void hydrus_panel_add_checkbox(HydrusPanel &panel, rust::Str text, bool checked)
 void hydrus_panel_add_line_edit(HydrusPanel &panel, rust::Str placeholder);
 void hydrus_panel_add_stretch(HydrusPanel &panel);
 int hydrus_add_page_widget(HydrusMainWindow &window, rust::Str title, HydrusPanel &panel);
+
+std::unique_ptr<HydrusMediaPanel> new_hydrus_media_panel();
+void hydrus_media_panel_add_item(HydrusMediaPanel &panel, rust::Str label);
+void hydrus_media_panel_clear(HydrusMediaPanel &panel);
+int hydrus_media_panel_count(const HydrusMediaPanel &panel);
+int hydrus_add_media_page(HydrusMainWindow &window, rust::Str title, HydrusMediaPanel &panel);
 
 void qapp_set_application_name(rust::Str name);
 void qapp_set_application_display_name(rust::Str name);

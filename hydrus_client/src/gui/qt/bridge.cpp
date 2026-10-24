@@ -82,6 +82,17 @@ int HydrusMainWindow::add_page_widget(rust::Str title, HydrusPanel *panel) {
     return index;
 }
 
+int HydrusMainWindow::add_media_page(rust::Str title, HydrusMediaPanel *panel) {
+    if (panel == nullptr) {
+        return -1;
+    }
+
+    const int index = tabs->addTab(panel, to_qstring(title));
+    tabs->setCurrentIndex(index);
+
+    return index;
+}
+
 void HydrusMainWindow::add_sidebar_item(rust::Str title) {
     if (sidebar == nullptr) {
         return;
@@ -223,6 +234,47 @@ void hydrus_panel_add_stretch(HydrusPanel &panel) {
 
 int hydrus_add_page_widget(HydrusMainWindow &window, rust::Str title, HydrusPanel &panel) {
     return window.add_page_widget(title, &panel);
+}
+
+HydrusMediaPanel::HydrusMediaPanel(QWidget *parent) : QWidget(parent) {
+    auto *layout = new QVBoxLayout(this);
+    list = new QListWidget(this);
+    list->setViewMode(QListWidget::IconMode);
+    list->setResizeMode(QListWidget::Adjust);
+    list->setSpacing(4);
+    layout->addWidget(list);
+}
+
+void HydrusMediaPanel::add_item(rust::Str label) {
+    list->addItem(to_qstring(label));
+}
+
+void HydrusMediaPanel::clear_items() {
+    list->clear();
+}
+
+int HydrusMediaPanel::item_count() const {
+    return list->count();
+}
+
+std::unique_ptr<HydrusMediaPanel> new_hydrus_media_panel() {
+    return std::make_unique<HydrusMediaPanel>();
+}
+
+void hydrus_media_panel_add_item(HydrusMediaPanel &panel, rust::Str label) {
+    panel.add_item(label);
+}
+
+void hydrus_media_panel_clear(HydrusMediaPanel &panel) {
+    panel.clear_items();
+}
+
+int hydrus_media_panel_count(const HydrusMediaPanel &panel) {
+    return panel.item_count();
+}
+
+int hydrus_add_media_page(HydrusMainWindow &window, rust::Str title, HydrusMediaPanel &panel) {
+    return window.add_media_page(title, &panel);
 }
 
 void qapp_set_application_name(rust::Str name) {

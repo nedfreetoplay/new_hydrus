@@ -7,6 +7,7 @@ mod ffi {
         type QApplication;
         type HydrusMainWindow;
         type HydrusPanel;
+        type HydrusMediaPanel;
 
         fn new_application() -> UniquePtr<QApplication>;
         fn exec_application(application: Pin<&mut QApplication>) -> i32;
@@ -33,6 +34,16 @@ mod ffi {
             window: Pin<&mut HydrusMainWindow>,
             title: &str,
             panel: Pin<&mut HydrusPanel>,
+        ) -> i32;
+
+        fn new_hydrus_media_panel() -> UniquePtr<HydrusMediaPanel>;
+        fn hydrus_media_panel_add_item(panel: Pin<&mut HydrusMediaPanel>, label: &str);
+        fn hydrus_media_panel_clear(panel: Pin<&mut HydrusMediaPanel>);
+        fn hydrus_media_panel_count(panel: &HydrusMediaPanel) -> i32;
+        fn hydrus_add_media_page(
+            window: Pin<&mut HydrusMainWindow>,
+            title: &str,
+            panel: Pin<&mut HydrusMediaPanel>,
         ) -> i32;
 
         fn qapp_set_application_name(name: &str);
@@ -90,6 +101,11 @@ pub fn run_application(title: &str, status: &str) {
         model.pages.first().copied().unwrap_or("Welcome"),
         panel.pin_mut(),
     );
+
+    let mut media_panel = ffi::new_hydrus_media_panel();
+    ffi::hydrus_media_panel_add_item(media_panel.pin_mut(), "No files loaded yet");
+    ffi::hydrus_media_panel_add_item(media_panel.pin_mut(), "Open a page to browse media");
+    ffi::hydrus_add_media_page(window.pin_mut(), "Files", media_panel.pin_mut());
 
     for menu in model.menus {
         for action in menu.actions {

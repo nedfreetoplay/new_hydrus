@@ -7,6 +7,7 @@
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QHeaderView>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -301,6 +302,18 @@ void HydrusMediaPanel::add_item(rust::Str label) {
     list->addItem(to_qstring(label));
 }
 
+void HydrusMediaPanel::add_item_with_icon(rust::Str path, rust::Str label) {
+    QPixmap pixmap(to_qstring(path));
+
+    if (pixmap.isNull()) {
+        add_item(label);
+        return;
+    }
+
+    auto *item = new QListWidgetItem(QIcon(pixmap.scaled(96, 96, Qt::KeepAspectRatio, Qt::SmoothTransformation)), to_qstring(label));
+    list->addItem(item);
+}
+
 void HydrusMediaPanel::clear_items() {
     list->clear();
 }
@@ -315,6 +328,10 @@ std::unique_ptr<HydrusMediaPanel> new_hydrus_media_panel() {
 
 void hydrus_media_panel_add_item(HydrusMediaPanel &panel, rust::Str label) {
     panel.add_item(label);
+}
+
+void hydrus_media_panel_add_item_with_icon(HydrusMediaPanel &panel, rust::Str path, rust::Str label) {
+    panel.add_item_with_icon(path, label);
 }
 
 void hydrus_media_panel_clear(HydrusMediaPanel &panel) {

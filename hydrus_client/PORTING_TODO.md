@@ -185,8 +185,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Готов каркас окна с меню, боковым деревом и вкладками; страницы и popup-очередь дальше.
 - [x] `ClientGUIPages`, `ClientGUIPagesTreeView`, `ClientGUIPagesTreeModel`.
   Модели `Page`/`PagesNotebook`/`PagesTree` + Qt sidebar tree и вкладки.
-- [~] `ClientGUIMediaResultsPanel`, `ClientGUIMediaResultsPanelThumbnails`.
-  Готов Qt-панель со списком/иконками и вкладка Files; thumbnails-модель и выбор медиа дальше.
+- [x] `ClientGUIMediaResultsPanel`, `ClientGUIMediaResultsPanelThumbnails`.
+  Qt-панель со списком/иконками и загрузкой thumbnails; вкладка Files.
 - [~] `ClientGUICanvas*`, `ClientGUIMPV`, `ClientGUIMediaModalActions`.
   Готов Qt `HydrusCanvas` (QGraphicsView, загрузка/масштабирование pixmap, вкладка Canvas);
   hover/media modal actions и mpv дальше.

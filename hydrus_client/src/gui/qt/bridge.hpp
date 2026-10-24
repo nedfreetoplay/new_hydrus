@@ -69,6 +69,7 @@ class HydrusMediaPanel : public QWidget {
 public:
     explicit HydrusMediaPanel(QWidget *parent = nullptr);
     void add_item(rust::Str label);
+    void add_item_with_icon(rust::Str path, rust::Str label);
     void clear_items();
     int item_count() const;
 
@@ -145,6 +146,7 @@ int hydrus_add_page_widget(HydrusMainWindow &window, rust::Str title, HydrusPane
 
 std::unique_ptr<HydrusMediaPanel> new_hydrus_media_panel();
 void hydrus_media_panel_add_item(HydrusMediaPanel &panel, rust::Str label);
+void hydrus_media_panel_add_item_with_icon(HydrusMediaPanel &panel, rust::Str path, rust::Str label);
 void hydrus_media_panel_clear(HydrusMediaPanel &panel);
 int hydrus_media_panel_count(const HydrusMediaPanel &panel);
 int hydrus_add_media_page(HydrusMainWindow &window, rust::Str title, HydrusMediaPanel &panel);

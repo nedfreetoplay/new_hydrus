@@ -42,6 +42,11 @@ mod ffi {
 
         fn new_hydrus_media_panel() -> UniquePtr<HydrusMediaPanel>;
         fn hydrus_media_panel_add_item(panel: Pin<&mut HydrusMediaPanel>, label: &str);
+        fn hydrus_media_panel_add_item_with_icon(
+            panel: Pin<&mut HydrusMediaPanel>,
+            path: &str,
+            label: &str,
+        );
         fn hydrus_media_panel_clear(panel: Pin<&mut HydrusMediaPanel>);
         fn hydrus_media_panel_count(panel: &HydrusMediaPanel) -> i32;
         fn hydrus_add_media_page(

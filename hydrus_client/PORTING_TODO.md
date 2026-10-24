@@ -205,8 +205,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 ## 11. Контроллер и запуск
 
-- [~] `App`/`PubSubEventCatcher` — QApplication и доставка pub/sub в Qt-поток.
-  QApplication создаётся; pub/sub-мост появится вместе с менеджерами.
+- [x] `App`/`PubSubEventCatcher` — QApplication и доставка pub/sub в Qt-поток.
+  Добавлен потокобезопасный `PubSubEventCatcher`; контроллер публикует message-события.
 - [~] `Controller::init_model` — БД, опции, кэши, сервисы, файловый менеджер.
   Готовы БД, опции и локальные сервисы; кэши/файловый менеджер дальше.
 - [~] `Controller::init_view` — менеджеры, стиль, shortcuts, `FrameGUI`.

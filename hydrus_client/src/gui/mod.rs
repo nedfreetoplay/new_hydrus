@@ -7,6 +7,7 @@ pub mod networking_panels;
 pub mod options_panel;
 pub mod pages;
 pub mod popup_messages;
+pub mod pubsub_bridge;
 pub mod qt_init;
 pub mod scrolled_panels;
 pub mod session;

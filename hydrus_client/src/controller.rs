@@ -159,6 +159,8 @@ fn default_session() -> GuiSession {
 
 impl ClientControllerHandle for Controller {
     fn publish_message(&self, message: &str) {
+        crate::gui::pubsub_bridge::post("message", message);
+
         if let Some(logger) = crate::client_boot::logger() {
             logger.write(message);
             logger.write("\n");

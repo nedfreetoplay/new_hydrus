@@ -19,3 +19,4 @@ pub mod gui;
 pub mod media;
 pub mod metadata;
 pub mod search;
+pub mod services;

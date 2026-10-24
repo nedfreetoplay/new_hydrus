@@ -119,7 +119,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 ## 8. Сервисы и сеть
 
-- [ ] `ClientServices` — `Service`, `ServicesManager`, локальные file/tag-сервисы.
+- [x] `ClientServices` — `Service`, `ServicesManager`, локальные file/tag-сервисы.
 - [ ] `ClientNetworkingContexts` — контексты сетевых запросов.
 - [ ] `ClientNetworkingBandwidth`, `ClientNetworkingSessions`.
 - [ ] `ClientNetworkingDomain`, `ClientNetworkingLogin`, `ClientNetworkingURLClass`.

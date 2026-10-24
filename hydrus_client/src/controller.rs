@@ -6,15 +6,25 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-use hydrus_core::hydrus_constants::ServiceType;
 use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_core::hydrus_serialisable::SerialisableObject;
 
+use crate::client_application_command::{ApplicationCommand, SIMPLE_REFRESH, SIMPLE_UNDO};
 use crate::client_globals::ClientControllerHandle;
 use crate::client_options::ClientOptions;
-use crate::db::{ClientDB, services};
+use crate::db::{ClientDB, files_physical_storage, services};
+use crate::files::{
+    ClientFilesManager, FilesMaintenanceManager, FilesStorageBaseLocation, FilesStorageSubfolder,
+    TrashManager,
+};
 use crate::gui::pages::{Page, PageType, PagesNotebook};
 use crate::gui::session::GuiSession;
+use crate::gui::shortcuts::{
+    Shortcut, ShortcutSet, SHORTCUT_MODIFIER_CTRL, SHORTCUT_PRESS_TYPE_PRESS,
+    SHORTCUT_TYPE_KEYBOARD_CHARACTER,
+};
+use crate::gui::style::ClientGUIStyle;
+use crate::services::ServicesManager;
 
 const OPTIONS_NAME: &str = "client options";
 const SESSION_FILENAME: &str = "gui session.json";
@@ -24,6 +34,12 @@ pub struct Controller {
     db: ClientDB,
     options: RwLock<ClientOptions>,
     session: RwLock<GuiSession>,
+    services: RwLock<ServicesManager>,
+    files_manager: RwLock<ClientFilesManager>,
+    maintenance: FilesMaintenanceManager,
+    trash: RwLock<TrashManager>,
+    shortcuts: RwLock<ShortcutSet>,
+    style: ClientGUIStyle,
 }
 
 impl Controller {
@@ -37,6 +53,12 @@ impl Controller {
             db_dir,
             options: RwLock::new(ClientOptions::new()),
             session: RwLock::new(session),
+            services: RwLock::new(ServicesManager::default()),
+            files_manager: RwLock::new(ClientFilesManager::default()),
+            maintenance: FilesMaintenanceManager::new(),
+            trash: RwLock::new(TrashManager::new(72, 2048)),
+            shortcuts: RwLock::new(ShortcutSet::new("global")),
+            style: ClientGUIStyle::default(),
         })
     }
 
@@ -45,8 +67,63 @@ impl Controller {
         self.db.update_db()?;
         self.load_options()?;
         self.ensure_local_services()?;
+        self.init_client_files_manager()?;
+        self.init_shortcuts();
 
         Ok(())
+    }
+
+    fn init_client_files_manager(&self) -> HydrusResult<()> {
+        let locations = files_physical_storage::get_current_locations(self.db.db())?;
+        let locations = if locations.is_empty() {
+            vec![
+                FilesStorageBaseLocation::new(self.db_dir.join("files"), 1, None),
+                FilesStorageBaseLocation::new(self.db_dir.join("thumbs"), 1, None),
+            ]
+        } else {
+            locations
+        };
+
+        let subfolders = files_physical_storage::get_subfolders(self.db.db(), &locations)?;
+        let subfolders = if subfolders.is_empty() {
+            vec![
+                FilesStorageSubfolder::new("f", locations[0].clone()),
+                FilesStorageSubfolder::new("t", locations[locations.len() - 1].clone()),
+            ]
+        } else {
+            subfolders
+        };
+
+        let manager = ClientFilesManager::new(subfolders);
+        manager.make_sure_exists()?;
+
+        *self.files_manager.write().unwrap() = manager;
+
+        Ok(())
+    }
+
+    fn init_shortcuts(&self) {
+        let mut shortcuts = ShortcutSet::new("global");
+        shortcuts.set_command(
+            Shortcut::new(
+                SHORTCUT_TYPE_KEYBOARD_CHARACTER,
+                b'r' as i32,
+                SHORTCUT_PRESS_TYPE_PRESS,
+                vec![SHORTCUT_MODIFIER_CTRL],
+            ),
+            ApplicationCommand::simple(SIMPLE_REFRESH),
+        );
+        shortcuts.set_command(
+            Shortcut::new(
+                SHORTCUT_TYPE_KEYBOARD_CHARACTER,
+                b'z' as i32,
+                SHORTCUT_PRESS_TYPE_PRESS,
+                vec![SHORTCUT_MODIFIER_CTRL],
+            ),
+            ApplicationCommand::simple(SIMPLE_UNDO),
+        );
+
+        *self.shortcuts.write().unwrap() = shortcuts;
     }
 
     fn load_options(&self) -> HydrusResult<()> {
@@ -63,25 +140,8 @@ impl Controller {
     }
 
     fn ensure_local_services(&self) -> HydrusResult<()> {
-        for (key, service_type, name) in [
-            (
-                b"my files".as_slice(),
-                ServiceType::LocalFileDomain,
-                "my files",
-            ),
-            (
-                b"local tags".as_slice(),
-                ServiceType::LocalTag,
-                "local tags",
-            ),
-            (
-                b"trash".as_slice(),
-                ServiceType::LocalFileTrashDomain,
-                "trash",
-            ),
-        ] {
-            services::get_or_add_service(self.db.db(), key, service_type, name)?;
-        }
+        let manager = ServicesManager::ensure_local_services(self.db.db())?;
+        *self.services.write().unwrap() = manager;
 
         Ok(())
     }
@@ -105,14 +165,38 @@ impl Controller {
     /// Human-readable summary used by the boot status bar.
     pub fn status_line(&self) -> String {
         let version = self.db.get_version().unwrap_or(0);
-        let services = services::get_services(self.db.db())
-            .map(|services| services.len())
-            .unwrap_or(0);
+        let services = self.services.read().unwrap().get_num_services();
+        let locations = self.files_manager.read().unwrap().locations().len();
+        let shortcuts = self.shortcuts.read().unwrap().len();
 
         format!(
-            "Hydrus Client — Rust/Qt 6 · db {version} · {services} services · {}",
+            "Hydrus Client - Rust/Qt 6 · db {version} · {services} services · {locations} file locations · {shortcuts} shortcuts · {}",
             self.db_dir.display()
         )
+    }
+
+    pub fn services(&self) -> ServicesManager {
+        self.services.read().unwrap().clone()
+    }
+
+    pub fn files_manager(&self) -> ClientFilesManager {
+        self.files_manager.read().unwrap().clone()
+    }
+
+    pub fn maintenance(&self) -> &FilesMaintenanceManager {
+        &self.maintenance
+    }
+
+    pub fn trash(&self) -> TrashManager {
+        self.trash.read().unwrap().clone()
+    }
+
+    pub fn shortcuts(&self) -> ShortcutSet {
+        self.shortcuts.read().unwrap().clone()
+    }
+
+    pub fn style(&self) -> &ClientGUIStyle {
+        &self.style
     }
 
     pub fn save(&self) -> HydrusResult<()> {
@@ -200,6 +284,9 @@ mod tests {
         assert_eq!(controller.status_line().contains("services"), true);
         assert_eq!(controller.session().pages.len(), 1);
         assert_eq!(controller.session().pages[0].name, "Welcome");
+        assert_eq!(controller.services().get_num_services(), 3);
+        assert_eq!(controller.files_manager().locations().len(), 2);
+        assert_eq!(controller.shortcuts().len(), 2);
 
         drop(controller);
         let _ = std::fs::remove_dir_all(directory);

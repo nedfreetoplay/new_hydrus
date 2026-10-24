@@ -153,7 +153,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Портированы FileSeed/FileSeedCache и статусы; импорт-очереди и files-jobs дальше.
 - [~] `ClientImportGallery*`, `ClientImportSimpleURLs`.
   Портированы GalleryImport/SimpleDownloaderImport, очереди и seed-логи; network work дальше.
-- [ ] `ClientImportWatchers`, `ClientImportSubscriptions`.
+- [~] `ClientImportWatchers`, `ClientImportSubscriptions`.
+  Портированы WatcherImport/MultipleWatcherImport, Subscription и менеджер; работа с сетью дальше.
 - [~] `ClientImportLocal` — импорт-папки.
   Портированы ImportFolder/ImportFoldersManager и планирование; HDDImport-очередь дальше.
 - [~] `importing/options/*` — ImportOptions/TagImportOptions/FileFiltering.

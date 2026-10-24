@@ -183,8 +183,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   `ListModel`/`ListBox` + Qt `HydrusListPanel` на QTableWidget.
 - [~] `ClientGUI` — `FrameGUI`: меню, панель страниц, статус-бар, popup-очередь.
   Готов каркас окна с меню, боковым деревом и вкладками; страницы и popup-очередь дальше.
-- [~] `ClientGUIPages`, `ClientGUIPagesTreeView`, `ClientGUIPagesTreeModel`.
-  Портирована модель `Page`/`PagesNotebook`; Qt tree view/model дальше.
+- [x] `ClientGUIPages`, `ClientGUIPagesTreeView`, `ClientGUIPagesTreeModel`.
+  Модели `Page`/`PagesNotebook`/`PagesTree` + Qt sidebar tree и вкладки.
 - [~] `ClientGUIMediaResultsPanel`, `ClientGUIMediaResultsPanelThumbnails`.
   Готов Qt-панель со списком/иконками и вкладка Files; thumbnails-модель и выбор медиа дальше.
 - [~] `ClientGUICanvas*`, `ClientGUIMPV`, `ClientGUIMediaModalActions`.

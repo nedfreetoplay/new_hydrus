@@ -175,6 +175,94 @@ impl PagesNotebook {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageTreeNode {
+    pub name: String,
+    pub page_index: Option<usize>,
+    pub children: Vec<PageTreeNode>,
+}
+
+impl PageTreeNode {
+    pub fn new(name: impl Into<String>, page_index: Option<usize>) -> Self {
+        Self {
+            name: name.into(),
+            page_index,
+            children: Vec::new(),
+        }
+    }
+
+    pub fn add_child(&mut self, node: PageTreeNode) {
+        self.children.push(node);
+    }
+
+    pub fn find(&self, name: &str) -> Option<&PageTreeNode> {
+        if self.name == name {
+            return Some(self);
+        }
+
+        self.children.iter().find_map(|child| child.find(name))
+    }
+
+    pub fn flatten_names(&self) -> Vec<&str> {
+        let mut names = vec![self.name.as_str()];
+
+        for child in &self.children {
+            names.extend(child.flatten_names());
+        }
+
+        names
+    }
+
+    pub fn count_pages(&self) -> usize {
+        usize::from(self.page_index.is_some())
+            + self
+                .children
+                .iter()
+                .map(PageTreeNode::count_pages)
+                .sum::<usize>()
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PagesTree {
+    pub roots: Vec<PageTreeNode>,
+}
+
+impl PagesTree {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn add_root(&mut self, node: PageTreeNode) {
+        self.roots.push(node);
+    }
+
+    pub fn find(&self, name: &str) -> Option<&PageTreeNode> {
+        self.roots.iter().find_map(|node| node.find(name))
+    }
+
+    pub fn flatten_names(&self) -> Vec<&str> {
+        self.roots
+            .iter()
+            .flat_map(PageTreeNode::flatten_names)
+            .collect()
+    }
+
+    pub fn count_pages(&self) -> usize {
+        self.roots.iter().map(PageTreeNode::count_pages).sum()
+    }
+
+    pub fn from_notebook(notebook: &PagesNotebook) -> Self {
+        let mut tree = Self::new();
+
+        for (index, page) in notebook.get_pages().iter().enumerate() {
+            tree.add_root(PageTreeNode::new(page.name.clone(), Some(index)));
+        }
+
+        tree
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -247,5 +335,29 @@ mod tests {
 
         page.set_hashes(vec![vec![1], vec![2]]);
         assert_eq!(page.get_num_files(), 2);
+    }
+
+    #[test]
+    fn page_tree_supports_nesting_and_lookup() {
+        let mut root = PageTreeNode::new("pages", None);
+        let mut child = PageTreeNode::new("downloads", None);
+        child.add_child(PageTreeNode::new("gallery", Some(0)));
+        root.add_child(child);
+
+        assert!(root.find("gallery").is_some());
+        assert_eq!(root.flatten_names(), vec!["pages", "downloads", "gallery"]);
+        assert_eq!(root.count_pages(), 1);
+    }
+
+    #[test]
+    fn tree_can_be_built_from_notebook() {
+        let mut notebook = PagesNotebook::new();
+        notebook.add_page(Page::new("one", PageType::Search));
+        notebook.add_page(Page::new("two", PageType::Import));
+
+        let tree = PagesTree::from_notebook(&notebook);
+
+        assert_eq!(tree.roots.len(), 2);
+        assert_eq!(tree.count_pages(), 2);
     }
 }

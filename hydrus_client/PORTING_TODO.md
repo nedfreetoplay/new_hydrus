@@ -207,8 +207,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Добавлен потокобезопасный `PubSubEventCatcher`; контроллер публикует message-события.
 - [x] `Controller::init_model` — БД, опции, кэши, сервисы, файловый менеджер.
   Загружаются БД/опции/сервисы, файловый менеджер, maintenance/trash и shortcuts.
-- [~] `Controller::init_view` — менеджеры, стиль, shortcuts, `FrameGUI`.
-  Стиль/shortcuts/pubsub готовы; реальные страницы и менеджеры в Qt ещё не связаны.
+- [x] `Controller::init_view` — менеджеры, стиль, shortcuts, `FrameGUI`.
+  Стиль/shortcuts применяются, страницы из `GuiSession` создают вкладки и sidebar.
 - [x] `Controller::run`/`thread_boot_everything`/shutdown.
   Синхронная boot-последовательность, сохранение опций и GUI-сессии при выходе.
 - [~] `hydrus_client_boot` — CLI-аргументы, logger, temp dir, обработка сигналов.

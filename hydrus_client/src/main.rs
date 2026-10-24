@@ -50,7 +50,11 @@ fn main() {
 
     controller.install_global();
 
-    hydrus_client::gui::run(&controller.window_title(), &controller.status_line());
+    hydrus_client::gui::run(
+        &controller.window_title(),
+        &controller.status_line(),
+        Some(&controller.session()),
+    );
 
     if let Err(error) = controller.save() {
         eprintln!("Could not save client options: {error}");

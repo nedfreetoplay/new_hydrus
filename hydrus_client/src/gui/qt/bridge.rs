@@ -125,7 +125,11 @@ pub(crate) fn apply_application_settings(
     ffi::qapp_set_stylesheet(stylesheet);
 }
 
-pub fn run_application(title: &str, status: &str) {
+pub fn run_application(
+    title: &str,
+    status: &str,
+    session: Option<&crate::gui::session::GuiSession>,
+) {
     let model = frame_gui::default_frame_gui();
     let mut app = ffi::new_application();
 
@@ -139,6 +143,17 @@ pub fn run_application(title: &str, status: &str) {
 
     for item in model.sidebar {
         ffi::hydrus_add_sidebar_item(window.pin_mut(), item);
+    }
+
+    if let Some(session) = session {
+        for page in &session.pages {
+            ffi::hydrus_add_sidebar_item(window.pin_mut(), &page.name);
+            ffi::hydrus_add_page(window.pin_mut(), &page.name);
+        }
+    } else {
+        for page in model.pages {
+            ffi::hydrus_add_page(window.pin_mut(), page);
+        }
     }
 
     let mut panel = ffi::new_hydrus_panel();

@@ -156,8 +156,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   GalleryImport/SimpleDownloaderImport, очередь, сетевая загрузка страниц и parse-формулы для seed-ов.
 - [x] `ClientImportWatchers`, `ClientImportSubscriptions`.
   WatcherImport/MultipleWatcherImport, Subscription и менеджер; сетевые проверки и parse-формулы.
-- [~] `ClientImportLocal` — импорт-папки.
-  Портированы ImportFolder/ImportFoldersManager и планирование; HDDImport-очередь дальше.
+- [x] `ClientImportLocal` — импорт-папки.
+  ImportFolder/ImportFoldersManager, HDDImport: скан (вложенные папки, skip period), delete/move/ignore.
 - [x] `importing/options/*` — ImportOptions/TagImportOptions/FileFiltering.
   File filtering, tag import options, контейнер и `ImportOptionsManager`.
 - [x] `ClientDuplicates*`, `ClientPotentialDuplicates*`.

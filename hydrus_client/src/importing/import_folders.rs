@@ -1,6 +1,8 @@
 //! Import folder model from `hydrus/client/importing/ClientImportLocal.py`.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use hydrus_core::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult, unknown};
 
 use crate::client_constants;
 
@@ -95,6 +97,166 @@ impl ImportFolder {
             self.check_regularly,
             self.paused,
         )
+    }
+
+    /// Lists importable files, skipping recently modified ones.
+    pub fn get_files_to_import(&self, now: i64) -> Vec<PathBuf> {
+        let mut files = Vec::new();
+        collect_files(
+            &self.path,
+            self.search_subdirectories,
+            self.last_modified_time_skip_period,
+            now,
+            &mut files,
+        );
+        files.sort();
+
+        files
+    }
+}
+
+fn collect_files(
+    directory: &Path,
+    recursive: bool,
+    skip_period: i64,
+    now: i64,
+    files: &mut Vec<PathBuf>,
+) {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+
+        if metadata.is_dir() {
+            if recursive {
+                collect_files(&path, recursive, skip_period, now, files);
+            }
+
+            continue;
+        }
+
+        if !metadata.is_file() {
+            continue;
+        }
+
+        if skip_period > 0 {
+            let modified = metadata
+                .modified()
+                .ok()
+                .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|duration| duration.as_secs() as i64)
+                .unwrap_or(0);
+
+            if modified > now - skip_period {
+                continue;
+            }
+        }
+
+        files.push(path);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HddImport {
+    pub folder: ImportFolder,
+    pub paths: Vec<PathBuf>,
+    pub current: Option<usize>,
+}
+
+impl HddImport {
+    pub fn new(folder: ImportFolder) -> Self {
+        Self {
+            folder,
+            paths: Vec::new(),
+            current: None,
+        }
+    }
+
+    /// Scans the folder and returns how many files were queued.
+    pub fn scan(&mut self, now: i64) -> usize {
+        self.paths = self.folder.get_files_to_import(now);
+        self.current = None;
+        self.folder.mark_checked(now);
+
+        self.paths.len()
+    }
+
+    pub fn pop_next(&mut self) -> Option<PathBuf> {
+        if self.paths.is_empty() {
+            return None;
+        }
+
+        self.current = Some(0);
+
+        Some(self.paths.remove(0))
+    }
+
+    /// Applies the folder's post-import action to the current file.
+    pub fn apply_action(&mut self, path: &Path) -> HydrusResult<()> {
+        match self.folder.actions {
+            ImportFolderAction::Ignore => Ok(()),
+            ImportFolderAction::Delete => std::fs::remove_file(path)
+                .map_err(|error| unknown(format!("could not delete {}: {error}", path.display()))),
+            ImportFolderAction::Move => {
+                let destination_directory =
+                    self.folder.action_locations.clone().ok_or_else(|| {
+                        HydrusException::new(
+                            ErrorKind::DirectoryMissing,
+                            "import folder move action has no destination",
+                        )
+                    })?;
+
+                let file_name = path.file_name().ok_or_else(|| {
+                    HydrusException::new(ErrorKind::Name, "imported file has no file name")
+                })?;
+
+                std::fs::create_dir_all(&destination_directory).map_err(|error| {
+                    unknown(format!(
+                        "could not create {}: {error}",
+                        destination_directory.display()
+                    ))
+                })?;
+
+                let mut destination = destination_directory.join(file_name);
+                let mut counter = 1;
+
+                while destination.exists() {
+                    let stem = path
+                        .file_stem()
+                        .and_then(|stem| stem.to_str())
+                        .unwrap_or("file");
+                    let extension = path.extension().and_then(|extension| extension.to_str());
+                    let name = match extension {
+                        Some(extension) => format!("{stem} ({counter}).{extension}"),
+                        None => format!("{stem} ({counter})"),
+                    };
+
+                    destination = destination_directory.join(name);
+                    counter += 1;
+                }
+
+                std::fs::rename(path, &destination).map_err(|error| {
+                    unknown(format!(
+                        "could not move {} to {}: {error}",
+                        path.display(),
+                        destination.display()
+                    ))
+                })
+            }
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.paths.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.paths.is_empty()
     }
 }
 
@@ -206,5 +368,59 @@ mod tests {
         assert!(manager.remove_folder("inbox"));
         assert!(manager.is_empty());
         assert!(!manager.remove_folder("inbox"));
+    }
+
+    fn temp_folder(name: &str) -> PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "hydrus_client_hdd_{name}_{}_{}",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+        std::fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn hdd_import_scans_subdirectories() {
+        let directory = temp_folder("scan");
+        std::fs::write(directory.join("a.png"), b"a").unwrap();
+
+        let nested = directory.join("nested");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("b.png"), b"b").unwrap();
+
+        let mut import = HddImport::new(ImportFolder::new("inbox", &directory, 60));
+        assert_eq!(import.scan(i64::MAX / 2), 2);
+        assert_eq!(import.len(), 2);
+
+        import.folder.search_subdirectories = false;
+        assert_eq!(import.scan(i64::MAX / 2), 1);
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn hdd_import_deletes_and_moves_files() {
+        let directory = temp_folder("actions");
+        let source = directory.join("a.png");
+        std::fs::write(&source, b"a").unwrap();
+
+        let mut delete = HddImport::new(ImportFolder::new("inbox", &directory, 60));
+        delete.folder.actions = ImportFolderAction::Delete;
+        delete.apply_action(&source).unwrap();
+        assert!(!source.exists());
+
+        std::fs::write(&source, b"a").unwrap();
+
+        let destination = directory.join("done");
+        let mut move_import = HddImport::new(ImportFolder::new("inbox", &directory, 60));
+        move_import.folder.actions = ImportFolderAction::Move;
+        move_import.folder.action_locations = Some(destination.clone());
+
+        move_import.apply_action(&source).unwrap();
+        assert!(!source.exists());
+        assert!(destination.join("a.png").exists());
+
+        let _ = std::fs::remove_dir_all(directory);
     }
 }

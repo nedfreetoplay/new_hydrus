@@ -6,10 +6,15 @@ use crate::client_constants;
 
 mod colours;
 mod network;
+mod objects;
 
 pub use colours::{darkmode_colours, default_colours};
 pub use network::{
     CustomHeader, DEFAULT_USER_AGENT, apply_default_bandwidth_rules, default_custom_headers,
+};
+pub use objects::{
+    FavouriteSearchRow, SimpleDownloaderFormula, apply_default_domain_manager_data,
+    default_favourite_searches, default_simple_downloader_formulae, default_url_classes,
 };
 
 /// Legacy YAML-backed options (the `options` table).

@@ -10,6 +10,7 @@ use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_core::hydrus_serialisable::SerialisableObject;
 
 use crate::client_application_command::{ApplicationCommand, SIMPLE_REFRESH, SIMPLE_UNDO};
+use crate::client_defaults::{apply_default_bandwidth_rules, apply_default_domain_manager_data};
 use crate::client_globals::ClientControllerHandle;
 use crate::client_options::ClientOptions;
 use crate::db::{ClientDB, files_physical_storage, services};
@@ -24,6 +25,8 @@ use crate::gui::shortcuts::{
     ShortcutSet,
 };
 use crate::gui::style::ClientGUIStyle;
+use crate::networking::client_networking_bandwidth::NetworkBandwidthManager;
+use crate::networking::client_networking_domain::DomainManager;
 use crate::services::ServicesManager;
 
 const OPTIONS_NAME: &str = "client options";
@@ -40,6 +43,8 @@ pub struct Controller {
     trash: RwLock<TrashManager>,
     shortcuts: RwLock<ShortcutSet>,
     style: ClientGUIStyle,
+    domain_manager: RwLock<DomainManager>,
+    bandwidth_manager: RwLock<NetworkBandwidthManager>,
 }
 
 impl Controller {
@@ -59,6 +64,8 @@ impl Controller {
             trash: RwLock::new(TrashManager::new(72, 2048)),
             shortcuts: RwLock::new(ShortcutSet::new("global")),
             style: ClientGUIStyle::default(),
+            domain_manager: RwLock::new(DomainManager::new()),
+            bandwidth_manager: RwLock::new(NetworkBandwidthManager::new()),
         })
     }
 
@@ -69,8 +76,27 @@ impl Controller {
         self.ensure_local_services()?;
         self.init_client_files_manager()?;
         self.init_shortcuts();
+        self.init_domain_manager();
 
         Ok(())
+    }
+
+    fn init_domain_manager(&self) {
+        if let Ok(mut manager) = self.domain_manager.write() {
+            apply_default_domain_manager_data(&mut manager);
+        }
+
+        if let Ok(mut manager) = self.bandwidth_manager.write() {
+            apply_default_bandwidth_rules(&mut manager);
+        }
+    }
+
+    pub fn domain_manager(&self) -> &RwLock<DomainManager> {
+        &self.domain_manager
+    }
+
+    pub fn bandwidth_manager(&self) -> &RwLock<NetworkBandwidthManager> {
+        &self.bandwidth_manager
     }
 
     fn init_client_files_manager(&self) -> HydrusResult<()> {

@@ -44,8 +44,9 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 ## 2. Настройки
 
 - [x] `ClientDefaults` — legacy options dict, дефолтные checker/media/duplicate options.
-- [~] `ClientDefaults` — дефолтные URL classes, simple downloader formulae, bandwidth rules,
+- [x] `ClientDefaults` — дефолтные URL classes, simple downloader formulae, bandwidth rules,
   domain manager data, favourite searches.
+  Встроенные URL classes/formulae, headers, bandwidth rules и inbox-поиск; применяются в `Controller::init_model`.
   Портированы bandwidth rules и custom headers; URL classes/formulae/favourites ждут
   PNG-загрузчик и менеджеры.
 - [x] `ClientOptions` — `SerialisableObject` (type 22, version 8), группы booleans/integers/

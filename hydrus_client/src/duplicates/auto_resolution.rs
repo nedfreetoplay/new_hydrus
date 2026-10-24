@@ -101,9 +101,7 @@ impl DuplicatesAutoResolutionManager {
     }
 
     pub fn evaluate(&self, a: &MediaResult, b: &MediaResult) -> Option<DuplicatePairDecision> {
-        self.rules
-            .iter()
-            .find_map(|rule| rule.evaluate(a, b))
+        self.rules.iter().find_map(|rule| rule.evaluate(a, b))
     }
 
     pub fn len(&self) -> usize {
@@ -222,16 +220,10 @@ mod tests {
             DuplicatePairDecision::Approve,
         );
 
-        assert_eq!(
-            rule.evaluate(&a, &b),
-            Some(DuplicatePairDecision::Approve)
-        );
+        assert_eq!(rule.evaluate(&a, &b), Some(DuplicatePairDecision::Approve));
         // The decision is orientation-independent: the better file is still
         // identified no matter which side of the pair it sits on.
-        assert_eq!(
-            rule.evaluate(&b, &a),
-            Some(DuplicatePairDecision::Approve)
-        );
+        assert_eq!(rule.evaluate(&b, &a), Some(DuplicatePairDecision::Approve));
 
         // Equal tag counts mean the rule cannot decide.
         assert_eq!(rule.evaluate(&b, &b), None);

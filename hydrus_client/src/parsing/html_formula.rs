@@ -49,6 +49,8 @@ impl HtmlFormula {
                 .expect("escaped tag regex");
             let self_closing =
                 Regex::new(&format!(r"(?is)<{tag}\b([^>]*)/>")).expect("escaped tag regex");
+            let unclosed =
+                Regex::new(&format!(r"(?is)<{tag}\b([^>]*)>")).expect("escaped tag regex");
 
             if let Some(captures) = paired.captures(&current) {
                 let attributes = captures
@@ -62,6 +64,13 @@ impl HtmlFormula {
 
                 current = format!("{attributes}\u{1f}{inner}");
             } else if let Some(captures) = self_closing.captures(&current) {
+                let attributes = captures
+                    .get(1)
+                    .map(|value| value.as_str().to_string())
+                    .unwrap_or_default();
+
+                current = format!("{attributes}\u{1f}");
+            } else if let Some(captures) = unclosed.captures(&current) {
                 let attributes = captures
                     .get(1)
                     .map(|value| value.as_str().to_string())

@@ -1,0 +1,11 @@
+[package]
+name = "hydrus_external"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = "0.4"
+fancy-regex = "0.14"
+hydrus_core = { path = "../hydrus_core" }
+image = { version = "0.25", default-features = false }
+regex = "1"

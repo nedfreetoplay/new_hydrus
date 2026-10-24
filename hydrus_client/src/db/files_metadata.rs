@@ -118,11 +118,7 @@ pub fn set_metadata_flag(
     Ok(())
 }
 
-pub fn has_metadata_flag(
-    db: &DBBase,
-    hash_id: i64,
-    flag: MetadataFlag,
-) -> HydrusResult<bool> {
+pub fn has_metadata_flag(db: &DBBase, hash_id: i64, flag: MetadataFlag) -> HydrusResult<bool> {
     let table = flag.table();
     let count: i64 = db
         .query_one(
@@ -166,8 +162,8 @@ pub fn get_forced_mime(db: &DBBase, hash_id: i64) -> HydrusResult<Option<Mime>> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::master::get_hash_id;
     use crate::db::ClientDB;
+    use crate::db::master::get_hash_id;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(

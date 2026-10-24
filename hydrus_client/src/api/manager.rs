@@ -179,7 +179,8 @@ mod tests {
     #[test]
     fn search_files_parses_tag_list() {
         let manager = ApiManager::new(MockBackend);
-        let request = ApiRequest::get("/get_files/search_files").with_query("tags", "blue eyes, blonde hair");
+        let request =
+            ApiRequest::get("/get_files/search_files").with_query("tags", "blue eyes, blonde hair");
 
         let response = manager.handle(&request);
 
@@ -200,7 +201,8 @@ mod tests {
 
         assert_eq!(manager.handle(&ApiRequest::get("/api_version")).status, 401);
 
-        let allowed = manager.handle(&ApiRequest::get("/api_version").with_query("access_key", "secret"));
+        let allowed =
+            manager.handle(&ApiRequest::get("/api_version").with_query("access_key", "secret"));
 
         assert_eq!(allowed.status, 200);
     }

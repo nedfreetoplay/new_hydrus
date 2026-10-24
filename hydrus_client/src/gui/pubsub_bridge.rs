@@ -20,13 +20,10 @@ impl PubSubEventCatcher {
     }
 
     pub fn post(&self, topic: impl Into<String>, message: impl Into<String>) {
-        self.queue
-            .lock()
-            .unwrap()
-            .push_back(PubSubEvent {
-                topic: topic.into(),
-                message: message.into(),
-            });
+        self.queue.lock().unwrap().push_back(PubSubEvent {
+            topic: topic.into(),
+            message: message.into(),
+        });
     }
 
     pub fn has_events(&self) -> bool {

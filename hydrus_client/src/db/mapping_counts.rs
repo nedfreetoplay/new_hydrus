@@ -80,9 +80,7 @@ pub fn get_counts(
 
     Ok(db
         .query_one(
-            &format!(
-                "SELECT current_count, pending_count FROM {table} WHERE tag_id = ?"
-            ),
+            &format!("SELECT current_count, pending_count FROM {table} WHERE tag_id = ?"),
             &[&tag_id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?
@@ -165,8 +163,8 @@ pub fn clear_counts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::master_tags::get_tag_id;
     use crate::db::ClientDB;
+    use crate::db::master_tags::get_tag_id;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(

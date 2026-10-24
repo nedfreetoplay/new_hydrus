@@ -48,7 +48,11 @@ impl NetworkingPanelState {
 
     pub fn set_contexts(&mut self, contexts: impl IntoIterator<Item = String>) {
         self.contexts = contexts.into_iter().collect();
-        self.selected_context = if self.contexts.is_empty() { None } else { Some(0) };
+        self.selected_context = if self.contexts.is_empty() {
+            None
+        } else {
+            Some(0)
+        };
     }
 
     pub fn add_context(&mut self, context: &NetworkContext) {

@@ -33,8 +33,7 @@ impl DuplicatesPanelState {
     }
 
     pub fn current_pair(&self) -> Option<&(Vec<u8>, Vec<u8>)> {
-        self.current_index
-            .and_then(|index| self.pairs.get(index))
+        self.current_index.and_then(|index| self.pairs.get(index))
     }
 
     pub fn decide(&mut self, decision: &DuplicatePairDecision) -> bool {

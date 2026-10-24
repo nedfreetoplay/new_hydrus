@@ -81,7 +81,11 @@ pub struct GalleryImport {
 }
 
 impl GalleryImport {
-    pub fn new(query: impl Into<String>, source_name: impl Into<String>, creation_time: i64) -> Self {
+    pub fn new(
+        query: impl Into<String>,
+        source_name: impl Into<String>,
+        creation_time: i64,
+    ) -> Self {
         Self {
             query: query.into(),
             source_name: source_name.into(),
@@ -246,7 +250,11 @@ impl SimpleDownloaderImport {
     pub fn get_status(&self) -> ImportStatus {
         if self.jobs.is_empty() {
             ImportStatus::Finished
-        } else if self.jobs.iter().any(|job| job.status == ImportStatus::Working) {
+        } else if self
+            .jobs
+            .iter()
+            .any(|job| job.status == ImportStatus::Working)
+        {
             ImportStatus::Working
         } else {
             ImportStatus::Ready

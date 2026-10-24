@@ -36,7 +36,10 @@ fn migrate_one(version: u16, mut info: Value) -> Value {
 /// v1 stored six values per mime; v2 drops the zoom flags back to a single
 /// default zoom tuple.
 fn migrate_media_view_to_v2(dictionary: &mut Map<String, Value>) {
-    let Some(media_view) = dictionary.get_mut("media_view").and_then(Value::as_object_mut) else {
+    let Some(media_view) = dictionary
+        .get_mut("media_view")
+        .and_then(Value::as_object_mut)
+    else {
         return;
     };
 

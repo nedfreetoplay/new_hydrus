@@ -20,8 +20,8 @@ use crate::files::{
 use crate::gui::pages::{Page, PageType, PagesNotebook};
 use crate::gui::session::GuiSession;
 use crate::gui::shortcuts::{
-    Shortcut, ShortcutSet, SHORTCUT_MODIFIER_CTRL, SHORTCUT_PRESS_TYPE_PRESS,
-    SHORTCUT_TYPE_KEYBOARD_CHARACTER,
+    SHORTCUT_MODIFIER_CTRL, SHORTCUT_PRESS_TYPE_PRESS, SHORTCUT_TYPE_KEYBOARD_CHARACTER, Shortcut,
+    ShortcutSet,
 };
 use crate::gui::style::ClientGUIStyle;
 use crate::services::ServicesManager;

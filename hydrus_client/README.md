@@ -35,10 +35,12 @@ cargo run -p hydrus_client
 
 ## Статус портирования
 
-Готовы: инфраструктура клиента, `ClientOptions`/`ClientDefaults`, метаданные
-(включая `MetadataConditional`), поиск (`NumberTest`, `Predicate`, tag/file search
-contexts, мост системных предикатов), медиа-модель, физические хранилища и файловые
-операции, `ClientServices`, контроллер и каркас Qt-окна, `QtInit`/стиль/shortcuts.
+Готовы: инфраструктура клиента, настройки (включая все миграции 1→8), метаданные,
+поиск, медиа-модель, файлы, БД-слой, сеть (engine на reqwest), импорт/парсинг/дубликаты,
+GUI-модели и Qt-каркас с canvas, PNG-сериализация и восстановление сессии.
+
+Остались в основном Qt-виджеты для уже готовых моделей и серверный HTTP-транспорт
+Client API.
 
 БД: схема, сервисы, хэши, master-теги, mappings, files_info/storage/timestamps/inbox,
 viewing stats, storage configuration, notes/ratings/urls/service paths, definitions cache,

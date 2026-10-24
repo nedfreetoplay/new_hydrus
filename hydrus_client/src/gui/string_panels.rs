@@ -144,10 +144,7 @@ mod tests {
 
     #[test]
     fn dict_panel_tracks_changes() {
-        let mut panel = StringToStringDictPanel::from_entries([(
-            "a".to_string(),
-            "1".to_string(),
-        )]);
+        let mut panel = StringToStringDictPanel::from_entries([("a".to_string(), "1".to_string())]);
 
         assert!(!panel.has_changes());
 
@@ -164,10 +161,7 @@ mod tests {
 
     #[test]
     fn dict_entries_can_be_removed() {
-        let mut panel = StringToStringDictPanel::from_entries([(
-            "a".to_string(),
-            "1".to_string(),
-        )]);
+        let mut panel = StringToStringDictPanel::from_entries([("a".to_string(), "1".to_string())]);
 
         assert!(panel.remove_entry("a"));
         assert!(!panel.remove_entry("a"));

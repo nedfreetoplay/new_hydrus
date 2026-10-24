@@ -4,9 +4,9 @@
 //! subset the Rust port already understands. It is deliberately created with
 //! raw sqlite, not with `ClientDB`, so it exercises the loader path.
 
-use hydrus_client::db::{files_metadata, master, services, ClientDB};
+use hydrus_client::db::{ClientDB, files_metadata, master, services};
 use hydrus_core::hydrus_constants::{Mime, ServiceType};
-use rusqlite::{params, Connection};
+use rusqlite::{Connection, params};
 
 fn create_python_shaped_db(path: &std::path::Path) -> (Vec<u8>, Vec<u8>) {
     let connection = Connection::open(path).unwrap();
@@ -61,7 +61,10 @@ fn create_python_shaped_db(path: &std::path::Path) -> (Vec<u8>, Vec<u8>) {
         .execute("INSERT INTO version ( version ) VALUES ( 620 )", [])
         .unwrap();
     connection
-        .execute("INSERT INTO options ( options ) VALUES ( 'legacy options' )", [])
+        .execute(
+            "INSERT INTO options ( options ) VALUES ( 'legacy options' )",
+            [],
+        )
         .unwrap();
     connection
         .execute(
@@ -71,7 +74,10 @@ fn create_python_shaped_db(path: &std::path::Path) -> (Vec<u8>, Vec<u8>) {
         )
         .unwrap();
     connection
-        .execute("INSERT INTO hashes ( hash_id, hash ) VALUES ( 3, ?1 )", params![hash])
+        .execute(
+            "INSERT INTO hashes ( hash_id, hash ) VALUES ( 3, ?1 )",
+            params![hash],
+        )
         .unwrap();
     connection
         .execute(
@@ -100,14 +106,21 @@ fn opens_and_reads_python_shaped_database() {
     let db = ClientDB::from_path(&path).unwrap();
 
     assert_eq!(db.get_version().unwrap(), 620);
-    assert_eq!(db.read_options_text().unwrap().as_deref(), Some("legacy options"));
+    assert_eq!(
+        db.read_options_text().unwrap().as_deref(),
+        Some("legacy options")
+    );
 
-    let service = services::get_service(db.db(), &service_key).unwrap().unwrap();
+    let service = services::get_service(db.db(), &service_key)
+        .unwrap()
+        .unwrap();
     assert_eq!(service.name, "my files");
     assert_eq!(service.service_type, ServiceType::LocalFileDomain);
 
     let hash_id = master::get_hash_id(db.db(), &hash).unwrap();
-    let file_info = files_metadata::get_file_info(db.db(), hash_id).unwrap().unwrap();
+    let file_info = files_metadata::get_file_info(db.db(), hash_id)
+        .unwrap()
+        .unwrap();
     assert_eq!(file_info.size, 12345);
     assert_eq!(file_info.mime, Mime::Png);
     assert_eq!(file_info.width, Some(640));

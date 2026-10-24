@@ -186,7 +186,10 @@ mod tests {
         set_json_dump_named(db.db(), 22, "options", 8, 100, "{}").unwrap();
         set_json_dump_named(db.db(), 22, "backup", 8, 200, "{}").unwrap();
 
-        assert_eq!(get_json_dump_names(db.db(), 22).unwrap(), vec!["backup", "options"]);
+        assert_eq!(
+            get_json_dump_names(db.db(), 22).unwrap(),
+            vec!["backup", "options"]
+        );
         assert_eq!(
             get_json_dump_named(db.db(), 22, "options").unwrap(),
             Some((8, 100, "{}".to_string()))

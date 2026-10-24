@@ -143,7 +143,12 @@ mod tests {
         let state = OptionsPanelState::new();
 
         assert_eq!(state.panels.len(), 9);
-        assert!(state.panels.iter().any(|panel| panel.id == OptionsPanelId::Networking));
+        assert!(
+            state
+                .panels
+                .iter()
+                .any(|panel| panel.id == OptionsPanelId::Networking)
+        );
     }
 
     #[test]

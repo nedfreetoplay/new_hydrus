@@ -4,6 +4,7 @@
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QDialog>
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QLineEdit>
@@ -11,8 +12,10 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSplitter>
 #include <QStatusBar>
+#include <QTableWidget>
 #include <QTabWidget>
 #include <QTreeWidget>
 #include <QVBoxLayout>
@@ -21,6 +24,8 @@
 class HydrusPanel;
 class HydrusMediaPanel;
 class HydrusCanvas;
+class HydrusScrolledPanel;
+class HydrusListPanel;
 
 class HydrusMainWindow : public QMainWindow {
 public:
@@ -30,6 +35,8 @@ public:
     int add_page_widget(rust::Str title, HydrusPanel *panel);
     int add_media_page(rust::Str title, HydrusMediaPanel *panel);
     int add_canvas_page(rust::Str title, HydrusCanvas *canvas);
+    int add_scrolled_page(rust::Str title, HydrusScrolledPanel *panel);
+    int add_list_page(rust::Str title, HydrusListPanel *panel);
     void add_sidebar_item(rust::Str title);
     void add_menu_action(rust::Str menu_title, rust::Str action_title);
     void add_exit_action(rust::Str menu_title, rust::Str action_title);
@@ -81,6 +88,38 @@ private:
     QGraphicsScene *scene = nullptr;
 };
 
+class HydrusScrolledPanel : public QWidget {
+public:
+    explicit HydrusScrolledPanel(QWidget *parent = nullptr);
+    void add_label(rust::Str text);
+    void add_button(rust::Str text);
+    void add_checkbox(rust::Str text, bool checked);
+    void add_line_edit(rust::Str placeholder);
+    void add_stretch();
+
+private:
+    QScrollArea *area = nullptr;
+    HydrusPanel *content = nullptr;
+};
+
+class HydrusDialog : public QDialog {
+public:
+    HydrusDialog(HydrusPanel *panel, rust::Str title, int width, int height);
+    int exec_dialog();
+};
+
+class HydrusListPanel : public QWidget {
+public:
+    explicit HydrusListPanel(QWidget *parent = nullptr);
+    void set_columns(rust::Str csv);
+    void add_row(rust::Str csv);
+    void clear_rows();
+    int row_count() const;
+
+private:
+    QTableWidget *table = nullptr;
+};
+
 std::unique_ptr<QApplication> new_application();
 int exec_application(QApplication &application);
 void quit_application(QApplication &application);
@@ -115,6 +154,24 @@ bool hydrus_canvas_load_image(HydrusCanvas &canvas, rust::Str path);
 void hydrus_canvas_clear(HydrusCanvas &canvas);
 void hydrus_canvas_fit(HydrusCanvas &canvas);
 int hydrus_add_canvas_page(HydrusMainWindow &window, rust::Str title, HydrusCanvas &canvas);
+
+std::unique_ptr<HydrusScrolledPanel> new_hydrus_scrolled_panel();
+void hydrus_scrolled_add_label(HydrusScrolledPanel &panel, rust::Str text);
+void hydrus_scrolled_add_button(HydrusScrolledPanel &panel, rust::Str text);
+void hydrus_scrolled_add_checkbox(HydrusScrolledPanel &panel, rust::Str text, bool checked);
+void hydrus_scrolled_add_line_edit(HydrusScrolledPanel &panel, rust::Str placeholder);
+void hydrus_scrolled_add_stretch(HydrusScrolledPanel &panel);
+int hydrus_add_scrolled_page(HydrusMainWindow &window, rust::Str title, HydrusScrolledPanel &panel);
+
+std::unique_ptr<HydrusDialog> new_hydrus_dialog(HydrusPanel &content, rust::Str title, int width, int height);
+int hydrus_dialog_exec(HydrusDialog &dialog);
+
+std::unique_ptr<HydrusListPanel> new_hydrus_list_panel();
+void hydrus_list_set_columns(HydrusListPanel &panel, rust::Str csv);
+void hydrus_list_add_row(HydrusListPanel &panel, rust::Str csv);
+void hydrus_list_clear(HydrusListPanel &panel);
+int hydrus_list_row_count(const HydrusListPanel &panel);
+int hydrus_add_list_page(HydrusMainWindow &window, rust::Str title, HydrusListPanel &panel);
 
 void qapp_set_application_name(rust::Str name);
 void qapp_set_application_display_name(rust::Str name);

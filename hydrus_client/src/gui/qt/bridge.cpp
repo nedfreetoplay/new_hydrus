@@ -1,13 +1,30 @@
 #include "bridge.hpp"
 
 #include <QAction>
+#include <QCheckBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QHeaderView>
 #include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QMainWindow>
+#include <QMenu>
 #include <QMenuBar>
 #include <QPainter>
 #include <QPixmap>
+#include <QPushButton>
+#include <QScrollArea>
+#include <QSpinBox>
+#include <QSplitter>
+#include <QStatusBar>
 #include <QStyle>
 #include <QStyleFactory>
 #include <QString>
+#include <QTableWidget>
+#include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -101,6 +118,28 @@ int HydrusMainWindow::add_canvas_page(rust::Str title, HydrusCanvas *canvas) {
     }
 
     const int index = tabs->addTab(canvas, to_qstring(title));
+    tabs->setCurrentIndex(index);
+
+    return index;
+}
+
+int HydrusMainWindow::add_scrolled_page(rust::Str title, HydrusScrolledPanel *panel) {
+    if (panel == nullptr) {
+        return -1;
+    }
+
+    const int index = tabs->addTab(panel, to_qstring(title));
+    tabs->setCurrentIndex(index);
+
+    return index;
+}
+
+int HydrusMainWindow::add_list_page(rust::Str title, HydrusListPanel *panel) {
+    if (panel == nullptr) {
+        return -1;
+    }
+
+    const int index = tabs->addTab(panel, to_qstring(title));
     tabs->setCurrentIndex(index);
 
     return index;
@@ -341,6 +380,153 @@ void hydrus_canvas_fit(HydrusCanvas &canvas) {
 
 int hydrus_add_canvas_page(HydrusMainWindow &window, rust::Str title, HydrusCanvas &canvas) {
     return window.add_canvas_page(title, &canvas);
+}
+
+HydrusScrolledPanel::HydrusScrolledPanel(QWidget *parent) : QWidget(parent) {
+    auto *layout = new QVBoxLayout(this);
+    area = new QScrollArea(this);
+    area->setWidgetResizable(true);
+
+    content = new HydrusPanel(area);
+    area->setWidget(content);
+
+    layout->addWidget(area);
+}
+
+void HydrusScrolledPanel::add_label(rust::Str text) {
+    content->add_label(text);
+}
+
+void HydrusScrolledPanel::add_button(rust::Str text) {
+    content->add_button(text);
+}
+
+void HydrusScrolledPanel::add_checkbox(rust::Str text, bool checked) {
+    content->add_checkbox(text, checked);
+}
+
+void HydrusScrolledPanel::add_line_edit(rust::Str placeholder) {
+    content->add_line_edit(placeholder);
+}
+
+void HydrusScrolledPanel::add_stretch() {
+    content->add_stretch();
+}
+
+std::unique_ptr<HydrusScrolledPanel> new_hydrus_scrolled_panel() {
+    return std::make_unique<HydrusScrolledPanel>();
+}
+
+void hydrus_scrolled_add_label(HydrusScrolledPanel &panel, rust::Str text) {
+    panel.add_label(text);
+}
+
+void hydrus_scrolled_add_button(HydrusScrolledPanel &panel, rust::Str text) {
+    panel.add_button(text);
+}
+
+void hydrus_scrolled_add_checkbox(HydrusScrolledPanel &panel, rust::Str text, bool checked) {
+    panel.add_checkbox(text, checked);
+}
+
+void hydrus_scrolled_add_line_edit(HydrusScrolledPanel &panel, rust::Str placeholder) {
+    panel.add_line_edit(placeholder);
+}
+
+void hydrus_scrolled_add_stretch(HydrusScrolledPanel &panel) {
+    panel.add_stretch();
+}
+
+int hydrus_add_scrolled_page(HydrusMainWindow &window, rust::Str title, HydrusScrolledPanel &panel) {
+    return window.add_scrolled_page(title, &panel);
+}
+
+HydrusDialog::HydrusDialog(HydrusPanel *panel, rust::Str title, int width, int height)
+    : QDialog(nullptr) {
+    setWindowTitle(to_qstring(title));
+    resize(width, height);
+
+    auto *layout = new QVBoxLayout(this);
+    layout->addWidget(panel);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    layout->addWidget(buttons);
+}
+
+int HydrusDialog::exec_dialog() {
+    return exec();
+}
+
+std::unique_ptr<HydrusDialog> new_hydrus_dialog(
+    HydrusPanel &content,
+    rust::Str title,
+    int width,
+    int height) {
+    return std::make_unique<HydrusDialog>(&content, title, width, height);
+}
+
+int hydrus_dialog_exec(HydrusDialog &dialog) {
+    return dialog.exec_dialog();
+}
+
+HydrusListPanel::HydrusListPanel(QWidget *parent) : QWidget(parent) {
+    auto *layout = new QVBoxLayout(this);
+    table = new QTableWidget(this);
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    layout->addWidget(table);
+}
+
+void HydrusListPanel::set_columns(rust::Str csv) {
+    const QStringList columns = to_qstring(csv).split(',', Qt::SkipEmptyParts);
+
+    table->setColumnCount(columns.size());
+    table->setHorizontalHeaderLabels(columns);
+}
+
+void HydrusListPanel::add_row(rust::Str csv) {
+    const QStringList values = to_qstring(csv).split(',');
+    const int row = table->rowCount();
+
+    table->insertRow(row);
+
+    for (int column = 0; column < table->columnCount(); ++column) {
+        const QString value = column < values.size() ? values[column].trimmed() : QString();
+        table->setItem(row, column, new QTableWidgetItem(value));
+    }
+}
+
+void HydrusListPanel::clear_rows() {
+    table->setRowCount(0);
+}
+
+int HydrusListPanel::row_count() const {
+    return table->rowCount();
+}
+
+std::unique_ptr<HydrusListPanel> new_hydrus_list_panel() {
+    return std::make_unique<HydrusListPanel>();
+}
+
+void hydrus_list_set_columns(HydrusListPanel &panel, rust::Str csv) {
+    panel.set_columns(csv);
+}
+
+void hydrus_list_add_row(HydrusListPanel &panel, rust::Str csv) {
+    panel.add_row(csv);
+}
+
+void hydrus_list_clear(HydrusListPanel &panel) {
+    panel.clear_rows();
+}
+
+int hydrus_list_row_count(const HydrusListPanel &panel) {
+    return panel.row_count();
+}
+
+int hydrus_add_list_page(HydrusMainWindow &window, rust::Str title, HydrusListPanel &panel) {
+    return window.add_list_page(title, &panel);
 }
 
 void qapp_set_application_name(rust::Str name) {

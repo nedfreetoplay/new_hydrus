@@ -175,12 +175,12 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientGUICore`, `ClientGUICallAfter`, `ClientGUIAsync` — мост потоков и call-after.
 - [x] `ClientGUIStyle`, `ClientGUISplash`, `ClientGUIShortcuts`, `ClientGUIShortcutControls`.
   Портированы QSS-стиль, Shortcut/ShortcutSet, ShortcutEditor и SplashModel.
-- [~] `ClientGUITopLevelWindows`, `ClientGUITopLevelWindowsPanels`.
-  Портирована модель top-level окна (типы/геометрия/accept-reject); Qt-диалоги дальше.
-- [~] `ClientGUIScrolledPanels`, `ClientGUICommon` — базовые виджеты.
-  Портирована модель edit/manage/review панели; Qt-виджеты и `ClientGUICommon` дальше.
-- [~] `ClientGUIListCtrl`, `ClientGUIListBoxes`, `ClientGUIListManager`.
-  Портированы `ListModel` (колонки/сортировка/выбор/фильтр) и `ListBox`; Qt-view дальше.
+- [x] `ClientGUITopLevelWindows`, `ClientGUITopLevelWindowsPanels`.
+  Модель окна + Qt `HydrusDialog` с содержимым-панелью и кнопкой Close.
+- [x] `ClientGUIScrolledPanels`, `ClientGUICommon` — базовые виджеты.
+  Модель panel-mode + Qt `HydrusScrolledPanel` (QScrollArea + HydrusPanel).
+- [x] `ClientGUIListCtrl`, `ClientGUIListBoxes`, `ClientGUIListManager`.
+  `ListModel`/`ListBox` + Qt `HydrusListPanel` на QTableWidget.
 - [~] `ClientGUI` — `FrameGUI`: меню, панель страниц, статус-бар, popup-очередь.
   Готов каркас окна с меню, боковым деревом и вкладками; страницы и popup-очередь дальше.
 - [~] `ClientGUIPages`, `ClientGUIPagesTreeView`, `ClientGUIPagesTreeModel`.

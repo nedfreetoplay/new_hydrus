@@ -9,6 +9,9 @@ mod ffi {
         type HydrusPanel;
         type HydrusMediaPanel;
         type HydrusCanvas;
+        type HydrusScrolledPanel;
+        type HydrusDialog;
+        type HydrusListPanel;
 
         fn new_application() -> UniquePtr<QApplication>;
         fn exec_application(application: Pin<&mut QApplication>) -> i32;
@@ -55,6 +58,41 @@ mod ffi {
             window: Pin<&mut HydrusMainWindow>,
             title: &str,
             canvas: Pin<&mut HydrusCanvas>,
+        ) -> i32;
+
+        fn new_hydrus_scrolled_panel() -> UniquePtr<HydrusScrolledPanel>;
+        fn hydrus_scrolled_add_label(panel: Pin<&mut HydrusScrolledPanel>, text: &str);
+        fn hydrus_scrolled_add_button(panel: Pin<&mut HydrusScrolledPanel>, text: &str);
+        fn hydrus_scrolled_add_checkbox(
+            panel: Pin<&mut HydrusScrolledPanel>,
+            text: &str,
+            checked: bool,
+        );
+        fn hydrus_scrolled_add_line_edit(panel: Pin<&mut HydrusScrolledPanel>, placeholder: &str);
+        fn hydrus_scrolled_add_stretch(panel: Pin<&mut HydrusScrolledPanel>);
+        fn hydrus_add_scrolled_page(
+            window: Pin<&mut HydrusMainWindow>,
+            title: &str,
+            panel: Pin<&mut HydrusScrolledPanel>,
+        ) -> i32;
+
+        fn new_hydrus_dialog(
+            content: Pin<&mut HydrusPanel>,
+            title: &str,
+            width: i32,
+            height: i32,
+        ) -> UniquePtr<HydrusDialog>;
+        fn hydrus_dialog_exec(dialog: Pin<&mut HydrusDialog>) -> i32;
+
+        fn new_hydrus_list_panel() -> UniquePtr<HydrusListPanel>;
+        fn hydrus_list_set_columns(panel: Pin<&mut HydrusListPanel>, csv: &str);
+        fn hydrus_list_add_row(panel: Pin<&mut HydrusListPanel>, csv: &str);
+        fn hydrus_list_clear(panel: Pin<&mut HydrusListPanel>);
+        fn hydrus_list_row_count(panel: &HydrusListPanel) -> i32;
+        fn hydrus_add_list_page(
+            window: Pin<&mut HydrusMainWindow>,
+            title: &str,
+            panel: Pin<&mut HydrusListPanel>,
         ) -> i32;
 
         fn qapp_set_application_name(name: &str);
@@ -120,6 +158,19 @@ pub fn run_application(title: &str, status: &str) {
 
     let mut canvas = ffi::new_hydrus_canvas();
     ffi::hydrus_add_canvas_page(window.pin_mut(), "Canvas", canvas.pin_mut());
+
+    let mut options_panel = ffi::new_hydrus_scrolled_panel();
+    ffi::hydrus_scrolled_add_label(options_panel.pin_mut(), "Client options");
+    ffi::hydrus_scrolled_add_line_edit(options_panel.pin_mut(), "Search options…");
+    ffi::hydrus_scrolled_add_checkbox(options_panel.pin_mut(), "Darkmode", false);
+    ffi::hydrus_scrolled_add_button(options_panel.pin_mut(), "Save");
+    ffi::hydrus_scrolled_add_stretch(options_panel.pin_mut());
+    ffi::hydrus_add_scrolled_page(window.pin_mut(), "Options", options_panel.pin_mut());
+
+    let mut list_panel = ffi::new_hydrus_list_panel();
+    ffi::hydrus_list_set_columns(list_panel.pin_mut(), "Name,Size");
+    ffi::hydrus_list_add_row(list_panel.pin_mut(), "example.png,1024");
+    ffi::hydrus_add_list_page(window.pin_mut(), "List", list_panel.pin_mut());
 
     for menu in model.menus {
         for action in menu.actions {

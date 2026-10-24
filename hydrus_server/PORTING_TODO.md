@@ -48,7 +48,8 @@ accept real HTTP/TLS requests.
 - [x] Port `repository_has_file` and the repository service-hash map.
 - [x] Port repository mappings and current/deleted mapping tables.
 - [ ] Port mapping petitions.
-- [ ] Port tag parents and tag siblings.
+- [x] Port current/deleted tag parents and tag siblings.
+- [ ] Port pending and petitioned tag parent/sibling flows.
 - [ ] Port file/mapping petition summaries and approval.
 - [ ] Port `ClientToServerUpdate` processing.
 - [ ] Port `Metadata` and update generation.

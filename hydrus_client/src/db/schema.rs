@@ -228,6 +228,26 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
             PRIMARY KEY ( media_id, hash_id )
         );
 
+        CREATE TABLE IF NOT EXISTS shape_perceptual_hashes (
+            hash_id INTEGER,
+            perceptual_hash BLOB_BYTES,
+            PRIMARY KEY ( hash_id, perceptual_hash )
+        );
+        CREATE TABLE IF NOT EXISTS shape_perceptual_hash_map (
+            perceptual_hash BLOB_BYTES,
+            hash_id INTEGER,
+            PRIMARY KEY ( perceptual_hash, hash_id )
+        );
+        CREATE TABLE IF NOT EXISTS pixel_hash_map (
+            pixel_hash BLOB_BYTES,
+            hash_id INTEGER,
+            PRIMARY KEY ( pixel_hash, hash_id )
+        );
+        CREATE TABLE IF NOT EXISTS shape_search_cache (
+            hash_id INTEGER PRIMARY KEY,
+            searched_distance INTEGER
+        );
+
         CREATE TABLE IF NOT EXISTS json_dumps (
             name TEXT PRIMARY KEY,
             dump_type INTEGER,

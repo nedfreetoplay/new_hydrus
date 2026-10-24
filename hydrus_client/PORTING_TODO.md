@@ -116,9 +116,9 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   display/suggestions дальше.
 - [x] `ClientDBDefinitionsCache`, `ClientDBMediaResults`, `ClientDBNotesMap`,
   `ClientDBRatings`, `ClientDBURLMap`, `ClientDBServicePaths`.
-- [~] `ClientDBFilesDuplicates*`, `ClientDBSimilarFiles`.
-  Портированы potential/false-positive пары, alternate-группы и duplicate-группы;
-  similar files/perceptual hash storage дальше.
+- [x] `ClientDBFilesDuplicates*`, `ClientDBSimilarFiles`.
+  Potential/false-positive пары, alternate/duplicate-группы, perceptual/pixel hashes и
+  brute-force similar search; VP-tree индекс можно добавить позже.
 - [~] `ClientDBRepositories`, `ClientDBContentUpdates`, `ClientDBMaintenance`.
   Портированы content updates и maintenance (timestamps, deferred deletes);
   repositories дальше.

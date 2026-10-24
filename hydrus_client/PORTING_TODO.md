@@ -72,12 +72,13 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 ## 5. Медиа-модель
 
-- [ ] `ClientMediaResult` — `MediaResult` и ленивые менеджеры.
-- [ ] `ClientMediaManagers` — `FileInfoManager`, `TimesManager`, `LocationsManager`,
+- [x] `ClientMediaResult` — `MediaResult` и ленивые менеджеры.
+- [x] `ClientMediaManagers` — `FileInfoManager`, `TimesManager`, `LocationsManager`,
   `NotesManager`, `RatingsManager`, `TagsManager`, `FileViewingStatsManager`.
-- [ ] `ClientMedia`/`ClientMediaSingle` — базовые медиа-объекты.
-- [ ] `ClientMediaList` — `MediaList`, `MediaCollection`.
-- [ ] `ClientMediaSort`, `ClientMediaCollect`, `ClientMediaFileFilter`.
+- [x] `ClientMedia`/`ClientMediaSingle` — базовые медиа-объекты.
+- [x] `ClientMediaList` — `MediaList`, `MediaCollection`.
+- [~] `ClientMediaSort`, `ClientMediaCollect`, `ClientMediaFileFilter`.
+  Сортировка и группировка портированы; file filter появится вместе с поиском.
 - [ ] `ClientMediaResultCache`, `ClientMediaResultAPI`.
 
 ## 6. Файлы

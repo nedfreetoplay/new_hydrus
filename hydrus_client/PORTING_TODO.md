@@ -162,7 +162,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [~] `ClientGUIStyle`, `ClientGUISplash`, `ClientGUIShortcuts`, `ClientGUIShortcutControls`.
   Портированы `Shortcut`/`ShortcutSet` и `ClientGUIStyle` (light/dark QSS); splash и
   редактор шорткатов дальше.
-- [ ] `ClientGUITopLevelWindows`, `ClientGUITopLevelWindowsPanels`.
+- [~] `ClientGUITopLevelWindows`, `ClientGUITopLevelWindowsPanels`.
+  Портирована модель top-level окна (типы/геометрия/accept-reject); Qt-диалоги дальше.
 - [ ] `ClientGUIScrolledPanels`, `ClientGUICommon` — базовые виджеты.
 - [ ] `ClientGUIListCtrl`, `ClientGUIListBoxes`, `ClientGUIListManager`.
 - [~] `ClientGUI` — `FrameGUI`: меню, панель страниц, статус-бар, popup-очередь.

@@ -1,14 +1,68 @@
 //! Status and sort constants.
 
+use std::fmt;
+
 use super::*;
 
-pub const STATUS_UNKNOWN: i32 = 0;
-pub const STATUS_SUCCESSFUL_AND_NEW: i32 = 1;
-pub const STATUS_SUCCESSFUL_BUT_REDUNDANT: i32 = 2;
-pub const STATUS_DELETED: i32 = 3;
-pub const STATUS_ERROR: i32 = 4;
-pub const STATUS_NEW: i32 = 5;
-pub const STATUS_PAUSED: i32 = 6;
+/// File import status, mirroring the `STATUS_*` values from `ClientConstants.py`.
+#[repr(i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Status {
+    Unknown = 0,
+    SuccessfulAndNew = 1,
+    SuccessfulButRedundant = 2,
+    Deleted = 3,
+    Error = 4,
+    New = 5,
+    Paused = 6,
+}
+
+impl Status {
+    pub const ALL: &'static [Status] = &[
+        Status::Unknown,
+        Status::SuccessfulAndNew,
+        Status::SuccessfulButRedundant,
+        Status::Deleted,
+        Status::Error,
+        Status::New,
+        Status::Paused,
+    ];
+
+    pub const fn as_int(self) -> i32 {
+        self as i32
+    }
+
+    pub fn try_from_int(value: i32) -> Option<Self> {
+        match value {
+            0 => Some(Status::Unknown),
+            1 => Some(Status::SuccessfulAndNew),
+            2 => Some(Status::SuccessfulButRedundant),
+            3 => Some(Status::Deleted),
+            4 => Some(Status::Error),
+            5 => Some(Status::New),
+            6 => Some(Status::Paused),
+            _ => None,
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Status::Unknown => "unknown",
+            Status::SuccessfulAndNew => "successful and new",
+            Status::SuccessfulButRedundant => "successful but redundant",
+            Status::Deleted => "deleted",
+            Status::Error => "error",
+            Status::New => "new",
+            Status::Paused => "paused",
+        }
+    }
+}
+
+impl fmt::Display for Status {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 pub const SYSTEM_SORT_TYPES: [i32; 28] = [
     SORT_FILES_BY_FILESIZE,

@@ -79,8 +79,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   `NotesManager`, `RatingsManager`, `TagsManager`, `FileViewingStatsManager`.
 - [x] `ClientMedia`/`ClientMediaSingle` — базовые медиа-объекты.
 - [x] `ClientMediaList` — `MediaList`, `MediaCollection`.
-- [~] `ClientMediaSort`, `ClientMediaCollect`, `ClientMediaFileFilter`.
-  Сортировка и группировка портированы; file filter появится вместе с поиском.
+- [x] `ClientMediaSort`, `ClientMediaCollect`, `ClientMediaFileFilter`.
+  Сортировка, группировка и фильтрация по `FileSearchContext` портированы.
 - [x] `ClientMediaResultCache`, `ClientMediaResultAPI`.
 
 ## 6. Файлы

@@ -199,6 +199,35 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
             PRIMARY KEY ( service_id, directory_id, hash_id )
         );
 
+        CREATE TABLE IF NOT EXISTS potential_duplicate_pairs (
+            smaller_hash_id INTEGER,
+            larger_hash_id INTEGER,
+            distance INTEGER,
+            PRIMARY KEY ( smaller_hash_id, larger_hash_id )
+        );
+        CREATE TABLE IF NOT EXISTS duplicate_false_positives (
+            smaller_hash_id INTEGER,
+            larger_hash_id INTEGER,
+            PRIMARY KEY ( smaller_hash_id, larger_hash_id )
+        );
+        CREATE TABLE IF NOT EXISTS alternate_file_groups (
+            alternates_group_id INTEGER PRIMARY KEY
+        );
+        CREATE TABLE IF NOT EXISTS alternate_file_group_members (
+            alternates_group_id INTEGER,
+            hash_id INTEGER UNIQUE,
+            PRIMARY KEY ( alternates_group_id, hash_id )
+        );
+        CREATE TABLE IF NOT EXISTS duplicate_files (
+            media_id INTEGER PRIMARY KEY,
+            king_hash_id INTEGER UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS duplicate_file_members (
+            media_id INTEGER,
+            hash_id INTEGER UNIQUE,
+            PRIMARY KEY ( media_id, hash_id )
+        );
+
         CREATE TABLE IF NOT EXISTS json_dumps (
             name TEXT PRIMARY KEY,
             dump_type INTEGER,

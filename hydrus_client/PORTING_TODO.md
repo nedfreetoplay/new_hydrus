@@ -160,7 +160,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [ ] `ClientGUIListCtrl`, `ClientGUIListBoxes`, `ClientGUIListManager`.
 - [~] `ClientGUI` — `FrameGUI`: меню, панель страниц, статус-бар, popup-очередь.
   Готов каркас окна с меню, боковым деревом и вкладками; страницы и popup-очередь дальше.
-- [ ] `ClientGUIPages`, `ClientGUIPagesTreeView`, `ClientGUIPagesTreeModel`.
+- [~] `ClientGUIPages`, `ClientGUIPagesTreeView`, `ClientGUIPagesTreeModel`.
+  Портирована модель `Page`/`PagesNotebook`; Qt tree view/model дальше.
 - [ ] `ClientGUIMediaResultsPanel`, `ClientGUIMediaResultsPanelThumbnails`.
 - [ ] `ClientGUICanvas*`, `ClientGUIMPV`, `ClientGUIMediaModalActions`.
 - [ ] `ClientGUIPopupMessages`, `ClientGUISubscriptions`, `ClientGUITime`.

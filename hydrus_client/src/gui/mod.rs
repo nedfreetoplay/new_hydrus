@@ -1,6 +1,7 @@
 pub mod call_after;
 pub mod frame_gui;
 pub mod functions;
+pub mod pages;
 pub mod qt_init;
 pub mod shortcuts;
 pub mod style;

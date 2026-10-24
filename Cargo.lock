@@ -762,6 +762,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "hydrus_external"
+version = "0.1.0"
+
+[[package]]
 name = "hydrus_server"
 version = "0.1.0"
 dependencies = [

@@ -87,7 +87,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 - [x] `ClientFilesPhysical` — `FilesStorageBaseLocation`, `FilesStorageSubfolder`, префиксы.
 - [x] `ClientFilesManager` — раскладка файлов/миниатюр, миграция хранилищ.
-- [ ] `ClientFiles` — операции чтения/записи, блокировки.
+- [x] `ClientFiles` — операции чтения/записи, блокировки.
 - [ ] `ClientFilesMaintenance`/`ClientFilesMaintenanceManager` — очередь обслуживания.
 - [ ] `ClientTrashManager` — корзина и отложенное удаление.
 - [ ] `ClientImageHandling` и обёртки `hydrus_core` (метаданные, perceptual hashes).

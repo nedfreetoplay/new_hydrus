@@ -143,7 +143,49 @@ pub fn command_type_string(command_type: i32) -> &'static str {
         SIMPLE_UNDO => "undo",
         SIMPLE_VIEW_FIRST => "view first",
         SIMPLE_VIEW_LAST => "view last",
-        _ => "unknown command",
+        _ => crate::client_application_command_full::simple_command_name(command_type),
+    }
+}
+
+/// Maps command ids to the GUI/controller handlers that consume them.
+#[derive(Default)]
+pub struct ApplicationCommandRouter {
+    handlers: std::collections::BTreeMap<
+        i32,
+        Box<dyn Fn(&ApplicationCommand) -> bool + Send + Sync>,
+    >,
+}
+
+impl ApplicationCommandRouter {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn register(
+        &mut self,
+        command_type: i32,
+        handler: impl Fn(&ApplicationCommand) -> bool + Send + Sync + 'static,
+    ) {
+        self.handlers.insert(command_type, Box::new(handler));
+    }
+
+    /// Returns `true` when a handler consumed the command.
+    pub fn dispatch(&self, command: &ApplicationCommand) -> bool {
+        self.handlers
+            .get(&command.command_type)
+            .is_some_and(|handler| handler(command))
+    }
+
+    pub fn has_handler(&self, command_type: i32) -> bool {
+        self.handlers.contains_key(&command_type)
+    }
+
+    pub fn len(&self) -> usize {
+        self.handlers.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.handlers.is_empty()
     }
 }
 
@@ -181,5 +223,40 @@ mod tests {
         ] {
             assert_ne!(command_type_string(command_type), "unknown command");
         }
+    }
+
+    #[test]
+    fn full_generated_table_covers_every_simple_command() {
+        let known = (0..=208)
+            .filter(|command_type| {
+                crate::client_application_command_full::simple_command_name(*command_type)
+                    != "unknown command"
+            })
+            .count();
+
+        assert!(known >= 190, "only {known} simple command ids were named");
+        assert_ne!(
+            crate::client_application_command_full::simple_command_name(208),
+            "unknown command"
+        );
+    }
+
+    #[test]
+    fn router_dispatches_registered_commands() {
+        let mut router = ApplicationCommandRouter::new();
+        let counter = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let handler_counter = counter.clone();
+
+        router.register(SIMPLE_ARCHIVE_FILE, move |_| {
+            handler_counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            true
+        });
+
+        assert!(router.dispatch(&ApplicationCommand::simple(SIMPLE_ARCHIVE_FILE)));
+        assert_eq!(counter.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        assert!(!router.dispatch(&ApplicationCommand::simple(SIMPLE_UNDO)));
+        assert!(router.has_handler(SIMPLE_ARCHIVE_FILE));
+        assert_eq!(router.len(), 1);
     }
 }

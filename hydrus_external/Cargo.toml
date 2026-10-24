@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 chrono = "0.4"
+fancy-regex = "0.14"
 hydrus_core = { path = "../hydrus_core" }
 image = { version = "0.25", default-features = false }
 regex = "1"

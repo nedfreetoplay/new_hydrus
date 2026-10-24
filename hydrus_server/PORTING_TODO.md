@@ -34,7 +34,7 @@ accept real HTTP/TLS requests.
 
 - [x] Port `_add_file`, master hash IDs and `files_info`.
 - [x] Port physical file/thumbnail storage.
-- [ ] Port deferred physical deletes.
+- [x] Port deferred physical deletes.
 - [x] Port master tag IDs and tag lookup.
 - [ ] Port IP address tracking.
 - [ ] Port service-info creation, updates and regeneration.

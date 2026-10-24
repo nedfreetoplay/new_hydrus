@@ -541,6 +541,177 @@ impl ServerDB {
         Ok(master_hash_id)
     }
 
+    /// `_get_deferred_physical_delete()`
+    pub fn get_deferred_physical_delete(
+        &self,
+    ) -> HydrusResult<(Option<Vec<u8>>, Option<Vec<u8>>)> {
+        let db = self.db.db_base()?;
+
+        let file_hash = db
+            .query_one(
+                "SELECT master_hash_id FROM deferred_physical_file_deletes LIMIT 1;",
+                &[],
+                |row| row.get::<_, i64>(0),
+            )?
+            .map(|master_hash_id| self.get_hash(master_hash_id))
+            .transpose()?;
+
+        let thumbnail_hash = db
+            .query_one(
+                "SELECT master_hash_id FROM deferred_physical_thumbnail_deletes LIMIT 1;",
+                &[],
+                |row| row.get::<_, i64>(0),
+            )?
+            .map(|master_hash_id| self.get_hash(master_hash_id))
+            .transpose()?;
+
+        Ok((file_hash, thumbnail_hash))
+    }
+
+    /// `_clear_deferred_physical_delete( file_hash, thumbnail_hash )`
+    pub fn clear_deferred_physical_delete(
+        &self,
+        file_hash: Option<&[u8]>,
+        thumbnail_hash: Option<&[u8]>,
+    ) -> HydrusResult<()> {
+        let db = self.db.db_base()?;
+
+        if let Some(file_hash) = file_hash {
+            let master_hash_id = self.get_master_hash_id(file_hash)?;
+
+            db.execute(
+                "DELETE FROM deferred_physical_file_deletes WHERE master_hash_id = ?;",
+                &[&master_hash_id],
+            )?;
+        }
+
+        if let Some(thumbnail_hash) = thumbnail_hash {
+            let master_hash_id = self.get_master_hash_id(thumbnail_hash)?;
+
+            db.execute(
+                "DELETE FROM deferred_physical_thumbnail_deletes WHERE master_hash_id = ?;",
+                &[&master_hash_id],
+            )?;
+        }
+
+        Ok(())
+    }
+
+    /// `_defer_files_delete_if_now_orphan( master_hash_ids, definitely_no_thumbnails, ignore_service_id )`
+    pub fn defer_files_delete_if_now_orphan(
+        &self,
+        master_hash_ids: &[i64],
+        definitely_no_thumbnails: bool,
+        ignore_service_id: Option<i64>,
+    ) -> HydrusResult<usize> {
+        let orphan_master_hash_ids =
+            self.filter_orphan_master_hash_ids(master_hash_ids, ignore_service_id)?;
+
+        if orphan_master_hash_ids.is_empty() {
+            return Ok(0);
+        }
+
+        let db = self.db.db_base()?;
+
+        for master_hash_id in &orphan_master_hash_ids {
+            db.execute(
+                "INSERT OR IGNORE INTO deferred_physical_file_deletes ( master_hash_id ) VALUES ( ? );",
+                &[master_hash_id],
+            )?;
+
+            if !definitely_no_thumbnails {
+                db.execute(
+                    "INSERT OR IGNORE INTO deferred_physical_thumbnail_deletes ( master_hash_id ) VALUES ( ? );",
+                    &[master_hash_id],
+                )?;
+            }
+        }
+
+        Ok(orphan_master_hash_ids.len())
+    }
+
+    /// `_Filter_orphan_master_hash_ids( master_hash_ids, ignore_service_id )`
+    pub fn filter_orphan_master_hash_ids(
+        &self,
+        master_hash_ids: &[i64],
+        ignore_service_id: Option<i64>,
+    ) -> HydrusResult<Vec<i64>> {
+        let file_repository_ids =
+            self.get_service_ids(Some(&[ServiceType::FileRepository]))?;
+        let repository_ids = self.get_service_ids(Some(REPOSITORIES))?;
+        let db = self.db.db_base()?;
+
+        let mut orphan_ids = Vec::new();
+
+        for master_hash_id in master_hash_ids {
+            let mut is_useful = false;
+
+            for service_id in &file_repository_ids {
+                if ignore_service_id == Some(*service_id) {
+                    continue;
+                }
+
+                let (hash_map, _) =
+                    generate_repository_master_map_table_names(*service_id);
+                let (current_files, _, _, _, _) =
+                    generate_repository_files_table_names(*service_id);
+
+                let query = format!(
+                    "SELECT 1 FROM {hash_map} AS hash_map CROSS JOIN {current_files} AS current_files USING ( service_hash_id ) WHERE hash_map.master_hash_id = ? LIMIT 1;"
+                );
+
+                if db
+                    .query_one(&query, &[master_hash_id], |row| row.get::<_, i64>(0))?
+                    .is_some()
+                {
+                    is_useful = true;
+                    break;
+                }
+            }
+
+            if !is_useful {
+                for service_id in &repository_ids {
+                    if ignore_service_id == Some(*service_id) {
+                        continue;
+                    }
+
+                    let update_table = generate_repository_update_table_name(*service_id);
+                    let query = format!(
+                        "SELECT 1 FROM {update_table} WHERE master_hash_id = ? LIMIT 1;"
+                    );
+
+                    if db
+                        .query_one(&query, &[master_hash_id], |row| row.get::<_, i64>(0))?
+                        .is_some()
+                    {
+                        is_useful = true;
+                        break;
+                    }
+                }
+            }
+
+            if !is_useful {
+                orphan_ids.push(*master_hash_id);
+            }
+        }
+
+        Ok(orphan_ids)
+    }
+
+    /// `_is_an_orphan( possible_hash )`
+    pub fn is_an_orphan(&self, possible_hash: &[u8]) -> HydrusResult<bool> {
+        if !self.hash_exists(possible_hash)? {
+            return Ok(true);
+        }
+
+        let master_hash_id = self.get_master_hash_id(possible_hash)?;
+
+        Ok(self
+            .filter_orphan_master_hash_ids(&[master_hash_id], None)?
+            .len()
+            == 1)
+    }
+
     /// `_add_account_type( service_id, account_type )`
     pub fn add_account_type(
         &self,
@@ -1943,6 +2114,114 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].session_key, session_key);
         assert_eq!(rows[0].account.get_account_key(), account_key);
+    }
+
+    #[test]
+    fn orphan_files_are_deferred_and_cleared() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+
+        let source_path = dir.path.join("orphan.bin");
+        std::fs::write(&source_path, b"orphan").unwrap();
+
+        let hash = vec![0xCD; 32];
+        let file = ServerFileInput {
+            hash: hash.clone(),
+            size: 6,
+            mime: Mime::OctetStream,
+            width: None,
+            height: None,
+            duration_ms: None,
+            num_frames: None,
+            num_words: None,
+            path: source_path,
+            thumbnail: Some(b"thumb".to_vec()),
+        };
+
+        let master_hash_id = db.add_file(&file).unwrap();
+
+        assert_eq!(
+            db.defer_files_delete_if_now_orphan(&[master_hash_id], false, None)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.get_deferred_physical_delete().unwrap(),
+            (Some(hash.clone()), Some(hash.clone()))
+        );
+
+        db.clear_deferred_physical_delete(Some(&hash), Some(&hash))
+            .unwrap();
+
+        assert_eq!(db.get_deferred_physical_delete().unwrap(), (None, None));
+    }
+
+    #[test]
+    fn current_repository_files_are_not_orphans() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+
+        let source_path = dir.path.join("current.bin");
+        std::fs::write(&source_path, b"current").unwrap();
+
+        let hash = vec![0xEF; 32];
+        let file = ServerFileInput {
+            hash: hash.clone(),
+            size: 7,
+            mime: Mime::OctetStream,
+            width: None,
+            height: None,
+            duration_ms: None,
+            num_frames: None,
+            num_words: None,
+            path: source_path,
+            thumbnail: None,
+        };
+
+        let master_hash_id = db.add_file(&file).unwrap();
+        let service = generate_service(
+            vec![0x11; 32],
+            ServiceType::FileRepository,
+            "orphan test repository",
+            DEFAULT_SERVICE_PORT,
+            None,
+        )
+        .unwrap();
+        let service_id = db.add_service(&service).unwrap();
+        let (hash_map, _) = generate_repository_master_map_table_names(service_id);
+        let (current_files, _, _, _, _) =
+            generate_repository_files_table_names(service_id);
+
+        let db_base = db.db().db_base().unwrap();
+        db_base
+            .execute(
+                &format!(
+                    "INSERT INTO {hash_map} ( master_hash_id, hash_id_timestamp ) VALUES ( ?, ? );"
+                ),
+                &[&master_hash_id, &hydrus_time::get_now()],
+            )
+            .unwrap();
+        let service_hash_id = db_base.get_last_row_id();
+        db_base
+            .execute(
+                &format!(
+                    "INSERT INTO {current_files} ( service_hash_id, account_id, file_timestamp ) VALUES ( ?, ?, ? );"
+                ),
+                &[&service_hash_id, &1_i64, &hydrus_time::get_now()],
+            )
+            .unwrap();
+
+        assert!(
+            db.filter_orphan_master_hash_ids(&[master_hash_id], None)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(!db.is_an_orphan(&hash).unwrap());
+        assert_eq!(
+            db.defer_files_delete_if_now_orphan(&[master_hash_id], false, None)
+                .unwrap(),
+            0
+        );
     }
 
     #[test]

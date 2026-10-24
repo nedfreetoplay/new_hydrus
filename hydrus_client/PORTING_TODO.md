@@ -131,7 +131,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 - [x] `ClientServices` — `Service`, `ServicesManager`, локальные file/tag-сервисы.
 - [x] `ClientNetworkingContexts` — контексты сетевых запросов.
-- [ ] `ClientNetworkingBandwidth`, `ClientNetworkingSessions`.
+- [x] `ClientNetworkingBandwidth`, `ClientNetworkingSessions`.
 - [ ] `ClientNetworkingDomain`, `ClientNetworkingLogin`, `ClientNetworkingURLClass`.
 - [~] `ClientNetworkingFunctions`, `ClientNetworkingJobs`.
   Портированы URL/domain/encoding helpers; сетевые job-ы дальше.

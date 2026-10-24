@@ -137,8 +137,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientNetworkingBandwidth`, `ClientNetworkingSessions`.
 - [~] `ClientNetworkingDomain`, `ClientNetworkingLogin`, `ClientNetworkingURLClass`.
   Портированы URLClass (matching/normalisation); domain/login managers дальше.
-- [~] `ClientNetworkingFunctions`, `ClientNetworkingJobs`.
-  Портированы URL/domain/encoding helpers; сетевые job-ы дальше.
+- [x] `ClientNetworkingFunctions`, `ClientNetworkingJobs`.
+  URL/domain/encoding helpers и state-machine/queue сетевых job-ов портированы.
 - [ ] `ClientNetworking` — `NetworkEngine` на `reqwest`/`tokio`.
 - [~] `ClientDownloading` — quick download manager.
   Портированы `GalleryIdentifier` и очередь quick-download; сетевой слой дальше.

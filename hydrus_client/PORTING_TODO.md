@@ -143,7 +143,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 ## 9. Импорт, парсинг, дубликаты
 
 - [ ] `ClientParsing`, `ClientParsingResults`, `ClientParsingLegacy`.
-- [ ] `ClientImporting`, `ClientImportFileSeeds`, `ClientImportFiles`.
+- [~] `ClientImporting`, `ClientImportFileSeeds`, `ClientImportFiles`.
+  Портированы FileSeed/FileSeedCache и статусы; импорт-очереди и files-jobs дальше.
 - [ ] `ClientImportGallery*`, `ClientImportSimpleURLs`.
 - [ ] `ClientImportWatchers`, `ClientImportSubscriptions`.
 - [~] `ClientImportLocal` — импорт-папки.

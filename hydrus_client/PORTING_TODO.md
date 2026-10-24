@@ -151,7 +151,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Qt 6-only (`is_supported_qt_version`), стиль и QSS применяются к `QApplication`.
 - [~] `ClientGUIFunctions`, `ClientGUIFunctionsImage` — конвертация изображений/иконок.
   Портированы цветовые/текстовые/тултип-хелперы; image-часть дальше.
-- [ ] `ClientGUICore`, `ClientGUICallAfter`, `ClientGUIAsync` — мост потоков и call-after.
+- [x] `ClientGUICore`, `ClientGUICallAfter`, `ClientGUIAsync` — мост потоков и call-after.
 - [~] `ClientGUIStyle`, `ClientGUISplash`, `ClientGUIShortcuts`, `ClientGUIShortcutControls`.
   Портированы `Shortcut`/`ShortcutSet` и `ClientGUIStyle` (light/dark QSS); splash и
   редактор шорткатов дальше.

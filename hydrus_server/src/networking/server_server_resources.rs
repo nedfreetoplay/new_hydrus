@@ -142,6 +142,7 @@ pub fn render_resource(
         ServerResourceKind::RestrictedPetitionsSummary => {
             petitions_summary_response(runtime, request)?
         }
+        ServerResourceKind::RestrictedMetadataUpdate => metadata_response(runtime)?,
         ServerResourceKind::RestrictedRepositoryFile if request.method == "POST" => {
             ResponseContext::with_status_and_body(
                 501,
@@ -694,6 +695,12 @@ fn services_response(runtime: &ServerResourceRuntime) -> HydrusResult<ResponseCo
         .collect();
 
     network_response(("services", ArgValue::List(services)))
+}
+
+fn metadata_response(runtime: &ServerResourceRuntime) -> HydrusResult<ResponseContext> {
+    let metadata = runtime.service.get_metadata()?;
+
+    network_response(("metadata", ArgValue::object(metadata)))
 }
 
 fn repository_file_response(

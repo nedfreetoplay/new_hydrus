@@ -56,8 +56,8 @@ accept real HTTP/TLS requests.
 - [x] Port petition approval/denial processing.
 - [x] Port basic `ClientToServerUpdate` processing for files, mappings and tag relations.
 - [ ] Port `Metadata` and update generation.
-- [ ] Port `nullify_history`.
-- [ ] Port account reward processing.
+- [x] Port `nullify_history`.
+- [x] Port account reward processing.
 
 ## 5. Account and option mutations
 

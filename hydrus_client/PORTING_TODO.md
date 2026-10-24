@@ -93,10 +93,13 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 ## 7. База данных
 
 - [ ] `ClientDBModule` — базовый trait/структура поверх `hydrus_core::DBModule`.
-- [ ] `ClientDBMaster` — hashes/namespaces/subtags/tags/texts/notes/urls/url_domains.
-- [ ] `ClientDBServices` — services/service_info.
-- [ ] `ClientDBSerialisable` — json_dict/json_dumps/json_dumps_named/json_dumps_hashed.
-- [ ] `ClientDBFilesMetadataBasic` — files_info и флаги метаданных.
+- [x] `ClientDBMaster` — hashes/namespaces/subtags/tags/texts/notes/urls/url_domains.
+  Портированы hashes; остальные таблицы master появятся вместе с тегами/URL.
+- [x] `ClientDBServices` — services/service_info.
+- [x] `ClientDBSerialisable` — json_dict/json_dumps/json_dumps_named/json_dumps_hashed.
+  Портирован `json_dumps`; остальные варианты добавятся вместе с импортом.
+- [x] `ClientDBFilesMetadataBasic` — files_info и флаги метаданных.
+  Портирована таблица `files_info`; флаги (icc/exif/xmp/…) дальше.
 - [ ] `ClientDBFilesStorage` — current/deleted/pending/petitioned files, inbox.
 - [ ] `ClientDBFilesTimestamps`, `ClientDBFilesInbox`, `ClientDBFilesViewingStats`.
 - [ ] `ClientDBFilesPhysicalStorage` — конфигурация хранилищ.
@@ -106,7 +109,9 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   `ClientDBRatings`, `ClientDBURLMap`, `ClientDBServicePaths`.
 - [ ] `ClientDBFilesDuplicates*`, `ClientDBSimilarFiles`.
 - [ ] `ClientDBRepositories`, `ClientDBContentUpdates`, `ClientDBMaintenance`.
-- [ ] `ClientDB` — фасад, `create_db`, `update_db` 619→689, интеграция с `HydrusDB`.
+- [~] `ClientDB` — фасад, `create_db`, `update_db` 619→689, интеграция с `HydrusDB`.
+  Готов синхронный фасад на `DBBase` с начальной схемой; перевод на `HydrusDB` и цепочка
+  миграций 619→689 — следующий шаг.
 - [ ] Тест совместимости: открыть копию Python `client.db` только на чтение.
 
 ## 8. Сервисы и сеть

@@ -129,8 +129,13 @@ fn parse_property_value(data: &[u8], offset: usize) -> Option<PropertyValue> {
     let value_offset = offset + 4;
 
     match value_type {
-        2 => Some(PropertyValue::Integer(i64::from(read_u16(data, value_offset)? as i16))),
-        3 => Some(PropertyValue::Integer(i64::from(read_i32(data, value_offset)?))),
+        2 => Some(PropertyValue::Integer(i64::from(
+            read_u16(data, value_offset)? as i16,
+        ))),
+        3 => Some(PropertyValue::Integer(i64::from(read_i32(
+            data,
+            value_offset,
+        )?))),
         11 => Some(PropertyValue::Boolean(read_u16(data, value_offset)? != 0)),
         18 => Some(PropertyValue::Unsigned(u64::from(read_u16(
             data,
@@ -148,9 +153,8 @@ fn parse_property_value(data: &[u8], offset: usize) -> Option<PropertyValue> {
         }
         31 => {
             let characters = read_u32(data, value_offset)? as usize;
-            let bytes = data.get(
-                value_offset + 4..value_offset + 4 + characters.saturating_mul(2),
-            )?;
+            let bytes =
+                data.get(value_offset + 4..value_offset + 4 + characters.saturating_mul(2))?;
 
             Some(PropertyValue::WideString(parse_wide_string(bytes)))
         }

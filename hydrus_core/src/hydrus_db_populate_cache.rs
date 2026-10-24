@@ -127,11 +127,15 @@ impl<T> IdToObjectCacheTTL<T> {
             self.ids_to_values_strong.shift_remove_index(0);
         }
 
-        let oversize_quantity =
-            self.ids_to_values_strong.len().saturating_sub(self.max_strong_size);
+        let oversize_quantity = self
+            .ids_to_values_strong
+            .len()
+            .saturating_sub(self.max_strong_size);
 
-        let num_to_remove_for_oversize =
-            std::cmp::min(oversize_quantity, max_deletes_this_call - num_to_remove_for_timeout);
+        let num_to_remove_for_oversize = std::cmp::min(
+            oversize_quantity,
+            max_deletes_this_call - num_to_remove_for_timeout,
+        );
 
         for _ in 0..num_to_remove_for_oversize {
             self.ids_to_values_strong.shift_remove_index(0);
@@ -156,8 +160,7 @@ impl<T> IdToObjectCacheTTL<T> {
         let objects = keys_to_objects.into_iter().collect::<Vec<_>>();
 
         for (key, object) in &objects {
-            self.ids_to_values_weak
-                .insert(*key, Arc::downgrade(object));
+            self.ids_to_values_weak.insert(*key, Arc::downgrade(object));
         }
 
         self.touch_many(objects);
@@ -174,7 +177,12 @@ pub struct IdToPrimitiveCacheTTL<T> {
 }
 
 impl<T> IdToPrimitiveCacheTTL<T> {
-    pub fn new(name: impl Into<String>, ttl_seconds: u64, min_size: usize, max_size: usize) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        ttl_seconds: u64,
+        min_size: usize,
+        max_size: usize,
+    ) -> Self {
         Self {
             name: name.into(),
             ttl: Duration::from_secs(ttl_seconds),
@@ -276,8 +284,10 @@ impl<T> IdToPrimitiveCacheTTL<T> {
 
         let oversize_quantity = self.ids_to_values.len().saturating_sub(self.max_size);
 
-        let num_to_remove_for_oversize =
-            std::cmp::min(oversize_quantity, max_deletes_this_call - num_to_remove_for_timeout);
+        let num_to_remove_for_oversize = std::cmp::min(
+            oversize_quantity,
+            max_deletes_this_call - num_to_remove_for_timeout,
+        );
 
         for _ in 0..num_to_remove_for_oversize {
             self.ids_to_values.shift_remove_index(0);
@@ -359,10 +369,7 @@ impl<T> IdToPrimitiveCache<T> {
         if current_size > self.max_size {
             let max_deletes_this_call = std::cmp::max(1, current_size / 16);
 
-            let num_to_remove = std::cmp::min(
-                current_size - self.max_size,
-                max_deletes_this_call,
-            );
+            let num_to_remove = std::cmp::min(current_size - self.max_size, max_deletes_this_call);
 
             for _ in 0..num_to_remove {
                 self.ids_to_values.shift_remove_index(0);

@@ -120,8 +120,7 @@ pub fn calculate_score_from_rating(count: f64, rating: f64) -> f64 {
     let positive = count * rating;
     let negative = count * (1.0 - rating);
 
-    ((positive + 1.9208) / count
-        - 1.96 * (((positive * negative) / count + 0.9604).sqrt()) / count)
+    ((positive + 1.9208) / count - 1.96 * (((positive * negative) / count + 0.9604).sqrt()) / count)
         / (1.0 + 3.8416 / count)
 }
 
@@ -231,11 +230,7 @@ fn gcd(mut a: u128, mut b: u128) -> u128 {
 }
 
 /// Python's `Fraction.limit_denominator( max_denominator )`.
-fn limit_denominator(
-    numerator: i128,
-    denominator: i128,
-    max_denominator: i128,
-) -> (i128, i128) {
+fn limit_denominator(numerator: i128, denominator: i128, max_denominator: i128) -> (i128, i128) {
     let (mut p0, mut q0) = (0_i128, 1_i128);
     let (mut p1, mut q1) = (1_i128, 0_i128);
 
@@ -367,7 +362,9 @@ pub fn convert_exception_tuple_to_nice_trace(
     trace: Option<&str>,
     stack: Option<&str>,
 ) -> Option<String> {
-    let kind = exception.map(HydrusException::kind).unwrap_or(ErrorKind::Unknown);
+    let kind = exception
+        .map(HydrusException::kind)
+        .unwrap_or(ErrorKind::Unknown);
 
     if kind == ErrorKind::Shutdown {
         return None;
@@ -393,7 +390,9 @@ pub fn convert_exception_tuple_to_nice_trace(
 
 /// `convert_exception_tuple_to_summary( etype, value, tb )`
 pub fn convert_exception_tuple_to_summary(exception: Option<&HydrusException>) -> String {
-    let kind = exception.map(HydrusException::kind).unwrap_or(ErrorKind::Unknown);
+    let kind = exception
+        .map(HydrusException::kind)
+        .unwrap_or(ErrorKind::Unknown);
 
     let value = exception
         .map(ToString::to_string)
@@ -563,10 +562,7 @@ mod tests {
         assert_eq!(lists[&1], vec!["a", "b"]);
         assert_eq!(lists[&2], vec!["c"]);
 
-        let merged = merge_key_to_list_dicts([
-            lists.clone(),
-            build_key_to_list_dict([(1, "d")]),
-        ]);
+        let merged = merge_key_to_list_dicts([lists.clone(), build_key_to_list_dict([(1, "d")])]);
 
         assert_eq!(merged[&1], vec!["a", "b", "d"]);
 
@@ -624,14 +620,8 @@ mod tests {
         assert_eq!(base_to_human_bytes(Some(1536), 3), "1.5 KB");
         assert_eq!(base_to_human_bytes(Some(237 * 1024), 2), "237 KB");
         assert_eq!(base_to_human_bytes(Some(237 * 1024), 3), "237 KB");
-        assert_eq!(
-            base_to_human_bytes(Some(2 * 1024 * 1024), 3),
-            "2 MB"
-        );
-        assert_eq!(
-            base_to_human_bytes(Some(1024_u64.pow(5)), 3),
-            "1 PB"
-        );
+        assert_eq!(base_to_human_bytes(Some(2 * 1024 * 1024), 3), "2 MB");
+        assert_eq!(base_to_human_bytes(Some(1024_u64.pow(5)), 3), "1 PB");
     }
 
     #[test]
@@ -667,7 +657,9 @@ mod tests {
 
         let trace = convert_exception_tuple_to_nice_trace(Some(&e), None, None).unwrap();
 
-        assert!(trace.starts_with("================ Exception ================\nVetoException: nope"));
+        assert!(
+            trace.starts_with("================ Exception ================\nVetoException: nope")
+        );
         assert!(trace.ends_with("=================== End ==================="));
 
         let shutdown = HydrusException::new(ErrorKind::Shutdown, "bye");

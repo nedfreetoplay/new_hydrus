@@ -23,14 +23,14 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use crate::hydrus_boot;
-use crate::hydrus_constants::{running_from_frozen_build, PLATFORM_LINUX, PLATFORM_MACOS, PLATFORM_WINDOWS};
+use crate::hydrus_constants::{
+    PLATFORM_LINUX, PLATFORM_MACOS, PLATFORM_WINDOWS, running_from_frozen_build,
+};
 use crate::hydrus_data::{
     check_program_is_not_shutting_down, print_exception, safe_print as show_text,
 };
 use crate::hydrus_environment;
-use crate::hydrus_exceptions::{
-    shutdown, ErrorKind, HydrusException, HydrusResult,
-};
+use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult, shutdown};
 use crate::hydrus_globals;
 use crate::hydrus_numbers::to_human_int;
 use crate::hydrus_time::{get_now_float, time_has_passed_float};
@@ -189,14 +189,15 @@ pub fn get_subprocess_env() -> Option<std::collections::HashMap<OsString, OsStri
 
         if let Some(xdg_data_dirs) = env.get(OsString::from("XDG_DATA_DIRS").as_os_str()) {
             let xdg_data_dirs = xdg_data_dirs.to_string_lossy().to_string();
-            let base_dir = crate::hydrus_constants::base_dir().to_string_lossy().to_string();
+            let base_dir = crate::hydrus_constants::base_dir()
+                .to_string_lossy()
+                .to_string();
             let content_base_dir = crate::hydrus_constants::content_base_dir()
                 .to_string_lossy()
                 .to_string();
 
             if !xdg_data_dirs.contains(':')
-                && (xdg_data_dirs.contains(&base_dir)
-                    || xdg_data_dirs.contains(&content_base_dir))
+                && (xdg_data_dirs.contains(&base_dir) || xdg_data_dirs.contains(&content_base_dir))
             {
                 env.insert(
                     OsString::from("XDG_DATA_DIRS"),
@@ -997,8 +998,16 @@ mod tests {
 
     #[test]
     fn shell_subprocess_returns_output() {
-        let result = run_subprocess(&shell_echo("hello hydrus"), 10, 65536, false, true, true, false)
-            .unwrap();
+        let result = run_subprocess(
+            &shell_echo("hello hydrus"),
+            10,
+            65536,
+            false,
+            true,
+            true,
+            false,
+        )
+        .unwrap();
 
         assert!(result.stdout_text().contains("hello hydrus"));
         assert_eq!(result.returncode, 0);
@@ -1027,8 +1036,8 @@ mod tests {
 
     #[test]
     fn streaming_context_reads_chunks() {
-        let context = SubprocessContext::new(shell_echo("streamed"), 10, 65536, true, true, false)
-            .unwrap();
+        let context =
+            SubprocessContext::new(shell_echo("streamed"), 10, 65536, true, true, false).unwrap();
 
         let chunks = context.iterate_chunks().unwrap();
 
@@ -1044,8 +1053,8 @@ mod tests {
 
     #[test]
     fn streaming_context_reports_return_code() {
-        let context = SubprocessContext::new(shell_echo("done"), 10, 65536, true, true, false)
-            .unwrap();
+        let context =
+            SubprocessContext::new(shell_echo("done"), 10, 65536, true, true, false).unwrap();
 
         let _ = context.iterate_chunks();
 

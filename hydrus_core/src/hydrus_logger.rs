@@ -9,8 +9,8 @@
 use std::fs::File;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::Local;
 
@@ -81,7 +81,8 @@ impl HydrusLogger {
     pub fn flip_crash_reporting(&self) {
         let was = self.currently_crash_reporting.load(Ordering::Relaxed);
 
-        self.currently_crash_reporting.store(!was, Ordering::Relaxed);
+        self.currently_crash_reporting
+            .store(!was, Ordering::Relaxed);
     }
 
     /// `currently_crash_reporting()`

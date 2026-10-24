@@ -7,8 +7,8 @@
 use std::io::Cursor;
 use std::path::Path;
 
-use image::imageops::FilterType;
 use image::DynamicImage;
+use image::imageops::FilterType;
 use roxmltree::Document;
 
 use crate::files::hydrus_archive_handling;
@@ -25,8 +25,7 @@ pub const PPTX_CONTENT_TYPE: &str =
 pub const PPTX_ASSUMED_DPI: f64 = 300.0;
 pub const EMU_PER_INCH: f64 = 914_400.0;
 
-const PRESENTATIONML_NAMESPACE: &str =
-    "http://schemas.openxmlformats.org/presentationml/2006/main";
+const PRESENTATIONML_NAMESPACE: &str = "http://schemas.openxmlformats.org/presentationml/2006/main";
 const EXTENDED_PROPERTIES_NAMESPACE: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/extended-properties";
 
@@ -35,8 +34,9 @@ fn read_zip_text(path: &Path, entry: &str) -> HydrusResult<String> {
 }
 
 fn parse_document(text: &str) -> HydrusResult<Document<'_>> {
-    Document::parse(text)
-        .map_err(|error| HydrusException::new(ErrorKind::DamagedOrUnusualFile, format!("Bad XML: {error}")))
+    Document::parse(text).map_err(|error| {
+        HydrusException::new(ErrorKind::DamagedOrUnusualFile, format!("Bad XML: {error}"))
+    })
 }
 
 fn has_override(document: &Document<'_>, part_name: &str, content_type: &str) -> bool {
@@ -114,7 +114,11 @@ pub fn generate_thumbnail_from_office_path(
         )
     })?;
 
-    Ok(image.resize_exact(target_resolution.0, target_resolution.1, FilterType::Lanczos3))
+    Ok(image.resize_exact(
+        target_resolution.0,
+        target_resolution.1,
+        FilterType::Lanczos3,
+    ))
 }
 
 /// `power_point_resolution( path )`
@@ -194,9 +198,7 @@ pub fn office_document_word_count(path: impl AsRef<Path>) -> HydrusResult<i64> {
 }
 
 /// `get_pptx_info( path )`
-pub fn get_pptx_info(
-    path: impl AsRef<Path>,
-) -> (Option<i64>, (Option<u32>, Option<u32>)) {
+pub fn get_pptx_info(path: impl AsRef<Path>) -> (Option<i64>, (Option<u32>, Option<u32>)) {
     let resolution = power_point_resolution(path.as_ref())
         .map(|(width, height)| (Some(width), Some(height)))
         .unwrap_or((None, None));
@@ -216,8 +218,8 @@ mod tests {
     use super::*;
     use std::io::Write;
     use std::path::PathBuf;
-    use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
+    use zip::write::SimpleFileOptions;
 
     fn unique_path(label: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -302,7 +304,10 @@ mod tests {
   <p:sldSz cx="9144000" cy="6858000"/>
 </p:presentation>"#;
 
-        let path = build_zip("slide", &[("ppt/presentation.xml", presentation.as_bytes())]);
+        let path = build_zip(
+            "slide",
+            &[("ppt/presentation.xml", presentation.as_bytes())],
+        );
 
         assert_eq!(power_point_resolution(&path).unwrap(), (3000, 2250));
 
@@ -324,7 +329,10 @@ mod tests {
     fn missing_metadata_is_swallowed_by_the_combined_helpers() {
         let path = build_zip("empty", &[("mimetype", b"nothing")]);
 
-        assert_eq!(office_document_word_count(&path).unwrap_err().kind, ErrorKind::FileMissing);
+        assert_eq!(
+            office_document_word_count(&path).unwrap_err().kind,
+            ErrorKind::FileMissing
+        );
         assert_eq!(get_docx_info(&path), None);
         assert_eq!(get_pptx_info(&path), (None, (None, None)));
 

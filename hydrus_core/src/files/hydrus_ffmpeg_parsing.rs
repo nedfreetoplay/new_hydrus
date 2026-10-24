@@ -110,16 +110,14 @@ mod tests {
         );
 
         assert_eq!(
-            parse_stream_mapping_from_stream_line("Stream #12:3: Audio: opus")
-                .unwrap(),
+            parse_stream_mapping_from_stream_line("Stream #12:3: Audio: opus").unwrap(),
             "12:3"
         );
     }
 
     #[test]
     fn a_missing_mapping_is_data_missing() {
-        let error =
-            parse_stream_mapping_from_stream_line("  Stream 0:1: Video: png").unwrap_err();
+        let error = parse_stream_mapping_from_stream_line("  Stream 0:1: Video: png").unwrap_err();
 
         assert!(error.is_a(ErrorKind::DataMissing));
         assert_eq!(error.to_string(), "No stream mapping found!");

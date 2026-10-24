@@ -121,7 +121,9 @@ pub fn load_certs_ordered(pem_bytes: &[u8]) -> HydrusResult<Vec<OrderedCertifica
 
     for block in extract_pem_blocks(pem_bytes) {
         let (_, pem) = parse_x509_pem(&block).map_err(|error| {
-            certificate_error(format!("Could not parse a certificate PEM block: {error:?}"))
+            certificate_error(format!(
+                "Could not parse a certificate PEM block: {error:?}"
+            ))
         })?;
 
         let parsed = pem.parse_x509().map_err(|error| {
@@ -253,9 +255,7 @@ pub fn generate_ssl_context_settings(
 mod tests {
     use super::*;
 
-    use rcgen::{
-        BasicConstraints, CertificateParams, DnType, IsCa, Issuer, KeyPair,
-    };
+    use rcgen::{BasicConstraints, CertificateParams, DnType, IsCa, Issuer, KeyPair};
 
     fn ca_params(common_name: &str) -> CertificateParams {
         let mut params = CertificateParams::new(vec![common_name.to_string()]).expect("params");
@@ -327,7 +327,11 @@ mod tests {
         assert_eq!(ordered.len(), 2);
         assert_eq!(ordered[0].der, leaf_certificate.der().as_ref());
         assert_eq!(ordered[1].der, intermediate_certificate.der().as_ref());
-        assert!(!ordered.iter().any(|cert| cert.der == root_certificate.der().as_ref()));
+        assert!(
+            !ordered
+                .iter()
+                .any(|cert| cert.der == root_certificate.der().as_ref())
+        );
     }
 
     #[test]

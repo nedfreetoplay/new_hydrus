@@ -14,32 +14,32 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, RwLock};
 
 use indexmap::IndexMap;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::hydrus_constants::{
-    content_types_for_service, BandwidthType, ContentStatus, ContentType, ContentUpdate,
-    DefinitionsType, PermissionAction, ServiceType, REPOSITORIES, RESTRICTED_SERVICES,
+    BandwidthType, ContentStatus, ContentType, ContentUpdate, DefinitionsType, PermissionAction,
+    REPOSITORIES, RESTRICTED_SERVICES, ServiceType, content_types_for_service,
 };
 use crate::hydrus_data::{generate_key, hex_decode, hex_encode, safe_print};
-use crate::hydrus_exceptions::{data_missing, ErrorKind, HydrusException, HydrusResult};
+use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult, data_missing};
 use crate::hydrus_globals;
 use crate::hydrus_lists::split_list_into_chunks;
-use crate::networking::hydrus_networking::{BandwidthRules, BandwidthTracker};
 use crate::hydrus_numbers::base_to_human_int;
 use crate::hydrus_serialisable::{
-    create_from_string, register_serialisable_type, SerialisableDictionary, SerialisableList,
-    SerialisableObject, SerialisableValue, SERIALISABLE_TYPE_ACCOUNT_IDENTIFIER,
-    SERIALISABLE_TYPE_ACCOUNT_TYPE, SERIALISABLE_TYPE_BANDWIDTH_RULES,
-    SERIALISABLE_TYPE_BANDWIDTH_TRACKER, SERIALISABLE_TYPE_CLIENT_TO_SERVER_UPDATE,
-    SERIALISABLE_TYPE_CONTENT, SERIALISABLE_TYPE_CONTENT_UPDATE, SERIALISABLE_TYPE_CREDENTIALS,
-    SERIALISABLE_TYPE_DEFINITIONS_UPDATE, SERIALISABLE_TYPE_METADATA,
-    SERIALISABLE_TYPE_PETITION, SERIALISABLE_TYPE_PETITION_HEADER,
+    SERIALISABLE_TYPE_ACCOUNT_IDENTIFIER, SERIALISABLE_TYPE_ACCOUNT_TYPE,
+    SERIALISABLE_TYPE_BANDWIDTH_RULES, SERIALISABLE_TYPE_BANDWIDTH_TRACKER,
+    SERIALISABLE_TYPE_CLIENT_TO_SERVER_UPDATE, SERIALISABLE_TYPE_CONTENT,
+    SERIALISABLE_TYPE_CONTENT_UPDATE, SERIALISABLE_TYPE_CREDENTIALS,
+    SERIALISABLE_TYPE_DEFINITIONS_UPDATE, SERIALISABLE_TYPE_METADATA, SERIALISABLE_TYPE_PETITION,
+    SERIALISABLE_TYPE_PETITION_HEADER, SerialisableDictionary, SerialisableList,
+    SerialisableObject, SerialisableValue, create_from_string, register_serialisable_type,
 };
 use crate::hydrus_tags::TagFilter;
 use crate::hydrus_time::{
-    get_now, get_now_float, time_delta_to_pretty_timedelta, time_has_passed,
-    timestamp_to_pretty_expires, timestamp_to_pretty_time_delta, PrettyTimeDeltaOptions,
+    PrettyTimeDeltaOptions, get_now, get_now_float, time_delta_to_pretty_timedelta,
+    time_has_passed, timestamp_to_pretty_expires, timestamp_to_pretty_time_delta,
 };
+use crate::networking::hydrus_networking::{BandwidthRules, BandwidthTracker};
 
 pub const UPDATE_CHECKING_PERIOD: i64 = 240;
 pub const MIN_UPDATE_PERIOD: i64 = 600;
@@ -111,10 +111,7 @@ fn hex_bytes(value: &Value, what: &str) -> HydrusResult<Vec<u8>> {
 fn decode_hashes(value: &Value, what: &str) -> HydrusResult<Vec<Vec<u8>>> {
     let encoded = info_array(value, what)?;
 
-    encoded
-        .iter()
-        .map(|hash| hex_bytes(hash, what))
-        .collect()
+    encoded.iter().map(|hash| hex_bytes(hash, what)).collect()
 }
 
 fn encode_hashes(hashes: &[Vec<u8>]) -> Vec<Value> {
@@ -122,7 +119,11 @@ fn encode_hashes(hashes: &[Vec<u8>]) -> Vec<Value> {
 }
 
 /// Parse a standard `( type, [name,] version, info )` tuple into a known type.
-fn object_from_tuple<T>(value: &Value, raise_error_on_future_version: bool, what: &str) -> HydrusResult<T>
+fn object_from_tuple<T>(
+    value: &Value,
+    raise_error_on_future_version: bool,
+    what: &str,
+) -> HydrusResult<T>
 where
     T: SerialisableObject + Default,
 {
@@ -163,7 +164,9 @@ fn dictionary_from_string(string: &str) -> HydrusResult<SerialisableDictionary> 
     downcast_clone(object, "Serialisable dictionary")
 }
 
-fn duplicate_dictionary(dictionary: &SerialisableDictionary) -> HydrusResult<SerialisableDictionary> {
+fn duplicate_dictionary(
+    dictionary: &SerialisableDictionary,
+) -> HydrusResult<SerialisableDictionary> {
     dictionary_from_string(&dictionary.dump_to_string())
 }
 
@@ -179,7 +182,10 @@ fn dict_insert(
     dictionary.insert(dict_key(key), value);
 }
 
-fn dict_get<'a>(dictionary: &'a SerialisableDictionary, key: &str) -> Option<&'a SerialisableValue> {
+fn dict_get<'a>(
+    dictionary: &'a SerialisableDictionary,
+    key: &str,
+) -> Option<&'a SerialisableValue> {
     dictionary.get(&dict_key(key))
 }
 
@@ -243,7 +249,8 @@ fn slot_to_json(value: &SerialisableValue) -> Option<Value> {
     None
 }
 
-fn dictionary_from_slot(value: &SerialisableValue) -> HydrusResult<SerialisableDictionary> {    if let Some(object) = value.as_object() {
+fn dictionary_from_slot(value: &SerialisableValue) -> HydrusResult<SerialisableDictionary> {
+    if let Some(object) = value.as_object() {
         if let Some(dictionary) = object.as_any().downcast_ref::<SerialisableDictionary>() {
             return Ok(dictionary.clone());
         }
@@ -253,7 +260,9 @@ fn dictionary_from_slot(value: &SerialisableValue) -> HydrusResult<SerialisableD
         return Ok(SerialisableDictionary::from_json_object(map.clone()));
     }
 
-    Err(serialisation_error("A service dictionary was not a dictionary!"))
+    Err(serialisation_error(
+        "A service dictionary was not a dictionary!",
+    ))
 }
 
 fn clone_object_from_slot<T>(
@@ -338,7 +347,8 @@ impl AccountType {
     }
 
     pub fn bandwidth_ok(&self, bandwidth_tracker: &BandwidthTracker) -> bool {
-        self.bandwidth_rules.can_start_request_default(bandwidth_tracker)
+        self.bandwidth_rules
+            .can_start_request_default(bandwidth_tracker)
     }
 
     pub fn can_auto_create_account_now(&self) -> bool {
@@ -452,14 +462,8 @@ impl AccountType {
 
         let mut permissions = IndexMap::new();
 
-        permissions.insert(
-            ContentType::Accounts,
-            Some(PermissionAction::Moderate),
-        );
-        permissions.insert(
-            ContentType::AccountTypes,
-            Some(PermissionAction::Moderate),
-        );
+        permissions.insert(ContentType::Accounts, Some(PermissionAction::Moderate));
+        permissions.insert(ContentType::AccountTypes, Some(PermissionAction::Moderate));
         permissions.insert(ContentType::Options, Some(PermissionAction::Moderate));
 
         if REPOSITORIES.contains(&service_type) {
@@ -554,8 +558,9 @@ impl AccountType {
                 continue;
             }
 
-            let content_type = ContentType::try_from_int(as_u16(key, "Permission content type")?)
-                .ok_or_else(|| serialisation_error("Unknown permission content type!"))?;
+            let content_type =
+                ContentType::try_from_int(as_u16(key, "Permission content type")?)
+                    .ok_or_else(|| serialisation_error("Unknown permission content type!"))?;
 
             let action = if element(pair, 1, "Account type permission")?.is_null() {
                 None
@@ -603,11 +608,13 @@ impl SerialisableObject for AccountType {
     fn initialise_from_serialisable_info(&mut self, info: &Value) -> HydrusResult<()> {
         let items = info_array(info, "Account type info")?;
 
-        self.account_type_key = hex_bytes(
-            element(items, 0, "Account type info")?,
-            "Account type key",
-        )?;
-        self.title = as_str(element(items, 1, "Account type info")?, "Account type title")?.to_string();
+        self.account_type_key =
+            hex_bytes(element(items, 0, "Account type info")?, "Account type key")?;
+        self.title = as_str(
+            element(items, 1, "Account type info")?,
+            "Account type title",
+        )?
+        .to_string();
 
         let (permissions, is_null) =
             Self::permissions_from_info(element(items, 2, "Account type info")?)?;
@@ -621,11 +628,20 @@ impl SerialisableObject for AccountType {
             "Bandwidth rules",
         )?);
 
-        let velocity = info_array(element(items, 4, "Account type info")?, "Auto creation velocity")?;
+        let velocity = info_array(
+            element(items, 4, "Account type info")?,
+            "Auto creation velocity",
+        )?;
 
         self.auto_creation_velocity = (
-            as_i64(element(velocity, 0, "Auto creation velocity")?, "Auto creation velocity")?,
-            as_i64(element(velocity, 1, "Auto creation velocity")?, "Auto creation velocity")?,
+            as_i64(
+                element(velocity, 0, "Auto creation velocity")?,
+                "Auto creation velocity",
+            )?,
+            as_i64(
+                element(velocity, 1, "Auto creation velocity")?,
+                "Auto creation velocity",
+            )?,
         );
 
         self.auto_creation_history = Arc::new(object_from_tuple::<BandwidthTracker>(
@@ -670,7 +686,14 @@ impl SerialisableObject for AccountType {
 
         Ok((
             2,
-            json!([key, title, serialisable_permissions, rules, velocity, history]),
+            json!([
+                key,
+                title,
+                serialisable_permissions,
+                rules,
+                velocity,
+                history
+            ]),
         ))
     }
 
@@ -732,7 +755,8 @@ impl AccountState {
     }
 
     fn is_expired(&self) -> bool {
-        self.expires.is_some_and(|expires| time_has_passed(Some(expires)))
+        self.expires
+            .is_some_and(|expires| time_has_passed(Some(expires)))
     }
 
     fn check_banned(&mut self) -> HydrusResult<()> {
@@ -759,7 +783,10 @@ impl AccountState {
 
     fn check_functional(&mut self) -> HydrusResult<()> {
         if self.created == 0 {
-            return Err(HydrusException::new(ErrorKind::Conflict, "account is unsynced"));
+            return Err(HydrusException::new(
+                ErrorKind::Conflict,
+                "account is unsynced",
+            ));
         }
 
         if self.is_admin() {
@@ -1053,7 +1080,7 @@ impl Account {
         state.dirty = true;
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_pretty_string(&self) -> String {
         let (title, created, is_null) = {
             let state = lock(&self.state);
 
@@ -1109,7 +1136,13 @@ impl Account {
         )?;
         let dictionary = dictionary_from_string(dictionary_string)?;
 
-        Self::generate_account_from_tuple(account_key, Arc::new(account_type), created, expires, dictionary)
+        Self::generate_account_from_tuple(
+            account_key,
+            Arc::new(account_type),
+            created,
+            expires,
+            dictionary,
+        )
     }
 
     pub fn generate_account_from_tuple(
@@ -1167,8 +1200,23 @@ impl Account {
 
     pub fn generate_tuple_from_account(
         account: &Account,
-    ) -> HydrusResult<(Vec<u8>, Arc<AccountType>, i64, Option<i64>, SerialisableDictionary)> {
-        let (account_key, account_type, created, expires, banned_info, bandwidth_tracker, message, message_created) = {
+    ) -> HydrusResult<(
+        Vec<u8>,
+        Arc<AccountType>,
+        i64,
+        Option<i64>,
+        SerialisableDictionary,
+    )> {
+        let (
+            account_key,
+            account_type,
+            created,
+            expires,
+            banned_info,
+            bandwidth_tracker,
+            message,
+            message_created,
+        ) = {
             let state = lock(&account.state);
 
             (
@@ -1223,8 +1271,14 @@ impl Account {
         if is_legacy {
             let items = info_array(info, "Legacy account type")?;
 
-            let encoded_key = as_str(element(items, 0, "Legacy account type")?, "Account type key")?;
-            let title = as_str(element(items, 1, "Legacy account type")?, "Account type title")?;
+            let encoded_key = as_str(
+                element(items, 0, "Legacy account type")?,
+                "Account type key",
+            )?;
+            let title = as_str(
+                element(items, 1, "Legacy account type")?,
+                "Account type title",
+            )?;
             let dictionary_string = as_str(
                 element(items, 2, "Legacy account type")?,
                 "Account type dictionary",
@@ -1239,7 +1293,9 @@ impl Account {
         object_from_tuple::<AccountType>(info, false, "Account type")
     }
 
-    fn banned_info_from_slot(value: Option<&SerialisableValue>) -> HydrusResult<Option<BannedInfo>> {
+    fn banned_info_from_slot(
+        value: Option<&SerialisableValue>,
+    ) -> HydrusResult<Option<BannedInfo>> {
         let Some(value) = value else {
             return Ok(None);
         };
@@ -1430,7 +1486,7 @@ impl Content {
         }
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_pretty_string(&self) -> String {
         match &self.content_data {
             ContentData::Files(hashes) => {
                 format!("FILES: {} files", base_to_human_int(hashes.len() as i128))
@@ -1457,7 +1513,7 @@ impl Content {
 
 impl std::fmt::Display for Content {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(&self.to_string())
+        formatter.write_str(&self.to_pretty_string())
     }
 }
 
@@ -1490,11 +1546,9 @@ impl SerialisableObject for Content {
     fn initialise_from_serialisable_info(&mut self, info: &Value) -> HydrusResult<()> {
         let items = info_array(info, "Content info")?;
 
-        let content_type = ContentType::try_from_int(as_u16(
-            element(items, 0, "Content info")?,
-            "Content type",
-        )?)
-        .ok_or_else(|| serialisation_error("Unknown content type!"))?;
+        let content_type =
+            ContentType::try_from_int(as_u16(element(items, 0, "Content info")?, "Content type")?)
+                .ok_or_else(|| serialisation_error("Unknown content type!"))?;
 
         let data = element(items, 1, "Content info")?;
 
@@ -1654,17 +1708,13 @@ impl SerialisableObject for AccountIdentifier {
             Self::TYPE_ACCOUNT_KEY => {
                 AccountIdentifierData::AccountKey(hex_bytes(data, "Account identifier key")?)
             }
-            Self::TYPE_CONTENT => {
-                AccountIdentifierData::Content(object_from_tuple::<Content>(
-                    data,
-                    false,
-                    "Account identifier content",
-                )?)
-            }
+            Self::TYPE_CONTENT => AccountIdentifierData::Content(object_from_tuple::<Content>(
+                data,
+                false,
+                "Account identifier content",
+            )?),
             _ => {
-                return Err(serialisation_error(
-                    "Unknown account identifier type!",
-                ));
+                return Err(serialisation_error("Unknown account identifier type!"));
             }
         };
 
@@ -1975,7 +2025,14 @@ impl Credentials {
                         )
                     })?;
 
-                    (address, if access_key.is_empty() { None } else { Some(access_key) })
+                    (
+                        address,
+                        if access_key.is_empty() {
+                            None
+                        } else {
+                            Some(access_key)
+                        },
+                    )
                 }
             }
             None => (connection_string, None),
@@ -2331,9 +2388,7 @@ impl SerialisableObject for ClientToServerUpdate {
             .map(|(action, contents_and_reasons)| {
                 let serialisable_contents_and_reasons: Vec<Value> = contents_and_reasons
                     .iter()
-                    .map(|(content, reason)| {
-                        json!([content.get_serialisable_tuple(), reason])
-                    })
+                    .map(|(content, reason)| json!([content.get_serialisable_tuple(), reason]))
                     .collect();
 
                 json!([action.as_int(), serialisable_contents_and_reasons])
@@ -2436,8 +2491,11 @@ impl MetadataState {
         self.update_hashes = HashSet::new();
         self.update_hashes_ordered = Vec::new();
 
-        let mut rows: Vec<(i64, &MetadataRow)> =
-            self.metadata.iter().map(|(index, row)| (*index, row)).collect();
+        let mut rows: Vec<(i64, &MetadataRow)> = self
+            .metadata
+            .iter()
+            .map(|(index, row)| (*index, row))
+            .collect();
 
         rows.sort_by_key(|(index, _)| *index);
 
@@ -2533,8 +2591,11 @@ impl Metadata {
 
         let state = lock(&self.state);
 
-        let mut rows: Vec<(i64, &MetadataRow)> =
-            state.metadata.iter().map(|(index, row)| (*index, row)).collect();
+        let mut rows: Vec<(i64, &MetadataRow)> = state
+            .metadata
+            .iter()
+            .map(|(index, row)| (*index, row))
+            .collect();
 
         rows.sort_by_key(|(index, _)| *index);
 
@@ -2613,10 +2674,7 @@ impl Metadata {
         Self::from_rows(metadata, next_update_due)
     }
 
-    pub fn get_update_hashes(
-        &self,
-        update_index: Option<i64>,
-    ) -> HydrusResult<HashSet<Vec<u8>>> {
+    pub fn get_update_hashes(&self, update_index: Option<i64>) -> HydrusResult<HashSet<Vec<u8>>> {
         let state = lock(&self.state);
 
         match update_index {
@@ -2631,10 +2689,7 @@ impl Metadata {
         }
     }
 
-    pub fn get_update_index_begin_and_end(
-        &self,
-        update_index: i64,
-    ) -> HydrusResult<(i64, i64)> {
+    pub fn get_update_index_begin_and_end(&self, update_index: i64) -> HydrusResult<(i64, i64)> {
         let state = lock(&self.state);
 
         state
@@ -2689,7 +2744,8 @@ impl Metadata {
         let mut result = Vec::new();
 
         for update_hash in &state.update_hashes_ordered {
-            if let Some(content_type) = content_hashes_to_content_types.remove(update_hash.as_slice())
+            if let Some(content_type) =
+                content_hashes_to_content_types.remove(update_hash.as_slice())
             {
                 result.push((update_hash.clone(), content_type));
             }
@@ -2783,10 +2839,8 @@ impl SerialisableObject for Metadata {
     fn initialise_from_serialisable_info(&mut self, info: &Value) -> HydrusResult<()> {
         let items = info_array(info, "Metadata info")?;
 
-        let serialisable_metadata = info_array(
-            element(items, 0, "Metadata info")?,
-            "Metadata update rows",
-        )?;
+        let serialisable_metadata =
+            info_array(element(items, 0, "Metadata info")?, "Metadata update rows")?;
 
         let mut metadata = IndexMap::new();
 
@@ -2974,7 +3028,9 @@ fn contents_from_serialisable_list(list: &SerialisableList) -> HydrusResult<Vec<
             continue;
         }
 
-        return Err(serialisation_error("Petition content was not a content object!"));
+        return Err(serialisation_error(
+            "Petition content was not a content object!",
+        ));
     }
 
     Ok(contents)
@@ -3233,11 +3289,8 @@ impl SerialisableObject for Petition {
     fn initialise_from_serialisable_info(&mut self, info: &Value) -> HydrusResult<()> {
         let items = info_array(info, "Petition info")?;
 
-        let petitioner_account = Account::generate_account_from_serialisable_tuple(element(
-            items,
-            0,
-            "Petition info",
-        )?)?;
+        let petitioner_account =
+            Account::generate_account_from_serialisable_tuple(element(items, 0, "Petition info")?)?;
 
         let petition_header = object_from_tuple::<PetitionHeader>(
             element(items, 1, "Petition info")?,
@@ -3323,8 +3376,11 @@ impl SerialisableObject for Petition {
             let items = info_array(&old_info, "Petition v2 info")?;
 
             let account_info = element(&items, 0, "Petition v2 info")?.clone();
-            let reason = as_str(element(&items, 1, "Petition v2 info")?, "Petition v2 reason")?
-                .to_string();
+            let reason = as_str(
+                element(&items, 1, "Petition v2 info")?,
+                "Petition v2 reason",
+            )?
+            .to_string();
             let actions = element(&items, 2, "Petition v2 info")?.clone();
 
             let account = Account::generate_account_from_serialisable_tuple(&account_info)?;
@@ -3355,7 +3411,10 @@ impl SerialisableObject for Petition {
                 reason,
             );
 
-            return Ok((3, json!([account_info, header.get_serialisable_tuple(), actions])));
+            return Ok((
+                3,
+                json!([account_info, header.get_serialisable_tuple(), actions]),
+            ));
         }
 
         Ok((version, old_info))
@@ -3432,16 +3491,14 @@ impl<T: UpdateAccumulator> UpdateBuilder<T> {
         self.current_num_rows += row_weight;
 
         if self.current_num_rows > self.max_rows {
-            self.updates
-                .push(std::mem::take(&mut self.current_update));
+            self.updates.push(std::mem::take(&mut self.current_update));
             self.current_num_rows = 0;
         }
     }
 
     pub fn finish(&mut self) {
         if self.current_update.num_rows() > 0 {
-            self.updates
-                .push(std::mem::take(&mut self.current_update));
+            self.updates.push(std::mem::take(&mut self.current_update));
         }
 
         self.current_update = T::default();
@@ -3514,12 +3571,8 @@ pub trait ServerServiceController: Send + Sync {
 
     fn nullify_history(&self, service_key: &[u8], begin: i64, end: i64) -> HydrusResult<()>;
 
-    fn create_update(
-        &self,
-        service_key: &[u8],
-        begin: i64,
-        end: i64,
-    ) -> HydrusResult<Vec<Vec<u8>>>;
+    fn create_update(&self, service_key: &[u8], begin: i64, end: i64)
+    -> HydrusResult<Vec<Vec<u8>>>;
 
     fn publish(&self, topic: &str);
 }
@@ -3623,9 +3676,7 @@ pub fn get_possible_permissions(
 }
 
 /// `generate_default_service_dictionary( service_type )`.
-pub fn generate_default_service_dictionary(
-    service_type: ServiceType,
-) -> SerialisableDictionary {
+pub fn generate_default_service_dictionary(service_type: ServiceType) -> SerialisableDictionary {
     ensure_registered();
 
     let mut dictionary = SerialisableDictionary::new();
@@ -3655,17 +3706,9 @@ pub fn generate_default_service_dictionary(
             let update_period = 100000;
 
             dict_insert(&mut service_options, "update_period", update_period);
-            dict_insert(
-                &mut service_options,
-                "nullification_period",
-                90 * 86400,
-            );
+            dict_insert(&mut service_options, "nullification_period", 90 * 86400);
 
-            dict_insert(
-                &mut dictionary,
-                "next_nullification_update_index",
-                0_i64,
-            );
+            dict_insert(&mut dictionary, "next_nullification_update_index", 0_i64);
 
             let metadata = Metadata::default();
             let now = get_now();
@@ -3770,7 +3813,13 @@ pub fn generate_service_from_serialisable_tuple(info: &Value) -> HydrusResult<Se
     )?;
     let dictionary = dictionary_from_string(dictionary_string)?;
 
-    generate_service(service_key, service_type, name, port as u16, Some(dictionary))
+    generate_service(
+        service_key,
+        service_type,
+        name,
+        port as u16,
+        Some(dictionary),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -3842,9 +3891,8 @@ fn load_service_state(
     state: &mut ServerServiceState,
     dictionary: &SerialisableDictionary,
 ) -> HydrusResult<()> {
-    let tracker_value = dict_get(dictionary, "bandwidth_tracker").ok_or_else(|| {
-        serialisation_error("Service dictionary had no bandwidth tracker!")
-    })?;
+    let tracker_value = dict_get(dictionary, "bandwidth_tracker")
+        .ok_or_else(|| serialisation_error("Service dictionary had no bandwidth tracker!"))?;
 
     state.bandwidth_tracker = clone_object_from_slot::<BandwidthTracker>(
         tracker_value,
@@ -3880,16 +3928,21 @@ fn load_service_state(
             dict_get_i64(dictionary, "nullification_period").unwrap_or(90 * 86400);
 
         {
-            let options = state.service_options.as_mut().ok_or_else(|| {
-                serialisation_error("Repository service had no service options!")
-            })?;
+            let options = state
+                .service_options
+                .as_mut()
+                .ok_or_else(|| serialisation_error("Repository service had no service options!"))?;
 
             if !dict_contains(options, "update_period") {
                 dict_insert(options, "update_period", 100000_i64);
             }
 
             if !dict_contains(options, "nullification_period") {
-                dict_insert(options, "nullification_period", default_nullification_period);
+                dict_insert(
+                    options,
+                    "nullification_period",
+                    default_nullification_period,
+                );
             }
         }
 
@@ -4196,7 +4249,13 @@ impl ServerService {
 
         let dictionary = duplicate_dictionary(&self.serialisable_dictionary())?;
 
-        Ok((self.service_key.clone(), self.service_type, name, port, dictionary))
+        Ok((
+            self.service_key.clone(),
+            self.service_type,
+            name,
+            port,
+            dictionary,
+        ))
     }
 
     pub fn use_normie_eris(&self) -> bool {
@@ -4204,10 +4263,9 @@ impl ServerService {
     }
 
     fn repository_metadata(&self) -> HydrusResult<Arc<Metadata>> {
-        lock(&self.state)
-            .metadata
-            .clone()
-            .ok_or_else(|| HydrusException::new(ErrorKind::Unknown, "This service has no metadata!"))
+        lock(&self.state).metadata.clone().ok_or_else(|| {
+            HydrusException::new(ErrorKind::Unknown, "This service has no metadata!")
+        })
     }
 
     pub fn get_metadata(&self) -> HydrusResult<Arc<Metadata>> {
@@ -4477,7 +4535,10 @@ impl ServerService {
     pub fn server_bandwidth_ok(&self) -> bool {
         let state = lock(&self.state);
 
-        match (&state.server_bandwidth_rules, &state.server_bandwidth_tracker) {
+        match (
+            &state.server_bandwidth_rules,
+            &state.server_bandwidth_tracker,
+        ) {
             (Some(rules), Some(tracker)) => rules.can_start_request_default(tracker),
             _ => true,
         }
@@ -4546,8 +4607,7 @@ mod tests {
     fn default_service_dictionaries_generate_working_services() {
         register_serialisable_types();
 
-        let file_dictionary =
-            generate_default_service_dictionary(ServiceType::FileRepository);
+        let file_dictionary = generate_default_service_dictionary(ServiceType::FileRepository);
 
         let service = generate_service(
             vec![1, 2, 3],
@@ -4573,8 +4633,7 @@ mod tests {
         assert!(metadata.has_done_initial_sync());
         assert!(service.has_update_hash(&[]).unwrap() == false);
 
-        let tag_dictionary =
-            generate_default_service_dictionary(ServiceType::TagRepository);
+        let tag_dictionary = generate_default_service_dictionary(ServiceType::TagRepository);
 
         let tag_service = generate_service(
             vec![4, 5, 6],
@@ -4682,7 +4741,8 @@ mod tests {
 
     #[test]
     fn account_type_permissions_follow_the_permission_ladder() {
-        let account_type = account_type_with(&[(ContentType::Files, Some(PermissionAction::Create))]);
+        let account_type =
+            account_type_with(&[(ContentType::Files, Some(PermissionAction::Create))]);
 
         assert!(account_type.has_permission(ContentType::Files, PermissionAction::Petition));
         assert!(account_type.has_permission(ContentType::Files, PermissionAction::Create));
@@ -4759,7 +4819,10 @@ mod tests {
 
         let restored = roundtrip(&account_type);
 
-        assert_eq!(restored.get_account_type_key(), account_type.get_account_type_key());
+        assert_eq!(
+            restored.get_account_type_key(),
+            account_type.get_account_type_key()
+        );
         assert_eq!(restored.get_title(), "custom");
         assert_eq!(restored.get_permissions(), account_type.get_permissions());
         assert!(!restored.is_null_account());
@@ -4771,8 +4834,14 @@ mod tests {
             items[0].clone(),
             items[1].clone(),
             [
-                [ContentType::AccountTypes.as_int(), PermissionAction::Moderate.as_int()],
-                [ContentType::Files.as_int(), PermissionAction::Petition.as_int()],
+                [
+                    ContentType::AccountTypes.as_int(),
+                    PermissionAction::Moderate.as_int()
+                ],
+                [
+                    ContentType::Files.as_int(),
+                    PermissionAction::Petition.as_int()
+                ],
             ],
             items[3].clone(),
             items[4].clone(),
@@ -4784,13 +4853,12 @@ mod tests {
         assert_eq!(version, 2);
 
         let mut restored_v1 = AccountType::default();
-        restored_v1.initialise_from_serialisable_info(&updated).unwrap();
+        restored_v1
+            .initialise_from_serialisable_info(&updated)
+            .unwrap();
 
         assert!(restored_v1.has_permission(ContentType::Options, PermissionAction::Moderate));
-        assert!(restored_v1.has_permission(
-            ContentType::AccountTypes,
-            PermissionAction::Moderate
-        ));
+        assert!(restored_v1.has_permission(ContentType::AccountTypes, PermissionAction::Moderate));
         assert!(restored_v1.has_permission(ContentType::Files, PermissionAction::Petition));
     }
 
@@ -4822,12 +4890,19 @@ mod tests {
         assert!(account.check_functional().is_ok());
 
         assert!(account.has_permission(ContentType::Mappings, PermissionAction::Moderate));
-        assert!(account.check_permission(ContentType::Mappings, PermissionAction::Moderate).is_ok());
-        assert!(account.check_at_least_one_permission(&[(
-            ContentType::Services,
-            PermissionAction::Moderate
-        )])
-        .is_ok());
+        assert!(
+            account
+                .check_permission(ContentType::Mappings, PermissionAction::Moderate)
+                .is_ok()
+        );
+        assert!(
+            account
+                .check_at_least_one_permission(&[(
+                    ContentType::Services,
+                    PermissionAction::Moderate
+                )])
+                .is_ok()
+        );
     }
 
     #[test]
@@ -4901,8 +4976,7 @@ mod tests {
         let error = unknown.check_functional().unwrap_err();
         assert_eq!(error.kind, ErrorKind::Conflict);
 
-        let limited_type =
-            Arc::new(AccountType::generate_unknown_account_type());
+        let limited_type = Arc::new(AccountType::generate_unknown_account_type());
 
         let limited = Account::new(vec![5; 32], limited_type, get_now(), None);
 
@@ -4966,11 +5040,16 @@ mod tests {
         assert_eq!(restored.get_account_key(), account.get_account_key());
         assert_eq!(restored.get_created(), account.get_created());
         assert_eq!(restored.get_expires(), account.get_expires());
-        assert_eq!(restored.get_message_and_timestamp(), ("be nice".to_string(), 42));
+        assert_eq!(
+            restored.get_message_and_timestamp(),
+            ("be nice".to_string(), 42)
+        );
         assert_eq!(restored.get_banned_info(), account.get_banned_info());
         assert!(restored.is_banned());
         assert_eq!(
-            restored.get_bandwidth_tracker().get_all_usage(BandwidthType::Data),
+            restored
+                .get_bandwidth_tracker()
+                .get_all_usage(BandwidthType::Data),
             account
                 .get_bandwidth_tracker()
                 .get_all_usage(BandwidthType::Data)
@@ -4990,7 +5069,10 @@ mod tests {
             &mut dictionary,
             "permissions",
             json!([
-                [ContentType::Files.as_int(), PermissionAction::Create.as_int()],
+                [
+                    ContentType::Files.as_int(),
+                    PermissionAction::Create.as_int()
+                ],
                 [ContentType::Mappings.as_int(), Value::Null],
             ]),
         );
@@ -5011,11 +5093,7 @@ mod tests {
         assert!(!account_type.has_permission(ContentType::Mappings, PermissionAction::Petition));
 
         // Older account tuples embedded the account type as the legacy triple.
-        let legacy_type_info = json!([
-            hex_encode(&key),
-            "legacy user",
-            dictionary_string,
-        ]);
+        let legacy_type_info = json!([hex_encode(&key), "legacy user", dictionary_string,]);
 
         let empty_dictionary = SerialisableDictionary::new();
 
@@ -5135,7 +5213,10 @@ mod tests {
         assert!(key_identifier.has_account_key());
         assert!(!key_identifier.has_content());
         assert_eq!(key_identifier.get_account_key().unwrap(), &[9; 32]);
-        assert_eq!(key_identifier.get_content().unwrap_err().kind, ErrorKind::Unknown);
+        assert_eq!(
+            key_identifier.get_content().unwrap_err().kind,
+            ErrorKind::Unknown
+        );
 
         let content = Content::mapping("blue eyes", vec![10; 32]);
         let content_identifier = AccountIdentifier::new_content(content.clone());
@@ -5195,7 +5276,10 @@ mod tests {
 
         assert_eq!(restored.get_num_rows(None), 5);
         assert_eq!(restored.get_new_files(), update.get_new_files());
-        assert_eq!(restored.get_deleted_mappings(), update.get_deleted_mappings());
+        assert_eq!(
+            restored.get_deleted_mappings(),
+            update.get_deleted_mappings()
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -5254,12 +5338,11 @@ mod tests {
             format!("{}@example.com:1234", hex_encode(&key))
         );
 
-        let parsed =
-            Credentials::generate_credentials_from_connection_string(Some(&format!(
-                "{}@example.com:1234",
-                hex_encode(&key)
-            )))
-            .unwrap();
+        let parsed = Credentials::generate_credentials_from_connection_string(Some(&format!(
+            "{}@example.com:1234",
+            hex_encode(&key)
+        )))
+        .unwrap();
 
         assert_eq!(parsed, credentials);
 
@@ -5295,7 +5378,11 @@ mod tests {
         let mut update = DefinitionsUpdate::new();
 
         update
-            .add_row(DefinitionsType::Hashes, 1, DefinitionValue::Hash(vec![1, 2]))
+            .add_row(
+                DefinitionsType::Hashes,
+                1,
+                DefinitionValue::Hash(vec![1, 2]),
+            )
             .unwrap();
         update
             .add_row(
@@ -5325,7 +5412,10 @@ mod tests {
         let restored = roundtrip(&update);
 
         assert_eq!(restored.get_num_rows(), 2);
-        assert_eq!(restored.get_hash_ids_to_hashes(), update.get_hash_ids_to_hashes());
+        assert_eq!(
+            restored.get_hash_ids_to_hashes(),
+            update.get_hash_ids_to_hashes()
+        );
         assert_eq!(restored.get_tag_ids_to_tags(), update.get_tag_ids_to_tags());
     }
 
@@ -5384,7 +5474,9 @@ mod tests {
 
         assert_eq!(restored.get_hashes(), update.get_hashes());
         assert_eq!(
-            restored.iterate_all_actions_and_contents_and_reasons().len(),
+            restored
+                .iterate_all_actions_and_contents_and_reasons()
+                .len(),
             update.iterate_all_actions_and_contents_and_reasons().len()
         );
     }
@@ -5420,8 +5512,14 @@ mod tests {
             HashSet::from([vec![1]])
         );
         assert!(!metadata.update_is_empty(0).unwrap());
-        assert_eq!(metadata.get_earliest_timestamp_for_these_hashes(&[vec![1]]), 200);
-        assert_eq!(metadata.get_earliest_timestamp_for_these_hashes(&[vec![9]]), 0);
+        assert_eq!(
+            metadata.get_earliest_timestamp_for_these_hashes(&[vec![1]]),
+            200
+        );
+        assert_eq!(
+            metadata.get_earliest_timestamp_for_these_hashes(&[vec![9]]),
+            0
+        );
         assert_eq!(metadata.get_next_update_begin(), 201);
         assert!(!metadata.update_due(false));
 
@@ -5437,10 +5535,8 @@ mod tests {
             vec![(0, vec![vec![1]]), (1, vec![vec![2]])]
         );
 
-        let sorted = metadata.sort_content_hashes_and_content_types(vec![
-            (vec![2], "second"),
-            (vec![1], "first"),
-        ]);
+        let sorted = metadata
+            .sort_content_hashes_and_content_types(vec![(vec![2], "second"), (vec![1], "first")]);
 
         assert_eq!(sorted, vec![(vec![1], "first"), (vec![2], "second")]);
 
@@ -5452,7 +5548,10 @@ mod tests {
         let combined = Metadata::empty();
         combined.update_from_slice(&metadata);
 
-        assert_eq!(combined.get_update_indices_and_times(), metadata.get_update_indices_and_times());
+        assert_eq!(
+            combined.get_update_indices_and_times(),
+            metadata.get_update_indices_and_times()
+        );
         assert_eq!(combined.get_num_update_hashes(), 2);
 
         metadata.update_asap();
@@ -5521,7 +5620,10 @@ mod tests {
             ErrorKind::DataMissing
         );
         assert_eq!(
-            metadata.get_update_index_begin_and_end(99).unwrap_err().kind,
+            metadata
+                .get_update_index_begin_and_end(99)
+                .unwrap_err()
+                .kind,
             ErrorKind::DataMissing
         );
     }
@@ -5549,7 +5651,10 @@ mod tests {
 
         assert_eq!(petition.get_petition_header(), &header);
         assert_eq!(petition.get_reason(), "these are bad");
-        assert_eq!(petition.get_contents(ContentUpdate::Pend), &[mapping.clone()]);
+        assert_eq!(
+            petition.get_contents(ContentUpdate::Pend),
+            &[mapping.clone()]
+        );
         assert_eq!(petition.get_contents(ContentUpdate::Petition), &[]);
         assert_eq!(petition.get_actual_content_weight(), 1);
         assert!(petition.get_content_summary().contains("mappings"));
@@ -5635,7 +5740,10 @@ mod tests {
 
         let restored = roundtrip(&petition);
 
-        assert_eq!(restored.get_petition_header(), petition.get_petition_header());
+        assert_eq!(
+            restored.get_petition_header(),
+            petition.get_petition_header()
+        );
         assert_eq!(
             restored.get_petitioner_account().get_account_key(),
             petition.get_petitioner_account().get_account_key()
@@ -5645,10 +5753,9 @@ mod tests {
             petition.get_actions_and_contents()
         );
 
-        let account_info = Account::generate_serialisable_tuple_from_account(
-            petition.get_petitioner_account(),
-        )
-        .unwrap();
+        let account_info =
+            Account::generate_serialisable_tuple_from_account(petition.get_petitioner_account())
+                .unwrap();
 
         let v1_info = json!([
             ContentUpdate::Pend.as_int(),
@@ -5657,7 +5764,9 @@ mod tests {
             [mapping.get_serialisable_tuple()],
         ]);
 
-        let (version, updated) = petition.update_serialisable_info(1, v1_info.clone()).unwrap();
+        let (version, updated) = petition
+            .update_serialisable_info(1, v1_info.clone())
+            .unwrap();
 
         assert_eq!(version, 2);
 
@@ -5670,7 +5779,9 @@ mod tests {
         assert_eq!(from_v1.get_contents(ContentUpdate::Pend), &[mapping]);
 
         // A v2 petition also upgrades to the v3 header format.
-        let (version, v3_info) = petition.update_serialisable_info(2, updated.clone()).unwrap();
+        let (version, v3_info) = petition
+            .update_serialisable_info(2, updated.clone())
+            .unwrap();
 
         assert_eq!(version, 3);
 
@@ -5683,7 +5794,10 @@ mod tests {
             from_v2.get_petition_header().content_type,
             ContentType::Mapping
         );
-        assert_eq!(from_v2.get_petition_header().status, ContentStatus::Petitioned);
+        assert_eq!(
+            from_v2.get_petition_header().status,
+            ContentStatus::Petitioned
+        );
 
         let mut from_v3 = Petition::default();
         from_v3
@@ -5790,12 +5904,7 @@ mod tests {
             }
         }
 
-        fn nullify_history(
-            &self,
-            service_key: &[u8],
-            begin: i64,
-            end: i64,
-        ) -> HydrusResult<()> {
+        fn nullify_history(&self, service_key: &[u8], begin: i64, end: i64) -> HydrusResult<()> {
             self.nullified
                 .lock()
                 .unwrap()
@@ -5825,7 +5934,9 @@ mod tests {
 
     #[test]
     fn repository_sync_requires_a_controller_when_due() {
-        let _guard = CONTROLLER_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+        let _guard = CONTROLLER_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
 
         set_server_service_controller(None);
 
@@ -5853,7 +5964,9 @@ mod tests {
 
     #[test]
     fn repository_sync_creates_updates_while_due() {
-        let _guard = CONTROLLER_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+        let _guard = CONTROLLER_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
 
         let controller = Arc::new(FakeServerController {
             busy_available: true,
@@ -5897,7 +6010,9 @@ mod tests {
 
     #[test]
     fn repository_sync_is_skipped_when_server_is_busy() {
-        let _guard = CONTROLLER_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+        let _guard = CONTROLLER_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
 
         let controller = Arc::new(FakeServerController {
             busy_available: false,
@@ -5928,12 +6043,13 @@ mod tests {
 
     #[test]
     fn nullify_history_walks_empty_updates_and_stops_when_caught_up() {
-        let _guard = CONTROLLER_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+        let _guard = CONTROLLER_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
 
         set_server_service_controller(None);
 
-        let mut dictionary =
-            generate_default_service_dictionary(ServiceType::TagRepository);
+        let mut dictionary = generate_default_service_dictionary(ServiceType::TagRepository);
 
         let old_end = get_now() - 200 * 86400;
 
@@ -5960,10 +6076,7 @@ mod tests {
         // past them without needing a controller.
         service.nullify_history().unwrap();
 
-        assert_eq!(
-            service.get_metadata().unwrap().get_next_update_index(),
-            2
-        );
+        assert_eq!(service.get_metadata().unwrap().get_next_update_index(), 2);
 
         // Caught up: no further work.
         service.nullify_history().unwrap();
@@ -5973,7 +6086,9 @@ mod tests {
 
     #[test]
     fn nullify_history_calls_the_controller_for_old_non_empty_updates() {
-        let _guard = CONTROLLER_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+        let _guard = CONTROLLER_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
 
         let controller = Arc::new(FakeServerController {
             busy_available: true,
@@ -5982,8 +6097,7 @@ mod tests {
 
         set_server_service_controller(Some(controller.clone()));
 
-        let mut dictionary =
-            generate_default_service_dictionary(ServiceType::TagRepository);
+        let mut dictionary = generate_default_service_dictionary(ServiceType::TagRepository);
 
         let old_end = get_now() - 200 * 86400;
 

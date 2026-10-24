@@ -9,8 +9,8 @@ use std::f64::consts::PI;
 
 use image::{DynamicImage, RgbImage};
 
-use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::files::images::hydrus_image_handling;
+use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 
 const BASE83_ALPHABET: &[u8; 83] =
     b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz#$%*+,-.:;=?@[]^_{|}~";
@@ -174,8 +174,7 @@ pub fn convert_blur_hash_to_sortable_hue(
     reverse: bool,
 ) -> HydrusResult<(f64, f64, f64)> {
     let (r, g, b) = get_average_colour_from_blur_hash(blurhash)?;
-    let (hue, saturation, _) =
-        rgb_to_hsl(f64::from(r), f64::from(g), f64::from(b));
+    let (hue, saturation, _) = rgb_to_hsl(f64::from(r), f64::from(g), f64::from(b));
 
     let initial = if saturation < 0.03 {
         if reverse { -1.0 } else { 1.0 }
@@ -208,7 +207,9 @@ pub fn get_average_colour_from_blur_hash(blurhash: &str) -> HydrusResult<(u8, u8
     }
 
     if blurhash.len() < 6 {
-        return Err(damaged("BlurHash is too short to contain an average colour."));
+        return Err(damaged(
+            "BlurHash is too short to contain an average colour.",
+        ));
     }
 
     let average_colour_int = base83_decode(&blurhash[2..6])?;
@@ -317,8 +318,7 @@ pub fn get_blur_hash_from_numpy(numpy_image: &DynamicImage) -> String {
         }
     }
 
-    let quantised_maximum_value =
-        ((maximum_value * 166.0) - 0.5).floor().clamp(0.0, 82.0) as u32;
+    let quantised_maximum_value = ((maximum_value * 166.0) - 0.5).floor().clamp(0.0, 82.0) as u32;
     let maximum_value = f64::from(quantised_maximum_value + 1) / 166.0;
 
     let linear_r = linear_to_srgb(dc[0].clamp(0.0, 1.0));
@@ -415,8 +415,7 @@ fn decode_blur_hash(blurhash: &str, width: u32, height: u32) -> HydrusResult<Rgb
 
     let dc = decode_dc(base83_decode(&blurhash[2..6])?);
 
-    let mut factors: Vec<Vec<[f64; 3]>> =
-        vec![vec![[0.0; 3]; num_x as usize]; num_y as usize];
+    let mut factors: Vec<Vec<[f64; 3]>> = vec![vec![[0.0; 3]; num_x as usize]; num_y as usize];
 
     let mut cursor = 6;
 
@@ -447,8 +446,7 @@ fn decode_blur_hash(blurhash: &str, width: u32, height: u32) -> HydrusResult<Rgb
                         continue;
                     }
 
-                    let basis = (PI * f64::from(x) * i as f64 / f64::from(width)).cos()
-                        * y_basis;
+                    let basis = (PI * f64::from(x) * i as f64 / f64::from(width)).cos() * y_basis;
 
                     for channel in 0..3 {
                         colour[channel] += factor[channel] * basis;
@@ -464,9 +462,8 @@ fn decode_blur_hash(blurhash: &str, width: u32, height: u32) -> HydrusResult<Rgb
         }
     }
 
-    RgbImage::from_raw(width, height, pixels).ok_or_else(|| {
-        damaged("Could not construct the decoded BlurHash image.")
-    })
+    RgbImage::from_raw(width, height, pixels)
+        .ok_or_else(|| damaged("Could not construct the decoded BlurHash image."))
 }
 
 /// `get_numpy_from_blur_hash( blurhash, width, height )`
@@ -517,7 +514,10 @@ mod tests {
         let hash = get_blur_hash_from_numpy(&image);
 
         assert_eq!(hash.len(), 36);
-        assert_eq!(get_average_colour_from_blur_hash(&hash).unwrap(), (220, 40, 120));
+        assert_eq!(
+            get_average_colour_from_blur_hash(&hash).unwrap(),
+            (220, 40, 120)
+        );
 
         let decoded = get_numpy_from_blur_hash(&hash, 8, 8).unwrap();
 
@@ -547,12 +547,9 @@ mod tests {
 
         let (cm, lightness) =
             convert_blur_hash_to_sortable_chromatic_magnitude(&hash, false).unwrap();
-        let (blue_yellow, _) =
-            convert_blur_hash_to_sortable_blue_yellow(&hash, false).unwrap();
-        let (green_red, _) =
-            convert_blur_hash_to_sortable_green_red(&hash, false).unwrap();
-        let (initial, hue, saturation) =
-            convert_blur_hash_to_sortable_hue(&hash, false).unwrap();
+        let (blue_yellow, _) = convert_blur_hash_to_sortable_blue_yellow(&hash, false).unwrap();
+        let (green_red, _) = convert_blur_hash_to_sortable_green_red(&hash, false).unwrap();
+        let (initial, hue, saturation) = convert_blur_hash_to_sortable_hue(&hash, false).unwrap();
 
         assert!(cm.is_finite());
         assert!(lightness.is_finite());

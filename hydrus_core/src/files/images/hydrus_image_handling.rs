@@ -24,14 +24,14 @@ use image::{
 };
 use sha2::{Digest, Sha256};
 
-use crate::hydrus_constants::Mime;
-use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::files::images::hydrus_image_colours;
-use crate::files::images::hydrus_image_metadata::{self, ImageMetadata};
-use crate::files::images::hydrus_image_normalisation;
 use crate::files::hydrus_krita_handling;
 use crate::files::hydrus_ora_handling;
 use crate::files::hydrus_psd_handling;
+use crate::files::images::hydrus_image_colours;
+use crate::files::images::hydrus_image_metadata::{self, ImageMetadata};
+use crate::files::images::hydrus_image_normalisation;
+use crate::hydrus_constants::Mime;
+use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 
 /// `PILImage.MAX_IMAGE_PIXELS = ( 512 * ( 1024 ** 2 ) ) // 3`
 pub const MAX_IMAGE_PIXELS: u64 = (512 * (1024 * 1024)) / 3;
@@ -135,10 +135,7 @@ fn no_resolution() -> HydrusException {
 
 fn image_decode_error(context: &str, error: ImageError) -> HydrusException {
     if matches!(error, ImageError::Unsupported(_)) {
-        HydrusException::new(
-            ErrorKind::UnsupportedFile,
-            format!("{context}: {error}"),
-        )
+        HydrusException::new(ErrorKind::UnsupportedFile, format!("{context}: {error}"))
     } else {
         damaged(format!("{context}: {error}"))
     }
@@ -187,7 +184,10 @@ pub fn decode_image_path(path: impl AsRef<Path>) -> HydrusResult<DynamicImage> {
         .map_err(|error| {
             HydrusException::new(
                 ErrorKind::FileMissing,
-                format!("Could not open the image at \"{}\": {error}", path.display()),
+                format!(
+                    "Could not open the image at \"{}\": {error}",
+                    path.display()
+                ),
             )
         })?
         .with_guessed_format()
@@ -220,8 +220,13 @@ fn specialised_mime_error(mime: Mime) -> Option<HydrusException> {
             ErrorKind::NoRenderFile,
             "PDF rendering requires a client-side renderer.",
         )),
-        Mime::Heic | Mime::HeicSequence | Mime::Avif | Mime::AvifSequence | Mime::Jxl
-        | Mime::AnimationJxl | Mime::UndeterminedJxl => Some(unsupported(
+        Mime::Heic
+        | Mime::HeicSequence
+        | Mime::Avif
+        | Mime::AvifSequence
+        | Mime::Jxl
+        | Mime::AnimationJxl
+        | Mime::UndeterminedJxl => Some(unsupported(
             "This image format is not supported by the pure-Rust image decoder.",
         )),
         _ => None,
@@ -416,11 +421,8 @@ fn encode_image(
                 _ => CompressionType::Default,
             };
 
-            let encoder = PngEncoder::new_with_quality(
-                &mut buffer,
-                compression,
-                PngFilterType::Adaptive,
-            );
+            let encoder =
+                PngEncoder::new_with_quality(&mut buffer, compression, PngFilterType::Adaptive);
 
             image.write_with_encoder(encoder)
         }
@@ -498,10 +500,7 @@ pub fn get_image_pixel_hash_numpy(numpy_image: &DynamicImage) -> Vec<u8> {
 }
 
 /// `get_image_pixel_hash( path, mime )`
-pub fn get_image_pixel_hash(
-    path: impl AsRef<Path>,
-    mime: Mime,
-) -> HydrusResult<Vec<u8>> {
+pub fn get_image_pixel_hash(path: impl AsRef<Path>, mime: Mime) -> HydrusResult<Vec<u8>> {
     let numpy_image = generate_numpy_image(path, mime, false, None)?;
 
     Ok(get_image_pixel_hash_numpy(&numpy_image))
@@ -535,10 +534,7 @@ fn dimensions_with_orientation<R: BufRead + Seek>(
 }
 
 /// `get_image_resolution( path, mime )`
-pub fn get_image_resolution(
-    path: impl AsRef<Path>,
-    mime: Mime,
-) -> HydrusResult<(u32, u32)> {
+pub fn get_image_resolution(path: impl AsRef<Path>, mime: Mime) -> HydrusResult<(u32, u32)> {
     let path = path.as_ref();
 
     let fast_result = (|| -> HydrusResult<(u32, u32)> {
@@ -546,7 +542,10 @@ pub fn get_image_resolution(
             .map_err(|error| {
                 HydrusException::new(
                     ErrorKind::FileMissing,
-                    format!("Could not open the image at \"{}\": {error}", path.display()),
+                    format!(
+                        "Could not open the image at \"{}\": {error}",
+                        path.display()
+                    ),
                 )
             })?
             .with_guessed_format()
@@ -564,8 +563,8 @@ pub fn get_image_resolution(
         Ok((width, height)) => Ok((width.max(1), height.max(1))),
         Err(_) => {
             // Desperate situation: decode the whole thing.
-            let numpy_image = generate_numpy_image(path, mime, false, None)
-                .map_err(|_| no_resolution())?;
+            let numpy_image =
+                generate_numpy_image(path, mime, false, None).map_err(|_| no_resolution())?;
 
             let (width, height) = numpy_image.dimensions();
 
@@ -637,11 +636,9 @@ pub fn get_thumbnail_resolution(
         }
         ThumbnailScale::ToFill => {
             if image_is_taller_than_bounding_box {
-                thumbnail_height =
-                    f64::from(bounding_width) * (1.0f64 / image_ratio).min(5.0);
+                thumbnail_height = f64::from(bounding_width) * (1.0f64 / image_ratio).min(5.0);
             } else if image_is_wider_than_bounding_box {
-                thumbnail_width =
-                    f64::from(bounding_height) * image_ratio.min(5.0);
+                thumbnail_width = f64::from(bounding_height) * image_ratio.min(5.0);
             }
         }
     }
@@ -720,10 +717,8 @@ fn pad_image_to(image: &DynamicImage, target_resolution: (u32, u32)) -> DynamicI
     let scale = (f64::from(target_width) / f64::from(image_width))
         .min(f64::from(target_height) / f64::from(image_height));
 
-    let resized_width = ((f64::from(image_width) * scale).round() as u32)
-        .clamp(1, target_width);
-    let resized_height = ((f64::from(image_height) * scale).round() as u32)
-        .clamp(1, target_height);
+    let resized_width = ((f64::from(image_width) * scale).round() as u32).clamp(1, target_width);
+    let resized_height = ((f64::from(image_height) * scale).round() as u32).clamp(1, target_height);
 
     let resized = image.resize_exact(
         resized_width,
@@ -736,12 +731,7 @@ fn pad_image_to(image: &DynamicImage, target_resolution: (u32, u32)) -> DynamicI
     let x = (target_width - resized_width) / 2;
     let y = (target_height - resized_height) / 2;
 
-    image::imageops::overlay(
-        &mut canvas,
-        &resized.to_rgba8(),
-        i64::from(x),
-        i64::from(y),
-    );
+    image::imageops::overlay(&mut canvas, &resized.to_rgba8(), i64::from(x), i64::from(y));
 
     if image.color().has_alpha() {
         DynamicImage::ImageRgba8(canvas)
@@ -800,8 +790,7 @@ pub fn clip_numpy_image(
     numpy_image: &DynamicImage,
     clip_rect: (i64, i64, u32, u32),
 ) -> DynamicImage {
-    let (x, y, clip_width, clip_height) =
-        make_clip_rect_fit(numpy_image.dimensions(), clip_rect);
+    let (x, y, clip_width, clip_height) = make_clip_rect_fit(numpy_image.dimensions(), clip_rect);
 
     if clip_width == 0 || clip_height == 0 {
         return DynamicImage::new_rgba8(clip_width, clip_height);
@@ -811,10 +800,7 @@ pub fn clip_numpy_image(
 }
 
 /// `clip_pil_image( pil_image, clip_rect )`
-pub fn clip_pil_image(
-    pil_image: &DynamicImage,
-    clip_rect: (i64, i64, u32, u32),
-) -> DynamicImage {
+pub fn clip_pil_image(pil_image: &DynamicImage, clip_rect: (i64, i64, u32, u32)) -> DynamicImage {
     clip_numpy_image(pil_image, clip_rect)
 }
 
@@ -853,11 +839,7 @@ mod tests {
 
     #[test]
     fn loaded_dimensions_are_reported() {
-        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(
-            7,
-            5,
-            Rgb([10, 20, 30]),
-        ));
+        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(7, 5, Rgb([10, 20, 30])));
         let path = write_png(&image, "dimensions");
 
         assert_eq!(get_image_resolution(&path, Mime::Png).unwrap(), (7, 5));
@@ -872,22 +854,23 @@ mod tests {
     #[test]
     fn a_missing_file_is_file_missing() {
         let error =
-            generate_pil_image("definitely_missing_hydrus_image.png", true, None)
-                .unwrap_err();
+            generate_pil_image("definitely_missing_hydrus_image.png", true, None).unwrap_err();
 
         assert!(error.is_a(ErrorKind::DamagedOrUnusualFile) || error.is_a(ErrorKind::FileMissing));
     }
 
     #[test]
     fn clipping_fits_and_moves_a_negative_rect_inside() {
-        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(
-            100,
-            50,
-            Rgb([1, 2, 3]),
-        ));
+        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(100, 50, Rgb([1, 2, 3])));
 
-        assert_eq!(make_clip_rect_fit((100, 50), (-3, -4, 20, 10)), (0, 0, 20, 10));
-        assert_eq!(make_clip_rect_fit((100, 50), (90, 45, 20, 10)), (80, 40, 20, 10));
+        assert_eq!(
+            make_clip_rect_fit((100, 50), (-3, -4, 20, 10)),
+            (0, 0, 20, 10)
+        );
+        assert_eq!(
+            make_clip_rect_fit((100, 50), (90, 45, 20, 10)),
+            (80, 40, 20, 10)
+        );
 
         let clipped = clip_numpy_image(&image, (90, 45, 20, 10));
 
@@ -896,11 +879,7 @@ mod tests {
 
     #[test]
     fn resizing_hits_the_exact_target() {
-        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(
-            20,
-            10,
-            Rgb([1, 2, 3]),
-        ));
+        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(20, 10, Rgb([1, 2, 3])));
 
         let resized = resize_image(&image, (8, 4), None);
 
@@ -909,12 +888,7 @@ mod tests {
 
     #[test]
     fn dpr_is_applied_to_thumbnail_bounds() {
-        let scaled = get_thumbnail_resolution(
-            (1000, 500),
-            (100, 100),
-            ThumbnailScale::ToFit,
-            200,
-        );
+        let scaled = get_thumbnail_resolution((1000, 500), (100, 100), ThumbnailScale::ToFit, 200);
 
         assert_eq!(scaled, (200, 100));
     }
@@ -955,11 +929,7 @@ mod tests {
 
     #[test]
     fn opaque_rgba_is_stripped_when_generating_numpy_images() {
-        let image = DynamicImage::ImageRgba8(RgbaImage::from_pixel(
-            10,
-            10,
-            Rgba([1, 2, 3, 255]),
-        ));
+        let image = DynamicImage::ImageRgba8(RgbaImage::from_pixel(10, 10, Rgba([1, 2, 3, 255])));
         let path = write_png(&image, "alpha");
 
         let numpy_image = generate_numpy_image(&path, Mime::Png, false, None).unwrap();
@@ -978,22 +948,14 @@ mod tests {
         let png = generate_thumbnail_bytes_from_numpy(&transparent).unwrap();
         assert_eq!(&png[0..4], b"\x89PNG");
 
-        let opaque = DynamicImage::ImageRgb8(RgbImage::from_pixel(
-            10,
-            10,
-            Rgb([1, 2, 3]),
-        ));
+        let opaque = DynamicImage::ImageRgb8(RgbImage::from_pixel(10, 10, Rgb([1, 2, 3])));
         let jpeg = generate_thumbnail_bytes_from_numpy(&opaque).unwrap();
         assert_eq!(&jpeg[0..2], b"\xFF\xD8");
     }
 
     #[test]
     fn encode_decode_round_trip_preserves_dimensions() {
-        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(
-            13,
-            17,
-            Rgb([9, 8, 7]),
-        ));
+        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(13, 17, Rgb([9, 8, 7])));
 
         let png = generate_file_bytes_numpy(&image, ".png", EncodeParams::default()).unwrap();
         let jpeg =
@@ -1005,11 +967,7 @@ mod tests {
 
     #[test]
     fn default_thumbnail_is_padded_to_the_exact_size() {
-        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(
-            100,
-            50,
-            Rgb([1, 2, 3]),
-        ));
+        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(100, 50, Rgb([1, 2, 3])));
         let path = write_png(&image, "pad");
 
         let thumbnail = generate_default_thumbnail(&path, (64, 64)).unwrap();
@@ -1021,11 +979,7 @@ mod tests {
 
     #[test]
     fn pixel_hash_is_stable_for_the_same_pixels() {
-        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(
-            5,
-            5,
-            Rgb([42, 43, 44]),
-        ));
+        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(5, 5, Rgb([42, 43, 44])));
 
         assert_eq!(
             get_image_pixel_hash_numpy(&image),
@@ -1051,11 +1005,7 @@ mod tests {
 
     #[test]
     fn orientation_rotations_swap_dimensions() {
-        let mut image = DynamicImage::ImageRgb8(RgbImage::from_pixel(
-            10,
-            4,
-            Rgb([1, 2, 3]),
-        ));
+        let mut image = DynamicImage::ImageRgb8(RgbImage::from_pixel(10, 4, Rgb([1, 2, 3])));
 
         image.apply_orientation(Orientation::Rotate90);
 
@@ -1094,9 +1044,7 @@ mod tests {
             result.extend_from_slice(&(data.len() as u32).to_be_bytes());
             result.extend_from_slice(chunk_type);
             result.extend_from_slice(data);
-            result.extend_from_slice(
-                &crc32(&[chunk_type.as_slice(), data].concat()).to_be_bytes(),
-            );
+            result.extend_from_slice(&crc32(&[chunk_type.as_slice(), data].concat()).to_be_bytes());
             result
         }
 
@@ -1115,14 +1063,13 @@ mod tests {
 
     #[test]
     fn png_encoder_import_is_exercised() {
-        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(
-            2,
-            2,
-            Rgb([1, 2, 3]),
-        ));
+        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(2, 2, Rgb([1, 2, 3])));
         let mut buffer = Cursor::new(Vec::new());
-        let encoder =
-            PngEncoder::new_with_quality(&mut buffer, CompressionType::Best, PngFilterType::Adaptive);
+        let encoder = PngEncoder::new_with_quality(
+            &mut buffer,
+            CompressionType::Best,
+            PngFilterType::Adaptive,
+        );
         image.write_with_encoder(encoder).unwrap();
 
         assert!(!buffer.into_inner().is_empty());

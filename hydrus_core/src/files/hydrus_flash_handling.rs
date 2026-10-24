@@ -44,9 +44,11 @@ fn decompress_zlib(payload: &[u8]) -> HydrusResult<Vec<u8>> {
     let mut decoder = ZlibDecoder::new(payload);
     let mut output = Vec::new();
 
-    decoder
-        .read_to_end(&mut output)
-        .map_err(|error| damaged(format!("Could not decompress the zlib SWF payload: {error}")))?;
+    decoder.read_to_end(&mut output).map_err(|error| {
+        damaged(format!(
+            "Could not decompress the zlib SWF payload: {error}"
+        ))
+    })?;
 
     Ok(output)
 }
@@ -72,8 +74,11 @@ fn decompress_lzma(payload: &[u8], size: u32) -> HydrusResult<Vec<u8>> {
     let mut input = Cursor::new(lzma_data);
     let mut output = Vec::with_capacity(size as usize);
 
-    lzma_rs::lzma_decompress(&mut input, &mut output)
-        .map_err(|error| damaged(format!("Could not decompress the LZMA SWF payload: {error}")))?;
+    lzma_rs::lzma_decompress(&mut input, &mut output).map_err(|error| {
+        damaged(format!(
+            "Could not decompress the LZMA SWF payload: {error}"
+        ))
+    })?;
 
     Ok(output)
 }

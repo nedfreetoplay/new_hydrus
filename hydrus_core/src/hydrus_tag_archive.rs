@@ -323,9 +323,11 @@ impl HydrusTagArchive {
     fn get_tag_id(&mut self, tag: &str, read_only: bool) -> HydrusResult<i64> {
         let existing = self
             .connection
-            .query_row("SELECT tag_id FROM tags WHERE tag = ?;", params![tag], |row| {
-                row.get::<_, i64>(0)
-            })
+            .query_row(
+                "SELECT tag_id FROM tags WHERE tag = ?;",
+                params![tag],
+                |row| row.get::<_, i64>(0),
+            )
             .optional()
             .map_err(|error| db_error("Could not look up a tag", error))?;
 
@@ -478,7 +480,9 @@ impl HydrusTagArchive {
 
         let hash = self
             .connection
-            .query_row("SELECT hash FROM hashes;", [], |row| row.get::<_, Vec<u8>>(0))
+            .query_row("SELECT hash FROM hashes;", [], |row| {
+                row.get::<_, Vec<u8>>(0)
+            })
             .optional()
             .map_err(|error| db_error("Could not read a hash", error))?;
 
@@ -488,8 +492,9 @@ impl HydrusTagArchive {
             ));
         };
 
-        let hash_type = HashType::from_hash_size(hash.len())
-            .ok_or_else(|| archive_error("This archive has non-standard hashes. Something is wrong."))?;
+        let hash_type = HashType::from_hash_size(hash.len()).ok_or_else(|| {
+            archive_error("This archive has non-standard hashes. Something is wrong.")
+        })?;
 
         self.set_hash_type(hash_type)?;
 
@@ -613,9 +618,11 @@ impl HydrusTagArchive {
 
                 let tag = self
                     .connection
-                    .query_row("SELECT tag FROM tags WHERE tag_id = ?;", params![tag_id], |row| {
-                        row.get::<_, String>(0)
-                    })
+                    .query_row(
+                        "SELECT tag FROM tags WHERE tag_id = ?;",
+                        params![tag_id],
+                        |row| row.get::<_, String>(0),
+                    )
                     .map_err(|error| db_error("Could not read a tag", error))?;
 
                 mappings.push((tag, hashes));
@@ -749,12 +756,8 @@ impl HydrusTagPairArchive {
         let path = path.as_ref().to_path_buf();
         let is_new = !path.exists();
 
-        let connection = Connection::open(&path).map_err(|error| {
-            db_error(
-                format!("Could not open \"{}\"", path.display()),
-                error,
-            )
-        })?;
+        let connection = Connection::open(&path)
+            .map_err(|error| db_error(format!("Could not open \"{}\"", path.display()), error))?;
 
         if is_new {
             connection
@@ -789,9 +792,11 @@ impl HydrusTagPairArchive {
     fn get_tag_id(&self, tag: &str) -> HydrusResult<i64> {
         let existing = self
             .connection
-            .query_row("SELECT tag_id FROM tags WHERE tag = ?;", params![tag], |row| {
-                row.get::<_, i64>(0)
-            })
+            .query_row(
+                "SELECT tag_id FROM tags WHERE tag = ?;",
+                params![tag],
+                |row| row.get::<_, i64>(0),
+            )
             .optional()
             .map_err(|error| db_error("Could not look up a tag", error))?;
 
@@ -980,8 +985,8 @@ mod tests {
     use super::*;
 
     fn temp_db(name: &str) -> PathBuf {
-        let dir = crate::hydrus_temp::get_sub_temp_dir(&format!("tag_archive_{name}"))
-            .expect("temp dir");
+        let dir =
+            crate::hydrus_temp::get_sub_temp_dir(&format!("tag_archive_{name}")).expect("temp dir");
 
         dir.join("archive.db")
     }
@@ -1045,14 +1050,14 @@ mod tests {
             );
 
             assert_eq!(archive.get_name(), "archive");
-            assert_eq!(archive.get_hash_type().expect("read hash type"), HashType::Sha256);
+            assert_eq!(
+                archive.get_hash_type().expect("read hash type"),
+                HashType::Sha256
+            );
 
             archive.delete_mapping(&hash, "blue eyes").expect("delete");
 
-            assert_eq!(
-                archive.get_tags(&hash).expect("tags").len(),
-                2
-            );
+            assert_eq!(archive.get_tags(&hash).expect("tags").len(), 2);
 
             archive.delete_tags(&hash).expect("delete tags");
 
@@ -1071,7 +1076,9 @@ mod tests {
         {
             let mut archive = HydrusTagArchive::new(&path).expect("archive");
 
-            archive.set_mappings(&hash_1, ["a:one", "b:two"]).expect("set");
+            archive
+                .set_mappings(&hash_1, ["a:one", "b:two"])
+                .expect("set");
             archive.add_mapping(&hash_2, "a:three").expect("add");
 
             let mut hashes = archive.iterate_hashes().expect("hashes");
@@ -1102,10 +1109,7 @@ mod tests {
 
             archive.delete_namespaces().expect("delete namespaces");
 
-            assert_eq!(
-                archive.get_namespaces(),
-                &BTreeSet::from([String::new()])
-            );
+            assert_eq!(archive.get_namespaces(), &BTreeSet::from([String::new()]));
 
             archive.optimise().expect("optimise");
         }
@@ -1154,7 +1158,9 @@ mod tests {
             assert!(!archive.has_pair_type_set());
             assert!(archive.add_pair("a", "b").is_err());
 
-            archive.set_pair_type(TagPairType::Siblings).expect("pair type");
+            archive
+                .set_pair_type(TagPairType::Siblings)
+                .expect("pair type");
 
             assert_eq!(archive.get_pair_type(), Some(TagPairType::Siblings));
             assert!(archive.has_pair_type_set());

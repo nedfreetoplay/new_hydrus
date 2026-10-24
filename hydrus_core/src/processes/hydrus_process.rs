@@ -23,10 +23,7 @@ fn running_file_path(db_path: &Path, instance: &str) -> std::path::PathBuf {
 }
 
 /// `get_sibling_process_ports( db_path, instance )`
-pub fn get_sibling_process_ports(
-    db_path: &Path,
-    instance: &str,
-) -> HydrusResult<Option<Vec<u16>>> {
+pub fn get_sibling_process_ports(db_path: &Path, instance: &str) -> HydrusResult<Option<Vec<u16>>> {
     let path = running_file_path(db_path, instance);
 
     if !path.exists() {
@@ -36,7 +33,10 @@ pub fn get_sibling_process_ports(
     let file_text = std::fs::read_to_string(&path).map_err(|e| {
         HydrusException::new(
             crate::hydrus_exceptions::ErrorKind::FileMissing,
-            format!("Could not read the running file \"{}\": {e}", path.display()),
+            format!(
+                "Could not read the running file \"{}\": {e}",
+                path.display()
+            ),
         )
     })?;
 
@@ -74,9 +74,7 @@ fn time_matches(process_time: f64, recorded_time: f64) -> bool {
 /// `is_already_running( db_path, instance )`
 pub fn is_already_running(db_path: &Path, instance: &str) -> bool {
     if !PSUTIL_OK {
-        safe_print(
-            "psutil is not available, so cannot do the \"already running?\" check!",
-        );
+        safe_print("psutil is not available, so cannot do the \"already running?\" check!");
 
         return false;
     }

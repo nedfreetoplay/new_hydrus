@@ -7,9 +7,9 @@
 
 use chrono::{Datelike, Timelike};
 
-use crate::hydrus_date_time;
 use crate::files::images::hydrus_image_icc_profiles_tag_slop as tag_slop;
-use crate::files::images::hydrus_image_math_slop::{float_to_s15_fixed16, Matrix3};
+use crate::files::images::hydrus_image_math_slop::{Matrix3, float_to_s15_fixed16};
+use crate::hydrus_date_time;
 
 const ICC_HEADER_SIZE: usize = 128;
 
@@ -83,12 +83,11 @@ pub fn make_gamma_and_chromaticity_icc_profile(
     gamma: f64,
     chromaticity_xyz_matrix_d50: Matrix3,
 ) -> Vec<u8> {
-    let desc = tag_slop::make_desc_tag("iccp")
-        .expect("the hard-coded ICC profile description is ASCII");
+    let desc =
+        tag_slop::make_desc_tag("iccp").expect("the hard-coded ICC profile description is ASCII");
     let cprt = tag_slop::make_text_tag("Generated from PNG gamma/chromaticities");
 
-    let (r_xyz, g_xyz, b_xyz) =
-        tag_slop::make_xyz_matrix_tags(chromaticity_xyz_matrix_d50);
+    let (r_xyz, g_xyz, b_xyz) = tag_slop::make_xyz_matrix_tags(chromaticity_xyz_matrix_d50);
 
     let trc = tag_slop::make_curv_gamma_tag(gamma);
 

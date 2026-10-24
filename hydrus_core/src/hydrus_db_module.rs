@@ -97,13 +97,8 @@ pub trait DBModule {
     }
 
     /// `_present_missing_indices_warning_to_user`
-    fn present_missing_indices_warning_to_user(
-        &self,
-        _index_names: &[String],
-    ) -> HydrusResult<()> {
-        Err(not_implemented(
-            "present_missing_indices_warning_to_user",
-        ))
+    fn present_missing_indices_warning_to_user(&self, _index_names: &[String]) -> HydrusResult<()> {
+        Err(not_implemented("present_missing_indices_warning_to_user"))
     }
 
     /// `get_tables_and_columns_that_use_definitions`
@@ -125,12 +120,7 @@ pub trait DBModule {
 
         for (table_name, index_rows) in index_generation_dict {
             for (columns, unique, version_added) in index_rows {
-                tuples.push((
-                    table_name.clone(),
-                    columns.clone(),
-                    *unique,
-                    *version_added,
-                ));
+                tuples.push((table_name.clone(), columns.clone(), *unique, *version_added));
             }
         }
 
@@ -157,13 +147,7 @@ pub trait DBModule {
             )?;
 
             if exists.is_none() {
-                let possible_suffixes = [
-                    "_content",
-                    "_docsize",
-                    "_segdir",
-                    "_segments",
-                    "_stat",
-                ];
+                let possible_suffixes = ["_content", "_docsize", "_segdir", "_segments", "_stat"];
 
                 for suffix in possible_suffixes {
                     let possible_subtable_name = format!("{raw_table_name}{suffix}");
@@ -182,10 +166,8 @@ pub trait DBModule {
             }
         }
 
-        self.db().execute(
-            &create_query_without_name.replace("{}", table_name),
-            &[],
-        )?;
+        self.db()
+            .execute(&create_query_without_name.replace("{}", table_name), &[])?;
 
         Ok(())
     }
@@ -319,7 +301,8 @@ pub trait DBModule {
         let missing_table_rows = table_generation_dict
             .iter()
             .filter(|(table_name, (_query, version_added))| {
-                *version_added <= current_db_version && !self.db().table_exists(table_name).unwrap_or(true)
+                *version_added <= current_db_version
+                    && !self.db().table_exists(table_name).unwrap_or(true)
             })
             .map(|(table_name, (query, _))| (table_name.clone(), query.clone()))
             .collect::<Vec<_>>();
@@ -441,7 +424,8 @@ pub trait DBModule {
         let missing_table_rows = table_generation_dict
             .iter()
             .filter(|(table_name, (_query, version_added))| {
-                *version_added <= current_db_version && !self.db().table_exists(table_name).unwrap_or(true)
+                *version_added <= current_db_version
+                    && !self.db().table_exists(table_name).unwrap_or(true)
             })
             .map(|(table_name, (query, _))| (table_name.clone(), query.clone()))
             .collect::<Vec<_>>();

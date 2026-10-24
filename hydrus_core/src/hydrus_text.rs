@@ -365,9 +365,7 @@ pub fn human_text_sort_key(text: &str) -> Vec<(String, u64)> {
 
 /// `human_text_sort`
 pub fn human_text_sort<S: AsMut<str> + AsRef<str>>(texts: &mut [S]) {
-    texts.sort_by(|a, b| {
-        human_text_sort_key(a.as_ref()).cmp(&human_text_sort_key(b.as_ref()))
-    });
+    texts.sort_by(|a, b| human_text_sort_key(a.as_ref()).cmp(&human_text_sort_key(b.as_ref())));
 }
 
 /// `human_text_sort` over owned strings.
@@ -377,9 +375,14 @@ pub fn human_text_sort_strings(texts: &mut [String]) {
 
 /// `looks_like_html`
 pub fn looks_like_html(file_data: &[u8]) -> bool {
-    [&b"<html"[..], b"<HTML", b"<!DOCTYPE html", b"<!DOCTYPE HTML"]
-        .iter()
-        .any(|needle| memmem(file_data, needle))
+    [
+        &b"<html"[..],
+        b"<HTML",
+        b"<!DOCTYPE html",
+        b"<!DOCTYPE HTML",
+    ]
+    .iter()
+    .any(|needle| memmem(file_data, needle))
 }
 
 pub fn looks_like_html_str(file_data: &str) -> bool {
@@ -443,7 +446,9 @@ pub fn non_failing_unicode_decode(
     };
 
     if !bogus_default {
-        if let Some(enc) = encoding.and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes())) {
+        if let Some(enc) =
+            encoding.and_then(|label| encoding_rs::Encoding::for_label(label.as_bytes()))
+        {
             let (text, _, had_errors) = enc.decode(data);
 
             if !had_errors {
@@ -541,7 +546,10 @@ mod tests {
     fn natural_sort_puts_numbers_before_text() {
         let mut texts = vec!["b".to_string(), "10".to_string(), "a".to_string()];
         human_text_sort_strings(&mut texts);
-        assert_eq!(texts, vec!["10".to_string(), "a".to_string(), "b".to_string()]);
+        assert_eq!(
+            texts,
+            vec!["10".to_string(), "a".to_string(), "b".to_string()]
+        );
     }
 
     #[test]

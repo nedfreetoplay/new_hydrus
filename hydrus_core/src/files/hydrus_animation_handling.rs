@@ -14,9 +14,9 @@ use std::path::Path;
 
 use image::GenericImageView;
 
+use crate::files::images::hydrus_image_handling;
 use crate::hydrus_constants::Mime;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::files::images::hydrus_image_handling;
 
 const FALLBACK_FRAME_DURATION_MS: u32 = 83;
 const APNG_FALLBACK_FRAME_DURATION_S: f64 = 0.1;
@@ -167,9 +167,7 @@ pub fn get_apng_num_frames(apng_actl_bytes: &[u8]) -> u32 {
 }
 
 /// `get_apng_duration_ms_and_num_frames( path )`
-pub fn get_apng_duration_ms_and_num_frames(
-    path: impl AsRef<Path>,
-) -> HydrusResult<(i64, u32)> {
+pub fn get_apng_duration_ms_and_num_frames(path: impl AsRef<Path>) -> HydrusResult<(i64, u32)> {
     let bytes = std::fs::read(path.as_ref()).map_err(|error| {
         HydrusException::new(
             ErrorKind::FileMissing,
@@ -282,10 +280,7 @@ fn gif_frame_durations_ms(bytes: &[u8]) -> HydrusResult<(Vec<u32>, u32)> {
                     let block_size = bytes[offset] as usize;
 
                     if block_size >= 4 && offset + 1 + 4 <= bytes.len() {
-                        let delay = u16::from_le_bytes([
-                            bytes[offset + 2],
-                            bytes[offset + 3],
-                        ]);
+                        let delay = u16::from_le_bytes([bytes[offset + 2], bytes[offset + 3]]);
 
                         current_delay = Some(if delay == 0 || delay == 1 {
                             // GIF delay 10 (1/100 s = 10 ms) and 0 are both
@@ -305,7 +300,10 @@ fn gif_frame_durations_ms(bytes: &[u8]) -> HydrusResult<(Vec<u32>, u32)> {
                     let app_start = offset + 1;
                     let app_end = app_start.saturating_add(block_size as usize);
 
-                    if bytes.get(app_start..app_end).is_some_and(|id| id.starts_with(b"NETSCAPE")) {
+                    if bytes
+                        .get(app_start..app_end)
+                        .is_some_and(|id| id.starts_with(b"NETSCAPE"))
+                    {
                         // Application extension data is a sequence of
                         // sub-blocks; the first one starts with 0x01.
                         let mut data_offset = app_end;

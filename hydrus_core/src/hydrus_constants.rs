@@ -201,9 +201,11 @@ pub const DOCUMENTATION_ADDING_NEW_DOWNLOADERS: &str = "adding_new_downloaders.h
 pub const DOCUMENTATION_DOWNLOADER_URL_CLASSES: &str = "downloader_url_classes.html";
 pub const DOCUMENTATION_GETTING_STARTED_SUBSCRIPTIONS: &str = "getting_started_subscriptions.html";
 pub const DOCUMENTATION_DATABASE_MIGRATION: &str = "database_migration.html";
-pub const DOCUMENTATION_DATABASE_MIGRATION_GRANULARITY: &str = "database_migration.html#granularity";
+pub const DOCUMENTATION_DATABASE_MIGRATION_GRANULARITY: &str =
+    "database_migration.html#granularity";
 pub const DOCUMENTATION_DUPLICATES: &str = "duplicates.html";
-pub const DOCUMENTATION_DUPLICATES_AUTO_RESOLUTION: &str = "advanced_duplicates_auto_resolution.html";
+pub const DOCUMENTATION_DUPLICATES_AUTO_RESOLUTION: &str =
+    "advanced_duplicates_auto_resolution.html";
 pub const DOCUMENTATION_DOWNLOADER_SHARING: &str = "downloader_sharing.html";
 pub const DOCUMENTATION_DOWNLOADER_PARSERS_PAGE_PARSERS_PAGE_PARSERS: &str =
     "downloader_parsers_page_parsers.html#page_parsers";
@@ -461,9 +463,7 @@ impl ContentUpdate {
             ContentUpdate::Decrement => "decrement",
             ContentUpdate::Move => "move (if not already in destination)",
             ContentUpdate::MoveMerge => "move (even if already in destination)",
-            ContentUpdate::DeleteFromSourceAfterMigrate => {
-                "delete from source after migrate"
-            }
+            ContentUpdate::DeleteFromSourceAfterMigrate => "delete from source after migrate",
         }
     }
 }
@@ -584,28 +584,100 @@ int_enum!(PermissionAction : u8 {
 /// `( content type, optional action ) -> description`
 pub const PERMISSION_PAIR_LOOKUP: &[(ContentType, Option<PermissionAction>, &str)] = &[
     (ContentType::Accounts, None, "cannot change accounts"),
-    (ContentType::Accounts, Some(PermissionAction::Create), "can create accounts"),
-    (ContentType::Accounts, Some(PermissionAction::Moderate), "can manage accounts completely"),
-    (ContentType::AccountTypes, None, "cannot change account types"),
-    (ContentType::AccountTypes, Some(PermissionAction::Moderate), "can manage account types completely"),
+    (
+        ContentType::Accounts,
+        Some(PermissionAction::Create),
+        "can create accounts",
+    ),
+    (
+        ContentType::Accounts,
+        Some(PermissionAction::Moderate),
+        "can manage accounts completely",
+    ),
+    (
+        ContentType::AccountTypes,
+        None,
+        "cannot change account types",
+    ),
+    (
+        ContentType::AccountTypes,
+        Some(PermissionAction::Moderate),
+        "can manage account types completely",
+    ),
     (ContentType::Options, None, "cannot change service options"),
-    (ContentType::Options, Some(PermissionAction::Moderate), "can manage service options completely"),
+    (
+        ContentType::Options,
+        Some(PermissionAction::Moderate),
+        "can manage service options completely",
+    ),
     (ContentType::Services, None, "cannot change services"),
-    (ContentType::Services, Some(PermissionAction::Moderate), "can manage services completely"),
+    (
+        ContentType::Services,
+        Some(PermissionAction::Moderate),
+        "can manage services completely",
+    ),
     (ContentType::Files, None, "can only download files"),
-    (ContentType::Files, Some(PermissionAction::Petition), "can petition to remove existing files"),
-    (ContentType::Files, Some(PermissionAction::Create), "can upload new files and petition existing ones"),
-    (ContentType::Files, Some(PermissionAction::Moderate), "can upload and delete files and process petitions"),
+    (
+        ContentType::Files,
+        Some(PermissionAction::Petition),
+        "can petition to remove existing files",
+    ),
+    (
+        ContentType::Files,
+        Some(PermissionAction::Create),
+        "can upload new files and petition existing ones",
+    ),
+    (
+        ContentType::Files,
+        Some(PermissionAction::Moderate),
+        "can upload and delete files and process petitions",
+    ),
     (ContentType::Mappings, None, "can only download mappings"),
-    (ContentType::Mappings, Some(PermissionAction::Petition), "can petition to remove existing mappings"),
-    (ContentType::Mappings, Some(PermissionAction::Create), "can upload new mappings and petition existing ones"),
-    (ContentType::Mappings, Some(PermissionAction::Moderate), "can upload and delete mappings and process petitions"),
-    (ContentType::TagParents, None, "can only download tag parents"),
-    (ContentType::TagParents, Some(PermissionAction::Petition), "can petition to add or remove tag parents"),
-    (ContentType::TagParents, Some(PermissionAction::Moderate), "can upload and delete tag parents and process petitions"),
-    (ContentType::TagSiblings, None, "can only download tag siblings"),
-    (ContentType::TagSiblings, Some(PermissionAction::Petition), "can petition to add or remove tag siblings"),
-    (ContentType::TagSiblings, Some(PermissionAction::Moderate), "can upload and delete tag siblings and process petitions"),
+    (
+        ContentType::Mappings,
+        Some(PermissionAction::Petition),
+        "can petition to remove existing mappings",
+    ),
+    (
+        ContentType::Mappings,
+        Some(PermissionAction::Create),
+        "can upload new mappings and petition existing ones",
+    ),
+    (
+        ContentType::Mappings,
+        Some(PermissionAction::Moderate),
+        "can upload and delete mappings and process petitions",
+    ),
+    (
+        ContentType::TagParents,
+        None,
+        "can only download tag parents",
+    ),
+    (
+        ContentType::TagParents,
+        Some(PermissionAction::Petition),
+        "can petition to add or remove tag parents",
+    ),
+    (
+        ContentType::TagParents,
+        Some(PermissionAction::Moderate),
+        "can upload and delete tag parents and process petitions",
+    ),
+    (
+        ContentType::TagSiblings,
+        None,
+        "can only download tag siblings",
+    ),
+    (
+        ContentType::TagSiblings,
+        Some(PermissionAction::Petition),
+        "can petition to add or remove tag siblings",
+    ),
+    (
+        ContentType::TagSiblings,
+        Some(PermissionAction::Moderate),
+        "can upload and delete tag siblings and process petitions",
+    ),
 ];
 
 pub fn permission_pair_description(
@@ -988,12 +1060,8 @@ impl Mime {
             Mime::Json => "application/json",
             Mime::Cbor => "application/cbor",
             Mime::Pdf => "application/pdf",
-            Mime::Docx => {
-                "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            }
-            Mime::Xlsx => {
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            }
+            Mime::Docx => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            Mime::Xlsx => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             Mime::Pptx => {
                 "application/vnd.openxmlformats-officedocument.presentationml.presentation"
             }
@@ -1181,15 +1249,14 @@ impl Mime {
             "image/jxl" => MimeLookup::One(Mime::Jxl),
             "image" => MimeLookup::Many(IMAGES),
             "application/x-shockwave-flash" => MimeLookup::One(Mime::Flash),
-            "application/x-photoshop" | "image/vnd.adobe.photoshop"
+            "application/x-photoshop"
+            | "image/vnd.adobe.photoshop"
             | "application/vnd.adobe.photoshop" => MimeLookup::One(Mime::Psd),
             "application/clip" => MimeLookup::One(Mime::Clip),
             "application/sai2" => MimeLookup::One(Mime::Sai2),
             "application/x-krita" => MimeLookup::One(Mime::Krita),
             "image/openraster" => MimeLookup::One(Mime::OpenRaster),
-            "image/vnd.paint.net" | "application/x-paintnet" => {
-                MimeLookup::One(Mime::PaintDotNet)
-            }
+            "image/vnd.paint.net" | "application/x-paintnet" => MimeLookup::One(Mime::PaintDotNet),
             "application/x-procreate" => MimeLookup::One(Mime::Procreate),
             "image/x-xcf" => MimeLookup::One(Mime::Xcf),
             "application/octet-stream" => MimeLookup::One(Mime::OctetStream),
@@ -1206,7 +1273,8 @@ impl Mime {
             }
             "application/msword" | "application/vnd.ms-word" => MimeLookup::One(Mime::Doc),
             "application/vnd.ms-excel" | "application/msexcel" => MimeLookup::One(Mime::Xls),
-            "application/vnd.ms-powerpoint" | "application/powerpoint"
+            "application/vnd.ms-powerpoint"
+            | "application/powerpoint"
             | "application/mspowerpoint" => MimeLookup::One(Mime::Ppt),
             "application/epub+zip" => MimeLookup::One(Mime::Epub),
             "image/vnd.djvu" | "image/vnd.djvu+multipage" | "image/x-djvu" => {
@@ -1384,8 +1452,7 @@ pub const GENERAL_CLASSES_OF_FILETYPE: &[Mime] = &[
     Mime::GeneralImageProject,
 ];
 
-pub const VIEWABLE_IMAGE_PROJECT_FILES: &[Mime] =
-    &[Mime::Psd, Mime::Krita, Mime::OpenRaster];
+pub const VIEWABLE_IMAGE_PROJECT_FILES: &[Mime] = &[Mime::Psd, Mime::Krita, Mime::OpenRaster];
 
 /// zip files that have a `mimetype` file inside
 pub const OPEN_DOCUMENT_ZIPS: &[Mime] = &[Mime::Krita, Mime::Epub, Mime::OpenRaster];
@@ -1476,8 +1543,12 @@ pub fn allowed_mimes() -> HashSet<Mime> {
 
 pub const DECOMPRESSION_BOMB_IMAGES: &[Mime] = &[Mime::Jpeg, Mime::Png];
 
-pub const PIL_HEIF_MIMES: &[Mime] =
-    &[Mime::Heif, Mime::HeifSequence, Mime::Heic, Mime::HeicSequence];
+pub const PIL_HEIF_MIMES: &[Mime] = &[
+    Mime::Heif,
+    Mime::HeifSequence,
+    Mime::Heic,
+    Mime::HeicSequence,
+];
 
 pub const PIL_AVIF_MIMES: &[Mime] = &[Mime::Avif];
 
@@ -2135,7 +2206,10 @@ mod tests {
 
     #[test]
     fn mime_lookups_work() {
-        assert_eq!(Mime::from_mimetype("image/jpeg"), Some(MimeLookup::One(Mime::Jpeg)));
+        assert_eq!(
+            Mime::from_mimetype("image/jpeg"),
+            Some(MimeLookup::One(Mime::Jpeg))
+        );
         assert_eq!(
             Mime::from_mimetype("image/gif"),
             Some(MimeLookup::One(Mime::AnimationGif))
@@ -2144,7 +2218,10 @@ mod tests {
             Mime::from_mimetype("image"),
             Some(MimeLookup::Many(IMAGES))
         ));
-        assert_eq!(Mime::from_nice_string("animated gif"), Some(Mime::AnimationGif));
+        assert_eq!(
+            Mime::from_nice_string("animated gif"),
+            Some(Mime::AnimationGif)
+        );
         assert_eq!(Mime::Jpeg.extension(), ".jpg");
         assert_eq!(Mime::Krita.extension(), ".kra");
         assert_eq!(Mime::AudioMkv.mimetype_str(), "audio/x-matroska");
@@ -2154,9 +2231,11 @@ mod tests {
     fn service_helpers_work() {
         assert!(REAL_FILE_SERVICES.contains(&ServiceType::LocalFileDomain));
         assert!(ALL_TAG_SERVICES.contains(&ServiceType::CombinedTag));
-        assert!(content_types_for_service(ServiceType::TagRepository)
-            .unwrap()
-            .contains(&ContentType::TagSiblings));
+        assert!(
+            content_types_for_service(ServiceType::TagRepository)
+                .unwrap()
+                .contains(&ContentType::TagSiblings)
+        );
         assert_eq!(
             permission_pair_description(ContentType::Files, Some(PermissionAction::Create)),
             Some("can upload new files and petition existing ones")
@@ -2167,7 +2246,10 @@ mod tests {
     fn general_mime_grouping_works() {
         assert_eq!(general_mimetype_for(Mime::Mp3), Some(Mime::GeneralAudio));
         assert_eq!(general_mimetype_for(Mime::Jpeg), Some(Mime::GeneralImage));
-        assert_eq!(general_mimetype_for(Mime::Zip), Some(Mime::GeneralAppArchive));
+        assert_eq!(
+            general_mimetype_for(Mime::Zip),
+            Some(Mime::GeneralAppArchive)
+        );
         assert_eq!(general_mimetype_for(Mime::Unknown), None);
     }
 

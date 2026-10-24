@@ -6,11 +6,11 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::hydrus_constants::{content_base_dir, USERPATH_SVG_ICON};
-use crate::hydrus_exceptions::{not_found, HydrusResult};
+use crate::hydrus_constants::{USERPATH_SVG_ICON, content_base_dir};
+use crate::hydrus_exceptions::{HydrusResult, not_found};
 use crate::hydrus_globals::db_dir;
 
 /// `INSTALL_STATIC_DIR`
@@ -64,10 +64,7 @@ pub fn get_static_path(sub_path: &str, force_install_dir: bool) -> PathBuf {
 /// `get_static_path_with_result( sub_path, force_install_dir = False )`
 ///
 /// Returns `(path, was_userdir)`.
-pub fn get_static_path_with_result(
-    sub_path: &str,
-    force_install_dir: bool,
-) -> (PathBuf, bool) {
+pub fn get_static_path_with_result(sub_path: &str, force_install_dir: bool) -> (PathBuf, bool) {
     if !force_install_dir && use_user_static_dir() {
         if let Some(db_dir) = db_dir() {
             let user_path = db_dir.join("static").join(sub_path);
@@ -143,10 +140,14 @@ mod tests {
 
     #[test]
     fn install_path_is_the_fallback() {
-        let (path, was_userdir) = get_static_path_with_result("definitely-not-a-real-file.png", true);
+        let (path, was_userdir) =
+            get_static_path_with_result("definitely-not-a-real-file.png", true);
 
         assert!(!was_userdir);
-        assert_eq!(path, INSTALL_STATIC_DIR.join("definitely-not-a-real-file.png"));
+        assert_eq!(
+            path,
+            INSTALL_STATIC_DIR.join("definitely-not-a-real-file.png")
+        );
     }
 
     #[test]

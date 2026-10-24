@@ -4,8 +4,8 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::time::{Duration, Instant};
 
-use rand::seq::SliceRandom;
 use rand::Rng;
+use rand::seq::SliceRandom;
 
 use crate::hydrus_exceptions::{ErrorKind, HydrusException};
 
@@ -121,7 +121,8 @@ where
 
     pub fn insert_items<I: IntoIterator<Item = T>>(&mut self, items: I, insertion_index: usize) {
         for (offset, item) in items.into_iter().enumerate() {
-            self.items.insert((insertion_index + offset).min(self.items.len()), item);
+            self.items
+                .insert((insertion_index + offset).min(self.items.len()), item);
         }
 
         self.mark_dirty();
@@ -285,7 +286,10 @@ where
     I: IntoIterator<Item = J>,
     J: IntoIterator<Item = T>,
 {
-    iterables.into_iter().flat_map(IntoIterator::into_iter).collect()
+    iterables
+        .into_iter()
+        .flat_map(IntoIterator::into_iter)
+        .collect()
 }
 
 /// `mass_union`
@@ -353,10 +357,7 @@ pub fn random_pop<T>(population: &mut Vec<T>) -> Option<T> {
 }
 
 /// `sample_set_by_getting_first`: not truly random, but cheap for big sets.
-pub fn sample_set_by_getting_first<T: Clone + Eq + Hash>(
-    s: &HashSet<T>,
-    n: usize,
-) -> HashSet<T> {
+pub fn sample_set_by_getting_first<T: Clone + Eq + Hash>(s: &HashSet<T>, n: usize) -> HashSet<T> {
     s.iter().take(n).cloned().collect()
 }
 
@@ -373,10 +374,7 @@ where
 }
 
 /// `smooth_out_mapping_iterator`: split `( tag, big list of hashes )` up.
-pub fn smooth_out_mapping_iterator<T, U, I>(
-    xs: I,
-    n: usize,
-) -> Vec<(T, Vec<U>)>
+pub fn smooth_out_mapping_iterator<T, U, I>(xs: I, n: usize) -> Vec<(T, Vec<U>)>
 where
     I: IntoIterator<Item = (T, Vec<U>)>,
     T: Clone,
@@ -615,8 +613,7 @@ mod tests {
 
     #[test]
     fn partition_splits() {
-        let (evens, odds) =
-            partition_iterator_into_lists(|x: &i32| x % 2 == 0, vec![1, 2, 3, 4]);
+        let (evens, odds) = partition_iterator_into_lists(|x: &i32| x % 2 == 0, vec![1, 2, 3, 4]);
 
         assert_eq!(evens, vec![1, 3]);
         assert_eq!(odds, vec![2, 4]);

@@ -73,9 +73,7 @@ fn pointer_of(value: &Value) -> Option<usize> {
     match value {
         Value::Uid(uid) => Some(uid.get() as usize),
         Value::Integer(integer) => integer.as_unsigned().map(|value| value as usize),
-        Value::Dictionary(dictionary) => dictionary
-            .get("CF$UID")
-            .and_then(pointer_of),
+        Value::Dictionary(dictionary) => dictionary.get("CF$UID").and_then(pointer_of),
         _ => None,
     }
 }
@@ -84,7 +82,10 @@ fn integer_of(value: &Value) -> Option<i64> {
     match value {
         Value::Uid(uid) => Some(uid.get() as i64),
         Value::Integer(integer) => integer.as_signed(),
-        Value::Dictionary(dictionary) => dictionary.get("CF$UID").and_then(pointer_of).map(|value| value as i64),
+        Value::Dictionary(dictionary) => dictionary
+            .get("CF$UID")
+            .and_then(pointer_of)
+            .map(|value| value as i64),
         _ => None,
     }
 }
@@ -141,8 +142,8 @@ mod tests {
     use super::*;
     use std::io::Write;
     use std::path::PathBuf;
-    use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
+    use zip::write::SimpleFileOptions;
 
     fn unique_path(label: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -186,12 +187,16 @@ mod tests {
         let options = SimpleFileOptions::default();
 
         if let Some(document) = document {
-            writer.start_file(PROCREATE_DOCUMENT_ARCHIVE, options).unwrap();
+            writer
+                .start_file(PROCREATE_DOCUMENT_ARCHIVE, options)
+                .unwrap();
             writer.write_all(document.as_bytes()).unwrap();
         }
 
         if let Some(thumbnail) = thumbnail {
-            writer.start_file(PROCREATE_THUMBNAIL_FILE_PATH, options).unwrap();
+            writer
+                .start_file(PROCREATE_THUMBNAIL_FILE_PATH, options)
+                .unwrap();
             writer.write_all(thumbnail).unwrap();
         }
 

@@ -134,9 +134,11 @@ impl HydrusRatingArchive {
     /// `get_rating( hash )`
     pub fn get_rating(&self, hash: &[u8]) -> HydrusResult<Option<f64>> {
         self.connection
-            .query_row("SELECT rating FROM ratings WHERE hash = ?;", params![hash], |row| {
-                row.get::<_, f64>(0)
-            })
+            .query_row(
+                "SELECT rating FROM ratings WHERE hash = ?;",
+                params![hash],
+                |row| row.get::<_, f64>(0),
+            )
             .optional()
             .map_err(|error| db_error("Could not read a rating", error))
     }
@@ -144,9 +146,11 @@ impl HydrusRatingArchive {
     /// `has_hash( hash )`
     pub fn has_hash(&self, hash: &[u8]) -> HydrusResult<bool> {
         self.connection
-            .query_row("SELECT 1 FROM ratings WHERE hash = ?;", params![hash], |row| {
-                row.get::<_, i64>(0)
-            })
+            .query_row(
+                "SELECT 1 FROM ratings WHERE hash = ?;",
+                params![hash],
+                |row| row.get::<_, i64>(0),
+            )
             .optional()
             .map(|result| result.is_some())
             .map_err(|error| db_error("Could not look up a rating", error))
@@ -245,7 +249,10 @@ mod tests {
             archive.set_hash_type(HashType::Sha256).expect("hash type");
             archive.set_number_of_stars(5).expect("stars");
 
-            assert_eq!(archive.get_hash_type().expect("hash type"), HashType::Sha256);
+            assert_eq!(
+                archive.get_hash_type().expect("hash type"),
+                HashType::Sha256
+            );
             assert_eq!(archive.get_number_of_stars().expect("stars"), 5);
             assert_eq!(archive.get_name(), "archive");
 

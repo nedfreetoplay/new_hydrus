@@ -23,8 +23,8 @@ use crate::hydrus_globals;
 use crate::hydrus_paths;
 use crate::hydrus_profiling;
 use crate::hydrus_pubsub::PubSubMessage;
-use crate::hydrus_time;
 use crate::hydrus_temp;
+use crate::hydrus_time;
 
 /// The connection every db object in a process shares.
 pub type SharedConnection = Arc<Mutex<Connection>>;
@@ -80,8 +80,8 @@ pub fn check_has_space_for_db_transaction(
 
         let temp_disk_free_space = hydrus_paths::get_free_space(&temp_dir);
 
-        let temp_and_db_on_same_device = hydrus_paths::get_device_id(&temp_dir).ok()
-            == hydrus_paths::get_device_id(db_dir).ok();
+        let temp_and_db_on_same_device =
+            hydrus_paths::get_device_id(&temp_dir).ok() == hydrus_paths::get_device_id(db_dir).ok();
 
         if temp_and_db_on_same_device && temp_space_needed > 0 {
             let space_needed = temp_space_needed + destination_space_needed;
@@ -226,12 +226,7 @@ impl TemporaryIntegerTableNameCache {
 
         let counter = *state.counters.get(&key).unwrap_or(&0);
 
-        let table_name = format!(
-            "mem.temp_{}_int_{}_{}",
-            key.len(),
-            key.join("_"),
-            counter
-        );
+        let table_name = format!("mem.temp_{}_int_{}_{}", key.len(), key.join("_"), counter);
 
         // Python appends then immediately pops the freshly made name, so it is
         // handed out without entering the free list.
@@ -273,7 +268,10 @@ impl TemporaryIntegerTable {
         column_name: &str,
     ) -> HydrusResult<Self> {
         // Python converts the iterable to a set, so duplicate ids collapse.
-        let unique_integers = integers.iter().copied().collect::<std::collections::BTreeSet<_>>();
+        let unique_integers = integers
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
 
         let rows = unique_integers
             .into_iter()
@@ -306,52 +304,59 @@ impl TemporaryIntegerTable {
         };
 
         // Python also folds the iterable of tuples into a set.
-        let unique_rows = rows.iter().cloned().collect::<std::collections::BTreeSet<_>>();
+        let unique_rows = rows
+            .iter()
+            .cloned()
+            .collect::<std::collections::BTreeSet<_>>();
 
         {
             let connection = lock_connection(&table.connection);
 
             if !initialised {
-            if table.column_names.len() == 1 {
-                connection
-                    .execute(
-                        &format!(
-                            "CREATE TABLE IF NOT EXISTS {} ( {} INTEGER PRIMARY KEY );",
-                            table.table_name, table.column_names[0]
-                        ),
-                        [],
-                    )
-                    .map_err(|error| db_error("Could not create a temporary integer table", error))?;
-            } else {
-                let column_defs = table
-                    .column_names
-                    .iter()
-                    .map(|name| format!("{name} INTEGER"))
-                    .collect::<Vec<_>>()
-                    .join(", ");
+                if table.column_names.len() == 1 {
+                    connection
+                        .execute(
+                            &format!(
+                                "CREATE TABLE IF NOT EXISTS {} ( {} INTEGER PRIMARY KEY );",
+                                table.table_name, table.column_names[0]
+                            ),
+                            [],
+                        )
+                        .map_err(|error| {
+                            db_error("Could not create a temporary integer table", error)
+                        })?;
+                } else {
+                    let column_defs = table
+                        .column_names
+                        .iter()
+                        .map(|name| format!("{name} INTEGER"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
 
-                let columns_listed = table.column_names.join(", ");
-
-                connection
-                    .execute(
-                        &format!(
-                            "CREATE TABLE IF NOT EXISTS {} ( {}, PRIMARY KEY ( {} ) );",
-                            table.table_name, column_defs, columns_listed
-                        ),
-                        [],
-                    )
-                    .map_err(|error| db_error("Could not create a temporary integer table", error))?;
-
-                let table_name_simple = table
-                    .table_name
-                    .split_once('.')
-                    .map(|(_, simple)| simple)
-                    .unwrap_or(&table.table_name);
-
-                for column_name in &table.column_names {
-                    let index_name = format!("{}_{}_index", table.table_name, column_name);
+                    let columns_listed = table.column_names.join(", ");
 
                     connection
+                        .execute(
+                            &format!(
+                                "CREATE TABLE IF NOT EXISTS {} ( {}, PRIMARY KEY ( {} ) );",
+                                table.table_name, column_defs, columns_listed
+                            ),
+                            [],
+                        )
+                        .map_err(|error| {
+                            db_error("Could not create a temporary integer table", error)
+                        })?;
+
+                    let table_name_simple = table
+                        .table_name
+                        .split_once('.')
+                        .map(|(_, simple)| simple)
+                        .unwrap_or(&table.table_name);
+
+                    for column_name in &table.column_names {
+                        let index_name = format!("{}_{}_index", table.table_name, column_name);
+
+                        connection
                         .execute(
                             &format!(
                                 "CREATE INDEX IF NOT EXISTS {index_name} ON {table_name_simple} ({column_name});"
@@ -361,40 +366,40 @@ impl TemporaryIntegerTable {
                         .map_err(|error| {
                             db_error("Could not create a temporary integer table index", error)
                         })?;
+                    }
                 }
             }
-        }
 
-        let column_tup = table.column_names.join(", ");
-        let qmark_tup = (0..table.column_names.len())
-            .map(|_| "?")
-            .collect::<Vec<_>>()
-            .join(", ");
+            let column_tup = table.column_names.join(", ");
+            let qmark_tup = (0..table.column_names.len())
+                .map(|_| "?")
+                .collect::<Vec<_>>()
+                .join(", ");
 
-        let mut statement = connection
-            .prepare(&format!(
-                "INSERT INTO {} ( {column_tup} ) VALUES ( {qmark_tup} );",
-                table.table_name
-            ))
-            .map_err(|error| db_error("Could not prepare the temporary table insert", error))?;
+            let mut statement = connection
+                .prepare(&format!(
+                    "INSERT INTO {} ( {column_tup} ) VALUES ( {qmark_tup} );",
+                    table.table_name
+                ))
+                .map_err(|error| db_error("Could not prepare the temporary table insert", error))?;
 
-        for row in &unique_rows {
-            if row.len() != table.column_names.len() {
-                return Err(db_error(
-                    "Temporary integer table row has the wrong number of columns",
-                    rusqlite::Error::InvalidQuery,
-                ));
+            for row in &unique_rows {
+                if row.len() != table.column_names.len() {
+                    return Err(db_error(
+                        "Temporary integer table row has the wrong number of columns",
+                        rusqlite::Error::InvalidQuery,
+                    ));
+                }
+
+                let values = row
+                    .iter()
+                    .map(|value| value as &dyn ToSql)
+                    .collect::<Vec<_>>();
+
+                statement.execute(values.as_slice()).map_err(|error| {
+                    db_error("Could not populate a temporary integer table", error)
+                })?;
             }
-
-            let values = row
-                .iter()
-                .map(|value| value as &dyn ToSql)
-                .collect::<Vec<_>>();
-
-            statement
-                .execute(values.as_slice())
-                .map_err(|error| db_error("Could not populate a temporary integer table", error))?;
-        }
         }
 
         Ok(table)
@@ -413,8 +418,14 @@ impl Drop for TemporaryIntegerTable {
             let _ = connection.execute(&format!("DELETE FROM {};", self.table_name), []);
         }
 
-        TemporaryIntegerTableNameCache::instance()
-            .release_name(&self.column_names.iter().map(String::as_str).collect::<Vec<_>>(), &self.table_name);
+        TemporaryIntegerTableNameCache::instance().release_name(
+            &self
+                .column_names
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            &self.table_name,
+        );
     }
 }
 
@@ -460,7 +471,10 @@ impl JobDatabase {
 
     /// `get_result`. Waits for the db thread, then re-raises or returns.
     pub fn get_result(&self) -> HydrusResult<Box<dyn std::any::Any + Send>> {
-        let mut result = self.result.lock().unwrap_or_else(|error| error.into_inner());
+        let mut result = self
+            .result
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
 
         while result.is_none() {
             result = self
@@ -483,7 +497,10 @@ impl JobDatabase {
     /// `put_result( result )`
     pub fn put_result(&self, value: HydrusResult<Box<dyn std::any::Any + Send>>) {
         {
-            let mut result = self.result.lock().unwrap_or_else(|error| error.into_inner());
+            let mut result = self
+                .result
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
 
             *result = Some(value);
         }
@@ -514,12 +531,8 @@ impl DBBase {
     pub fn open(path: impl AsRef<Path>) -> HydrusResult<Self> {
         let path = path.as_ref();
 
-        let connection = Connection::open(path).map_err(|error| {
-            db_error(
-                format!("Could not open \"{}\"", path.display()),
-                error,
-            )
-        })?;
+        let connection = Connection::open(path)
+            .map_err(|error| db_error(format!("Could not open \"{}\"", path.display()), error))?;
 
         Ok(Self::new(Arc::new(Mutex::new(connection))))
     }
@@ -532,11 +545,7 @@ impl DBBase {
         lock_connection(&self.connection)
     }
 
-    fn maybe_print_query_plan(
-        connection: &Connection,
-        query: &str,
-        query_args: &[&dyn ToSql],
-    ) {
+    fn maybe_print_query_plan(connection: &Connection, query: &str, query_args: &[&dyn ToSql]) {
         if !hydrus_profiling::query_planner_mode() || hydrus_profiling::query_was_planned(query) {
             return;
         }
@@ -633,10 +642,9 @@ impl DBBase {
             .next()
             .map_err(|error| db_error(format!("Could not read a row from \"{query}\""), error))?
         {
-            results.push(
-                mapper(row)
-                    .map_err(|error| db_error(format!("Could not read a row from \"{query}\""), error))?,
-            );
+            results.push(mapper(row).map_err(|error| {
+                db_error(format!("Could not read a row from \"{query}\""), error)
+            })?);
 
             if let Some(hook) = cancelled_hook
                 && hook()
@@ -691,7 +699,9 @@ impl DBBase {
         let mut results = Vec::new();
 
         for row in rows {
-            results.push(row.map_err(|error| db_error(format!("Could not read a row from \"{query}\""), error))?);
+            results.push(row.map_err(|error| {
+                db_error(format!("Could not read a row from \"{query}\""), error)
+            })?);
         }
 
         Ok(results)
@@ -789,7 +799,10 @@ impl DBBase {
     /// `_get_row_count`. A negative rusqlite count means "unknown", like -1 in
     /// Python.
     pub fn get_row_count(&self) -> usize {
-        self.connection.lock().map(|connection| connection.changes()).unwrap_or(0) as usize
+        self.connection
+            .lock()
+            .map(|connection| connection.changes())
+            .unwrap_or(0) as usize
     }
 
     /// `_get_sum_result`
@@ -806,9 +819,7 @@ impl DBBase {
 
         for schema in search_schemas {
             let result = self.query_one(
-                &format!(
-                    "SELECT 1 FROM {schema}.sqlite_master WHERE name = ? and type = ?;"
-                ),
+                &format!("SELECT 1 FROM {schema}.sqlite_master WHERE name = ? and type = ?;"),
                 &[&index_name, &"index"],
                 |row| row.get::<_, i64>(0),
             )?;
@@ -898,9 +909,7 @@ impl DBBase {
 
         for schema in search_schemas {
             let result = self.query_one(
-                &format!(
-                    "SELECT 1 FROM {schema}.sqlite_master WHERE name = ? AND type = ?;"
-                ),
+                &format!("SELECT 1 FROM {schema}.sqlite_master WHERE name = ? AND type = ?;"),
                 &[&table_name, &"table"],
                 |row| row.get::<_, i64>(0),
             )?;
@@ -1041,9 +1050,7 @@ impl DBCursorTransactionWrapper {
                 self.last_wal_passive_checkpoint_time = hydrus_time::get_now();
             }
 
-            if hydrus_time::time_has_passed(Some(
-                self.last_mem_refresh_time + MEM_REFRESH_PERIOD,
-            )) {
+            if hydrus_time::time_has_passed(Some(self.last_mem_refresh_time + MEM_REFRESH_PERIOD)) {
                 self.db.execute("DETACH mem;", &[])?;
                 self.db.execute("ATTACH \":memory:\" AS mem;", &[])?;
 
@@ -1200,7 +1207,9 @@ mod tests {
 
     #[test]
     fn temporary_table_names_are_reused() {
-        let _guard = TEMP_TABLE_TEST_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+        let _guard = TEMP_TABLE_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
 
         let cache = TemporaryIntegerTableNameCache::instance();
 
@@ -1227,11 +1236,14 @@ mod tests {
 
     #[test]
     fn temporary_integer_table_round_trip() {
-        let _guard = TEMP_TABLE_TEST_LOCK.lock().unwrap_or_else(|error| error.into_inner());
+        let _guard = TEMP_TABLE_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
 
         let (db, path) = new_db("temp_table");
 
-        db.execute("ATTACH \":memory:\" AS mem;", &[]).expect("attach");
+        db.execute("ATTACH \":memory:\" AS mem;", &[])
+            .expect("attach");
 
         let table_name;
 
@@ -1306,7 +1318,11 @@ mod tests {
                 .expect("actual index")
         );
 
-        assert!(db.get_attached_database_names(false).expect("names").contains(&"main".to_string()));
+        assert!(
+            db.get_attached_database_names(false)
+                .expect("names")
+                .contains(&"main".to_string())
+        );
 
         drop(std::fs::remove_file(&path));
         drop(std::fs::remove_dir_all(path.parent().unwrap()));

@@ -9,9 +9,9 @@ use std::path::Path;
 
 use image::DynamicImage;
 
-use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::files::hydrus_ffmpeg_rendering;
 use crate::files::images::hydrus_image_handling;
+use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 
 /// `( resource_id, size, data_offset )`
 pub type PsdImageResource = (u16, u32, u64);
@@ -49,7 +49,10 @@ pub fn get_psd_image_resources(path: impl AsRef<Path>) -> HydrusResult<Vec<PsdIm
     let mut file = std::fs::File::open(path).map_err(|error| {
         HydrusException::new(
             ErrorKind::FileMissing,
-            format!("Could not open the PSD file at \"{}\": {error}", path.display()),
+            format!(
+                "Could not open the PSD file at \"{}\": {error}",
+                path.display()
+            ),
         )
     })?;
 
@@ -185,7 +188,9 @@ pub fn parse_ffmpeg_psd_line(lines: &[String]) -> HydrusResult<String> {
     lines
         .iter()
         .find(|line| {
-            line.trim_start().starts_with("Stream") && line.contains("Video: ") && line.contains("psd")
+            line.trim_start().starts_with("Stream")
+                && line.contains("Video: ")
+                && line.contains("psd")
         })
         .cloned()
         .ok_or_else(|| {
@@ -200,7 +205,8 @@ pub fn parse_ffmpeg_psd_line(lines: &[String]) -> HydrusResult<String> {
 pub fn parse_ffmpeg_psd_resolution(lines: &[String]) -> HydrusResult<(u32, u32)> {
     let line = parse_ffmpeg_psd_line(lines)?;
 
-    let regex = regex::Regex::new(r" ([0-9]+)x([0-9]+)[, ]").expect("the PSD resolution regex is valid");
+    let regex =
+        regex::Regex::new(r" ([0-9]+)x([0-9]+)[, ]").expect("the PSD resolution regex is valid");
 
     let Some(captures) = regex.captures(&line) else {
         return Err(HydrusException::new(
@@ -209,12 +215,12 @@ pub fn parse_ffmpeg_psd_resolution(lines: &[String]) -> HydrusResult<(u32, u32)>
         ));
     };
 
-    let width = captures[1]
-        .parse::<u32>()
-        .map_err(|_| HydrusException::new(ErrorKind::NoResolutionFile, "Error parsing resolution!"))?;
-    let height = captures[2]
-        .parse::<u32>()
-        .map_err(|_| HydrusException::new(ErrorKind::NoResolutionFile, "Error parsing resolution!"))?;
+    let width = captures[1].parse::<u32>().map_err(|_| {
+        HydrusException::new(ErrorKind::NoResolutionFile, "Error parsing resolution!")
+    })?;
+    let height = captures[2].parse::<u32>().map_err(|_| {
+        HydrusException::new(ErrorKind::NoResolutionFile, "Error parsing resolution!")
+    })?;
 
     Ok((width, height))
 }
@@ -272,7 +278,10 @@ pub fn get_psd_resolution(path: impl AsRef<Path>) -> HydrusResult<(u32, u32)> {
     let mut file = std::fs::File::open(path).map_err(|error| {
         HydrusException::new(
             ErrorKind::FileMissing,
-            format!("Could not open the PSD file at \"{}\": {error}", path.display()),
+            format!(
+                "Could not open the PSD file at \"{}\": {error}",
+                path.display()
+            ),
         )
     })?;
 

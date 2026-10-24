@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::time::Duration;
 
 use chrono::{Datelike, NaiveDate, TimeZone, Utc};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::hydrus_constants::BandwidthType;
 use crate::hydrus_data::{convert_value_range_to_bytes, to_human_bytes};
@@ -23,10 +23,12 @@ use crate::hydrus_date_time::from_timestamp_utc;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::hydrus_numbers::{base_to_human_int, value_range_to_pretty_string};
 use crate::hydrus_serialisable::{
-    register_serialisable_type, SerialisableObject, SERIALISABLE_TYPE_BANDWIDTH_RULES,
-    SERIALISABLE_TYPE_BANDWIDTH_TRACKER,
+    SERIALISABLE_TYPE_BANDWIDTH_RULES, SERIALISABLE_TYPE_BANDWIDTH_TRACKER, SerialisableObject,
+    register_serialisable_type,
 };
-use crate::hydrus_time::{get_now, get_timedelta_until_time, time_delta_to_pretty_timedelta, time_has_passed};
+use crate::hydrus_time::{
+    get_now, get_timedelta_until_time, time_delta_to_pretty_timedelta, time_has_passed,
+};
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|error| error.into_inner())
@@ -43,11 +45,7 @@ pub struct BandwidthRule {
 }
 
 impl BandwidthRule {
-    pub fn new(
-        bandwidth_type: BandwidthType,
-        time_delta: Option<i64>,
-        max_allowed: i64,
-    ) -> Self {
+    pub fn new(bandwidth_type: BandwidthType, time_delta: Option<i64>, max_allowed: i64) -> Self {
         Self {
             bandwidth_type,
             time_delta,
@@ -224,12 +222,21 @@ impl BandwidthRules {
         }
     }
 
-    pub fn add_rule(&self, bandwidth_type: BandwidthType, time_delta: Option<i64>, max_allowed: i64) {
+    pub fn add_rule(
+        &self,
+        bandwidth_type: BandwidthType,
+        time_delta: Option<i64>,
+        max_allowed: i64,
+    ) {
         lock(&self.rules).insert(BandwidthRule::new(bandwidth_type, time_delta, max_allowed));
     }
 
     /// `can_continue_download( bandwidth_tracker, threshold = 15 )`
-    pub fn can_continue_download(&self, bandwidth_tracker: &BandwidthTracker, threshold: i64) -> bool {
+    pub fn can_continue_download(
+        &self,
+        bandwidth_tracker: &BandwidthTracker,
+        threshold: i64,
+    ) -> bool {
         for rule in lock(&self.rules).iter().copied() {
             // Do not stop ongoing work just because starts are throttled.
             let requests_rule = rule.bandwidth_type == BandwidthType::Requests;
@@ -336,7 +343,8 @@ impl BandwidthRules {
         let mut rows = Vec::new();
 
         for rule in rules {
-            let time_is_less_than_threshold = rule.time_delta.is_some_and(|delta| delta <= threshold);
+            let time_is_less_than_threshold =
+                rule.time_delta.is_some_and(|delta| delta <= threshold);
 
             if time_is_less_than_threshold || rule.max_allowed == 0 {
                 continue;
@@ -353,7 +361,10 @@ impl BandwidthRules {
                 )),
                 BandwidthType::Requests => text.push_str(&format!(
                     "{} requests",
-                    value_range_to_pretty_string(Some(usage as i128), Some(rule.max_allowed as i128))
+                    value_range_to_pretty_string(
+                        Some(usage as i128),
+                        Some(rule.max_allowed as i128)
+                    )
                 )),
             }
 
@@ -361,7 +372,11 @@ impl BandwidthRules {
                 None => text.push_str(" this month"),
                 Some(delta) => {
                     text.push_str(" in the past ");
-                    text.push_str(&time_delta_to_pretty_timedelta(Some(delta as f64), true, false));
+                    text.push_str(&time_delta_to_pretty_timedelta(
+                        Some(delta as f64),
+                        true,
+                        false,
+                    ));
                 }
             }
 
@@ -394,13 +409,15 @@ impl SerialisableObject for BandwidthRules {
 
         rules.sort();
 
-        Value::Array(rules.into_iter().map(BandwidthRule::to_serialisable_info).collect())
+        Value::Array(
+            rules
+                .into_iter()
+                .map(BandwidthRule::to_serialisable_info)
+                .collect(),
+        )
     }
 
-    fn initialise_from_serialisable_info(
-        &mut self,
-        serialisable_info: &Value,
-    ) -> HydrusResult<()> {
+    fn initialise_from_serialisable_info(&mut self, serialisable_info: &Value) -> HydrusResult<()> {
         let rule_values = serialisable_info.as_array().ok_or_else(|| {
             HydrusException::new(
                 ErrorKind::Serialisation,
@@ -515,9 +532,7 @@ impl TrackerState {
 
             return match bandwidth_type {
                 BandwidthType::Data => *self.months_bytes.get(&month_time).unwrap_or(&0),
-                BandwidthType::Requests => {
-                    *self.months_requests.get(&month_time).unwrap_or(&0)
-                }
+                BandwidthType::Requests => *self.months_requests.get(&month_time).unwrap_or(&0),
             };
         };
 
@@ -607,9 +622,13 @@ impl TrackerState {
         self.next_cache_maintenance_timestamp = get_now() + CACHE_MAINTENANCE_TIME_DELTA;
     }
 
-    fn usage(&mut self, bandwidth_type: BandwidthType, time_delta: Option<i64>, for_user: bool) -> i64 {
-        let usage = if for_user
-            && time_delta.is_some_and(|delta| delta <= MIN_TIME_DELTA_FOR_USER)
+    fn usage(
+        &mut self,
+        bandwidth_type: BandwidthType,
+        time_delta: Option<i64>,
+        for_user: bool,
+    ) -> i64 {
+        let usage = if for_user && time_delta.is_some_and(|delta| delta <= MIN_TIME_DELTA_FOR_USER)
         {
             self.weighted_approximate_usage(time_delta.unwrap_or(0))
         } else {
@@ -704,7 +723,9 @@ impl BandwidthTracker {
             .iter()
             .map(|(month_time, usage)| {
                 (
-                    from_timestamp_utc(*month_time as f64).format("%Y-%m").to_string(),
+                    from_timestamp_utc(*month_time as f64)
+                        .format("%Y-%m")
+                        .to_string(),
                     *usage,
                 )
             })
@@ -774,8 +795,10 @@ impl BandwidthTracker {
 
         let counter = state.counter(bandwidth_type, kind);
 
-        let mut time_and_values: Vec<(i64, i64)> =
-            counter.iter().map(|(time, value)| (*time, *value)).collect();
+        let mut time_and_values: Vec<(i64, i64)> = counter
+            .iter()
+            .map(|(time, value)| (*time, *value))
+            .collect();
 
         time_and_values.sort_by(|a, b| b.cmp(a));
 
@@ -827,8 +850,10 @@ impl SerialisableObject for BandwidthTracker {
         let state = lock(&self.state);
 
         fn flat(counter: &HashMap<i64, i64>) -> Value {
-            let mut entries: Vec<(i64, i64)> =
-                counter.iter().map(|(time, value)| (*time, *value)).collect();
+            let mut entries: Vec<(i64, i64)> = counter
+                .iter()
+                .map(|(time, value)| (*time, *value))
+                .collect();
 
             entries.sort();
 
@@ -854,10 +879,7 @@ impl SerialisableObject for BandwidthTracker {
         ])
     }
 
-    fn initialise_from_serialisable_info(
-        &mut self,
-        serialisable_info: &Value,
-    ) -> HydrusResult<()> {
+    fn initialise_from_serialisable_info(&mut self, serialisable_info: &Value) -> HydrusResult<()> {
         let counters = serialisable_info.as_array().ok_or_else(|| {
             HydrusException::new(
                 ErrorKind::Serialisation,
@@ -998,11 +1020,17 @@ mod tests {
         tracker.report_request_used(3);
 
         assert_eq!(tracker.get_usage(BandwidthType::Data, Some(1), false), 1000);
-        assert_eq!(tracker.get_usage(BandwidthType::Data, Some(60), false), 1000);
+        assert_eq!(
+            tracker.get_usage(BandwidthType::Data, Some(60), false),
+            1000
+        );
         assert_eq!(tracker.get_usage(BandwidthType::Data, None, false), 1000);
         assert_eq!(tracker.get_all_usage(BandwidthType::Data), 1000);
 
-        assert_eq!(tracker.get_usage(BandwidthType::Requests, Some(60), false), 3);
+        assert_eq!(
+            tracker.get_usage(BandwidthType::Requests, Some(60), false),
+            3
+        );
         assert_eq!(tracker.get_all_usage(BandwidthType::Requests), 3);
 
         // The user-facing short window is an approximation, but it should be

@@ -132,8 +132,12 @@ pub fn value_range_to_pretty_string(value: Option<i128>, range: Option<i128>) ->
         (v, _) => v,
     };
 
-    let value_text = value.map(to_human_int).unwrap_or_else(|| "unknown".to_string());
-    let range_text = range.map(to_human_int).unwrap_or_else(|| "unknown".to_string());
+    let value_text = value
+        .map(to_human_int)
+        .unwrap_or_else(|| "unknown".to_string());
+    let range_text = range
+        .map(to_human_int)
+        .unwrap_or_else(|| "unknown".to_string());
 
     let mut out = String::new();
     let _ = write!(out, "{value_text}/{range_text}");

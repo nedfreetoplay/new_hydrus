@@ -26,7 +26,10 @@ fn no_thumbnail() -> HydrusException {
 ///
 /// Python returns a `( db, c )` pair. Rust's `Connection` owns its cursors, so
 /// only the connection is returned.
-pub fn get_sqlite_db(path: impl AsRef<Path>, sqlite_temp_path: impl AsRef<Path>) -> HydrusResult<Connection> {
+pub fn get_sqlite_db(
+    path: impl AsRef<Path>,
+    sqlite_temp_path: impl AsRef<Path>,
+) -> HydrusResult<Connection> {
     let clip_bytes = std::fs::read(path.as_ref()).map_err(|error| {
         HydrusException::new(
             ErrorKind::FileMissing,
@@ -53,10 +56,7 @@ pub fn get_sqlite_db(path: impl AsRef<Path>, sqlite_temp_path: impl AsRef<Path>)
         .map_err(|_| damaged("This clip file seemed to have an invalid internal SQLite file!"))
 }
 
-fn with_clip_db<T>(
-    path: &Path,
-    f: impl FnOnce(&Connection) -> HydrusResult<T>,
-) -> HydrusResult<T> {
+fn with_clip_db<T>(path: &Path, f: impl FnOnce(&Connection) -> HydrusResult<T>) -> HydrusResult<T> {
     let (file_handle, sqlite_temp_path) = hydrus_temp::get_temp_path("clip_sqlite", "", None)?;
 
     let result = (|| {
@@ -119,7 +119,9 @@ pub fn get_clip_properties(
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .map_err(|error| {
-                damaged(format!("Could not read the clip canvas properties: {error}"))
+                damaged(format!(
+                    "Could not read the clip canvas properties: {error}"
+                ))
             })?;
 
         let mut num_frames: Option<i64> = None;
@@ -136,9 +138,11 @@ pub fn get_clip_properties(
 
         if has_timeline.is_some() {
             let timeline: Option<(f64, f64, f64)> = db
-                .query_row("SELECT StartFrame, FrameRate, EndFrame from TimeLine;", [], |row| {
-                    Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-                })
+                .query_row(
+                    "SELECT StartFrame, FrameRate, EndFrame from TimeLine;",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
                 .optional()
                 .map_err(|error| damaged(format!("Could not read the clip timeline: {error}")))?;
 
@@ -156,10 +160,10 @@ pub fn get_clip_properties(
 
         // Width and height are in canvas units; the resolution is always DPI.
         let unit_conversion_multiplier = match canvas_unit {
-            0 => 1.0, // pixels
+            0 => 1.0,                     // pixels
             1 => canvas_dpi_float / 2.54, // cm
             2 => canvas_dpi_float / 25.4, // mm
-            3 => canvas_dpi_float, // inches
+            3 => canvas_dpi_float,        // inches
             5 => canvas_dpi_float / 72.0, // points
             _ => 1.0,
         };
@@ -193,7 +197,12 @@ mod tests {
     use super::*;
     use rusqlite::params;
 
-    fn build_clip(label: &str, canvas: &str, preview: Option<&[u8]>, timeline: Option<&str>) -> PathBuf {
+    fn build_clip(
+        label: &str,
+        canvas: &str,
+        preview: Option<&[u8]>,
+        timeline: Option<&str>,
+    ) -> PathBuf {
         let db_path = unique_temp_path(label, ".db");
         let clip_path = unique_temp_path(label, ".clip");
 
@@ -207,11 +216,8 @@ mod tests {
             }
 
             if let Some(preview) = preview {
-                db.execute(
-                    "CREATE TABLE CanvasPreview ( ImageData BLOB );",
-                    [],
-                )
-                .unwrap();
+                db.execute("CREATE TABLE CanvasPreview ( ImageData BLOB );", [])
+                    .unwrap();
                 db.execute(
                     "INSERT INTO CanvasPreview ( ImageData ) VALUES ( ?1 );",
                     params![preview],

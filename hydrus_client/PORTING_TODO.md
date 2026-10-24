@@ -160,8 +160,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Портированы ImportFolder/ImportFoldersManager и планирование; HDDImport-очередь дальше.
 - [x] `importing/options/*` — ImportOptions/TagImportOptions/FileFiltering.
   File filtering, tag import options, контейнер и `ImportOptionsManager`.
-- [~] `ClientDuplicates*`, `ClientPotentialDuplicates*`.
-  Портированы merge options, pair decisions и очередь пар; авто-разрешение и сравнение дальше.
+- [x] `ClientDuplicates*`, `ClientPotentialDuplicates*`.
+  Merge options, pair decisions, очередь пар; auto-resolution правила, компараторы и менеджер.
 
 ## 10. GUI (Qt 6 Widgets, `cxx-qt`)
 

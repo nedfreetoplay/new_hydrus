@@ -147,7 +147,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [ ] `QtInit`, `QtPorting`, `QtInitImportTest` — инициализация, стиль, логирование Qt.
 - [ ] `ClientGUIFunctions`, `ClientGUIFunctionsImage` — конвертация изображений/иконок.
 - [ ] `ClientGUICore`, `ClientGUICallAfter`, `ClientGUIAsync` — мост потоков и call-after.
-- [ ] `ClientGUIStyle`, `ClientGUISplash`, `ClientGUIShortcuts`, `ClientGUIShortcutControls`.
+- [~] `ClientGUIStyle`, `ClientGUISplash`, `ClientGUIShortcuts`, `ClientGUIShortcutControls`.
+  Портированы `Shortcut`/`ShortcutSet`; стиль, splash и редактор шорткатов дальше.
 - [ ] `ClientGUITopLevelWindows`, `ClientGUITopLevelWindowsPanels`.
 - [ ] `ClientGUIScrolledPanels`, `ClientGUICommon` — базовые виджеты.
 - [ ] `ClientGUIListCtrl`, `ClientGUIListBoxes`, `ClientGUIListManager`.

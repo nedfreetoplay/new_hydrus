@@ -1,4 +1,5 @@
 pub mod frame_gui;
+pub mod shortcuts;
 
 mod qt;
 

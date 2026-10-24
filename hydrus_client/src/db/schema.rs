@@ -151,6 +151,23 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
             UNIQUE ( namespace_id, subtag_id )
         );
 
+        CREATE TABLE IF NOT EXISTS last_shutdown_work_time (
+            name TEXT PRIMARY KEY,
+            timestamp INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS analyze_timestamps (
+            table_name TEXT PRIMARY KEY,
+            timestamp INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS vacuum_timestamps (
+            table_name TEXT PRIMARY KEY,
+            timestamp INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS deferred_delete_tables (
+            table_name TEXT PRIMARY KEY,
+            priority INTEGER
+        );
+
         CREATE TABLE IF NOT EXISTS json_dumps (
             name TEXT PRIMARY KEY,
             dump_type INTEGER,

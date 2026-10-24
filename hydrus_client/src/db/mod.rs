@@ -18,6 +18,7 @@ pub mod files_physical_storage;
 pub mod files_storage;
 pub mod files_timestamps;
 pub mod files_viewing_stats;
+pub mod maintenance;
 pub mod mappings;
 pub mod master;
 pub mod master_tags;

@@ -113,8 +113,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Портированы notes/ratings/url_map; definitions cache, media results и service paths дальше.
 - [ ] `ClientDBFilesDuplicates*`, `ClientDBSimilarFiles`.
 - [~] `ClientDBRepositories`, `ClientDBContentUpdates`, `ClientDBMaintenance`.
-  Портировано применение `ContentUpdatePackage` (mappings/files/urls/ratings/notes);
-  repositories и maintenance-таймстампы дальше.
+  Портированы content updates и maintenance (timestamps, deferred deletes);
+  repositories дальше.
 - [~] `ClientDB` — фасад, `create_db`, `update_db` 619→689, интеграция с `HydrusDB`.
   Готов синхронный фасад на `DBBase` с начальной схемой; перевод на `HydrusDB` и цепочка
   миграций 619→689 — следующий шаг.

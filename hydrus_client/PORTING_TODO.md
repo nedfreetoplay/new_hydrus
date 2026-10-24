@@ -161,11 +161,16 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 ## 11. Контроллер и запуск
 
-- [ ] `App`/`PubSubEventCatcher` — QApplication и доставка pub/sub в Qt-поток.
-- [ ] `Controller::init_model` — БД, опции, кэши, сервисы, файловый менеджер.
-- [ ] `Controller::init_view` — менеджеры, стиль, shortcuts, `FrameGUI`.
-- [ ] `Controller::run`/`thread_boot_everything`/shutdown.
-- [ ] `hydrus_client_boot` — CLI-аргументы, logger, temp dir, обработка сигналов.
+- [~] `App`/`PubSubEventCatcher` — QApplication и доставка pub/sub в Qt-поток.
+  QApplication создаётся; pub/sub-мост появится вместе с менеджерами.
+- [~] `Controller::init_model` — БД, опции, кэши, сервисы, файловый менеджер.
+  Готовы БД, опции и локальные сервисы; кэши/файловый менеджер дальше.
+- [~] `Controller::init_view` — менеджеры, стиль, shortcuts, `FrameGUI`.
+  Создаётся каркас `FrameGUI`; менеджеры и стиль дальше.
+- [~] `Controller::run`/`thread_boot_everything`/shutdown.
+  Boot-последовательность синхронная; фоновый boot и shutdown-менеджеры дальше.
+- [~] `hydrus_client_boot` — CLI-аргументы, logger, temp dir, обработка сигналов.
+  Готовы CLI, logger и БД; temp dir/сигналы дальше.
 - [ ] Восстановление сессии страниц и повторный запуск.
 
 ## 12. Финализация

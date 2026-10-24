@@ -2,7 +2,7 @@
 
 use hydrus_core::hydrus_db_base::DBBase;
 use hydrus_core::hydrus_exceptions::HydrusResult;
-use hydrus_core::hydrus_serialisable::{self, SerialisableObject};
+use hydrus_core::hydrus_serialisable::SerialisableObject;
 use serde_json::Value;
 
 pub fn set_json_dump(

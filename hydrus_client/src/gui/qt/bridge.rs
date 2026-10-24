@@ -28,12 +28,12 @@ mod ffi {
 
 use crate::gui::frame_gui;
 
-pub fn run_application() {
+pub fn run_application(title: &str, status: &str) {
     let model = frame_gui::default_frame_gui();
     let mut app = ffi::new_application();
     let mut window = ffi::new_hydrus_main_window();
 
-    ffi::hydrus_set_title(window.pin_mut(), model.title);
+    ffi::hydrus_set_title(window.pin_mut(), title);
     ffi::hydrus_resize_window(window.pin_mut(), 1280, 800);
     ffi::build_hydrus_shell(window.pin_mut());
 
@@ -55,7 +55,7 @@ pub fn run_application() {
         }
     }
 
-    ffi::hydrus_set_status(window.pin_mut(), model.status);
+    ffi::hydrus_set_status(window.pin_mut(), status);
     ffi::show_hydrus_main_window(window.pin_mut());
 
     ffi::exec_application(app.pin_mut());

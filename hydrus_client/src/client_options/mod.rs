@@ -10,8 +10,6 @@ use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_core::hydrus_serialisable::SerialisableObject;
 use serde_json::{Map, Value, json};
 
-use crate::client_constants;
-
 mod defaults;
 mod migrations;
 
@@ -300,7 +298,7 @@ mod tests {
             vec![200, 1000]
         );
         assert_eq!(
-            options.get_colour(client_constants::COLOUR_THUMB_BACKGROUND),
+            options.get_colour(crate::client_constants::COLOUR_THUMB_BACKGROUND),
             Some((255, 255, 255))
         );
 

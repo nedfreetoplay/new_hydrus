@@ -6,8 +6,8 @@ use cxx_qt_lib as _;
 
 /// Starts the Qt application with the initial client window.
 ///
-/// The controller boot sequence is wired in a later milestone; this is the
-/// GUI smoke path used by `main` and by `gui::run`.
-pub fn run() {
-    qt::run_application();
+/// The controller boot sequence provides the window title and status line; the
+/// static shell content lives in [`frame_gui`].
+pub fn run(title: &str, status: &str) {
+    qt::run_application(title, status);
 }

@@ -17,6 +17,7 @@ pub fn boot() -> HydrusResult<()> {
     hydrus_core::hydrus_globals::set_program_name("Hydrus Client");
     hydrus_core::initialise();
     hydrus_core::files::hydrus_file_handling::initialise_mimes_to_default_thumbnail_paths();
+    crate::client_options::register_serialisable_type();
 
     let logger = HydrusLogger::new(db_dir, "client")?;
     let _ = LOGGER.set(logger);

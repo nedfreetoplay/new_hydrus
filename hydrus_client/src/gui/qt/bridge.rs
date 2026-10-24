@@ -105,6 +105,7 @@ mod ffi {
         fn qapp_set_organization_name(name: &str);
         fn qapp_set_style(name: &str);
         fn qapp_set_stylesheet(stylesheet: &str);
+        fn qapp_quit();
     }
 }
 
@@ -123,6 +124,10 @@ pub(crate) fn apply_application_settings(
     ffi::qapp_set_organization_name(organization_name);
     ffi::qapp_set_style(style_name);
     ffi::qapp_set_stylesheet(stylesheet);
+}
+
+pub(crate) fn quit_application() {
+    ffi::qapp_quit();
 }
 
 pub fn run_application(

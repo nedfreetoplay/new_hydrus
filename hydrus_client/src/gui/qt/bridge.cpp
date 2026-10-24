@@ -567,3 +567,7 @@ void qapp_set_style(rust::Str name) {
 void qapp_set_stylesheet(rust::Str stylesheet) {
     qApp->setStyleSheet(to_qstring(stylesheet));
 }
+
+void qapp_quit() {
+    QCoreApplication::quit();
+}

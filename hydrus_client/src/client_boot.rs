@@ -30,6 +30,9 @@ pub fn boot() -> HydrusResult<()> {
     let logger = HydrusLogger::new(db_dir, "client")?;
     let _ = LOGGER.set(logger);
 
+    let _ = hydrus_core::hydrus_temp::initialise_hydrus_temp_dir();
+    let _ = ctrlc::set_handler(crate::gui::request_quit);
+
     Ok(())
 }
 

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 chrono = "0.4"
+ctrlc = "3"
 cxx = "1"
 cxx-qt = "0.10"
 cxx-qt-lib = { version = "0.10", features = ["qt_gui"] }

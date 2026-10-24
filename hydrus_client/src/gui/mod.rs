@@ -28,3 +28,8 @@ use cxx_qt_lib as _;
 pub fn run(title: &str, status: &str, session: Option<&crate::gui::session::GuiSession>) {
     qt::run_application(title, status, session);
 }
+
+/// Asks Qt to leave the main event loop (used by the SIGINT handler).
+pub fn request_quit() {
+    qt::quit();
+}

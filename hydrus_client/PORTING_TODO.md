@@ -211,8 +211,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Стиль/shortcuts применяются, страницы из `GuiSession` создают вкладки и sidebar.
 - [x] `Controller::run`/`thread_boot_everything`/shutdown.
   Синхронная boot-последовательность, сохранение опций и GUI-сессии при выходе.
-- [~] `hydrus_client_boot` — CLI-аргументы, logger, temp dir, обработка сигналов.
-  Готовы CLI, logger и БД; temp dir/сигналы дальше.
+- [x] `hydrus_client_boot` — CLI-аргументы, logger, temp dir, обработка сигналов.
+  CLI/logger/temp dir + SIGINT-хендлер, который завершает Qt event loop.
 - [x] Восстановление сессии страниц и повторный запуск.
   `GuiSession` сохраняет страницы/индекс и подхватывается контроллером из `gui session.json`.
 

@@ -180,3 +180,4 @@ void qapp_set_application_display_name(rust::Str name);
 void qapp_set_organization_name(rust::Str name);
 void qapp_set_style(rust::Str name);
 void qapp_set_stylesheet(rust::Str stylesheet);
+void qapp_quit();

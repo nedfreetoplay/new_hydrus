@@ -72,9 +72,9 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientSearchTagContext` — контекст тегов и сервисов.
 - [x] `ClientSearchFileSearchContext` — `FileSearchContext`, системные предикаты.
 - [x] `ClientSearchAutocomplete` — autocomplete-теги и сортировка.
-- [~] `ClientSearchParseSystemPredicates` — мост к `hydrus_external`.
-  Портированы simple/number/filetype/hash/url/limit-предикаты; rating/file-service/date
-  требуют менеджера сервисов и календарных значений.
+- [x] `ClientSearchParseSystemPredicates` — мост к `hydrus_external`.
+  Портированы simple/number/filetype/hash/url/limit, rating/file-service (через services)
+  и date-предикаты.
 
 ## 5. Медиа-модель
 

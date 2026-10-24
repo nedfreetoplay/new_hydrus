@@ -46,6 +46,16 @@ pub enum PredicateValue {
         value: Option<f64>,
         service_key: Vec<u8>,
     },
+    FileService {
+        is_in: bool,
+        status: i32,
+        service_key: Vec<u8>,
+    },
+    Date {
+        operator: String,
+        date_type: String,
+        values: Vec<i32>,
+    },
     Or(Vec<Predicate>),
 }
 
@@ -308,6 +318,16 @@ fn serialise_value(_predicate_type: i32, value: &PredicateValue) -> Value {
             value,
             service_key,
         } => json!([operator, value, hex_encode(service_key)]),
+        PredicateValue::FileService {
+            is_in,
+            status,
+            service_key,
+        } => json!([is_in, status, hex_encode(service_key)]),
+        PredicateValue::Date {
+            operator,
+            date_type,
+            values,
+        } => json!([operator, date_type, values]),
         PredicateValue::Or(predicates) => Value::Array(
             predicates
                 .iter()
@@ -334,10 +354,60 @@ fn deserialise_value(predicate_type: i32, value: &Value) -> HydrusResult<Predica
         ));
     }
 
+    if predicate_type == PREDICATE_TYPE_SYSTEM_FILE_SERVICE {
+        let values = value
+            .as_array()
+            .ok_or_else(|| serialisation("file service predicate value must be a list"))?;
+
+        return Ok(PredicateValue::FileService {
+            is_in: values.first().and_then(Value::as_bool).unwrap_or(true),
+            status: values.get(1).and_then(Value::as_i64).unwrap_or(0) as i32,
+            service_key: values
+                .get(2)
+                .and_then(Value::as_str)
+                .and_then(hex_decode)
+                .unwrap_or_default(),
+        });
+    }
+
     if matches!(
         predicate_type,
-        PREDICATE_TYPE_SYSTEM_RATING | PREDICATE_TYPE_SYSTEM_FILE_SERVICE
+        PREDICATE_TYPE_SYSTEM_IMPORT_TIME
+            | PREDICATE_TYPE_SYSTEM_MODIFIED_TIME
+            | PREDICATE_TYPE_SYSTEM_ARCHIVED_TIME
+            | PREDICATE_TYPE_SYSTEM_LAST_VIEWED_TIME
+            | PREDICATE_TYPE_SYSTEM_TIME
     ) {
+        let values = value
+            .as_array()
+            .ok_or_else(|| serialisation("date predicate value must be a list"))?;
+
+        return Ok(PredicateValue::Date {
+            operator: values
+                .first()
+                .and_then(Value::as_str)
+                .unwrap_or("=")
+                .to_string(),
+            date_type: values
+                .get(1)
+                .and_then(Value::as_str)
+                .unwrap_or("delta")
+                .to_string(),
+            values: values
+                .get(2)
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(Value::as_i64)
+                        .map(|value| value as i32)
+                        .collect()
+                })
+                .unwrap_or_default(),
+        });
+    }
+
+    if predicate_type == PREDICATE_TYPE_SYSTEM_RATING {
         let values = value
             .as_array()
             .ok_or_else(|| serialisation("service predicate value must be a list"))?;

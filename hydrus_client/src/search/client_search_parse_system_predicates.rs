@@ -1,10 +1,13 @@
 //! Bridge from `hydrus/client/search/ClientSearchParseSystemPredicates.py` to
 //! the already ported `hydrus_external::system_predicate_parser`.
 
+use hydrus_core::hydrus_constants::ContentStatus;
 use hydrus_core::hydrus_exceptions::{HydrusException, HydrusResult};
 use hydrus_external::system_predicate_parser::{
     self, Operator, RelationalOperator, SystemPredicate, Unit, ValueData,
 };
+
+use crate::services::ServicesManager;
 
 use crate::search::client_number_test::{
     NUMBER_TEST_OPERATOR_APPROXIMATE_PERCENT, NUMBER_TEST_OPERATOR_EQUAL,
@@ -19,10 +22,25 @@ use crate::search::predicate_constants::*;
 pub fn parse_system_predicate(text: &str) -> HydrusResult<Predicate> {
     let parsed = system_predicate_parser::parse_system_predicate(text)?;
 
-    convert_system_predicate(parsed)
+    convert(parsed, None)
+}
+
+/// Same as [`parse_system_predicate`], with access to service names for
+/// file-service and rating predicates.
+pub fn parse_system_predicate_with_services(
+    text: &str,
+    services: &ServicesManager,
+) -> HydrusResult<Predicate> {
+    let parsed = system_predicate_parser::parse_system_predicate(text)?;
+
+    convert(parsed, Some(services))
 }
 
 pub fn convert_system_predicate(parsed: SystemPredicate) -> HydrusResult<Predicate> {
+    convert(parsed, None)
+}
+
+fn convert(parsed: SystemPredicate, services: Option<&ServicesManager>) -> HydrusResult<Predicate> {
     use hydrus_external::system_predicate_parser::Predicate as ExternalPredicate;
 
     let simple_type = match parsed.predicate {
@@ -143,6 +161,124 @@ pub fn convert_system_predicate(parsed: SystemPredicate) -> HydrusResult<Predica
         }
     }
 
+    if parsed.predicate == ExternalPredicate::FileService {
+        let (is_in, status) = match parsed.operator {
+            Some(Operator::FileService(status)) => match status {
+                hydrus_external::system_predicate_parser::FileServiceStatus::IsCurrentlyIn => {
+                    (true, ContentStatus::Current)
+                }
+                hydrus_external::system_predicate_parser::FileServiceStatus::IsNotCurrentlyIn => {
+                    (false, ContentStatus::Current)
+                }
+                hydrus_external::system_predicate_parser::FileServiceStatus::IsPendingTo => {
+                    (true, ContentStatus::Pending)
+                }
+                hydrus_external::system_predicate_parser::FileServiceStatus::IsNotPendingTo => {
+                    (false, ContentStatus::Pending)
+                }
+            },
+            _ => return Err(parse_error("file service predicate has no status")),
+        };
+
+        if let Some(ValueData::AnyString(service_name)) = &parsed.value {
+            return Ok(Predicate::new(
+                PREDICATE_TYPE_SYSTEM_FILE_SERVICE,
+                PredicateValue::FileService {
+                    is_in,
+                    status: status.as_int() as i32,
+                    service_key: resolve_service_key(services, service_name)?,
+                },
+            ));
+        }
+    }
+
+    if matches!(
+        parsed.predicate,
+        ExternalPredicate::RatingSpecificNumerical
+            | ExternalPredicate::RatingSpecificLikeDislike
+            | ExternalPredicate::RatingSpecificIncDec
+    ) {
+        let operator = match parsed.operator.as_ref() {
+            Some(Operator::Relational(operator)) => relational_operator(*operator),
+            _ => NUMBER_TEST_OPERATOR_EQUAL,
+        };
+
+        let (value, service_name) = match &parsed.value {
+            Some(ValueData::RatingServiceNameAndNumericalValue { value, service_name }) => {
+                (Some(*value as f64), service_name.as_str())
+            }
+            Some(ValueData::RatingServiceNameAndLikeDislike { value, service_name }) => {
+                (Some(*value), service_name.as_str())
+            }
+            Some(ValueData::RatingServiceNameAndIncDec { value, service_name }) => {
+                (Some(*value as f64), service_name.as_str())
+            }
+            _ => return Err(parse_error("rating predicate has no value")),
+        };
+
+        return Ok(Predicate::new(
+            PREDICATE_TYPE_SYSTEM_RATING,
+            PredicateValue::Service {
+                operator,
+                value,
+                service_key: resolve_service_key(services, service_name)?,
+            },
+        ));
+    }
+
+    let date_type = match parsed.predicate {
+        ExternalPredicate::TimeImported => Some(PREDICATE_TYPE_SYSTEM_IMPORT_TIME),
+        ExternalPredicate::ModDate => Some(PREDICATE_TYPE_SYSTEM_MODIFIED_TIME),
+        ExternalPredicate::ArchivedDate => Some(PREDICATE_TYPE_SYSTEM_ARCHIVED_TIME),
+        ExternalPredicate::LastViewedTime => Some(PREDICATE_TYPE_SYSTEM_LAST_VIEWED_TIME),
+        _ => None,
+    };
+
+    if let Some(predicate_type) = date_type {
+        let operator = match parsed.operator.as_ref() {
+            Some(Operator::Relational(operator)) => operator.as_str().to_string(),
+            _ => "=".to_string(),
+        };
+
+        let (date_type, values) = match parsed.value {
+            Some(ValueData::DateOrTimeInterval(interval)) => match interval {
+                hydrus_external::system_predicate_parser::DateOrTimeInterval::DateTime(datetime) => {
+                    use chrono::{Datelike, Timelike};
+
+                    (
+                        "date".to_string(),
+                        vec![
+                            datetime.year(),
+                            datetime.month() as i32,
+                            datetime.day() as i32,
+                            datetime.hour() as i32,
+                            datetime.minute() as i32,
+                        ],
+                    )
+                }
+                hydrus_external::system_predicate_parser::DateOrTimeInterval::Interval {
+                    years,
+                    months,
+                    days,
+                    hours,
+                } => (
+                    "delta".to_string(),
+                    vec![years as i32, months as i32, days as i32, hours as i32],
+                ),
+            },
+            _ => return Err(parse_error("date predicate has no interval")),
+        };
+
+        return Ok(Predicate::new(
+            predicate_type,
+            PredicateValue::Date {
+                operator,
+                date_type,
+                values,
+            },
+        ));
+    }
+
     Err(HydrusException::new(
         hydrus_core::hydrus_exceptions::ErrorKind::Parse,
         format!(
@@ -227,6 +363,20 @@ fn hex_decode(value: &str) -> Option<Vec<u8>> {
         .collect()
 }
 
+fn resolve_service_key(
+    services: Option<&ServicesManager>,
+    service_name: &str,
+) -> HydrusResult<Vec<u8>> {
+    services
+        .and_then(|services| services.get_service_key_from_name(service_name))
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| {
+            parse_error(&format!(
+                "could not resolve service \"{service_name}\" (services manager required)"
+            ))
+        })
+}
+
 fn parse_error(message: &str) -> HydrusException {
     HydrusException::new(hydrus_core::hydrus_exceptions::ErrorKind::Parse, message)
 }
@@ -290,5 +440,102 @@ mod tests {
     #[test]
     fn unsupported_service_predicates_are_errors() {
         assert!(parse_system_predicate("system:rating > 3").is_err());
+    }
+
+    fn services() -> (ServicesManager, std::path::PathBuf) {
+        use crate::db::{ClientDB, services};
+        use hydrus_core::hydrus_constants::ServiceType;
+
+        let directory = std::env::temp_dir().join(format!(
+            "hydrus_client_predicate_services_{}_{}",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+        let db = ClientDB::new(&directory).unwrap();
+
+        services::get_or_add_service(
+            db.db(),
+            b"my files",
+            ServiceType::LocalFileDomain,
+            "my files",
+        )
+        .unwrap();
+        services::get_or_add_service(
+            db.db(),
+            b"my favourites",
+            ServiceType::LocalRatingNumerical,
+            "my favourites",
+        )
+        .unwrap();
+
+        let manager = ServicesManager::load(db.db()).unwrap();
+
+        (manager, directory)
+    }
+
+    #[test]
+    fn file_service_predicates_resolve_service_names() {
+        let (services, directory) = services();
+
+        let predicate =
+            parse_system_predicate_with_services("system:file service is currently in my files", &services)
+                .unwrap();
+
+        assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_FILE_SERVICE);
+        assert_eq!(
+            predicate.value,
+            PredicateValue::FileService {
+                is_in: true,
+                status: hydrus_core::hydrus_constants::ContentStatus::Current.as_int() as i32,
+                service_key: b"my files".to_vec(),
+            }
+        );
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn rating_predicates_resolve_service_names() {
+        let (services, directory) = services();
+
+        let predicate =
+            parse_system_predicate_with_services("system:rating my favourites > 3/5", &services)
+                .unwrap();
+
+        assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_RATING);
+
+        let PredicateValue::Service {
+            service_key,
+            value,
+            ..
+        } = predicate.value
+        else {
+            panic!("expected a rating service predicate");
+        };
+
+        assert_eq!(service_key, b"my favourites".to_vec());
+        assert!(value.is_some());
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn date_predicates_are_converted() {
+        let predicate = parse_system_predicate("system:modified before 2020-01-02").unwrap();
+
+        assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_MODIFIED_TIME);
+
+        let PredicateValue::Date {
+            operator,
+            date_type,
+            values,
+        } = predicate.value
+        else {
+            panic!("expected a date predicate");
+        };
+
+        assert_eq!(operator, "<");
+        assert_eq!(date_type, "date");
+        assert_eq!(&values[..3], &[2020, 1, 2]);
     }
 }

@@ -14,7 +14,11 @@ pub struct NetworkLogin {
 }
 
 impl NetworkLogin {
-    pub fn new(domain: impl Into<String>, username: impl Into<String>, password: impl Into<String>) -> Self {
+    pub fn new(
+        domain: impl Into<String>,
+        username: impl Into<String>,
+        password: impl Into<String>,
+    ) -> Self {
         Self {
             domain: domain.into().to_lowercase(),
             username: username.into(),
@@ -36,7 +40,10 @@ impl NetworkLogin {
         match &self.access_key {
             Some(access_key) => format!(
                 "{}@{}",
-                access_key.iter().map(|byte| format!("{byte:02x}")).collect::<String>(),
+                access_key
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect::<String>(),
                 self.domain
             ),
             None => self.domain.clone(),

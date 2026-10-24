@@ -110,11 +110,7 @@ pub fn get_next_unprocessed_update(
     )
 }
 
-pub fn mark_update_processed(
-    db: &DBBase,
-    service_id: i64,
-    update_index: i64,
-) -> HydrusResult<()> {
+pub fn mark_update_processed(db: &DBBase, service_id: i64, update_index: i64) -> HydrusResult<()> {
     db.execute(
         "UPDATE repository_updates SET processed = 1
          WHERE service_id = ? AND update_index = ?",
@@ -136,8 +132,8 @@ pub fn delete_updates(db: &DBBase, service_id: i64) -> HydrusResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::master::get_hash_id;
     use crate::db::ClientDB;
+    use crate::db::master::get_hash_id;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(
@@ -180,14 +176,20 @@ mod tests {
         assert_eq!(updates.len(), 2);
         assert_eq!(updates[0].update_index, 1);
         assert_eq!(
-            get_next_unprocessed_update(db.db(), 1).unwrap().unwrap().update_index,
+            get_next_unprocessed_update(db.db(), 1)
+                .unwrap()
+                .unwrap()
+                .update_index,
             1
         );
 
         mark_update_processed(db.db(), 1, 1).unwrap();
 
         assert_eq!(
-            get_next_unprocessed_update(db.db(), 1).unwrap().unwrap().update_index,
+            get_next_unprocessed_update(db.db(), 1)
+                .unwrap()
+                .unwrap()
+                .update_index,
             2
         );
 

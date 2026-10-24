@@ -39,8 +39,8 @@ cargo run -p hydrus_client
 поиск, медиа-модель, файлы, БД-слой, сеть (engine на reqwest), импорт/парсинг/дубликаты,
 GUI-модели и Qt-каркас с canvas, PNG-сериализация и восстановление сессии.
 
-Остались в основном Qt-виджеты для уже готовых моделей и серверный HTTP-транспорт
-Client API.
+Остались в основном Qt-виджеты для уже готовых моделей и «глубокие» операции
+импорта/дубликатов; фундамент, сеть, БД и API-сервер уже портированы.
 
 БД: схема, сервисы, хэши, master-теги, mappings, files_info/storage/timestamps/inbox,
 viewing stats, storage configuration, notes/ratings/urls/service paths, definitions cache,

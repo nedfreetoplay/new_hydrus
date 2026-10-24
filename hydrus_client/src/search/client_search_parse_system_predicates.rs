@@ -204,15 +204,18 @@ fn convert(parsed: SystemPredicate, services: Option<&ServicesManager>) -> Hydru
         };
 
         let (value, service_name) = match &parsed.value {
-            Some(ValueData::RatingServiceNameAndNumericalValue { value, service_name }) => {
-                (Some(*value as f64), service_name.as_str())
-            }
-            Some(ValueData::RatingServiceNameAndLikeDislike { value, service_name }) => {
-                (Some(*value), service_name.as_str())
-            }
-            Some(ValueData::RatingServiceNameAndIncDec { value, service_name }) => {
-                (Some(*value as f64), service_name.as_str())
-            }
+            Some(ValueData::RatingServiceNameAndNumericalValue {
+                value,
+                service_name,
+            }) => (Some(*value as f64), service_name.as_str()),
+            Some(ValueData::RatingServiceNameAndLikeDislike {
+                value,
+                service_name,
+            }) => (Some(*value), service_name.as_str()),
+            Some(ValueData::RatingServiceNameAndIncDec {
+                value,
+                service_name,
+            }) => (Some(*value as f64), service_name.as_str()),
             _ => return Err(parse_error("rating predicate has no value")),
         };
 
@@ -242,7 +245,9 @@ fn convert(parsed: SystemPredicate, services: Option<&ServicesManager>) -> Hydru
 
         let (date_type, values) = match parsed.value {
             Some(ValueData::DateOrTimeInterval(interval)) => match interval {
-                hydrus_external::system_predicate_parser::DateOrTimeInterval::DateTime(datetime) => {
+                hydrus_external::system_predicate_parser::DateOrTimeInterval::DateTime(
+                    datetime,
+                ) => {
                     use chrono::{Datelike, Timelike};
 
                     (
@@ -477,9 +482,11 @@ mod tests {
     fn file_service_predicates_resolve_service_names() {
         let (services, directory) = services();
 
-        let predicate =
-            parse_system_predicate_with_services("system:file service is currently in my files", &services)
-                .unwrap();
+        let predicate = parse_system_predicate_with_services(
+            "system:file service is currently in my files",
+            &services,
+        )
+        .unwrap();
 
         assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_FILE_SERVICE);
         assert_eq!(
@@ -505,9 +512,7 @@ mod tests {
         assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_RATING);
 
         let PredicateValue::Service {
-            service_key,
-            value,
-            ..
+            service_key, value, ..
         } = predicate.value
         else {
             panic!("expected a rating service predicate");
@@ -523,7 +528,10 @@ mod tests {
     fn date_predicates_are_converted() {
         let predicate = parse_system_predicate("system:modified before 2020-01-02").unwrap();
 
-        assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_MODIFIED_TIME);
+        assert_eq!(
+            predicate.predicate_type,
+            PREDICATE_TYPE_SYSTEM_MODIFIED_TIME
+        );
 
         let PredicateValue::Date {
             operator,

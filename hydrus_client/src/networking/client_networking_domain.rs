@@ -83,8 +83,16 @@ mod tests {
     fn url_classes_are_matched_by_domain_and_path() {
         let manager = manager();
 
-        assert!(manager.get_url_class_for_url("https://example.com/post/1").is_some());
-        assert!(manager.get_url_class_for_url("https://example.com/nope/1").is_none());
+        assert!(
+            manager
+                .get_url_class_for_url("https://example.com/post/1")
+                .is_some()
+        );
+        assert!(
+            manager
+                .get_url_class_for_url("https://example.com/nope/1")
+                .is_none()
+        );
     }
 
     #[test]
@@ -117,7 +125,10 @@ mod tests {
             },
         );
 
-        assert_eq!(manager.get_custom_header("User-Agent").unwrap().value, "hydrus");
+        assert_eq!(
+            manager.get_custom_header("User-Agent").unwrap().value,
+            "hydrus"
+        );
         assert_eq!(
             manager.get_custom_header_pairs(),
             vec![("User-Agent".to_string(), "hydrus".to_string())]

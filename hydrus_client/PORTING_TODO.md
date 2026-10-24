@@ -96,7 +96,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 - [ ] `ClientDBModule` — базовый trait/структура поверх `hydrus_core::DBModule`.
 - [x] `ClientDBMaster` — hashes/namespaces/subtags/tags/texts/notes/urls/url_domains.
-  Портированы hashes; остальные таблицы master появятся вместе с тегами/URL.
+  Портированы hashes, namespaces/subtags/tags; texts/notes/urls — через отдельные модули.
 - [x] `ClientDBServices` — services/service_info.
 - [x] `ClientDBSerialisable` — json_dict/json_dumps/json_dumps_named/json_dumps_hashed.
   Портирован `json_dumps`; остальные варианты добавятся вместе с импортом.
@@ -105,7 +105,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientDBFilesStorage` — current/deleted/pending/petitioned files, inbox.
 - [x] `ClientDBFilesTimestamps`, `ClientDBFilesInbox`, `ClientDBFilesViewingStats`.
 - [x] `ClientDBFilesPhysicalStorage` — конфигурация хранилищ.
-- [ ] `ClientDBMappingsStorage`/`ClientDBMappingsCounts`/кэши.
+- [~] `ClientDBMappingsStorage`/`ClientDBMappingsCounts`/кэши.
+  Портированы current/deleted/pending/petitioned mappings; counts и кэши дальше.
 - [ ] `ClientDBTagSearch`, siblings/parents/display/suggestions.
 - [~] `ClientDBDefinitionsCache`, `ClientDBMediaResults`, `ClientDBNotesMap`,
   `ClientDBRatings`, `ClientDBURLMap`, `ClientDBServicePaths`.

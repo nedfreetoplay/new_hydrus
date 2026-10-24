@@ -136,6 +136,21 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
             PRIMARY KEY ( hash_id, url_id )
         );
 
+        CREATE TABLE IF NOT EXISTS namespaces (
+            namespace_id INTEGER PRIMARY KEY,
+            namespace TEXT UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS subtags (
+            subtag_id INTEGER PRIMARY KEY,
+            subtag TEXT UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS tags (
+            tag_id INTEGER PRIMARY KEY,
+            namespace_id INTEGER,
+            subtag_id INTEGER,
+            UNIQUE ( namespace_id, subtag_id )
+        );
+
         CREATE TABLE IF NOT EXISTS json_dumps (
             name TEXT PRIMARY KEY,
             dump_type INTEGER,

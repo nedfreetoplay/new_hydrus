@@ -22,7 +22,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use chrono::{Duration, Utc};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::hydrus_constants::{
     CLIENT_API_VERSION, Mime, NETWORK_VERSION, SOFTWARE_VERSION, ServiceType,
@@ -128,9 +128,7 @@ impl HydrusDomain {
 
     /// `check_valid`.
     pub fn check_valid(&self, client_ip: &str) -> HydrusResult<()> {
-        if self.local_only
-            && !matches!(client_ip, "127.0.0.1" | "::1" | "::ffff:127.0.0.1")
-        {
+        if self.local_only && !matches!(client_ip, "127.0.0.1" | "::1" | "::ffff:127.0.0.1") {
             return Err(HydrusException::new(
                 ErrorKind::InsufficientCredentials,
                 "Only local access allowed!",
@@ -467,10 +465,12 @@ pub fn parse_range_header(
 }
 
 fn parse_range_integer(text: &str) -> HydrusResult<i64> {
-    text.trim()
-        .parse::<i64>()
-        .map(i64::abs)
-        .map_err(|_| HydrusException::new(ErrorKind::BadRequest, "Could not parse a Range header number!"))
+    text.trim().parse::<i64>().map(i64::abs).map_err(|_| {
+        HydrusException::new(
+            ErrorKind::BadRequest,
+            "Could not parse a Range header number!",
+        )
+    })
 }
 
 /// `_parse_hydrus_network_access_key`.
@@ -550,7 +550,8 @@ pub fn check_user_agent(user_agent: Option<&str>) -> HydrusResult<bool> {
 /// Set `request.is_hydrus_user_agent`, then apply the version check.
 pub fn apply_user_agent_check(request: &mut HydrusRequest) -> HydrusResult<()> {
     request.is_hydrus_user_agent = false;
-    request.is_hydrus_user_agent = check_user_agent(request.request_headers.get_first("User-Agent"))?;
+    request.is_hydrus_user_agent =
+        check_user_agent(request.request_headers.get_first("User-Agent"))?;
 
     Ok(())
 }
@@ -686,15 +687,8 @@ pub fn build_options_response(
         headers.set("Allow", allowed_methods_string);
     }
 
-    let response_context = ResponseContext::new(
-        200,
-        Mime::PlainText,
-        None,
-        None,
-        Vec::new(),
-        false,
-        None,
-    )?;
+    let response_context =
+        ResponseContext::new(200, Mime::PlainText, None, None, Vec::new(), false, None)?;
 
     Ok((headers, response_context))
 }
@@ -751,9 +745,7 @@ pub fn build_render_plan(
 
     let mut status_code = response_context.get_status_code();
 
-    if status_code == 200
-        && response_context.has_path()
-        && !offset_and_block_size_pairs.is_empty()
+    if status_code == 200 && response_context.has_path() && !offset_and_block_size_pairs.is_empty()
     {
         status_code = 206;
     }
@@ -1103,9 +1095,16 @@ mod tests {
 
         assert_eq!(empty.get_max_age(), None);
 
-        let explicit =
-            ResponseContext::new(200, Mime::Json, Some("x".into()), None, Vec::new(), false, Some(0))
-                .unwrap();
+        let explicit = ResponseContext::new(
+            200,
+            Mime::Json,
+            Some("x".into()),
+            None,
+            Vec::new(),
+            false,
+            Some(0),
+        )
+        .unwrap();
 
         assert_eq!(explicit.get_max_age(), Some(0));
 
@@ -1118,9 +1117,12 @@ mod tests {
     fn response_context_serialises_serialisable_bodies() {
         let dictionary = Arc::new(SerialisableDictionary::new());
 
-        let context =
-            ResponseContext::from_body(200, Mime::Json, Arc::clone(&dictionary) as Arc<dyn SerialisableObject>)
-                .unwrap();
+        let context = ResponseContext::from_body(
+            200,
+            Mime::Json,
+            Arc::clone(&dictionary) as Arc<dyn SerialisableObject>,
+        )
+        .unwrap();
 
         assert_eq!(
             context.get_body_bytes(),
@@ -1132,16 +1134,8 @@ mod tests {
     fn response_context_keeps_cookies_and_attachment_flag() {
         let cookie = ResponseCookie::new("session", "abc").with_option("path", "/");
 
-        let context = ResponseContext::new(
-            200,
-            Mime::Json,
-            None,
-            None,
-            vec![cookie],
-            true,
-            None,
-        )
-        .unwrap();
+        let context =
+            ResponseContext::new(200, Mime::Json, None, None, vec![cookie], true, None).unwrap();
 
         assert_eq!(context.get_cookies().len(), 1);
         assert_eq!(context.get_cookies()[0].name, "session");
@@ -1289,7 +1283,10 @@ mod tests {
         assert_eq!(check_user_agent(None).unwrap(), false);
         assert_eq!(check_user_agent(Some("Mozilla/5.0")).unwrap(), false);
         assert_eq!(check_user_agent(Some("hydrus/20")).unwrap(), true);
-        assert_eq!(check_user_agent(Some("Mozilla/5.0 hydrus/20")).unwrap(), true);
+        assert_eq!(
+            check_user_agent(Some("Mozilla/5.0 hydrus/20")).unwrap(),
+            true
+        );
 
         let error = check_user_agent(Some("hydrus/19")).unwrap_err();
 
@@ -1306,7 +1303,10 @@ mod tests {
             "Network version mismatch! This server's network version is 20, whereas your client's is 21! This server is out of date; please ask its admin to update to the latest release."
         );
 
-        assert_eq!(check_user_agent(Some("hydrus/abc")).unwrap_err().kind(), ErrorKind::BadRequest);
+        assert_eq!(
+            check_user_agent(Some("hydrus/abc")).unwrap_err().kind(),
+            ErrorKind::BadRequest
+        );
     }
 
     #[test]
@@ -1370,7 +1370,10 @@ mod tests {
         let (headers, _) = build_options_response(&["GET"], true, true).unwrap();
 
         assert_eq!(headers.get_first("Access-Control-Allow-Origin"), Some("*"));
-        assert_eq!(headers.get_first("Access-Control-Allow-Methods"), Some("GET"));
+        assert_eq!(
+            headers.get_first("Access-Control-Allow-Methods"),
+            Some("GET")
+        );
         assert_eq!(headers.get_first("Access-Control-Max-Age"), Some("86400"));
 
         let error = build_options_response(&["GET"], true, false).unwrap_err();
@@ -1393,7 +1396,10 @@ mod tests {
             Some("text/html; charset=UTF-8")
         );
         assert_eq!(plan.headers.get_first("Content-Length"), Some("13"));
-        assert_eq!(plan.headers.get_first("Content-Disposition"), Some("inline"));
+        assert_eq!(
+            plan.headers.get_first("Content-Disposition"),
+            Some("inline")
+        );
         assert_eq!(plan.headers.get_first("Cache-Control"), Some("max-age=4"));
         assert!(plan.headers.has_header("Expires"));
         assert_eq!(plan.body, Some(b"<html></html>".to_vec()));
@@ -1415,8 +1421,7 @@ mod tests {
         assert!(!plan.headers.has_header("Content-Length"));
         assert!(plan.body.is_none());
 
-        let mut attachment =
-            ResponseContext::from_body(200, Mime::PlainText, "body").unwrap();
+        let mut attachment = ResponseContext::from_body(200, Mime::PlainText, "body").unwrap();
         attachment.set_max_age(None);
         let plan = resource.build_render_plan(&request, &attachment).unwrap();
 
@@ -1483,7 +1488,10 @@ mod tests {
         let plan = resource.build_render_plan(&request, &context).unwrap();
 
         assert_eq!(plan.status_code, 206);
-        assert_eq!(plan.headers.get_first("Content-Range"), Some("bytes 2-5/10"));
+        assert_eq!(
+            plan.headers.get_first("Content-Range"),
+            Some("bytes 2-5/10")
+        );
         assert_eq!(plan.headers.get_first("Content-Length"), Some("4"));
         assert_eq!(plan.headers.get_first("Accept-Ranges"), Some("bytes"));
         assert_eq!(plan.file_range, Some((2, 4)));

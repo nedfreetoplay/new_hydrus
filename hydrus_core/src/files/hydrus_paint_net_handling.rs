@@ -10,8 +10,8 @@ use base64::Engine as _;
 use image::DynamicImage;
 use roxmltree::Document;
 
-use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::files::images::hydrus_image_handling;
+use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 
 fn no_thumbnail(message: impl Into<String>) -> HydrusException {
     HydrusException::new(ErrorKind::NoThumbnailFile, message)
@@ -24,7 +24,10 @@ pub fn get_paint_net_xml_header(path: impl AsRef<Path>) -> HydrusResult<String> 
     let mut file = std::fs::File::open(path).map_err(|error| {
         HydrusException::new(
             ErrorKind::FileMissing,
-            format!("Could not open the Paint.NET file at \"{}\": {error}", path.display()),
+            format!(
+                "Could not open the Paint.NET file at \"{}\": {error}",
+                path.display()
+            ),
         )
     })?;
 

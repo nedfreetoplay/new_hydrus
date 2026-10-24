@@ -183,10 +183,7 @@ impl PubSub {
                 false,
             );
 
-            result
-                .into_inner()
-                .unwrap()
-                .unwrap_or(Ok(()))
+            result.into_inner().unwrap().unwrap_or(Ok(()))
         } else {
             object.call(method_name, message)
         }
@@ -297,12 +294,8 @@ impl PubSub {
     }
 
     /// `sub`
-    pub fn sub<T>(
-        &self,
-        object: &Arc<T>,
-        method_name: impl Into<String>,
-        topic: impl Into<String>,
-    ) where
+    pub fn sub<T>(&self, object: &Arc<T>, method_name: impl Into<String>, topic: impl Into<String>)
+    where
         T: Subscriber + 'static,
     {
         let object = Arc::clone(object);
@@ -360,7 +353,10 @@ impl PubSub {
         let mut state = self.lock();
 
         while !state.idle {
-            state = self.idle_event.wait(state).unwrap_or_else(|e| e.into_inner());
+            state = self
+                .idle_event
+                .wait(state)
+                .unwrap_or_else(|e| e.into_inner());
         }
     }
 

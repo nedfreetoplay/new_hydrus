@@ -18,11 +18,13 @@ use std::sync::Arc;
 
 use indexmap::IndexMap;
 
-use crate::hydrus_constants::{CLIENT_API_VERSION, Mime, NETWORK_VERSION, SOFTWARE_VERSION, ServiceType};
+use crate::hydrus_constants::{
+    CLIENT_API_VERSION, Mime, NETWORK_VERSION, SOFTWARE_VERSION, ServiceType,
+};
+use crate::hydrus_static_dir::get_static_path;
 use crate::networking::hydrus_server_resources::{
     HydrusDomain, HydrusResourceService, ResponseContext, robots_txt_response, welcome_response,
 };
-use crate::hydrus_static_dir::get_static_path;
 
 /// `FatHTTPChannel.MAX_LENGTH`
 pub const FAT_HTTP_CHANNEL_MAX_LENGTH: usize = 2 * 1048576;
@@ -205,7 +207,10 @@ impl HydrusService {
     ///
     /// `None` means the path is not one of this server's core children. The
     /// HTTP layer can then try its own route table.
-    pub fn render_resource(&self, path: &str) -> crate::hydrus_exceptions::HydrusResult<Option<ResponseContext>> {
+    pub fn render_resource(
+        &self,
+        path: &str,
+    ) -> crate::hydrus_exceptions::HydrusResult<Option<ResponseContext>> {
         let Some(resource) = self.root.get_child(path) else {
             return Ok(None);
         };
@@ -356,7 +361,10 @@ mod tests {
                 .contains("my api")
         );
 
-        let robots = service.render_resource("robots.txt").unwrap().expect("robots");
+        let robots = service
+            .render_resource("robots.txt")
+            .unwrap()
+            .expect("robots");
         assert_eq!(robots.get_mime(), Mime::PlainText);
         assert_eq!(
             robots.get_body_bytes(),

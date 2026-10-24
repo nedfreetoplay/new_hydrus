@@ -105,10 +105,7 @@ pub struct HydrusSessionManagerServer {
 }
 
 fn session_error() -> HydrusException {
-    HydrusException::new(
-        ErrorKind::Session,
-        "Did not find that session! Try again!",
-    )
+    HydrusException::new(ErrorKind::Session, "Did not find that session! Try again!")
 }
 
 fn server_busy_error(message: &str) -> HydrusException {
@@ -213,7 +210,8 @@ impl HydrusSessionManagerServer {
     ) -> HydrusResult<(SessionKey, i64)> {
         let mut state = self.lock();
 
-        let account_key = self.get_account_key_from_access_key(&mut state, service_key, access_key)?;
+        let account_key =
+            self.get_account_key_from_access_key(&mut state, service_key, access_key)?;
 
         // Python fetches the account here, which also validates it exists.
         self.get_account_from_account_key(&mut state, service_key, &account_key)?;
@@ -249,7 +247,8 @@ impl HydrusSessionManagerServer {
             return Err(session_error());
         };
 
-        let Some((account_key, expires)) = session_keys_to_sessions.get(session_key).cloned() else {
+        let Some((account_key, expires)) = session_keys_to_sessions.get(session_key).cloned()
+        else {
             return Err(session_error());
         };
 
@@ -281,7 +280,8 @@ impl HydrusSessionManagerServer {
     ) -> HydrusResult<Arc<dyn Account>> {
         let mut state = self.lock();
 
-        let account_key = self.get_account_key_from_access_key(&mut state, service_key, access_key)?;
+        let account_key =
+            self.get_account_key_from_access_key(&mut state, service_key, access_key)?;
 
         self.get_account_from_account_key(&mut state, service_key, &account_key)
     }
@@ -375,7 +375,10 @@ impl HydrusSessionManagerServer {
                 .service_keys_to_session_keys_to_sessions
                 .entry(session.service_key.clone())
                 .or_default()
-                .insert(session.session_key.clone(), (account_key.clone(), session.expires));
+                .insert(
+                    session.session_key.clone(),
+                    (account_key.clone(), session.expires),
+                );
 
             // Python checks the *outer* map here. Preserve that so the port
             // remains a faithful reference for behaviour comparisons.
@@ -407,11 +410,7 @@ impl HydrusSessionManagerServer {
     }
 
     /// `update_accounts( service_key, accounts )`
-    pub fn update_accounts(
-        &self,
-        service_key: &[u8],
-        accounts: &[Arc<dyn Account>],
-    ) {
+    pub fn update_accounts(&self, service_key: &[u8], accounts: &[Arc<dyn Account>]) {
         let mut state = self.lock();
 
         let account_keys_to_accounts = state
@@ -474,7 +473,9 @@ impl Subscriber for HydrusSessionManagerServer {
 
                 self.refresh_accounts(&service_key, None)
             }
-            "RefreshAllAccounts" => self.refresh_all_accounts(message_service_key(message).as_deref()),
+            "RefreshAllAccounts" => {
+                self.refresh_all_accounts(message_service_key(message).as_deref())
+            }
             _ => Ok(()),
         }
     }
@@ -552,10 +553,7 @@ mod tests {
     }
 
     impl SessionController for TestController {
-        fn read_sessions(
-            &self,
-            service_key: Option<&[u8]>,
-        ) -> HydrusResult<Vec<ExistingSession>> {
+        fn read_sessions(&self, service_key: Option<&[u8]>) -> HydrusResult<Vec<ExistingSession>> {
             self.reads.fetch_add(1, Ordering::SeqCst);
 
             Ok(self
@@ -563,9 +561,7 @@ mod tests {
                 .lock()
                 .unwrap()
                 .iter()
-                .filter(|session| {
-                    service_key.is_none_or(|key| session.service_key == key)
-                })
+                .filter(|session| service_key.is_none_or(|key| session.service_key == key))
                 .cloned()
                 .collect())
         }
@@ -642,10 +638,9 @@ mod tests {
             b"access",
         ));
 
-        let manager = HydrusSessionManagerServer::new(
-            Arc::clone(&controller) as Arc<dyn SessionController>,
-        )
-        .unwrap();
+        let manager =
+            HydrusSessionManagerServer::new(Arc::clone(&controller) as Arc<dyn SessionController>)
+                .unwrap();
 
         assert_eq!(controller.reads.load(Ordering::SeqCst), 1);
 
@@ -674,10 +669,9 @@ mod tests {
             b"access",
         ));
 
-        let manager = HydrusSessionManagerServer::new(
-            Arc::clone(&controller) as Arc<dyn SessionController>,
-        )
-        .unwrap();
+        let manager =
+            HydrusSessionManagerServer::new(Arc::clone(&controller) as Arc<dyn SessionController>)
+                .unwrap();
 
         let (session_key, expires) = manager.add_session(&service_key(), b"access").unwrap();
 
@@ -700,10 +694,9 @@ mod tests {
 
         controller.sessions.lock().unwrap()[0].expires = get_now() - 1;
 
-        let manager = HydrusSessionManagerServer::new(
-            Arc::clone(&controller) as Arc<dyn SessionController>,
-        )
-        .unwrap();
+        let manager =
+            HydrusSessionManagerServer::new(Arc::clone(&controller) as Arc<dyn SessionController>)
+                .unwrap();
 
         let error = manager
             .get_account(&service_key(), &vec![7; 32])
@@ -721,10 +714,9 @@ mod tests {
             b"access",
         ));
 
-        let manager = HydrusSessionManagerServer::new(
-            Arc::clone(&controller) as Arc<dyn SessionController>,
-        )
-        .unwrap();
+        let manager =
+            HydrusSessionManagerServer::new(Arc::clone(&controller) as Arc<dyn SessionController>)
+                .unwrap();
 
         assert!(
             manager
@@ -742,10 +734,9 @@ mod tests {
             b"access",
         ));
 
-        let manager = HydrusSessionManagerServer::new(
-            Arc::clone(&controller) as Arc<dyn SessionController>,
-        )
-        .unwrap();
+        let manager =
+            HydrusSessionManagerServer::new(Arc::clone(&controller) as Arc<dyn SessionController>)
+                .unwrap();
 
         let dirty = manager.get_dirty_accounts();
 
@@ -761,10 +752,9 @@ mod tests {
             b"access",
         ));
 
-        let manager = HydrusSessionManagerServer::new(
-            Arc::clone(&controller) as Arc<dyn SessionController>,
-        )
-        .unwrap();
+        let manager =
+            HydrusSessionManagerServer::new(Arc::clone(&controller) as Arc<dyn SessionController>)
+                .unwrap();
 
         manager.update_accounts(&service_key(), &[TestAccount::new(6, true)]);
 
@@ -779,10 +769,9 @@ mod tests {
             b"access",
         ));
 
-        let manager = HydrusSessionManagerServer::new(
-            Arc::clone(&controller) as Arc<dyn SessionController>,
-        )
-        .unwrap();
+        let manager =
+            HydrusSessionManagerServer::new(Arc::clone(&controller) as Arc<dyn SessionController>)
+                .unwrap();
 
         manager.refresh_all_accounts(Some(&service_key())).unwrap();
 

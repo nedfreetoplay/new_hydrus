@@ -24,7 +24,7 @@ use std::time::Duration;
 use rand::Rng;
 
 use crate::hydrus_data::{debug_print, print_exception, safe_print};
-use crate::hydrus_exceptions::{shutdown, ErrorKind, HydrusException, HydrusResult};
+use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult, shutdown};
 use crate::hydrus_globals;
 use crate::hydrus_numbers::to_human_int;
 use crate::hydrus_profiling;
@@ -176,7 +176,9 @@ pub fn mark_thread_dead(thread_id: ThreadId) {
 /// `shutdown_thread( thread )`
 pub fn shutdown_thread(thread_id: ThreadId) {
     if hydrus_globals::shutdown_report_mode() {
-        debug_print(format!("Thread {thread_id:?} is getting an external shutdown call."));
+        debug_print(format!(
+            "Thread {thread_id:?} is getting an external shutdown call."
+        ));
     }
 
     with_registry(|registry| {
@@ -506,8 +508,7 @@ impl Subscriber for Daemon {
     }
 }
 
-pub type DaemonCallable =
-    Arc<dyn Fn(&dyn ThreadingController) -> HydrusResult<()> + Send + Sync>;
+pub type DaemonCallable = Arc<dyn Fn(&dyn ThreadingController) -> HydrusResult<()> + Send + Sync>;
 
 type CanStart = Arc<dyn Fn(&dyn ThreadingController) -> bool + Send + Sync>;
 
@@ -613,11 +614,7 @@ impl DaemonWorker {
         let daemon = Daemon::new(Arc::clone(&controller), name);
 
         for topic in topics {
-            controller.subscribe(
-                Arc::clone(&daemon) as Arc<dyn Subscriber>,
-                "set",
-                topic,
-            );
+            controller.subscribe(Arc::clone(&daemon) as Arc<dyn Subscriber>, "set", topic);
         }
 
         let worker = Arc::new(Self {
@@ -995,12 +992,14 @@ impl ThreadWorkerPool {
         if !ok_to_make_one {
             let me = std::thread::current().id();
 
-            let called_from_pool = state.call_to_threads.iter().any(|thread| {
-                *lock(&thread.thread_id) == Some(me)
-            }) || state
-                .long_running_call_to_threads
+            let called_from_pool = state
+                .call_to_threads
                 .iter()
-                .any(|thread| *lock(&thread.thread_id) == Some(me));
+                .any(|thread| *lock(&thread.thread_id) == Some(me))
+                || state
+                    .long_running_call_to_threads
+                    .iter()
+                    .any(|thread| *lock(&thread.thread_id) == Some(me));
 
             // We are calling from inside the pool. Make one anyway to avoid a
             // deadlock.
@@ -1077,10 +1076,7 @@ impl ThreadWorkerPool {
     /// `get_threads_snapshot()`
     pub fn get_threads_snapshot(
         &self,
-    ) -> (
-        Vec<Arc<ThreadCallToThread>>,
-        Vec<Arc<ThreadCallToThread>>,
-    ) {
+    ) -> (Vec<Arc<ThreadCallToThread>>, Vec<Arc<ThreadCallToThread>>) {
         let state = lock(&self.state);
 
         (
@@ -1212,10 +1208,7 @@ impl JobScheduler {
     }
 
     pub fn get_current_job_summary(&self) -> String {
-        format!(
-            "{} jobs",
-            to_human_int(lock(&self.waiting).len() as i128)
-        )
+        format!("{} jobs", to_human_int(lock(&self.waiting).len() as i128))
     }
 
     fn filter_cancelled(&self) {
@@ -1290,9 +1283,8 @@ impl JobScheduler {
     fn insert_job(&self, job: Arc<SchedulableJob>) {
         let mut waiting = lock(&self.waiting);
 
-        let index = waiting.partition_point(|existing| {
-            existing.get_next_work_time() <= job.get_next_work_time()
-        });
+        let index = waiting
+            .partition_point(|existing| existing.get_next_work_time() <= job.get_next_work_time());
 
         waiting.insert(index, job);
     }
@@ -1320,10 +1312,7 @@ impl JobScheduler {
     pub fn get_pretty_job_summary(&self) -> String {
         let waiting = lock(&self.waiting);
 
-        let mut lines = vec![format!(
-            "{} jobs:",
-            to_human_int(waiting.len() as i128)
-        )];
+        let mut lines = vec![format!("{} jobs:", to_human_int(waiting.len() as i128))];
 
         lines.extend(waiting.iter().map(|job| job.to_string()));
 
@@ -1373,7 +1362,8 @@ impl JobScheduler {
 
                 let wait_time = self.get_loop_wait_time();
 
-                self.new_job_arrived.wait(Duration::from_secs_f64(wait_time));
+                self.new_job_arrived
+                    .wait(Duration::from_secs_f64(wait_time));
                 self.new_job_arrived.clear();
             }
 

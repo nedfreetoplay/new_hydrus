@@ -12,13 +12,15 @@ use image::{DynamicImage, RgbImage, RgbaImage};
 use regex::Regex;
 
 use crate::files::hydrus_audio_handling;
-use crate::hydrus_constants::{running_from_source, MIMES_THAT_WE_CAN_CHECK_FOR_TRANSPARENCY, ANIMATIONS, Mime};
-use crate::hydrus_data;
-use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::files::hydrus_ffmpeg;
 use crate::files::hydrus_ffmpeg_parsing;
-use crate::processes::hydrus_subprocess::{SubprocessCommand, SubprocessContext};
+use crate::hydrus_constants::{
+    ANIMATIONS, MIMES_THAT_WE_CAN_CHECK_FOR_TRANSPARENCY, Mime, running_from_source,
+};
+use crate::hydrus_data;
+use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::hydrus_time;
+use crate::processes::hydrus_subprocess::{SubprocessCommand, SubprocessContext};
 
 fn damaged(message: impl Into<String>) -> HydrusException {
     HydrusException::new(ErrorKind::DamagedOrUnusualFile, message)
@@ -94,10 +96,8 @@ pub fn get_ffmpeg_video_properties(
     let num_frames;
 
     if force_count_frames_manually {
-        let count_frames_manually_lines = hydrus_ffmpeg::get_ffmpeg_info_lines(
-            path,
-            Some(video_stream_mapping.as_str()),
-        )?;
+        let count_frames_manually_lines =
+            hydrus_ffmpeg::get_ffmpeg_info_lines(path, Some(video_stream_mapping.as_str()))?;
 
         num_frames = parse_ffmpeg_num_frames_manually(&count_frames_manually_lines)?;
 
@@ -150,8 +150,8 @@ pub fn parse_ffmpeg_duration(lines: &[String]) -> HydrusResult<(Option<f64>, Opt
     }
 
     let start_offset = if line.contains("start:") {
-        let start_regex = Regex::new(r"start: (-?[0-9]+\.[0-9]*)")
-            .expect("the duration start regex is valid");
+        let start_regex =
+            Regex::new(r"start: (-?[0-9]+\.[0-9]*)").expect("the duration start regex is valid");
 
         let Some(captures) = start_regex.captures(line) else {
             return Err(damaged("Error reading duration!"));
@@ -183,7 +183,7 @@ pub fn parse_ffmpeg_duration(lines: &[String]) -> HydrusResult<(Option<f64>, Opt
         hms.push(value);
     }
 
-    let mut duration_s = match hms.as_slice() {
+    let duration_s = match hms.as_slice() {
         [seconds] => *seconds,
         [minutes, seconds] => 60.0 * minutes + seconds,
         [hours, minutes, seconds] => 3600.0 * hours + 60.0 * minutes + seconds,
@@ -210,10 +210,6 @@ pub fn parse_ffmpeg_duration(lines: &[String]) -> HydrusResult<(Option<f64>, Opt
     let file_duration_s = duration_s + start_offset;
     let stream_duration_s = duration_s;
 
-    duration_s = stream_duration_s;
-
-    let _ = duration_s;
-
     Ok((Some(file_duration_s), Some(stream_duration_s)))
 }
 
@@ -234,7 +230,10 @@ pub fn parse_ffmpeg_fps_possible_results(video_line: &str) -> (Vec<f64>, bool) {
 
     let mut possible_results: Vec<f64> = Vec::new();
 
-    for pattern in [r"([0-9]+(?:\.[0-9]+)?)\s+tbr", r"([0-9]+(?:\.[0-9]+)?)\s+fps"] {
+    for pattern in [
+        r"([0-9]+(?:\.[0-9]+)?)\s+tbr",
+        r"([0-9]+(?:\.[0-9]+)?)\s+fps",
+    ] {
         let regex = Regex::new(pattern).expect("the fps regex is valid");
 
         if let Some(captures) = regex.captures(video_line) {
@@ -277,11 +276,7 @@ pub fn parse_ffmpeg_fps_possible_results(video_line: &str) -> (Vec<f64>, bool) {
 pub fn parse_ffmpeg_video_line(lines: &[String], png_ok: bool) -> HydrusResult<String> {
     let pure_video_lines = hydrus_ffmpeg_parsing::get_video_stream_lines(lines);
 
-    let bad_video_formats: &[&str] = if png_ok {
-        &["jpg"]
-    } else {
-        &["png", "jpg"]
-    };
+    let bad_video_formats: &[&str] = if png_ok { &["jpg"] } else { &["png", "jpg"] };
 
     let video_lines: Vec<&String> = pure_video_lines
         .iter()
@@ -318,10 +313,7 @@ pub fn parse_ffmpeg_fps(lines: &[String], png_ok: bool) -> HydrusResult<(f64, bo
 
     let (possible_results, confident) = parse_ffmpeg_fps_possible_results(&line);
 
-    let fps = possible_results
-        .first()
-        .copied()
-        .unwrap_or(1.0);
+    let fps = possible_results.first().copied().unwrap_or(1.0);
 
     Ok((fps, confident))
 }
@@ -335,9 +327,7 @@ pub fn parse_ffmpeg_has_video(lines: &[String]) -> bool {
 pub fn parse_ffmpeg_metadata_container(lines: &[String]) -> String {
     let metadata_regex = Regex::new(r"^\s*Metadata:\s*").expect("the metadata regex is valid");
 
-    let Some(metadata_line_index) = lines
-        .iter()
-        .position(|line| metadata_regex.is_match(line))
+    let Some(metadata_line_index) = lines.iter().position(|line| metadata_regex.is_match(line))
     else {
         return String::new();
     };
@@ -370,11 +360,7 @@ pub fn parse_ffmpeg_mime_text(lines: &[String]) -> HydrusResult<String> {
 
     let text = &input_line[10..];
 
-    Ok(text
-        .split(", from")
-        .next()
-        .unwrap_or_default()
-        .to_string())
+    Ok(text.split(", from").next().unwrap_or_default().to_string())
 }
 
 /// `parse_ffmpeg_num_frames_manually( lines )`
@@ -431,10 +417,7 @@ pub fn parse_ffmpeg_video_format(lines: &[String]) -> (bool, String, String) {
 }
 
 /// `parse_ffmpeg_video_resolution( lines, png_ok = False )`
-pub fn parse_ffmpeg_video_resolution(
-    lines: &[String],
-    png_ok: bool,
-) -> HydrusResult<(u32, u32)> {
+pub fn parse_ffmpeg_video_resolution(lines: &[String], png_ok: bool) -> HydrusResult<(u32, u32)> {
     let line = parse_ffmpeg_video_line(lines, png_ok)?;
 
     let resolution_regex =
@@ -467,10 +450,9 @@ pub fn parse_ffmpeg_video_resolution(
         }
     }
 
-    let rotation_regex = Regex::new(
-        r"(displaymatrix:|Display Matrix:) rotation of -?90\.00 degrees",
-    )
-    .expect("the rotation regex is valid");
+    let rotation_regex =
+        Regex::new(r"(displaymatrix:|Display Matrix:) rotation of -?90\.00 degrees")
+            .expect("the rotation regex is valid");
 
     if lines.iter().any(|line| rotation_regex.is_match(line)) {
         return Ok((height, width));
@@ -520,9 +502,11 @@ pub fn video_has_audio(path: impl AsRef<Path>, info_lines: &[String]) -> HydrusR
         Ok(streamer) => streamer,
         Err(error) => {
             if error.is_a(ErrorKind::Executable) {
-                return Err(hydrus_ffmpeg::handle_ffmpeg_file_not_found_and_generate_exception(
-                    &error, path,
-                ));
+                return Err(
+                    hydrus_ffmpeg::handle_ffmpeg_file_not_found_and_generate_exception(
+                        &error, path,
+                    ),
+                );
             }
 
             return Err(error);
@@ -644,8 +628,7 @@ impl VideoRendererFFMPEG {
             _ => 100,
         };
 
-        let duration_s =
-            hydrus_time::secondise_ms_float(Some(duration_ms as f64)).unwrap_or(0.1);
+        let duration_s = hydrus_time::secondise_ms_float(Some(duration_ms as f64)).unwrap_or(0.1);
 
         let pix_fmt = if MIMES_THAT_WE_CAN_CHECK_FOR_TRANSPARENCY.contains(&mime) {
             "rgba"
@@ -724,10 +707,7 @@ impl VideoRendererFFMPEG {
             cmd.extend(["-ss".to_string(), format!("{ss:.03}")]);
         }
 
-        cmd.extend([
-            "-i".to_string(),
-            self.path.to_string_lossy().into_owned(),
-        ]);
+        cmd.extend(["-i".to_string(), self.path.to_string_lossy().into_owned()]);
 
         if let Some(video_stream_mapping) = &self.video_stream_mapping {
             cmd.extend(["-map".to_string(), video_stream_mapping.clone()]);
@@ -736,9 +716,7 @@ impl VideoRendererFFMPEG {
         let mut video_filters = vec![format!("scale={width}:{height}")];
 
         if let Some((clip_x, clip_y, clip_width, clip_height)) = self.clip_rect {
-            video_filters.push(format!(
-                "crop={clip_width}:{clip_height}:{clip_x}:{clip_y}"
-            ));
+            video_filters.push(format!("crop={clip_width}:{clip_height}:{clip_x}:{clip_y}"));
         }
 
         cmd.extend(["-vf".to_string(), video_filters.join(",")]);
@@ -771,8 +749,7 @@ impl VideoRendererFFMPEG {
             Err(error) if error.is_a(ErrorKind::Executable) => {
                 return Err(
                     hydrus_ffmpeg::handle_ffmpeg_file_not_found_and_generate_exception(
-                        &error,
-                        &self.path,
+                        &error, &self.path,
                     ),
                 );
             }
@@ -822,9 +799,10 @@ impl VideoRendererFFMPEG {
         }
 
         if self.process_reader.is_none() {
-            return self.lastread.clone().ok_or_else(|| {
-                damaged("Unable to render that video!")
-            });
+            return self
+                .lastread
+                .clone()
+                .ok_or_else(|| damaged("Unable to render that video!"));
         }
 
         let (width, height) = self.target_resolution;
@@ -952,8 +930,7 @@ mod tests {
 
     #[test]
     fn duration_and_start_are_parsed() {
-        let (file_duration, stream_duration) =
-            parse_ffmpeg_duration(&sample_lines()).unwrap();
+        let (file_duration, stream_duration) = parse_ffmpeg_duration(&sample_lines()).unwrap();
 
         assert!((file_duration.unwrap() - 2.493).abs() < 0.001);
         assert!((stream_duration.unwrap() - 2.46).abs() < 0.001);
@@ -983,7 +960,9 @@ mod tests {
         );
 
         let mut lines = sample_lines();
-        lines[4] = "Stream #0:0: Video: vp9, yuv420p, 1120x1080, SAR 10:11 DAR 280:297, 30 fps, 30 tbr".to_string();
+        lines[4] =
+            "Stream #0:0: Video: vp9, yuv420p, 1120x1080, SAR 10:11 DAR 280:297, 30 fps, 30 tbr"
+                .to_string();
 
         assert_eq!(
             parse_ffmpeg_video_resolution(&lines, false).unwrap(),
@@ -998,14 +977,14 @@ mod tests {
 
         assert_eq!(image.width(), 2);
         assert_eq!(image.height(), 1);
-        assert_eq!(
-            image.to_rgb8().get_pixel(1, 0),
-            &image::Rgb([4, 5, 6])
-        );
+        assert_eq!(image.to_rgb8().get_pixel(1, 0), &image::Rgb([4, 5, 6]));
 
         let rgba = VideoFrame::new(vec![1, 2, 3, 4], 1, 1, 4).unwrap();
 
-        assert_eq!(rgba.to_dynamic_image().unwrap().color(), image::ColorType::Rgba8);
+        assert_eq!(
+            rgba.to_dynamic_image().unwrap().color(),
+            image::ColorType::Rgba8
+        );
         assert!(VideoFrame::new(vec![1, 2, 3], 2, 2, 3).is_err());
         assert!(VideoFrame::new(vec![1, 2, 3], 1, 1, 5).is_err());
     }
@@ -1013,9 +992,7 @@ mod tests {
     #[test]
     fn rotation_swaps_resolution() {
         let mut lines = sample_lines();
-        lines.push(
-            "      displaymatrix: rotation of -90.00 degrees".to_string(),
-        );
+        lines.push("      displaymatrix: rotation of -90.00 degrees".to_string());
 
         assert_eq!(
             parse_ffmpeg_video_resolution(&lines, false).unwrap(),
@@ -1050,6 +1027,9 @@ mod tests {
 
     #[test]
     fn mime_text_is_read() {
-        assert_eq!(parse_ffmpeg_mime_text(&sample_lines()).unwrap(), "matroska,webm");
+        assert_eq!(
+            parse_ffmpeg_mime_text(&sample_lines()).unwrap(),
+            "matroska,webm"
+        );
     }
 }

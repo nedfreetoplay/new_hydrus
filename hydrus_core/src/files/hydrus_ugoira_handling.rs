@@ -14,9 +14,9 @@ use serde_json::Value;
 use zip::ZipArchive;
 
 use crate::files::hydrus_archive_handling;
+use crate::files::images::hydrus_image_handling;
 use crate::hydrus_constants::IMAGE_FILE_EXTS;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::files::images::hydrus_image_handling;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct UgoiraFrame {
@@ -72,7 +72,10 @@ pub fn get_frame_paths_from_ugoira_zip(path: impl AsRef<Path>) -> HydrusResult<V
     let file = std::fs::File::open(path).map_err(|error| {
         HydrusException::new(
             ErrorKind::FileMissing,
-            format!("Could not open the Ugoira file \"{}\": {error}", path.display()),
+            format!(
+                "Could not open the Ugoira file \"{}\": {error}",
+                path.display()
+            ),
         )
     })?;
 
@@ -122,22 +125,18 @@ pub fn get_frame_paths_from_ugoira_zip(path: impl AsRef<Path>) -> HydrusResult<V
 pub fn get_ugoira_json(path: impl AsRef<Path>) -> HydrusResult<Value> {
     let path = path.as_ref();
 
-    let json_file = hydrus_archive_handling::get_zip_as_path(
-        path.to_path_buf(),
-        "animation.json",
-    );
+    let json_file = hydrus_archive_handling::get_zip_as_path(path.to_path_buf(), "animation.json");
 
     if !json_file.exists() {
         return Err(limited_support("Zip file has no animation.json!"));
     }
 
-    let text = json_file.read_text().map_err(|_| {
-        limited_support("Zip file has no animation.json or it cannot be parsed")
-    })?;
+    let text = json_file
+        .read_text()
+        .map_err(|_| limited_support("Zip file has no animation.json or it cannot be parsed"))?;
 
-    serde_json::from_str(&text).map_err(|_| {
-        limited_support("Zip file has no animation.json or it cannot be parsed")
-    })
+    serde_json::from_str(&text)
+        .map_err(|_| limited_support("Zip file has no animation.json or it cannot be parsed"))
 }
 
 /// `get_ugoira_frame_data_json( path )`
@@ -163,9 +162,8 @@ pub fn get_ugoira_properties_from_json(
 ) -> HydrusResult<((u32, u32), i64, u32)> {
     let path = path.as_ref();
 
-    let frame_data = get_ugoira_frame_data_json(path).ok_or_else(|| {
-        limited_support("Zip file has no animation.json or it cannot be parsed")
-    })?;
+    let frame_data = get_ugoira_frame_data_json(path)
+        .ok_or_else(|| limited_support("Zip file has no animation.json or it cannot be parsed"))?;
 
     let duration_ms = frame_data.iter().map(|frame| frame.delay).sum::<i64>();
     let num_frames = frame_data.len() as u32;
@@ -182,9 +180,7 @@ pub fn get_ugoira_properties(
 ) -> HydrusResult<((u32, u32), Option<i64>, Option<u32>)> {
     let path = path.as_ref();
 
-    if let Ok(((width, height), duration_ms, num_frames)) =
-        get_ugoira_properties_from_json(path)
-    {
+    if let Ok(((width, height), duration_ms, num_frames)) = get_ugoira_properties_from_json(path) {
         return Ok(((width, height), Some(duration_ms), Some(num_frames)));
     }
 
@@ -281,9 +277,7 @@ pub fn zip_looks_like_ugoira(path_to_zip: impl AsRef<Path>) -> bool {
         return false;
     }
 
-    for (expected_image_number, image_number_string) in
-        image_number_strings.iter().enumerate()
-    {
+    for (expected_image_number, image_number_string) in image_number_strings.iter().enumerate() {
         if *image_number_string != format!("{expected_image_number:06}") {
             return false;
         }
@@ -331,9 +325,8 @@ pub fn get_ugoira_frame_pil(
         ))
     })?;
 
-    let bytes =
-        hydrus_archive_handling::get_zip_as_path(path.to_path_buf(), frame_name.clone())
-            .read_bytes()?;
+    let bytes = hydrus_archive_handling::get_zip_as_path(path.to_path_buf(), frame_name.clone())
+        .read_bytes()?;
 
     hydrus_image_handling::decode_image_bytes(&bytes)
 }
@@ -357,8 +350,8 @@ pub fn generate_thumbnail_numpy_from_ugoira_path(
 mod tests {
     use std::io::Write;
 
-    use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
+    use zip::write::SimpleFileOptions;
 
     use super::*;
 
@@ -435,8 +428,7 @@ mod tests {
 
         assert!(zip_looks_like_ugoira(&path));
 
-        let ((width, height), duration_ms, num_frames) =
-            get_ugoira_properties(&path).unwrap();
+        let ((width, height), duration_ms, num_frames) = get_ugoira_properties(&path).unwrap();
 
         assert_eq!((width, height), (4, 3));
         assert_eq!(duration_ms, Some(350));
@@ -447,10 +439,8 @@ mod tests {
 
     #[test]
     fn object_json_with_frames_key_works_too() {
-        let value: Value = serde_json::from_str(
-            r#"{"frames":[{"file":"a.png","delay":50}]}"#,
-        )
-        .unwrap();
+        let value: Value =
+            serde_json::from_str(r#"{"frames":[{"file":"a.png","delay":50}]}"#).unwrap();
 
         let frames = parse_frame_data(&value).unwrap();
 

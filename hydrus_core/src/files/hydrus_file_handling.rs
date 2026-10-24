@@ -20,31 +20,30 @@ use sha2::{Digest, Sha256, Sha512};
 use crate::files::hydrus_animation_handling;
 use crate::files::hydrus_archive_handling;
 use crate::files::hydrus_clip_handling;
+use crate::files::hydrus_ffmpeg;
+use crate::files::hydrus_ffmpeg_rendering;
+use crate::files::hydrus_krita_handling;
+use crate::files::hydrus_office_open_xml_handling;
+use crate::files::hydrus_ole_handling;
+use crate::files::hydrus_ora_handling;
+use crate::files::hydrus_paint_net_handling;
+use crate::files::hydrus_procreate_handling;
+use crate::files::hydrus_psd_handling;
+use crate::files::hydrus_svg_handling;
+use crate::files::hydrus_ugoira_handling;
+use crate::files::hydrus_video_handling;
+use crate::files::images::hydrus_image_handling;
 use crate::hydrus_constants::{
-    allowed_mimes, mimes_that_definitely_have_audio, Mime, ANIMATIONS, ARCHIVES,
-    AUDIO, HEIF_TYPE_SEQUENCES, IMAGES, PIL_AVIF_MIMES, PIL_HEIF_MIMES,
-    POTENTIAL_OFFICE_OLE_MIMES, VIDEO,
+    ANIMATIONS, ARCHIVES, AUDIO, HEIF_TYPE_SEQUENCES, IMAGES, Mime, PIL_AVIF_MIMES, PIL_HEIF_MIMES,
+    POTENTIAL_OFFICE_OLE_MIMES, VIDEO, allowed_mimes, mimes_that_definitely_have_audio,
 };
 use crate::hydrus_data;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::files::hydrus_ffmpeg;
-use crate::files::hydrus_ffmpeg_rendering;
-use crate::files::images::hydrus_image_handling;
-use crate::files::hydrus_krita_handling;
-use crate::files::hydrus_ora_handling;
-use crate::files::hydrus_office_open_xml_handling;
-use crate::files::hydrus_ole_handling;
-use crate::files::hydrus_paint_net_handling;
 use crate::hydrus_paths;
-use crate::files::hydrus_procreate_handling;
-use crate::files::hydrus_psd_handling;
 use crate::hydrus_serialisable;
 use crate::hydrus_static_dir;
-use crate::files::hydrus_svg_handling;
 use crate::hydrus_temp;
 use crate::hydrus_text;
-use crate::files::hydrus_ugoira_handling;
-use crate::files::hydrus_video_handling;
 
 /// Python loads this through `HydrusStaticDir.get_static_path`.
 pub const DEFAULT_THUMBNAIL_FILENAME: &str = "hydrus.png";
@@ -84,10 +83,7 @@ pub struct HeaderMime {
     pub mime: Mime,
 }
 
-const fn oh(
-    offsets: &'static [usize],
-    headers: &'static [&'static [u8]],
-) -> OffsetAndHeaders {
+const fn oh(offsets: &'static [usize], headers: &'static [&'static [u8]]) -> OffsetAndHeaders {
     OffsetAndHeaders { offsets, headers }
 }
 
@@ -118,20 +114,14 @@ pub const HEADERS_AND_MIME: &[HeaderMime] = &[
     hm(
         &[oh(
             &[0],
-            &[
-                b"\xff\x0a",
-                b"\x00\x00\x00\x0cJXL \x0d\x0a\x87\x0a",
-            ],
+            &[b"\xff\x0a", b"\x00\x00\x00\x0cJXL \x0d\x0a\x87\x0a"],
         )],
         Mime::UndeterminedJxl,
     ),
     hm(&[oh(&[0], &[b"CWS", b"FWS", b"ZWS"])], Mime::Flash),
     hm(&[oh(&[0], &[b"FLV"])], Mime::Flv),
     hm(&[oh(&[0], &[b"%PDF"])], Mime::Pdf),
-    hm(
-        &[oh(&[0], &[b"8BPS\x00\x01", b"8BPS\x00\x02"])],
-        Mime::Psd,
-    ),
+    hm(&[oh(&[0], &[b"8BPS\x00\x01", b"8BPS\x00\x02"])], Mime::Psd),
     hm(&[oh(&[0], &[b"CSFCHUNK"])], Mime::Clip),
     hm(&[oh(&[0], &[b"SAI-CANVAS"])], Mime::Sai2),
     hm(&[oh(&[0], &[b"gimp xcf "])], Mime::Xcf),
@@ -145,10 +135,7 @@ pub const HEADERS_AND_MIME: &[HeaderMime] = &[
         Mime::OpenRaster,
     ),
     hm(&[oh(&[0], &[b"PDN3"])], Mime::PaintDotNet),
-    hm(
-        &[oh(&[38, 43], &[b"application/epub+zip"])],
-        Mime::Epub,
-    ),
+    hm(&[oh(&[38, 43], &[b"application/epub+zip"])], Mime::Epub),
     hm(
         &[
             oh(&[4], &[b"FORM"]),
@@ -158,10 +145,7 @@ pub const HEADERS_AND_MIME: &[HeaderMime] = &[
     ),
     hm(&[oh(&[0], &[b"{\\rtf"])], Mime::Rtf),
     hm(
-        &[oh(
-            &[0],
-            &[b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"],
-        )],
+        &[oh(&[0], &[b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"])],
         Mime::Zip,
     ),
     hm(&[oh(&[0], &[b"7z\xbc\xaf\x27\x1c"])], Mime::SevenZ),
@@ -176,17 +160,11 @@ pub const HEADERS_AND_MIME: &[HeaderMime] = &[
         Mime::Rar,
     ),
     hm(&[oh(&[0], &[b"\x1f\x8b"])], Mime::Gzip),
-    hm(
-        &[oh(&[0], &[b"hydrus encrypted zip"])],
-        Mime::EncryptedZip,
-    ),
+    hm(&[oh(&[0], &[b"hydrus encrypted zip"])], Mime::EncryptedZip),
     hm(&[oh(&[4], &[b"ftypavif"])], Mime::Avif),
     hm(&[oh(&[4], &[b"ftypavis"])], Mime::AvifSequence),
     hm(
-        &[
-            oh(&[4], &[b"ftypmif1"]),
-            oh(&[16, 20, 24], &[b"avif"]),
-        ],
+        &[oh(&[4], &[b"ftypmif1"]), oh(&[16, 20, 24], &[b"avif"])],
         Mime::Avif,
     ),
     hm(
@@ -222,13 +200,7 @@ pub const HEADERS_AND_MIME: &[HeaderMime] = &[
     ),
     hm(&[oh(&[4], &[b"ftypqt"])], Mime::Mov),
     hm(&[oh(&[0], &[b"fLaC"])], Mime::Flac),
-    hm(
-        &[
-            oh(&[0], &[b"RIFF"]),
-            oh(&[8], &[b"WAVE"]),
-        ],
-        Mime::Wave,
-    ),
+    hm(&[oh(&[0], &[b"RIFF"]), oh(&[8], &[b"WAVE"])], Mime::Wave),
     hm(&[oh(&[0], &[b"wvpk"])], Mime::WavPack),
     hm(&[oh(&[8], &[b"AVI "])], Mime::Avi),
     hm(
@@ -238,10 +210,7 @@ pub const HEADERS_AND_MIME: &[HeaderMime] = &[
         )],
         Mime::UndeterminedWm,
     ),
-    hm(
-        &[oh(&[0], &[b"\x4d\x5a\x90\x00\x03"])],
-        Mime::WindowsExe,
-    ),
+    hm(&[oh(&[0], &[b"\x4d\x5a\x90\x00\x03"])], Mime::WindowsExe),
     hm(
         &[oh(
             &[0],
@@ -323,12 +292,9 @@ pub fn default_thumbnail_path(mime: Mime) -> PathBuf {
                 return path.clone();
             }
 
-            return map
-                .get(&Mime::Unknown)
-                .cloned()
-                .unwrap_or_else(|| {
-                    hydrus_static_dir::get_static_path(DEFAULT_THUMBNAIL_FILENAME, false)
-                });
+            return map.get(&Mime::Unknown).cloned().unwrap_or_else(|| {
+                hydrus_static_dir::get_static_path(DEFAULT_THUMBNAIL_FILENAME, false)
+            });
         }
     }
 
@@ -337,7 +303,10 @@ pub fn default_thumbnail_path(mime: Mime) -> PathBuf {
     default_thumbnail_path(mime)
 }
 
-fn default_thumbnail_numpy(mime: Mime, target_resolution: (u32, u32)) -> HydrusResult<DynamicImage> {
+fn default_thumbnail_numpy(
+    mime: Mime,
+    target_resolution: (u32, u32),
+) -> HydrusResult<DynamicImage> {
     let path = default_thumbnail_path(mime);
 
     hydrus_image_handling::generate_default_thumbnail_numpy_from_path(path, target_resolution)
@@ -431,8 +400,12 @@ fn generate_thumbnail_numpy_with_description(
     };
 
     if AUDIO.contains(&mime) {
-        return match generate_thumbnail_numpy_audio(path, target_resolution, mime, extra_description)
-        {
+        return match generate_thumbnail_numpy_audio(
+            path,
+            target_resolution,
+            mime,
+            extra_description,
+        ) {
             Ok(image) => Ok(image),
             Err(error) => throttled_error(error),
         };
@@ -611,11 +584,10 @@ pub fn generate_thumbnail_numpy_weird_application_gubbins(
             }
 
             if cover_mime == Mime::Svg {
-                let thumbnail =
-                    hydrus_svg_handling::generate_thumbnail_numpy_from_svg_path(
-                        &temp_path,
-                        target_resolution,
-                    )?;
+                let thumbnail = hydrus_svg_handling::generate_thumbnail_numpy_from_svg_path(
+                    &temp_path,
+                    target_resolution,
+                )?;
 
                 return hydrus_image_handling::decode_image_bytes(&thumbnail).map(|image| {
                     hydrus_image_handling::resize_image(&image, target_resolution, None)
@@ -691,10 +663,11 @@ pub fn generate_thumbnail_numpy_weird_application_gubbins(
     }
 
     if mime == Mime::Pdf {
-        let thumbnail = crate::files::hydrus_pdf_handling::base_generate_thumbnail_numpy_from_pdf_path(
-            path,
-            target_resolution,
-        )?;
+        let thumbnail =
+            crate::files::hydrus_pdf_handling::base_generate_thumbnail_numpy_from_pdf_path(
+                path,
+                target_resolution,
+            )?;
 
         let image = hydrus_image_handling::decode_image_bytes(&thumbnail)?;
 
@@ -800,9 +773,9 @@ pub fn passes_offsets_and_headers(
     offsets_and_headers: &[OffsetAndHeaders],
     first_bytes_of_file: &[u8],
 ) -> bool {
-    offsets_and_headers
-        .iter()
-        .all(|pair| passes_offsets_and_headers_pair(pair.offsets, pair.headers, first_bytes_of_file))
+    offsets_and_headers.iter().all(|pair| {
+        passes_offsets_and_headers_pair(pair.offsets, pair.headers, first_bytes_of_file)
+    })
 }
 
 fn find_header_mime(first_bytes_of_file: &[u8]) -> Option<Mime> {
@@ -892,19 +865,23 @@ pub fn get_mime(path: impl AsRef<Path>, ok_to_look_for_hydrus_updates: bool) -> 
     }
 
     if header_mime == Mime::UndeterminedPng {
-        return Ok(if hydrus_animation_handling::is_png_animated(&first_bytes_of_file) {
-            Mime::Apng
-        } else {
-            Mime::Png
-        });
+        return Ok(
+            if hydrus_animation_handling::is_png_animated(&first_bytes_of_file) {
+                Mime::Apng
+            } else {
+                Mime::Png
+            },
+        );
     }
 
     if header_mime == Mime::UndeterminedGif {
-        return Ok(if hydrus_animation_handling::pil_animation_has_duration(path) {
-            Mime::AnimationGif
-        } else {
-            Mime::StaticGif
-        });
+        return Ok(
+            if hydrus_animation_handling::pil_animation_has_duration(path) {
+                Mime::AnimationGif
+            } else {
+                Mime::StaticGif
+            },
+        );
     }
 
     if header_mime == Mime::UndeterminedJxl {
@@ -916,11 +893,13 @@ pub fn get_mime(path: impl AsRef<Path>, ok_to_look_for_hydrus_updates: bool) -> 
     }
 
     if header_mime == Mime::UndeterminedWebp {
-        return Ok(if hydrus_animation_handling::pil_animation_has_duration(path) {
-            Mime::AnimationWebp
-        } else {
-            Mime::Webp
-        });
+        return Ok(
+            if hydrus_animation_handling::pil_animation_has_duration(path) {
+                Mime::AnimationWebp
+            } else {
+                Mime::Webp
+            },
+        );
     }
 
     if header_mime == Mime::UndeterminedOle {
@@ -978,7 +957,8 @@ pub fn get_mime_from_ffmpeg(path: impl AsRef<Path>) -> HydrusResult<Mime> {
     let lines = hydrus_ffmpeg::get_ffmpeg_info_lines(path, None)?;
 
     let (has_video, video_format, _) = hydrus_video_handling::parse_ffmpeg_video_format(&lines);
-    let (has_audio, audio_format, _, _) = crate::files::hydrus_audio_handling::parse_ffmpeg_audio(&lines);
+    let (has_audio, audio_format, _, _) =
+        crate::files::hydrus_audio_handling::parse_ffmpeg_audio(&lines);
 
     if !has_video && !has_audio {
         return Ok(Mime::Unknown);
@@ -1069,8 +1049,6 @@ pub fn get_mime_from_ffmpeg(path: impl AsRef<Path>) -> HydrusResult<Mime> {
         });
     } else if mime_text == "asf" {
         return Ok(if has_video { Mime::Wmv } else { Mime::Wma });
-    } else if mime_text == "wav" {
-        return Ok(Mime::Wave);
     } else if mime_text == "wv" {
         return Ok(Mime::WavPack);
     }
@@ -1143,10 +1121,7 @@ pub fn get_file_info(
             "Filetype is not permitted!"
         };
 
-        return Err(HydrusException::new(
-            ErrorKind::UnsupportedFile,
-            message,
-        ));
+        return Err(HydrusException::new(ErrorKind::UnsupportedFile, message));
     }
 
     if PIL_HEIF_MIMES.contains(&mime) && !hydrus_image_handling::HEIF_OK {
@@ -1315,8 +1290,7 @@ pub fn get_file_info(
     } else if AUDIO.contains(&mime) {
         let ffmpeg_lines = hydrus_ffmpeg::get_ffmpeg_info_lines(path, None)?;
 
-        let (file_duration_in_s, _) =
-            hydrus_video_handling::parse_ffmpeg_duration(&ffmpeg_lines)?;
+        let (file_duration_in_s, _) = hydrus_video_handling::parse_ffmpeg_duration(&ffmpeg_lines)?;
 
         let Some(file_duration_in_s) = file_duration_in_s else {
             return Err(HydrusException::new(
@@ -1449,9 +1423,16 @@ mod tests {
         let pair = oh(&[0], &[b"RIFF"]);
         let wave = oh(&[8], &[b"WAVE"]);
 
-        assert!(passes_offsets_and_headers_pair(pair.offsets, pair.headers, bytes));
+        assert!(passes_offsets_and_headers_pair(
+            pair.offsets,
+            pair.headers,
+            bytes
+        ));
         assert!(passes_offsets_and_headers(&[pair, wave], bytes));
-        assert!(!passes_offsets_and_headers(&[pair, oh(&[8], &[b"AVI "])], bytes));
+        assert!(!passes_offsets_and_headers(
+            &[pair, oh(&[8], &[b"AVI "])],
+            bytes
+        ));
     }
 
     #[test]
@@ -1509,7 +1490,11 @@ mod tests {
 
         assert_eq!(get_mime(&json, false).unwrap(), Mime::Json);
 
-        let html = write_bytes("html", "html", b"<!DOCTYPE html><html><body>hi</body></html>");
+        let html = write_bytes(
+            "html",
+            "html",
+            b"<!DOCTYPE html><html><body>hi</body></html>",
+        );
 
         assert_eq!(get_mime(&html, false).unwrap(), Mime::Html);
 

@@ -22,26 +22,33 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 use serde_json::{Map, Value};
 
+use crate::files::hydrus_file_handling;
+use crate::files::images::hydrus_image_handling::{self, ThumbnailScale};
 use crate::hydrus_constants::{
-    mimes_with_thumbnails, ContentType, DECOMPRESSION_BOMB_IMAGES, SERVER_THUMBNAIL_DIMENSIONS,
+    ContentType, DECOMPRESSION_BOMB_IMAGES, SERVER_THUMBNAIL_DIMENSIONS, mimes_with_thumbnails,
 };
 use crate::hydrus_data::{hex_decode, hex_encode};
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::files::hydrus_file_handling;
-use crate::files::images::hydrus_image_handling::{self, ThumbnailScale};
-use crate::networking::hydrus_network::{
-    generate_service_from_serialisable_tuple, Account, AccountIdentifier, Content, ContentData,
-    ServerService,
-};
 use crate::hydrus_serialisable::{
-    create_from_network_bytes, SerialisableDictionary, SerialisableList, SerialisableObject,
-    SerialisableValue,
+    SerialisableDictionary, SerialisableList, SerialisableObject, SerialisableValue,
+    create_from_network_bytes,
+};
+use crate::networking::hydrus_network::{
+    Account, AccountIdentifier, Content, ContentData, ServerService,
+    generate_service_from_serialisable_tuple,
 };
 
 /// Python tries to import `cbor2`; this port does not.
 pub const CBOR_AVAILABLE: bool = false;
 
-pub const INT_PARAMS: &[&str] = &["expires", "num", "since", "content_type", "action", "status"];
+pub const INT_PARAMS: &[&str] = &[
+    "expires",
+    "num",
+    "since",
+    "content_type",
+    "action",
+    "status",
+];
 
 pub const BYTE_PARAMS: &[&str] = &[
     "access_key",
@@ -119,7 +126,9 @@ pub enum ArgValueObject {
 impl fmt::Debug for ArgValueObject {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ArgValueObject::Serialisable(value) => f.debug_tuple("Serialisable").field(value).finish(),
+            ArgValueObject::Serialisable(value) => {
+                f.debug_tuple("Serialisable").field(value).finish()
+            }
             ArgValueObject::Other(_) => f.write_str("Other(<object>)"),
         }
     }
@@ -433,8 +442,7 @@ impl ArgValue {
                     );
                 }
 
-                if let Some(dictionary) = object.as_any().downcast_ref::<SerialisableDictionary>()
-                {
+                if let Some(dictionary) = object.as_any().downcast_ref::<SerialisableDictionary>() {
                     if let Some(entries) = string_keyed_dictionary(dictionary) {
                         return ArgValue::Dict(entries);
                     }
@@ -479,9 +487,7 @@ fn bytes_keyed_dictionary(
 impl From<Value> for ArgValue {
     fn from(value: Value) -> Self {
         match value {
-            Value::Array(items) => {
-                ArgValue::List(items.into_iter().map(ArgValue::from).collect())
-            }
+            Value::Array(items) => ArgValue::List(items.into_iter().map(ArgValue::from).collect()),
             Value::Object(entries) => ArgValue::Dict(
                 entries
                     .into_iter()
@@ -602,8 +608,10 @@ impl ParsedRequestArguments {
         key: impl Into<String>,
         value: Arc<dyn SerialisableObject>,
     ) -> Option<ArgValue> {
-        self.values
-            .insert(key.into(), ArgValue::Object(ArgValueObject::Serialisable(value)))
+        self.values.insert(
+            key.into(),
+            ArgValue::Object(ArgValueObject::Serialisable(value)),
+        )
     }
 
     /// Insert a plain object, such as `Account` or `ServerService`.
@@ -630,9 +638,11 @@ impl ParsedRequestArguments {
 
     /// Python's `__missing__`: a missing parameter is a bad request.
     pub fn get_required(&self, key: &str) -> HydrusResult<&ArgValue> {
-        self.values
-            .get(key)
-            .ok_or_else(|| bad_request(format!("It looks like the parameter \"{key}\" was missing!")))
+        self.values.get(key).ok_or_else(|| {
+            bad_request(format!(
+                "It looks like the parameter \"{key}\" was missing!"
+            ))
+        })
     }
 
     pub fn contains_key(&self, key: &str) -> bool {
@@ -703,11 +713,7 @@ impl ParsedRequestArguments {
     }
 
     /// `dict.get_value`.
-    pub fn get_value(
-        &self,
-        key: &str,
-        expected_type: ExpectedType,
-    ) -> HydrusResult<ArgValue> {
+    pub fn get_value(&self, key: &str, expected_type: ExpectedType) -> HydrusResult<ArgValue> {
         get_value_from_dict(self, key, expected_type, None, None, None, false)
     }
 
@@ -930,8 +936,10 @@ impl Extend<(String, ArgValue)> for ParsedRequestArguments {
 
 impl Extend<(&'static str, ArgValue)> for ParsedRequestArguments {
     fn extend<T: IntoIterator<Item = (&'static str, ArgValue)>>(&mut self, iter: T) {
-        self.values
-            .extend(iter.into_iter().map(|(key, value)| (key.to_string(), value)));
+        self.values.extend(
+            iter.into_iter()
+                .map(|(key, value)| (key.to_string(), value)),
+        );
     }
 }
 
@@ -948,14 +956,20 @@ pub fn percent_encode(value: &str) -> String {
     let mut out = String::with_capacity(value.len());
 
     for byte in value.as_bytes() {
-        if byte.is_ascii_alphanumeric()
-            || matches!(byte, b'-' | b'_' | b'.' | b'~' | b'/')
-        {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~' | b'/') {
             out.push(*byte as char);
         } else {
             out.push('%');
-            out.push(char::from_digit(u32::from(byte >> 4), 16).unwrap_or('0').to_ascii_uppercase());
-            out.push(char::from_digit(u32::from(byte & 0x0F), 16).unwrap_or('0').to_ascii_uppercase());
+            out.push(
+                char::from_digit(u32::from(byte >> 4), 16)
+                    .unwrap_or('0')
+                    .to_ascii_uppercase(),
+            );
+            out.push(
+                char::from_digit(u32::from(byte & 0x0F), 16)
+                    .unwrap_or('0')
+                    .to_ascii_uppercase(),
+            );
         }
     }
 
@@ -1034,9 +1048,7 @@ fn value_as_query_string(value: &ArgValue, key: &str) -> HydrusResult<String> {
 ///
 /// Unlike the Python function this does not mutate the caller's dictionary;
 /// it returns the compressed network body directly.
-pub fn dump_hydrus_args_to_network_bytes(
-    args: &ParsedRequestArguments,
-) -> HydrusResult<Vec<u8>> {
+pub fn dump_hydrus_args_to_network_bytes(args: &ParsedRequestArguments) -> HydrusResult<Vec<u8>> {
     let mut args = args.clone();
 
     for param_name in BYTE_PARAMS {
@@ -1131,8 +1143,7 @@ pub fn dump_to_get_query(args: &ParsedRequestArguments) -> HydrusResult<String> 
     let mut args = args.clone();
 
     if let Some(subject_identifier) = args.values.shift_remove("subject_identifier") {
-        let Some(subject_identifier) =
-            subject_identifier.downcast_object::<AccountIdentifier>()
+        let Some(subject_identifier) = subject_identifier.downcast_object::<AccountIdentifier>()
         else {
             return Err(bad_request(
                 "The subject identifier was not an AccountIdentifier!",
@@ -1291,7 +1302,8 @@ pub fn parse_network_bytes_to_parsed_hydrus_args(
             ))
         })?;
 
-        args.values.insert((*param_name).to_string(), ArgValue::Bytes(bytes));
+        args.values
+            .insert((*param_name).to_string(), ArgValue::Bytes(bytes));
     }
 
     for param_name in JSON_BYTE_LIST_PARAMS {
@@ -1328,8 +1340,10 @@ pub fn parse_network_bytes_to_parsed_hydrus_args(
     if let Some(value) = args.values.shift_remove("account") {
         let account = Account::generate_account_from_serialisable_tuple(&value.to_json_value()?)?;
 
-        args.values
-            .insert("account".to_string(), ArgValue::other_object(Arc::new(account)));
+        args.values.insert(
+            "account".to_string(),
+            ArgValue::other_object(Arc::new(account)),
+        );
     }
 
     if let Some(value) = args.values.shift_remove("accounts") {
@@ -1448,14 +1462,11 @@ pub fn parse_twisted_request_get_args(
         };
 
         if int_params.contains(&name) {
-            let parsed = value
-                .trim()
-                .parse::<i64>()
-                .map_err(|_| {
-                    bad_request(format!(
-                        "I was expecting to parse '{name}' as an integer, but it failed."
-                    ))
-                })?;
+            let parsed = value.trim().parse::<i64>().map_err(|_| {
+                bad_request(format!(
+                    "I was expecting to parse '{name}' as an integer, but it failed."
+                ))
+            })?;
 
             args.insert(name, parsed);
         } else if byte_params.contains(&name) {
@@ -1725,10 +1736,7 @@ pub fn parse_file_arguments(
         let file_info = hydrus_file_handling::get_file_info(path, Some(mime), false)?;
 
         let thumbnail = if mimes_with_thumbnails().contains(&mime) {
-            let image_resolution = (
-                file_info.width.unwrap_or(1),
-                file_info.height.unwrap_or(1),
-            );
+            let image_resolution = (file_info.width.unwrap_or(1), file_info.height.unwrap_or(1));
 
             let target_resolution = hydrus_image_handling::get_thumbnail_resolution(
                 image_resolution,
@@ -1831,7 +1839,10 @@ mod tests {
         let parsed = parse_hydrus_network_get_args(&args).unwrap();
 
         assert_eq!(parsed.get_i64("num").unwrap(), 5);
-        assert_eq!(parsed.get_bytes("access_key").unwrap(), vec![0xAB, 0xCD, 0xEF]);
+        assert_eq!(
+            parsed.get_bytes("access_key").unwrap(),
+            vec![0xAB, 0xCD, 0xEF]
+        );
         assert_eq!(parsed.get_string("reason").unwrap(), "hello world");
         assert_eq!(parsed.get_bytes("hash").unwrap(), vec![0x00, 0x11, 0xFF]);
 
@@ -1879,7 +1890,10 @@ mod tests {
     #[test]
     fn builds_subject_identifier_from_hash_and_tag() {
         let hash = vec![0x01, 0x02];
-        let args = request_args(&[(b"subject_hash", &[b"0102"]), (b"subject_tag", &[b"blue%20sky"])]);
+        let args = request_args(&[
+            (b"subject_hash", &[b"0102"]),
+            (b"subject_tag", &[b"blue%20sky"]),
+        ]);
 
         let parsed = parse_hydrus_network_get_args(&args).unwrap();
         let identifier = parsed
@@ -1945,7 +1959,10 @@ mod tests {
         args.insert("access_key", vec![0xAB, 0xCD]);
         args.insert(
             "registration_keys",
-            ArgValue::List(vec![ArgValue::Bytes(vec![0x01]), ArgValue::Bytes(vec![0x02, 0x03])]),
+            ArgValue::List(vec![
+                ArgValue::Bytes(vec![0x01]),
+                ArgValue::Bytes(vec![0x02, 0x03]),
+            ]),
         );
         args.insert("num", 42_i64);
 
@@ -2071,26 +2088,11 @@ mod tests {
             None,
         )
         .unwrap();
-        test_variable_type(
-            "value",
-            &integer,
-            ExpectedType::Float,
-            None,
-            None,
-            None,
-        )
-        .unwrap();
+        test_variable_type("value", &integer, ExpectedType::Float, None, None, None).unwrap();
 
         let string = ArgValue::from("nope");
-        let error = test_variable_type(
-            "value",
-            &string,
-            ExpectedType::Int,
-            None,
-            None,
-            None,
-        )
-        .unwrap_err();
+        let error =
+            test_variable_type("value", &string, ExpectedType::Int, None, None, None).unwrap_err();
 
         assert_eq!(error.kind(), ErrorKind::BadRequest);
         assert!(error.to_string().contains("integer"));

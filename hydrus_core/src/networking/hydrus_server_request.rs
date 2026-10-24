@@ -20,11 +20,11 @@ use indexmap::IndexMap;
 
 use crate::hydrus_constants::Mime;
 use crate::hydrus_data::safe_print;
+use crate::hydrus_temp::clean_up_temp_path;
+use crate::hydrus_time::{get_now_precise, time_delta_to_pretty_timedelta};
 use crate::networking::hydrus_network::Account;
 use crate::networking::hydrus_network_variable_handling::ParsedRequestArguments;
 use crate::networking::hydrus_server_resources::ResponseContext;
-use crate::hydrus_temp::clean_up_temp_path;
-use crate::hydrus_time::{get_now_precise, time_delta_to_pretty_timedelta};
 
 /// Case-insensitive request headers.
 ///
@@ -45,8 +45,7 @@ impl RequestHeaders {
     }
 
     pub fn set(&mut self, name: &str, value: impl Into<String>) {
-        self.values
-            .insert(Self::key(name), vec![value.into()]);
+        self.values.insert(Self::key(name), vec![value.into()]);
     }
 
     pub fn add(&mut self, name: &str, value: impl Into<String>) {
@@ -71,9 +70,7 @@ impl RequestHeaders {
 
     /// The first value for a header, which is what the Hydrus code reads.
     pub fn get_first(&self, name: &str) -> Option<&str> {
-        self.get_raw_headers(name)?
-            .first()
-            .map(String::as_str)
+        self.get_raw_headers(name)?.first().map(String::as_str)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&str, &[String])> {
@@ -209,11 +206,7 @@ impl HydrusRequestLogging {
             None => self.code.unwrap_or(200),
         };
 
-        let elapsed = self
-            .request
-            .start_time
-            .elapsed()
-            .as_secs_f64();
+        let elapsed = self.request.start_time.elapsed().as_secs_f64();
 
         let message = format!(
             "{} {} {} {} in {}",

@@ -190,9 +190,9 @@ impl ErrorKind {
             Hydrus => None,
 
             Unknown | CantRenderWithCV | DataMissing | TooComplicatedM8 | DbAccess
-            | DbCredentials | DbVersion | FileMissing | DirectoryMissing | Serialisation
-            | Name | Shutdown | QtDeadWindow | Executable | UnsupportedFile
-            | LimitedSupportFile | Veto | Parse | Network => Some(Hydrus),
+            | DbCredentials | DbVersion | FileMissing | DirectoryMissing | Serialisation | Name
+            | Shutdown | QtDeadWindow | Executable | UnsupportedFile | LimitedSupportFile
+            | Veto | Parse | Network => Some(Hydrus),
 
             Db => Some(Hydrus),
 
@@ -207,15 +207,28 @@ impl ErrorKind {
             Cancelled | FileImportBlock | FileImportRules | TagSize => Some(Veto),
             DecompressionBomb => Some(FileImportRules),
 
-            StringConvert | StringJoiner | StringMatch | StringSplitter | StringSort
-            | UrlClass | Gug => Some(Parse),
+            StringConvert | StringJoiner | StringMatch | StringSplitter | StringSort | UrlClass
+            | Gug => Some(Parse),
 
             NetworkInfrastructure => Some(Network),
-            StreamTimeout | NetworkVersion | NoContent | NotFound | NotAcceptable
-            | NotModified | BadRequest | Conflict | UnprocessableEntity
-            | RangeNotSatisfiable | MissingCredentials | DoesNotSupportCors
-            | InsufficientCredentials | Redirection | Session | WrongServiceType
-            | Validation | ShouldReattemptNetwork => Some(Network),
+            StreamTimeout
+            | NetworkVersion
+            | NoContent
+            | NotFound
+            | NotAcceptable
+            | NotModified
+            | BadRequest
+            | Conflict
+            | UnprocessableEntity
+            | RangeNotSatisfiable
+            | MissingCredentials
+            | DoesNotSupportCors
+            | InsufficientCredentials
+            | Redirection
+            | Session
+            | WrongServiceType
+            | Validation
+            | ShouldReattemptNetwork => Some(Network),
 
             Connection | Firewall | Router | CloudFlare | Bandwidth | Censorship | Server
             | ServerBusy => Some(NetworkInfrastructure),

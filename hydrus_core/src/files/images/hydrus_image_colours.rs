@@ -68,13 +68,7 @@ pub fn get_image_alpha_channel(image: &DynamicImage) -> Option<Vec<u8>> {
         return None;
     }
 
-    Some(
-        image
-            .to_rgba8()
-            .pixels()
-            .map(|pixel| pixel[3])
-            .collect(),
-    )
+    Some(image.to_rgba8().pixels().map(|pixel| pixel[3]).collect())
 }
 
 fn alpha_is_all(alpha: &[u8], value: u8) -> bool {
@@ -118,10 +112,8 @@ pub fn image_has_human_perceptible_alpha_channel(image: &DynamicImage) -> bool {
         return false;
     }
 
-    let clustered_in_transparency_land = alpha
-        .iter()
-        .filter(|alpha_value| **alpha_value > 4)
-        .count();
+    let clustered_in_transparency_land =
+        alpha.iter().filter(|alpha_value| **alpha_value > 4).count();
 
     if clustered_in_transparency_land < num_interesting_alpha_pixels_needed {
         return false;
@@ -133,9 +125,7 @@ pub fn image_has_human_perceptible_alpha_channel(image: &DynamicImage) -> bool {
 /// `numpy_image_has_useful_alpha_channel( numpy_image )`
 pub fn image_has_useful_alpha_channel(image: &DynamicImage) -> bool {
     match current_has_transparency_strictness_level() {
-        HAS_TRANSPARENCY_STRICTNESS_HUMAN => {
-            image_has_human_perceptible_alpha_channel(image)
-        }
+        HAS_TRANSPARENCY_STRICTNESS_HUMAN => image_has_human_perceptible_alpha_channel(image),
         HAS_TRANSPARENCY_STRICTNESS_NOT_BLACK_OR_WHITE => {
             image_has_non_fully_black_or_white_alpha_channel(image)
         }
@@ -177,11 +167,8 @@ mod tests {
 
     #[test]
     fn an_rgb_image_has_no_alpha_channel() {
-        let image = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
-            10,
-            10,
-            image::Rgb([1, 2, 3]),
-        ));
+        let image =
+            DynamicImage::ImageRgb8(image::RgbImage::from_pixel(10, 10, image::Rgb([1, 2, 3])));
 
         assert!(!image_has_alpha_channel(&image));
         assert!(!image_has_useless_alpha_channel(&image));

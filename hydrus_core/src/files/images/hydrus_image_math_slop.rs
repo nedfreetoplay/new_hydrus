@@ -32,7 +32,9 @@ pub fn mat_vec_mul(matrix: Matrix3, vector: [f64; 3]) -> [f64; 3] {
     let mut result = [0.0; 3];
 
     for row in 0..3 {
-        result[row] = (0..3).map(|column| matrix[row][column] * vector[column]).sum();
+        result[row] = (0..3)
+            .map(|column| matrix[row][column] * vector[column])
+            .sum();
     }
 
     result
@@ -113,10 +115,7 @@ pub fn generate_bradford_adaptation_matrix(src_xy: (f64, f64)) -> Matrix3 {
 }
 
 /// `generate_bradford_adaptation_matrix( src_xy, dst_xy )`
-pub fn generate_bradford_adaptation_matrix_to(
-    src_xy: (f64, f64),
-    dst_xy: (f64, f64),
-) -> Matrix3 {
+pub fn generate_bradford_adaptation_matrix_to(src_xy: (f64, f64), dst_xy: (f64, f64)) -> Matrix3 {
     let src_xyz = xy_to_xyz(src_xy.0, src_xy.1);
     let dst_xyz = xy_to_xyz(dst_xy.0, dst_xy.1);
 
@@ -135,20 +134,14 @@ pub fn generate_bradford_adaptation_matrix_to(
 }
 
 /// `adapt_rgb_to_xyz_matrix_to_D50( m_rgb_to_xyz, src_white_xy )`
-pub fn adapt_rgb_to_xyz_matrix_to_d50(
-    rgb_to_xyz: Matrix3,
-    src_white_xy: (f64, f64),
-) -> Matrix3 {
+pub fn adapt_rgb_to_xyz_matrix_to_d50(rgb_to_xyz: Matrix3, src_white_xy: (f64, f64)) -> Matrix3 {
     let adaptation = generate_bradford_adaptation_matrix(src_white_xy);
 
     mat_mul(adaptation, rgb_to_xyz)
 }
 
 /// `adapt_white_point( XYZ_src_white, XYZ_dst_white )`
-pub fn adapt_white_point(
-    xyz_src_white: [f64; 3],
-    xyz_dst_white: [f64; 3],
-) -> Matrix3 {
+pub fn adapt_white_point(xyz_src_white: [f64; 3], xyz_dst_white: [f64; 3]) -> Matrix3 {
     let src_cone = mat_vec_mul(BRADFORD, xyz_src_white);
     let dst_cone = mat_vec_mul(BRADFORD, xyz_dst_white);
 
@@ -237,10 +230,7 @@ mod tests {
 
     #[test]
     fn d65_to_d50_is_the_known_bradford_matrix() {
-        let actual = generate_bradford_adaptation_matrix_to(
-            (0.3127, 0.3290),
-            D50_XY,
-        );
+        let actual = generate_bradford_adaptation_matrix_to((0.3127, 0.3290), D50_XY);
 
         assert_matrix_close(
             actual,

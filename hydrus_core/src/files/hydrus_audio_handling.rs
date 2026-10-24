@@ -41,9 +41,7 @@ pub fn parse_ffmpeg_audio(lines: &[String]) -> (bool, String, String, Option<Str
         audio_format = captures[1].to_string();
     }
 
-    if let Ok(mapping) =
-        hydrus_ffmpeg_parsing::parse_stream_mapping_from_stream_line(audio_line)
-    {
+    if let Ok(mapping) = hydrus_ffmpeg_parsing::parse_stream_mapping_from_stream_line(audio_line) {
         audio_stream_mapping = mapping;
     }
 
@@ -103,9 +101,7 @@ mod tests {
 
     #[test]
     fn no_audio_keeps_the_defaults() {
-        let lines = vec![
-            "Stream #0:0: Video: hevc (Main), yuv420p, 256x144, 25 fps".to_string(),
-        ];
+        let lines = vec!["Stream #0:0: Video: hevc (Main), yuv420p, 256x144, 25 fps".to_string()];
 
         let (found, format, mapping, image) = parse_ffmpeg_audio(&lines);
 

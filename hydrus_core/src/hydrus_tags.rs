@@ -12,13 +12,13 @@ use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 
 use indexmap::IndexMap;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::hydrus_constants::Filter;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::hydrus_numbers;
 use crate::hydrus_serialisable::{
-    self, register_serialisable_type, SerialisableObject, SERIALISABLE_TYPE_TAG_FILTER,
+    self, SERIALISABLE_TYPE_TAG_FILTER, SerialisableObject, register_serialisable_type,
 };
 use crate::hydrus_text;
 
@@ -84,7 +84,10 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    let mut tags: Vec<String> = tags.into_iter().map(|tag| tag.as_ref().to_string()).collect();
+    let mut tags: Vec<String> = tags
+        .into_iter()
+        .map(|tag| tag.as_ref().to_string())
+        .collect();
 
     tags.sort_by_cached_key(|tag| hydrus_text::human_text_sort_key(tag));
 
@@ -202,9 +205,7 @@ pub fn convert_ugly_namespace_to_pretty_string(namespace: Option<&str>) -> Strin
 }
 
 /// `convert_ugly_namespaces_to_pretty_strings`
-pub fn convert_ugly_namespaces_to_pretty_strings(
-    namespaces: &[Option<&str>],
-) -> Vec<String> {
+pub fn convert_ugly_namespaces_to_pretty_strings(namespaces: &[Option<&str>]) -> Vec<String> {
     let mut namespaces: Vec<&str> = namespaces
         .iter()
         .map(|namespace| namespace.unwrap_or(""))
@@ -214,11 +215,13 @@ pub fn convert_ugly_namespaces_to_pretty_strings(
 
     namespaces
         .into_iter()
-        .map(|namespace| convert_ugly_namespace_to_pretty_string(if namespace.is_empty() {
-            None
-        } else {
-            Some(namespace)
-        }))
+        .map(|namespace| {
+            convert_ugly_namespace_to_pretty_string(if namespace.is_empty() {
+                None
+            } else {
+                Some(namespace)
+            })
+        })
         .collect()
 }
 
@@ -363,11 +366,7 @@ impl TagFilter {
         }
     }
 
-    fn tag_ok_inner(
-        &self,
-        tag: &str,
-        apply_unnamespaced_rules_to_namespaced_tags: bool,
-    ) -> bool {
+    fn tag_ok_inner(&self, tag: &str, apply_unnamespaced_rules_to_namespaced_tags: bool) -> bool {
         // Exceptions resolve tags before namespaces, and namespaces before the
         // all-namespaces rules.
         if self.tags_interesting {
@@ -528,9 +527,7 @@ impl TagFilter {
         apply_unnamespaced_rules_to_namespaced_tags: bool,
     ) -> HashSet<String> {
         tags.iter()
-            .filter(|tag| {
-                self.tag_ok_inner(tag, apply_unnamespaced_rules_to_namespaced_tags)
-            })
+            .filter(|tag| self.tag_ok_inner(tag, apply_unnamespaced_rules_to_namespaced_tags))
             .cloned()
             .collect()
     }
@@ -792,10 +789,7 @@ impl TagFilter {
                     hydrus_numbers::base_to_human_int(whitelist.len() as i128)
                 )
             } else {
-                format!(
-                    "only adding {}",
-                    sorted_pretty(&whitelist)
-                )
+                format!("only adding {}", sorted_pretty(&whitelist))
             };
 
             if !functional_blacklist.is_empty() {
@@ -1043,10 +1037,7 @@ impl SerialisableObject for TagFilter {
         )
     }
 
-    fn initialise_from_serialisable_info(
-        &mut self,
-        serialisable_info: &Value,
-    ) -> HydrusResult<()> {
+    fn initialise_from_serialisable_info(&mut self, serialisable_info: &Value) -> HydrusResult<()> {
         let pairs = serialisable_info.as_array().ok_or_else(|| {
             HydrusException::new(
                 ErrorKind::Serialisation,
@@ -1139,7 +1130,10 @@ mod tests {
         assert_eq!(clean_tag("  Blue   Eyes  ").unwrap(), "blue eyes");
         assert_eq!(clean_tag(":D").unwrap(), "::d");
         assert_eq!(clean_tag(":weird:stuff").unwrap(), ":weird:stuff");
-        assert_eq!(clean_tag("CREATOR:  Some   Guy ").unwrap(), "creator:some guy");
+        assert_eq!(
+            clean_tag("CREATOR:  Some   Guy ").unwrap(),
+            "creator:some guy"
+        );
         assert_eq!(clean_tag("series:\u{200b}name").unwrap(), "series:name");
     }
 
@@ -1163,10 +1157,7 @@ mod tests {
     fn filter_namespaces_handles_none_as_unnamespaced() {
         let all = tags(&["blue eyes", "creator:blah", "series:one"]);
 
-        assert_eq!(
-            filter_namespaces(&all, &[None]),
-            tags(&["blue eyes"])
-        );
+        assert_eq!(filter_namespaces(&all, &[None]), tags(&["blue eyes"]));
         assert_eq!(
             filter_namespaces(&all, &[Some("creator")]),
             tags(&["creator:blah"])
@@ -1188,7 +1179,10 @@ mod tests {
 
         let mixed = vec!["1".to_string(), "two".to_string(), "3".to_string()];
 
-        assert_eq!(collapse_multiple_sorted_numeric_tags_to_min_max(&mixed), mixed);
+        assert_eq!(
+            collapse_multiple_sorted_numeric_tags_to_min_max(&mixed),
+            mixed
+        );
     }
 
     #[test]
@@ -1203,10 +1197,7 @@ mod tests {
         assert!(filter.tag_ok("blue eyes", false));
         assert!(!filter.allows_everything());
 
-        let filtered = filter.filter(
-            &tags(&["creator:good", "creator:bad", "blue eyes"]),
-            false,
-        );
+        let filtered = filter.filter(&tags(&["creator:good", "creator:bad", "blue eyes"]), false);
 
         assert_eq!(filtered, tags(&["creator:good", "blue eyes"]));
     }
@@ -1249,9 +1240,18 @@ mod tests {
 
         let (new_rules, changed_rules, deleted_rules) = filter.get_changes(&old_filter);
 
-        assert_eq!(new_rules, vec![("blue eyes".to_string(), Filter::Blacklist)]);
-        assert_eq!(changed_rules, vec![("creator:".to_string(), Filter::Whitelist)]);
-        assert_eq!(deleted_rules, vec![("series:".to_string(), Filter::Whitelist)]);
+        assert_eq!(
+            new_rules,
+            vec![("blue eyes".to_string(), Filter::Blacklist)]
+        );
+        assert_eq!(
+            changed_rules,
+            vec![("creator:".to_string(), Filter::Whitelist)]
+        );
+        assert_eq!(
+            deleted_rules,
+            vec![("series:".to_string(), Filter::Whitelist)]
+        );
 
         let summary = filter.get_changes_summary_text(&old_filter);
 

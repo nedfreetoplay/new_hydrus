@@ -66,7 +66,10 @@ pub fn check_ffmpeg_error(lines: &[String]) -> HydrusResult<()> {
     };
 
     if last_line.contains("No such file or directory") {
-        return Err(HydrusException::new(ErrorKind::FileMissing, "File not found!"));
+        return Err(HydrusException::new(
+            ErrorKind::FileMissing,
+            "File not found!",
+        ));
     }
 
     if last_line.contains("Invalid data") {
@@ -131,15 +134,13 @@ pub(crate) fn run_ffmpeg_command(
         false,
     ) {
         Ok(result) => Ok(result),
-        Err(error) if error.is_a(ErrorKind::SubprocessTimedOut) => Err(
-            HydrusException::new(ErrorKind::DamagedOrUnusualFile, timeout_message),
+        Err(error) if error.is_a(ErrorKind::SubprocessTimedOut) => Err(HydrusException::new(
+            ErrorKind::DamagedOrUnusualFile,
+            timeout_message,
+        )),
+        Err(error) if error.is_a(ErrorKind::Executable) => Err(
+            handle_ffmpeg_file_not_found_and_generate_exception(&error, path_for_error),
         ),
-        Err(error) if error.is_a(ErrorKind::Executable) => {
-            Err(handle_ffmpeg_file_not_found_and_generate_exception(
-                &error,
-                path_for_error,
-            ))
-        }
         Err(error) => Err(error),
     }
 }
@@ -292,9 +293,8 @@ pub fn handle_ffmpeg_no_content_and_generate_exception(
 
         hydrus_data::show_text(&message);
 
-        let debug_message = format!(
-            "{message}\n\nSTDOUT Response: {stdout}\n\nSTDERR Response: {stderr}"
-        );
+        let debug_message =
+            format!("{message}\n\nSTDOUT Response: {stdout}\n\nSTDERR Response: {stderr}");
 
         hydrus_data::debug_print(debug_message);
 
@@ -314,19 +314,25 @@ mod tests {
     #[test]
     fn error_lines_are_classified() {
         let empty: Vec<String> = Vec::new();
-        assert!(check_ffmpeg_error(&empty)
-            .unwrap_err()
-            .is_a(ErrorKind::DamagedOrUnusualFile));
+        assert!(
+            check_ffmpeg_error(&empty)
+                .unwrap_err()
+                .is_a(ErrorKind::DamagedOrUnusualFile)
+        );
 
         let missing = vec!["x.mp4: No such file or directory".to_string()];
-        assert!(check_ffmpeg_error(&missing)
-            .unwrap_err()
-            .is_a(ErrorKind::FileMissing));
+        assert!(
+            check_ffmpeg_error(&missing)
+                .unwrap_err()
+                .is_a(ErrorKind::FileMissing)
+        );
 
         let invalid = vec!["Invalid data found when processing input".to_string()];
-        assert!(check_ffmpeg_error(&invalid)
-            .unwrap_err()
-            .is_a(ErrorKind::DamagedOrUnusualFile));
+        assert!(
+            check_ffmpeg_error(&invalid)
+                .unwrap_err()
+                .is_a(ErrorKind::DamagedOrUnusualFile)
+        );
 
         let fine = vec!["Input #0, mov, from 'x.mp4':".to_string()];
         assert!(check_ffmpeg_error(&fine).is_ok());
@@ -344,7 +350,11 @@ mod tests {
         let counted = build_info_command("x.mp4", Some("0:1"));
 
         assert!(counted.windows(2).any(|pair| pair == ["-map", "0:1"]));
-        assert!(counted.windows(2).any(|pair| pair == ["-vf", "scale=-2:120"]));
+        assert!(
+            counted
+                .windows(2)
+                .any(|pair| pair == ["-vf", "scale=-2:120"])
+        );
         assert_eq!(
             counted.last().map(String::as_str),
             Some(if PLATFORM_WINDOWS { "NUL" } else { "/dev/null" })

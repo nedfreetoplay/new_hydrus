@@ -30,9 +30,9 @@ fn decode_without_orientation<R: BufRead + Seek>(
     let mut reader = reader;
     reader.no_limits();
 
-    let decoder = reader.into_decoder().map_err(|error| {
-        damaged(format!("{failure_message} ({error})"))
-    })?;
+    let decoder = reader
+        .into_decoder()
+        .map_err(|error| damaged(format!("{failure_message} ({error})")))?;
 
     DynamicImage::from_decoder(decoder)
         .map_err(|error| damaged(format!("{failure_message} ({error})")))
@@ -130,8 +130,7 @@ mod tests {
 
     #[test]
     fn malformed_input_is_a_damaged_file() {
-        let error = raw_open_pil_image_bytes(b"not an image", Some("test data"))
-            .unwrap_err();
+        let error = raw_open_pil_image_bytes(b"not an image", Some("test data")).unwrap_err();
 
         assert!(error.is_a(ErrorKind::DamagedOrUnusualFile));
         assert!(error.to_string().contains("test data"));

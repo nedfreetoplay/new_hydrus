@@ -5,9 +5,9 @@
 
 use std::path::Path;
 
-use crate::hydrus_exceptions::HydrusResult;
 use crate::files::hydrus_ffmpeg;
 use crate::files::hydrus_ffmpeg_parsing;
+use crate::hydrus_exceptions::HydrusResult;
 
 /// Build the command that extracts an attached still image.
 pub fn build_attached_still_command(
@@ -165,11 +165,8 @@ mod tests {
 
     #[test]
     fn attached_still_command_selects_the_stream_and_writes_png() {
-        let command = build_attached_still_command(
-            Path::new("in.mp3"),
-            Path::new("out.png"),
-            "0:1",
-        );
+        let command =
+            build_attached_still_command(Path::new("in.mp3"), Path::new("out.png"), "0:1");
 
         assert_eq!(command[4], "in.mp3");
         assert!(command.windows(2).any(|pair| pair == ["-map", "0:1"]));

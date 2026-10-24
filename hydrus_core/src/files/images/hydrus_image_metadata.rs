@@ -147,9 +147,7 @@ impl From<&Value> for MetadataValue {
                 }
             }
             Value::String(value) => Self::Text(value.clone()),
-            Value::Array(items) => {
-                Self::List(items.iter().map(MetadataValue::from).collect())
-            }
+            Value::Array(items) => Self::List(items.iter().map(MetadataValue::from).collect()),
             Value::Object(items) => Self::Dict(
                 items
                     .iter()
@@ -273,24 +271,11 @@ pub fn render_key_value(
 
     let value_string = match value {
         MetadataValue::Dict(dictionary) => {
-            render_dict(
-                dictionary,
-                indent_depth + 1,
-                keys_to_put_at_the_top,
-            )
-            .unwrap_or_else(|| {
-                format!(
-                    "{}empty/unknown",
-                    indent.repeat(indent_depth + 1)
-                )
-            })
+            render_dict(dictionary, indent_depth + 1, keys_to_put_at_the_top)
+                .unwrap_or_else(|| format!("{}empty/unknown", indent.repeat(indent_depth + 1)))
         }
         MetadataValue::Bytes(_) => {
-            format!(
-                "{}{}",
-                indent.repeat(indent_depth + 1),
-                value
-            )
+            format!("{}{}", indent.repeat(indent_depth + 1), value)
         }
         _ => {
             let raw_value = value.to_string();
@@ -303,12 +288,7 @@ pub fn render_key_value(
         }
     };
 
-    format!(
-        "{}{}:\n{}",
-        indent.repeat(indent_depth),
-        key,
-        value_string
-    )
+    format!("{}{}:\n{}", indent.repeat(indent_depth), key, value_string)
 }
 
 /// `get_embedded_file_text( pil_image )`, given the already-collected info map.
@@ -399,28 +379,24 @@ pub fn get_jpeg_subsampling_raw(mode: &str, sampling: Option<u8>) -> u8 {
 
 static SOFTWARE_PATTERNS: LazyLock<[regex::Regex; 2]> = LazyLock::new(|| {
     [
-        regex::Regex::new(
-            r"^(Created|Converted|Cropped|Compressed|Edited) with (?P<software>.+)",
-        )
-        .expect("the software comment regex is valid"),
-        regex::Regex::new(
-            r"^(created|converted|cropped|compressed|edited) with (?P<software>.+)",
-        )
-        .expect("the software comment regex is valid"),
+        regex::Regex::new(r"^(Created|Converted|Cropped|Compressed|Edited) with (?P<software>.+)")
+            .expect("the software comment regex is valid"),
+        regex::Regex::new(r"^(created|converted|cropped|compressed|edited) with (?P<software>.+)")
+            .expect("the software comment regex is valid"),
     ]
 });
 
 /// `get_software_source_from_comment_info_field( value )`
-pub fn get_software_source_from_comment_info_field(
-    value: &MetadataValue,
-) -> Option<String> {
+pub fn get_software_source_from_comment_info_field(value: &MetadataValue) -> Option<String> {
     let MetadataValue::Text(value) = value else {
         return None;
     };
 
     for pattern in SOFTWARE_PATTERNS.iter() {
         if let Some(captures) = pattern.captures(value) {
-            return captures.name("software").map(|software| software.as_str().to_string());
+            return captures
+                .name("software")
+                .map(|software| software.as_str().to_string());
         }
     }
 
@@ -510,9 +486,11 @@ pub fn get_jpeg_quantization_quality_estimate(
         return ("unknown", None);
     }
 
-    let average_table_sum =
-        tables.iter().map(|table| table.iter().map(|v| *v as f64).sum::<f64>()).sum::<f64>()
-            / tables.len() as f64;
+    let average_table_sum = tables
+        .iter()
+        .map(|table| table.iter().map(|v| *v as f64).sum::<f64>())
+        .sum::<f64>()
+        / tables.len() as f64;
 
     let quality = average_table_sum.powf(1.0 / subsampling_quality(subsampling));
 
@@ -539,66 +517,65 @@ pub fn get_jpeg_quantization_quality_estimate(
 
 /// Keys that are parsed and displayed elsewhere rather than in the generic
 /// human-readable metadata view.
-static PIL_INFO_KEYS_THAT_ARE_NOT_CONSIDERED_HUMAN_READABLE_STUFF: LazyLock<
-    HashSet<&'static str>,
-> = LazyLock::new(|| {
-    [
-        "exif",
-        "Raw profile type exif",
-        "icc_profile",
-        "progression",
-        "progressive",
-        "srgb",
-        "gamma",
-        "chromaticity",
-        "dpi",
-        "jfif",
-        "jfif_unit",
-        "jfif_density",
-        "jfif_version",
-        "compression",
-        "resolution",
-        "Software",
-        "software",
-        "adobe",
-        "adobe_transform",
-        "transparency",
-        "background",
-        "duration",
-        "bit_depth",
-        "primary",
-        "chroma",
-        "loop",
-        "photoshop",
-        "extension",
-        "bbox",
-        "blend",
-        "disposal",
-        "sizes",
-        "interlace",
-        "aspect",
-        "xmp",
-        "XML:com.adobe.xmp",
-        "iptc",
-        "Raw profile type iptc",
-        "default_image",
-        "distortion",
-        "Creator",
-        "creator",
-        "Source",
-        "source",
-        "mpoffset",
-        "Creation Time",
-        "create-date",
-        "modify-date",
-        "date:create",
-        "date:modify",
-        "date:timestamp",
-        "Thumb::MTime",
-    ]
-    .into_iter()
-    .collect()
-});
+static PIL_INFO_KEYS_THAT_ARE_NOT_CONSIDERED_HUMAN_READABLE_STUFF: LazyLock<HashSet<&'static str>> =
+    LazyLock::new(|| {
+        [
+            "exif",
+            "Raw profile type exif",
+            "icc_profile",
+            "progression",
+            "progressive",
+            "srgb",
+            "gamma",
+            "chromaticity",
+            "dpi",
+            "jfif",
+            "jfif_unit",
+            "jfif_density",
+            "jfif_version",
+            "compression",
+            "resolution",
+            "Software",
+            "software",
+            "adobe",
+            "adobe_transform",
+            "transparency",
+            "background",
+            "duration",
+            "bit_depth",
+            "primary",
+            "chroma",
+            "loop",
+            "photoshop",
+            "extension",
+            "bbox",
+            "blend",
+            "disposal",
+            "sizes",
+            "interlace",
+            "aspect",
+            "xmp",
+            "XML:com.adobe.xmp",
+            "iptc",
+            "Raw profile type iptc",
+            "default_image",
+            "distortion",
+            "Creator",
+            "creator",
+            "Source",
+            "source",
+            "mpoffset",
+            "Creation Time",
+            "create-date",
+            "modify-date",
+            "date:create",
+            "date:modify",
+            "date:timestamp",
+            "Thumb::MTime",
+        ]
+        .into_iter()
+        .collect()
+    });
 
 /// `wash_pil_image_info_dict_for_human_readable_metadata( info_dict )`
 pub fn wash_pil_image_info_dict_for_human_readable_metadata(
@@ -687,15 +664,10 @@ impl ImageMetadata {
         get_jpeg_subsampling_raw(&self.mode, self.sampling)
     }
 
-    pub fn get_jpeg_quantization_quality_estimate(
-        &self,
-    ) -> (&'static str, Option<f64>) {
+    pub fn get_jpeg_quantization_quality_estimate(&self) -> (&'static str, Option<f64>) {
         let subsampling = self.get_jpeg_subsampling();
 
-        get_jpeg_quantization_quality_estimate(
-            self.quantization.as_deref(),
-            subsampling,
-        )
+        get_jpeg_quantization_quality_estimate(self.quantization.as_deref(), subsampling)
     }
 }
 
@@ -956,10 +928,9 @@ pub fn read_png_metadata_bytes(bytes: &[u8]) -> HydrusResult<ImageMetadata> {
                 }
             }
             b"eXIf" => {
-                metadata.info.insert(
-                    "exif".to_string(),
-                    MetadataValue::Bytes(data.to_vec()),
-                );
+                metadata
+                    .info
+                    .insert("exif".to_string(), MetadataValue::Bytes(data.to_vec()));
 
                 if let Some(orientation) = exif_orientation_from_tiff(data) {
                     let mut exif = MetadataMap::new();
@@ -1099,18 +1070,12 @@ mod tests {
     #[test]
     fn chroma_subsampling_accepts_strings_and_numbers() {
         assert_eq!(
-            get_chroma_subsampling_from_pil_info(&map(&[(
-                "chroma",
-                MetadataValue::text("420")
-            )])),
+            get_chroma_subsampling_from_pil_info(&map(&[("chroma", MetadataValue::text("420"))])),
             SUBSAMPLING_420
         );
 
         assert_eq!(
-            get_chroma_subsampling_from_pil_info(&map(&[(
-                "chroma",
-                MetadataValue::Int(422)
-            )])),
+            get_chroma_subsampling_from_pil_info(&map(&[("chroma", MetadataValue::Int(422))])),
             SUBSAMPLING_422
         );
     }
@@ -1153,10 +1118,8 @@ mod tests {
     fn zlib(data: &[u8]) -> Vec<u8> {
         use std::io::Write as _;
 
-        let mut encoder = flate2::write::ZlibEncoder::new(
-            Vec::new(),
-            flate2::Compression::default(),
-        );
+        let mut encoder =
+            flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
 
         encoder.write_all(data).unwrap();
 
@@ -1211,20 +1174,17 @@ mod tests {
 
         assert_eq!(metadata.format, "PNG");
         assert_eq!(metadata.mode, "RGB");
-        assert_eq!(
-            metadata.info["gamma"],
-            MetadataValue::Float(0.45455)
-        );
-        assert_eq!(
-            metadata.info["srgb"],
-            MetadataValue::Int(0)
-        );
+        assert_eq!(metadata.info["gamma"], MetadataValue::Float(0.45455));
+        assert_eq!(metadata.info["srgb"], MetadataValue::Int(0));
         assert_eq!(metadata.info["Comment"], MetadataValue::text("hello"));
         assert_eq!(
             metadata.get_icc_profile_bytes().unwrap(),
             b"icc bytes".to_vec()
         );
-        assert_eq!(metadata.exif.as_ref().unwrap()["274"], MetadataValue::Int(6));
+        assert_eq!(
+            metadata.exif.as_ref().unwrap()["274"],
+            MetadataValue::Int(6)
+        );
 
         let chromaticity = match &metadata.info["chromaticity"] {
             MetadataValue::List(values) => values,

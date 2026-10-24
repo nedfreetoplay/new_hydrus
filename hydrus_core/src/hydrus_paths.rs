@@ -30,8 +30,8 @@ use std::fs::{self, Metadata};
 use std::io::{self, Read, Write};
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, UNIX_EPOCH};
 
 use crate::hydrus_constants::{
@@ -222,20 +222,21 @@ pub static PROCESS_UMASK: LazyLock<u32> = LazyLock::new(|| {
 });
 
 /// `NTFS_disallowed_names_case_insensitive`
-pub static NTFS_DISALLOWED_NAMES_CASE_INSENSITIVE: LazyLock<HashSet<String>> = LazyLock::new(|| {
-    let mut names = HashSet::new();
+pub static NTFS_DISALLOWED_NAMES_CASE_INSENSITIVE: LazyLock<HashSet<String>> =
+    LazyLock::new(|| {
+        let mut names = HashSet::new();
 
-    for name in ["con", "prn", "aux", "nul"] {
-        names.insert(name.to_string());
-    }
+        for name in ["con", "prn", "aux", "nul"] {
+            names.insert(name.to_string());
+        }
 
-    for i in 1..10 {
-        names.insert(format!("com{i}"));
-        names.insert(format!("lpt{i}"));
-    }
+        for i in 1..10 {
+            names.insert(format!("com{i}"));
+            names.insert(format!("lpt{i}"));
+        }
 
-    names
-});
+        names
+    });
 
 static WE_SWITCHED_TO_USERPATH: AtomicBool = AtomicBool::new(false);
 
@@ -253,7 +254,11 @@ pub fn set_we_switched_to_userpath(value: bool) {
 // Small helpers
 // ============================================================================
 
-fn io_failure(kind: ErrorKind, context: impl std::fmt::Display, error: &io::Error) -> HydrusException {
+fn io_failure(
+    kind: ErrorKind,
+    context: impl std::fmt::Display,
+    error: &io::Error,
+) -> HydrusException {
     HydrusException::new(kind, format!("{context}: {error}"))
 }
 
@@ -412,7 +417,7 @@ pub fn oserror_is_device_access_trouble(error: &io::Error) -> bool {
                 | 59        // ERROR_UNEXP_NET_ERR
                 | 64        // ERROR_NETNAME_DELETED
                 | 65        // ERROR_NETWORK_ACCESS_DENIED
-                | 1167      // ERROR_DEVICE_NOT_CONNECTED
+                | 1167 // ERROR_DEVICE_NOT_CONNECTED
         )
     } else {
         matches!(
@@ -520,7 +525,9 @@ pub fn dest_stat_has_same_size_and_date_as_source(
 /// `append_path_until_no_conflicts( path )`
 pub fn append_path_until_no_conflicts(path: &Path) -> PathBuf {
     let parent = path.parent().unwrap_or_else(|| Path::new(""));
-    let file_name = path.file_name().map(|name| name.to_string_lossy().into_owned());
+    let file_name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned());
 
     let Some(file_name) = file_name else {
         return path.to_path_buf();
@@ -658,10 +665,7 @@ pub fn read_file_like_as_blocks<R: Read>(reader: R) -> BlockReader<R> {
 }
 
 /// `CopyFileLikeToFileLike( f_source, f_dest )`
-pub fn copy_file_like_to_file_like<R: Read, W: Write>(
-    source: R,
-    dest: &mut W,
-) -> io::Result<()> {
+pub fn copy_file_like_to_file_like<R: Read, W: Write>(source: R, dest: &mut W) -> io::Result<()> {
     for block in read_file_like_as_blocks(source) {
         dest.write_all(&block?)?;
     }
@@ -2166,9 +2170,9 @@ fn partition_info_linux(path: &Path) -> Option<PartitionInfo> {
             continue;
         }
 
-        let is_better = best.as_ref().is_none_or(|current| {
-            mountpoint.len() > current.mountpoint.as_os_str().len()
-        });
+        let is_better = best
+            .as_ref()
+            .is_none_or(|current| mountpoint.len() > current.mountpoint.as_os_str().len());
 
         if is_better {
             best = Some(PartitionInfo {
@@ -2216,9 +2220,9 @@ fn partition_info_unix_mount(path: &Path) -> Option<PartitionInfo> {
             .trim()
             .to_string();
 
-        let is_better = best.as_ref().is_none_or(|current| {
-            mountpoint.len() > current.mountpoint.as_os_str().len()
-        });
+        let is_better = best
+            .as_ref()
+            .is_none_or(|current| mountpoint.len() > current.mountpoint.as_os_str().len());
 
         if is_better {
             best = Some(PartitionInfo {
@@ -2420,11 +2424,7 @@ pub fn path_is_free(path: &Path) -> bool {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return false,
             Err(error) => {
-                safe_print(format!(
-                    "Could not stat \"{}\": {}",
-                    path.display(),
-                    error
-                ));
+                safe_print(format!("Could not stat \"{}\": {}", path.display(), error));
 
                 return false;
             }
@@ -2661,20 +2661,14 @@ pub fn elide_subdirs_safely(
 
     let use_ntfs_rules = PLATFORM_WINDOWS || force_ntfs_rules;
 
-    let (
-        max_path_bytes,
-        max_path_characters,
-        max_dirname_bytes,
-        max_dirname_characters,
-    ) = path_limits_for_eliding(
-        path_character_limit,
-        dirname_character_limit,
-        force_ntfs_rules,
-    );
+    let (max_path_bytes, max_path_characters, max_dirname_bytes, max_dirname_characters) =
+        path_limits_for_eliding(
+            path_character_limit,
+            dirname_character_limit,
+            force_ntfs_rules,
+        );
 
-    let dirnames: Vec<&str> = subdirs_elidable
-        .split(std::path::MAIN_SEPARATOR)
-        .collect();
+    let dirnames: Vec<&str> = subdirs_elidable.split(std::path::MAIN_SEPARATOR).collect();
     let dirname_count = dirnames.len().max(1) as isize;
 
     let mut actual_per_dirname_characters_limit = 64_isize;
@@ -2928,10 +2922,7 @@ pub fn figure_out_db_dir(arg_db_dir: Option<&str>) -> HydrusResult<PathBuf> {
         Some(arg_db_dir) => {
             let expanded = expand_user(arg_db_dir);
 
-            convert_portable_path_to_abs_path(
-                &expanded,
-                Some(crate::hydrus_constants::base_dir()),
-            )
+            convert_portable_path_to_abs_path(&expanded, Some(crate::hydrus_constants::base_dir()))
         }
     };
 
@@ -3185,12 +3176,8 @@ mod tests {
 
         let time = UNIX_EPOCH + Duration::from_secs(seconds);
 
-        file.set_times(
-            fs::FileTimes::new()
-                .set_accessed(time)
-                .set_modified(time),
-        )
-        .expect("set file times");
+        file.set_times(fs::FileTimes::new().set_accessed(time).set_modified(time))
+            .expect("set file times");
     }
 
     #[test]
@@ -3231,8 +3218,7 @@ mod tests {
 
         assert_eq!(portable, "sub/file.txt");
 
-        let round_trip =
-            convert_portable_path_to_abs_path(Path::new(&portable), Some(&temp.path));
+        let round_trip = convert_portable_path_to_abs_path(Path::new(&portable), Some(&temp.path));
 
         assert_eq!(round_trip, child);
 
@@ -3357,7 +3343,10 @@ mod tests {
         write(&dest, b"abc");
         assert!(copy_times(&source, &dest));
 
-        assert_eq!(mirror_file(&source, &dest).expect("mirror duplicate"), false);
+        assert_eq!(
+            mirror_file(&source, &dest).expect("mirror duplicate"),
+            false
+        );
 
         write(&dest, b"xyz");
         // Move the mtime outside the source's whole-second window; the
@@ -3389,18 +3378,14 @@ mod tests {
 
         assert!(updates > 0);
         assert_eq!(fs::read(dest.join("a.txt")).expect("a"), b"a");
-        assert_eq!(
-            fs::read(dest.join("sub").join("b.txt")).expect("b"),
-            b"b"
-        );
+        assert_eq!(fs::read(dest.join("sub").join("b.txt")).expect("b"), b"b");
         assert!(!dest.join("old.txt").exists());
         assert!(!dest.join("old_sub").exists());
 
         let cancelled_dest = temp.path.join("cancelled");
         let mut cancel = || true;
 
-        mirror_tree(&source, &cancelled_dest, None, Some(&mut cancel))
-            .expect("cancelled mirror");
+        mirror_tree(&source, &cancelled_dest, None, Some(&mut cancel)).expect("cancelled mirror");
 
         assert!(!cancelled_dest.join("a.txt").exists());
     }
@@ -3444,9 +3429,11 @@ mod tests {
         assert!(!subdirs.is_empty());
         assert!(!filename.is_empty());
         assert!(filename.chars().count() <= 20 - 4);
-        assert!(subdirs
-            .split(std::path::MAIN_SEPARATOR)
-            .all(|part| part.chars().count() <= 10));
+        assert!(
+            subdirs
+                .split(std::path::MAIN_SEPARATOR)
+                .all(|part| part.chars().count() <= 10)
+        );
 
         assert_eq!(
             elide_subdirs_safely("", "", None, None, true).expect("empty subdirs"),
@@ -3465,11 +3452,10 @@ mod tests {
 
         write(&source, &data);
 
-        let blocks: Vec<Vec<u8>> = read_file_like_as_blocks(
-            fs::File::open(&source).expect("open source"),
-        )
-        .collect::<Result<Vec<_>, _>>()
-        .expect("read blocks");
+        let blocks: Vec<Vec<u8>> =
+            read_file_like_as_blocks(fs::File::open(&source).expect("open source"))
+                .collect::<Result<Vec<_>, _>>()
+                .expect("read blocks");
 
         assert!(blocks.len() >= 3);
         assert_eq!(

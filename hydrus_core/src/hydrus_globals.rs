@@ -23,17 +23,42 @@ macro_rules! flag {
 }
 
 // Shutdown state
-flag!(STARTED_SHUTDOWN, started_shutdown, set_started_shutdown, false);
+flag!(
+    STARTED_SHUTDOWN,
+    started_shutdown,
+    set_started_shutdown,
+    false
+);
 flag!(VIEW_SHUTDOWN, view_shutdown, set_view_shutdown, false);
 flag!(MODEL_SHUTDOWN, model_shutdown, set_model_shutdown, false);
-flag!(SHUTDOWN_COMPLETE, shutdown_complete, set_shutdown_complete, false);
+flag!(
+    SHUTDOWN_COMPLETE,
+    shutdown_complete,
+    set_shutdown_complete,
+    false
+);
 flag!(RESTART, restart, set_restart, false);
 
 // Boot / running
-flag!(NON_INTERACTIVE_UPDATE, non_interactive_update, set_non_interactive_update, false);
+flag!(
+    NON_INTERACTIVE_UPDATE,
+    non_interactive_update,
+    set_non_interactive_update,
+    false
+);
 flag!(BOOT_DEBUG, boot_debug, set_boot_debug, false);
-flag!(IMPORT_FOLDERS_RUNNING, import_folders_running, set_import_folders_running, false);
-flag!(EXPORT_FOLDERS_RUNNING, export_folders_running, set_export_folders_running, false);
+flag!(
+    IMPORT_FOLDERS_RUNNING,
+    import_folders_running,
+    set_import_folders_running,
+    false
+);
+flag!(
+    EXPORT_FOLDERS_RUNNING,
+    export_folders_running,
+    set_export_folders_running,
+    false
+);
 flag!(
     BOOT_WITH_NETWORK_TRAFFIC_PAUSED,
     boot_with_network_traffic_paused_command_line,
@@ -42,23 +67,68 @@ flag!(
 );
 
 // Reporting / debug modes
-flag!(CALLTO_REPORT_MODE, callto_report_mode, set_callto_report_mode, false);
+flag!(
+    CALLTO_REPORT_MODE,
+    callto_report_mode,
+    set_callto_report_mode,
+    false
+);
 flag!(DB_REPORT_MODE, db_report_mode, set_db_report_mode, false);
-flag!(FILE_REPORT_MODE, file_report_mode, set_file_report_mode, false);
-flag!(FILE_SORT_REPORT_MODE, file_sort_report_mode, set_file_sort_report_mode, false);
-flag!(MEDIA_LOAD_REPORT_MODE, media_load_report_mode, set_media_load_report_mode, false);
+flag!(
+    FILE_REPORT_MODE,
+    file_report_mode,
+    set_file_report_mode,
+    false
+);
+flag!(
+    FILE_SORT_REPORT_MODE,
+    file_sort_report_mode,
+    set_file_sort_report_mode,
+    false
+);
+flag!(
+    MEDIA_LOAD_REPORT_MODE,
+    media_load_report_mode,
+    set_media_load_report_mode,
+    false
+);
 flag!(GUI_REPORT_MODE, gui_report_mode, set_gui_report_mode, false);
-flag!(SHORTCUT_REPORT_MODE, shortcut_report_mode, set_shortcut_report_mode, false);
-flag!(CACHE_REPORT_MODE, cache_report_mode, set_cache_report_mode, false);
-flag!(IDLE_REPORT_MODE, idle_report_mode, set_idle_report_mode, false);
-flag!(SUBPROCESS_REPORT_MODE, subprocess_report_mode, set_subprocess_report_mode, false);
+flag!(
+    SHORTCUT_REPORT_MODE,
+    shortcut_report_mode,
+    set_shortcut_report_mode,
+    false
+);
+flag!(
+    CACHE_REPORT_MODE,
+    cache_report_mode,
+    set_cache_report_mode,
+    false
+);
+flag!(
+    IDLE_REPORT_MODE,
+    idle_report_mode,
+    set_idle_report_mode,
+    false
+);
+flag!(
+    SUBPROCESS_REPORT_MODE,
+    subprocess_report_mode,
+    set_subprocess_report_mode,
+    false
+);
 flag!(
     SUBSCRIPTION_REPORT_MODE,
     subscription_report_mode,
     set_subscription_report_mode,
     false
 );
-flag!(HOVER_WINDOW_REPORT_MODE, hover_window_report_mode, set_hover_window_report_mode, false);
+flag!(
+    HOVER_WINDOW_REPORT_MODE,
+    hover_window_report_mode,
+    set_hover_window_report_mode,
+    false
+);
 flag!(
     FILE_IMPORT_REPORT_MODE,
     file_import_report_mode,
@@ -71,15 +141,30 @@ flag!(
     set_phash_generation_report_mode,
     false
 );
-flag!(NETWORK_REPORT_MODE, network_report_mode, set_network_report_mode, false);
+flag!(
+    NETWORK_REPORT_MODE,
+    network_report_mode,
+    set_network_report_mode,
+    false
+);
 flag!(
     NETWORK_REPORT_MODE_SILENT,
     network_report_mode_silent,
     set_network_report_mode_silent,
     false
 );
-flag!(PUBSUB_REPORT_MODE, pubsub_report_mode, set_pubsub_report_mode, false);
-flag!(DAEMON_REPORT_MODE, daemon_report_mode, set_daemon_report_mode, false);
+flag!(
+    PUBSUB_REPORT_MODE,
+    pubsub_report_mode,
+    set_pubsub_report_mode,
+    false
+);
+flag!(
+    DAEMON_REPORT_MODE,
+    daemon_report_mode,
+    set_daemon_report_mode,
+    false
+);
 flag!(MPV_REPORT_MODE, mpv_report_mode, set_mpv_report_mode, false);
 flag!(
     POTENTIAL_DUPLICATES_REPORT_MODE,
@@ -93,25 +178,70 @@ flag!(
     set_thumbnail_graphics_view_report_mode,
     false
 );
-flag!(SHUTDOWN_REPORT_MODE, shutdown_report_mode, set_shutdown_report_mode, false);
+flag!(
+    SHUTDOWN_REPORT_MODE,
+    shutdown_report_mode,
+    set_shutdown_report_mode,
+    false
+);
 
 // Misc behaviour toggles
-flag!(MACOS_ANTIFLICKER_TEST, macos_antiflicker_test, set_macos_antiflicker_test, false);
-flag!(CANVAS_TILE_OUTLINE_MODE, canvas_tile_outline_mode, set_canvas_tile_outline_mode, false);
-flag!(MPV_ALLOW_CRASHY_FILES, mpv_allow_crashy_files, set_mpv_allow_crashy_files, false);
+flag!(
+    MACOS_ANTIFLICKER_TEST,
+    macos_antiflicker_test,
+    set_macos_antiflicker_test,
+    false
+);
+flag!(
+    CANVAS_TILE_OUTLINE_MODE,
+    canvas_tile_outline_mode,
+    set_canvas_tile_outline_mode,
+    false
+);
+flag!(
+    MPV_ALLOW_CRASHY_FILES,
+    mpv_allow_crashy_files,
+    set_mpv_allow_crashy_files,
+    false
+);
 flag!(
     MPV_ALLOW_CRASHY_FILES_SILENTLY,
     mpv_allow_crashy_files_silently,
     set_mpv_allow_crashy_files_silently,
     false
 );
-flag!(FAKE_PETITION_MODE, fake_petition_mode, set_fake_petition_mode, false);
+flag!(
+    FAKE_PETITION_MODE,
+    fake_petition_mode,
+    set_fake_petition_mode,
+    false
+);
 flag!(FORCE_IDLE_MODE, force_idle_mode, set_force_idle_mode, false);
-flag!(THUMBNAIL_DEBUG_MODE, thumbnail_debug_mode, set_thumbnail_debug_mode, false);
-flag!(AUTOCOMPLETE_DELAY_MODE, autocomplete_delay_mode, set_autocomplete_delay_mode, false);
+flag!(
+    THUMBNAIL_DEBUG_MODE,
+    thumbnail_debug_mode,
+    set_thumbnail_debug_mode,
+    false
+);
+flag!(
+    AUTOCOMPLETE_DELAY_MODE,
+    autocomplete_delay_mode,
+    set_autocomplete_delay_mode,
+    false
+);
 flag!(BLURHASH_MODE, blurhash_mode, set_blurhash_mode, false);
-flag!(DO_IDLE_SHUTDOWN_WORK, do_idle_shutdown_work, set_do_idle_shutdown_work, false);
-flag!(TWISTED_IS_BROKE, twisted_is_broke, set_twisted_is_broke, false);
+flag!(
+    DO_IDLE_SHUTDOWN_WORK,
+    do_idle_shutdown_work,
+    set_do_idle_shutdown_work,
+    false
+);
+flag!(
+    TWISTED_IS_BROKE,
+    twisted_is_broke,
+    set_twisted_is_broke,
+    false
+);
 flag!(DOING_FAST_EXIT, doing_fast_exit, set_doing_fast_exit, false);
 
 // Numbers
@@ -265,7 +395,10 @@ pub fn program_name() -> String {
 }
 
 pub fn set_program_name(name: impl Into<String>) {
-    *PROGRAM_NAME.get_or_init(|| Mutex::new(String::new())).lock().unwrap() = name.into();
+    *PROGRAM_NAME
+        .get_or_init(|| Mutex::new(String::new()))
+        .lock()
+        .unwrap() = name.into();
 }
 
 static DB_PROFILE_MIN_JOB_TIME_MS_LEGACY: AtomicI64 = AtomicI64::new(16);

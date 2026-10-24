@@ -211,12 +211,7 @@ pub fn print_query_plan(query: &str, plan_lines: &[String]) {
 }
 
 /// `profile( summary, func, min_duration_ms = 20, show_summary = False )`
-pub fn profile(
-    summary: &str,
-    func: impl FnOnce(),
-    min_duration_ms: u64,
-    show_summary: bool,
-) {
+pub fn profile(summary: &str, func: impl FnOnce(), min_duration_ms: u64, show_summary: bool) {
     let started = Instant::now();
 
     if let Ok(_guard) = CURRENT_PROFILE_LOCK.try_lock() {

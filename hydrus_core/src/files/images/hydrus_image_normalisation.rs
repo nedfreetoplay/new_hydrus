@@ -11,11 +11,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use image::metadata::Orientation;
 use image::{DynamicImage, Rgba, RgbaImage};
 
-use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::files::images::hydrus_image_colours;
 use crate::files::images::hydrus_image_icc_profiles;
 use crate::files::images::hydrus_image_math_slop::{self, Matrix3};
 use crate::files::images::hydrus_image_metadata::{self, MetadataMap, MetadataValue};
+use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 
 static DO_ICC_PROFILE_NORMALISATION: AtomicBool = AtomicBool::new(true);
 
@@ -50,9 +50,7 @@ fn is_grayscale(image: &DynamicImage) -> bool {
 pub fn normalise_image_to_uint8(image: &DynamicImage) -> DynamicImage {
     match image {
         DynamicImage::ImageLuma16(_) => DynamicImage::ImageLuma8(image.to_luma8()),
-        DynamicImage::ImageLumaA16(_) => {
-            DynamicImage::ImageLumaA8(image.to_luma_alpha8())
-        }
+        DynamicImage::ImageLumaA16(_) => DynamicImage::ImageLumaA8(image.to_luma_alpha8()),
         DynamicImage::ImageRgb16(_) => DynamicImage::ImageRgb8(image.to_rgb8()),
         DynamicImage::ImageRgba16(_) => DynamicImage::ImageRgba8(image.to_rgba8()),
         DynamicImage::ImageRgb32F(_) => DynamicImage::ImageRgb8(image.to_rgb8()),
@@ -194,15 +192,15 @@ pub fn generate_icc_profile_bytes_from_gamma_and_chromaticity_png(
         chromaticities[2],
         chromaticities[3],
     );
-    let rgb_to_xyz_d50 = hydrus_image_math_slop::adapt_rgb_to_xyz_matrix_to_d50(
-        rgb_to_xyz,
-        chromaticities[0],
-    );
+    let rgb_to_xyz_d50 =
+        hydrus_image_math_slop::adapt_rgb_to_xyz_matrix_to_d50(rgb_to_xyz, chromaticities[0]);
 
-    Ok(hydrus_image_icc_profiles::make_gamma_and_chromaticity_icc_profile(
-        1.0 / linear_gamma,
-        rgb_to_xyz_d50,
-    ))
+    Ok(
+        hydrus_image_icc_profiles::make_gamma_and_chromaticity_icc_profile(
+            1.0 / linear_gamma,
+            rgb_to_xyz_d50,
+        ),
+    )
 }
 
 /// `convert_gamma_chromaticity_png_to_srgb( pil_image )`.
@@ -246,8 +244,7 @@ pub fn convert_gamma_chromaticity_png_to_srgb(
             (f64::from(b) / 255.0).powf(display_gamma),
         ];
 
-        let transformed =
-            hydrus_image_math_slop::mat_vec_mul(total_transform, linear);
+        let transformed = hydrus_image_math_slop::mat_vec_mul(total_transform, linear);
 
         let encoded = transformed.map(|value| {
             let value = value.clamp(0.0, 1.0);
@@ -327,16 +324,15 @@ pub fn dequantize_pil_image(
 
     if hydrus_image_metadata::has_icc_profile(info) && do_icc_profile_normalisation() {
         dequantised = normalise_icc_profile_pil_image_to_srgb(
-            &hydrus_image_metadata::get_icc_profile_bytes(info)
-                .unwrap_or_default(),
+            &hydrus_image_metadata::get_icc_profile_bytes(info).unwrap_or_default(),
             &dequantised,
         );
     } else if pil_image_is_png_with_srgb(format, info) {
         // Already sRGB. The `srgb` chunk's rendering intent is not needed for
         // a conversion back to sRGB.
     } else if pil_image_is_png_with_gamma_and_chromaticity(format, mode, info) {
-        dequantised = convert_gamma_chromaticity_png_to_srgb(&dequantised, info)
-            .unwrap_or(dequantised);
+        dequantised =
+            convert_gamma_chromaticity_png_to_srgb(&dequantised, info).unwrap_or(dequantised);
     }
 
     normalise_pil_image_to_rgb(&dequantised)
@@ -358,9 +354,7 @@ pub fn dequantize_freshly_loaded_numpy_image(image: &DynamicImage) -> DynamicIma
 #[cfg(test)]
 mod tests {
     use super::*;
-    use image::{
-        GenericImageView, GrayAlphaImage, Luma, LumaA, Rgb, RgbImage, Rgba, RgbaImage,
-    };
+    use image::{GenericImageView, GrayAlphaImage, Luma, LumaA, Rgb, RgbImage, Rgba, RgbaImage};
 
     #[test]
     fn sixteen_bit_grayscale_becomes_eight_bit() {
@@ -375,13 +369,11 @@ mod tests {
 
     #[test]
     fn opaque_rgba_loses_its_useless_alpha() {
-        let _guard = crate::files::images::hydrus_image_colours::TEST_LOCK.lock().unwrap();
+        let _guard = crate::files::images::hydrus_image_colours::TEST_LOCK
+            .lock()
+            .unwrap();
 
-        let image = DynamicImage::ImageRgba8(RgbaImage::from_pixel(
-            4,
-            4,
-            Rgba([10, 20, 30, 255]),
-        ));
+        let image = DynamicImage::ImageRgba8(RgbaImage::from_pixel(4, 4, Rgba([10, 20, 30, 255])));
 
         let stripped = strip_out_any_useless_alpha_channel(&image);
 
@@ -390,7 +382,9 @@ mod tests {
 
     #[test]
     fn interesting_alpha_is_kept() {
-        let _guard = crate::files::images::hydrus_image_colours::TEST_LOCK.lock().unwrap();
+        let _guard = crate::files::images::hydrus_image_colours::TEST_LOCK
+            .lock()
+            .unwrap();
 
         let mut buffer = RgbaImage::from_pixel(10, 10, Rgba([10, 20, 30, 255]));
         buffer.put_pixel(0, 0, Rgba([10, 20, 30, 128]));
@@ -403,11 +397,7 @@ mod tests {
 
     #[test]
     fn grayscale_alpha_is_stripped_to_plain_grayscale() {
-        let image = DynamicImage::ImageLumaA8(GrayAlphaImage::from_pixel(
-            4,
-            4,
-            LumaA([100, 255]),
-        ));
+        let image = DynamicImage::ImageLumaA8(GrayAlphaImage::from_pixel(4, 4, LumaA([100, 255])));
 
         let stripped = strip_out_any_alpha_channel(&image);
 
@@ -416,11 +406,8 @@ mod tests {
 
     #[test]
     fn rgb_is_untouched() {
-        let image = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
-            4,
-            4,
-            image::Rgb([1, 2, 3]),
-        ));
+        let image =
+            DynamicImage::ImageRgb8(image::RgbImage::from_pixel(4, 4, image::Rgb([1, 2, 3])));
 
         let stripped = strip_out_any_alpha_channel(&image);
 
@@ -469,8 +456,7 @@ mod tests {
     #[test]
     fn generated_icc_profile_has_the_expected_header() {
         let profile =
-            generate_icc_profile_bytes_from_gamma_and_chromaticity_png(&png_srgb_info())
-                .unwrap();
+            generate_icc_profile_bytes_from_gamma_and_chromaticity_png(&png_srgb_info()).unwrap();
 
         assert!(profile.len() > 128);
         assert_eq!(profile.len() % 4, 0);
@@ -479,14 +465,9 @@ mod tests {
 
     #[test]
     fn gamma_chromaticity_conversion_keeps_an_srgb_colour_close() {
-        let source = DynamicImage::ImageRgb8(RgbImage::from_pixel(
-            2,
-            2,
-            Rgb([200, 100, 50]),
-        ));
+        let source = DynamicImage::ImageRgb8(RgbImage::from_pixel(2, 2, Rgb([200, 100, 50])));
 
-        let converted =
-            convert_gamma_chromaticity_png_to_srgb(&source, &png_srgb_info()).unwrap();
+        let converted = convert_gamma_chromaticity_png_to_srgb(&source, &png_srgb_info()).unwrap();
         let pixel = converted.to_rgb8().get_pixel(0, 0).0;
 
         // The source uses a pure 2.2 power curve while sRGB's transfer function
@@ -498,14 +479,10 @@ mod tests {
 
     #[test]
     fn gamma_chromaticity_conversion_preserves_alpha() {
-        let source = DynamicImage::ImageRgba8(RgbaImage::from_pixel(
-            1,
-            1,
-            Rgba([200, 100, 50, 123]),
-        ));
+        let source =
+            DynamicImage::ImageRgba8(RgbaImage::from_pixel(1, 1, Rgba([200, 100, 50, 123])));
 
-        let converted =
-            convert_gamma_chromaticity_png_to_srgb(&source, &png_srgb_info()).unwrap();
+        let converted = convert_gamma_chromaticity_png_to_srgb(&source, &png_srgb_info()).unwrap();
 
         assert_eq!(converted.color(), image::ColorType::Rgba8);
         assert_eq!(converted.to_rgba8().get_pixel(0, 0)[3], 123);
@@ -513,11 +490,7 @@ mod tests {
 
     #[test]
     fn dequantize_to_rgb_drops_a_grayscale_mode() {
-        let image = DynamicImage::ImageLuma8(image::GrayImage::from_pixel(
-            2,
-            2,
-            Luma([42]),
-        ));
+        let image = DynamicImage::ImageLuma8(image::GrayImage::from_pixel(2, 2, Luma([42])));
 
         let converted = normalise_pil_image_to_rgb(&image);
 
@@ -527,11 +500,7 @@ mod tests {
 
     #[test]
     fn exif_rotation_is_skipped_for_png_and_applied_elsewhere() {
-        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(
-            3,
-            2,
-            Rgb([1, 2, 3]),
-        ));
+        let image = DynamicImage::ImageRgb8(RgbImage::from_pixel(3, 2, Rgb([1, 2, 3])));
 
         assert_eq!(
             rotate_exif_pil_image(&image, "PNG", Some(6)).dimensions(),

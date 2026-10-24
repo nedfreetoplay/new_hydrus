@@ -15,14 +15,15 @@ use regex::Regex;
 use roxmltree::Document;
 use zip::ZipArchive;
 
-use crate::hydrus_constants::{IMAGE_FILE_EXTS, Mime, MimeLookup, OPEN_DOCUMENT_ZIPS, VIDEO_FILE_EXTS};
+use crate::hydrus_constants::{
+    IMAGE_FILE_EXTS, Mime, MimeLookup, OPEN_DOCUMENT_ZIPS, VIDEO_FILE_EXTS,
+};
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::hydrus_text;
 
 const MACOSX_PREFIX: &str = "__MACOSX/";
 const CBZ_WEIRD_FILENAMES: &str = "comicinfo.xml,info.txt,thumbs.db,.ds_store";
-const CBZ_WEIRD_EXTENSIONS: &str =
-    ".db, .txt, .xml, .nfo, .sfv, .md5, .sha1, .sha256, .sha512";
+const CBZ_WEIRD_EXTENSIONS: &str = ".db, .txt, .xml, .nfo, .sfv, .md5, .sha1, .sha256, .sha512";
 const CBZ_MAX_WEIRD_FILES_PER_DIRECTORY: f64 = 5.0;
 const CBZ_MAX_NUMBERLESS_UNIQUENESS_PERCENTAGE: f64 = 0.2;
 
@@ -42,7 +43,10 @@ fn open_zip(path: &Path) -> HydrusResult<ZipArchive<File>> {
     let file = File::open(path).map_err(|error| {
         HydrusException::new(
             ErrorKind::FileMissing,
-            format!("Could not open the zip file \"{}\": {error}", path.display()),
+            format!(
+                "Could not open the zip file \"{}\": {error}",
+                path.display()
+            ),
         )
     })?;
 
@@ -58,7 +62,11 @@ pub fn zip_file_names<R: Read + Seek>(zip_handle: &mut ZipArchive<R>) -> HydrusR
             .by_index(index)
             .map_err(|error| zip_error("Could not read a zip entry", error))?;
 
-        names.push(file.name().map(|name| name.into_owned()).unwrap_or_default());
+        names.push(
+            file.name()
+                .map(|name| name.into_owned())
+                .unwrap_or_default(),
+        );
     }
 
     Ok(names)
@@ -168,10 +176,7 @@ impl ZipPath {
 }
 
 /// `get_zip_as_path( path_to_zip, path_in_zip )`
-pub fn get_zip_as_path(
-    path_to_zip: impl Into<PathBuf>,
-    path_in_zip: impl Into<String>,
-) -> ZipPath {
+pub fn get_zip_as_path(path_to_zip: impl Into<PathBuf>, path_in_zip: impl Into<String>) -> ZipPath {
     ZipPath::new(path_to_zip, path_in_zip)
 }
 
@@ -184,9 +189,7 @@ pub fn get_single_file_from_zip_bytes(
 }
 
 /// `get_cover_page_path( zip_handle )`
-pub fn get_cover_page_path<R: Read + Seek>(
-    zip_handle: &mut ZipArchive<R>,
-) -> HydrusResult<String> {
+pub fn get_cover_page_path<R: Read + Seek>(zip_handle: &mut ZipArchive<R>) -> HydrusResult<String> {
     let mut names = Vec::new();
 
     for index in 0..zip_handle.len() {
@@ -198,7 +201,10 @@ pub fn get_cover_page_path<R: Read + Seek>(
             continue;
         }
 
-        let name = file.name().map(|name| name.into_owned()).unwrap_or_default();
+        let name = file
+            .name()
+            .map(|name| name.into_owned())
+            .unwrap_or_default();
 
         names.push(name);
     }
@@ -222,7 +228,9 @@ pub fn get_cover_page_path<R: Read + Seek>(
         }
     }
 
-    Err(no_thumbnail("Sorry, could not find an image file in there!"))
+    Err(no_thumbnail(
+        "Sorry, could not find an image file in there!",
+    ))
 }
 
 fn join_zip_path(directory: &str, filename: &str) -> String {
@@ -245,8 +253,8 @@ pub fn get_cover_page_path_from_epub<R: Read + Seek>(
         ))
     })?;
 
-    let container =
-        Document::parse(&container_text).map_err(|error| damaged(format!("Bad EPUB XML: {error}")))?;
+    let container = Document::parse(&container_text)
+        .map_err(|error| damaged(format!("Bad EPUB XML: {error}")))?;
 
     let content_opf_path = container
         .descendants()
@@ -263,14 +271,11 @@ pub fn get_cover_page_path_from_epub<R: Read + Seek>(
 
     let content_bytes = read_entry(zip_handle, &content_opf_path)?;
 
-    let content_text = String::from_utf8(content_bytes).map_err(|error| {
-        damaged(format!(
-            "The EPUB content.opf was not valid UTF-8: {error}"
-        ))
-    })?;
+    let content_text = String::from_utf8(content_bytes)
+        .map_err(|error| damaged(format!("The EPUB content.opf was not valid UTF-8: {error}")))?;
 
-    let content =
-        Document::parse(&content_text).map_err(|error| damaged(format!("Bad EPUB XML: {error}")))?;
+    let content = Document::parse(&content_text)
+        .map_err(|error| damaged(format!("Bad EPUB XML: {error}")))?;
 
     let content_directory = content_opf_path
         .rsplit_once('/')
@@ -287,20 +292,22 @@ pub fn get_cover_page_path_from_epub<R: Read + Seek>(
     if cover_item.is_none() {
         let cover_id = content
             .descendants()
-            .find(|node| node.tag_name().name() == "meta" && node.attribute("name") == Some("cover"))
+            .find(|node| {
+                node.tag_name().name() == "meta" && node.attribute("name") == Some("cover")
+            })
             .and_then(|node| node.attribute("content"));
 
         if let Some(cover_id) = cover_id {
-            cover_item = content
-                .descendants()
-                .find(|node| node.tag_name().name() == "item" && node.attribute("id") == Some(cover_id));
+            cover_item = content.descendants().find(|node| {
+                node.tag_name().name() == "item" && node.attribute("id") == Some(cover_id)
+            });
         }
     }
 
     if cover_item.is_none() {
-        cover_item = content.descendants().find(|node| {
-            node.tag_name().name() == "item" && node.attribute("id") == Some("cover")
-        });
+        cover_item = content
+            .descendants()
+            .find(|node| node.tag_name().name() == "item" && node.attribute("id") == Some("cover"));
     }
 
     if cover_item.is_none() {
@@ -324,13 +331,12 @@ pub fn get_cover_page_path_from_epub<R: Read + Seek>(
         }
     }
 
-    let cover_item = cover_item.ok_or_else(|| {
-        no_thumbnail("Sorry, could not find a cover image in the EPUB xml!")
-    })?;
+    let cover_item = cover_item
+        .ok_or_else(|| no_thumbnail("Sorry, could not find a cover image in the EPUB xml!"))?;
 
-    let cover_path = cover_item.attribute("href").ok_or_else(|| {
-        no_thumbnail("Sorry, could not find a cover image in the EPUB xml!")
-    })?;
+    let cover_path = cover_item
+        .attribute("href")
+        .ok_or_else(|| no_thumbnail("Sorry, could not find a cover image in the EPUB xml!"))?;
 
     let full_cover_path = join_zip_path(&content_directory, cover_path);
 
@@ -345,10 +351,7 @@ pub fn get_cover_page_path_from_epub<R: Read + Seek>(
     Ok(full_cover_path)
 }
 
-fn read_entry<R: Read + Seek>(
-    zip_handle: &mut ZipArchive<R>,
-    name: &str,
-) -> HydrusResult<Vec<u8>> {
+fn read_entry<R: Read + Seek>(zip_handle: &mut ZipArchive<R>, name: &str) -> HydrusResult<Vec<u8>> {
     let mut reader = zip_handle.by_name(name).map_err(|error| {
         if matches!(error, zip::result::ZipError::FileNotFound) {
             no_thumbnail(format!("The zip file had no entry called \"{name}\"!"))
@@ -366,10 +369,7 @@ fn read_entry<R: Read + Seek>(
     Ok(bytes)
 }
 
-fn zip_contains<R: Read + Seek>(
-    zip_handle: &mut ZipArchive<R>,
-    name: &str,
-) -> HydrusResult<bool> {
+fn zip_contains<R: Read + Seek>(zip_handle: &mut ZipArchive<R>, name: &str) -> HydrusResult<bool> {
     Ok(zip_handle.by_name(name).is_ok())
 }
 
@@ -387,9 +387,9 @@ pub fn extract_cover_page(
         get_cover_page_path(&mut zip_handle)?
     };
 
-    let mut reader = zip_handle.by_name(&path).map_err(|error| {
-        zip_error("Could not read the cover image from the zip", error)
-    })?;
+    let mut reader = zip_handle
+        .by_name(&path)
+        .map_err(|error| zip_error("Could not read the cover image from the zip", error))?;
 
     let mut bytes = Vec::new();
 
@@ -460,10 +460,7 @@ pub fn zip_looks_like_cbz(path_to_zip: impl AsRef<Path>) -> bool {
     };
 
     let weird_filenames: HashSet<&str> = CBZ_WEIRD_FILENAMES.split(',').collect();
-    let weird_extensions: HashSet<&str> = CBZ_WEIRD_EXTENSIONS
-        .split(',')
-        .map(str::trim)
-        .collect();
+    let weird_extensions: HashSet<&str> = CBZ_WEIRD_EXTENSIONS.split(',').map(str::trim).collect();
 
     let mut directories_to_image_filenames: HashMap<String, HashSet<String>> = HashMap::new();
     let mut directories_with_stuff_in: HashSet<String> = HashSet::new();
@@ -596,8 +593,8 @@ pub fn mime_from_open_document(path: impl AsRef<Path>) -> Option<Mime> {
 mod tests {
     use super::*;
     use std::io::Cursor;
-    use zip::write::SimpleFileOptions;
     use zip::ZipWriter;
+    use zip::write::SimpleFileOptions;
 
     fn build_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
         let mut buffer = Cursor::new(Vec::new());
@@ -649,10 +646,7 @@ mod tests {
 
     #[test]
     fn cover_page_skips_macosx_metadata() {
-        let data = build_zip(&[
-            ("__MACOSX/._page1.jpg", b"junk"),
-            ("page1.jpg", b"1"),
-        ]);
+        let data = build_zip(&[("__MACOSX/._page1.jpg", b"junk"), ("page1.jpg", b"1")]);
 
         let mut archive = ZipArchive::new(Cursor::new(data)).unwrap();
         let cover = get_cover_page_path(&mut archive).unwrap();
@@ -779,8 +773,9 @@ mod tests {
     fn a_missing_zip_entry_is_file_missing() {
         let path = write_temp_zip("missing", &[("a.txt", b"a")]);
 
-        let error =
-            get_zip_as_path(path.clone(), "nope.txt").read_bytes().unwrap_err();
+        let error = get_zip_as_path(path.clone(), "nope.txt")
+            .read_bytes()
+            .unwrap_err();
 
         assert!(error.is_a(ErrorKind::FileMissing));
 

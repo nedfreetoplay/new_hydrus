@@ -31,22 +31,24 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, RwLock, Weak};
 use std::time::Duration;
 
-use crate::hydrus_constants::{MaintenanceMode, HYDRUS_KEY_LENGTH, UNICODE_ELLIPSIS};
-use crate::hydrus_data::{clean_running_file, debug_print, generate_key, last_shutdown_was_bad, safe_print};
+use crate::hydrus_constants::{HYDRUS_KEY_LENGTH, MaintenanceMode, UNICODE_ELLIPSIS};
+use crate::hydrus_data::{
+    clean_running_file, debug_print, generate_key, last_shutdown_was_bad, safe_print,
+};
 use crate::hydrus_db::HydrusDB;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::hydrus_globals;
 use crate::hydrus_logger::HydrusLogger;
 use crate::hydrus_paths::delete_path;
-use crate::processes::hydrus_process;
 use crate::hydrus_pubsub::{PubSub, PubSubMessage, Subscriber};
-use crate::processes::hydrus_subprocess;
 use crate::hydrus_temp;
+use crate::hydrus_time::{get_now, get_now_ms, time_has_passed, time_has_passed_ms};
+use crate::processes::hydrus_process;
+use crate::processes::hydrus_subprocess;
 use crate::processes::hydrus_threading::{
     JobCall, JobScheduler, SchedulableJob, ThreadCall, ThreadCallToThread, ThreadWorkerPool,
     ThreadingController,
 };
-use crate::hydrus_time::{get_now, get_now_ms, time_has_passed, time_has_passed_ms};
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|error| error.into_inner())
@@ -75,10 +77,7 @@ pub trait ControllerHooks: Send + Sync {
     ///
     /// Return the database to install, or `None` for a controller without a
     /// database (useful for tests and for the headless tools in `core/`).
-    fn init_db(
-        &self,
-        _controller: &HydrusController,
-    ) -> HydrusResult<Option<Arc<HydrusDB>>> {
+    fn init_db(&self, _controller: &HydrusController) -> HydrusResult<Option<Arc<HydrusDB>>> {
         Ok(None)
     }
 
@@ -627,7 +626,8 @@ impl HydrusController {
     ) -> HydrusResult<Arc<SchedulableJob>> {
         let scheduler = self.require_job_scheduler(initial_delay)?;
 
-        let job = SchedulableJob::single(self.threading_arc(), &scheduler, initial_delay, call, label);
+        let job =
+            SchedulableJob::single(self.threading_arc(), &scheduler, initial_delay, call, label);
 
         scheduler.add_job(Arc::clone(&job));
 
@@ -799,8 +799,9 @@ impl HydrusController {
 
     /// `write_synchronous( action, *args, **kwargs )`
     pub fn write_synchronous(&self, action: &str) -> HydrusResult<Box<dyn Any + Send>> {
-        self.write_internal(action, true)?
-            .ok_or_else(|| HydrusException::new(ErrorKind::Unknown, "The database did not return a result!"))
+        self.write_internal(action, true)?.ok_or_else(|| {
+            HydrusException::new(ErrorKind::Unknown, "The database did not return a result!")
+        })
     }
 
     fn write_internal(
@@ -1006,14 +1007,18 @@ impl HydrusController {
         let fast_scheduler = JobScheduler::new(self.threading_arc());
         fast_scheduler.start()?;
 
-        *self.fast_job_scheduler.write().unwrap_or_else(|e| e.into_inner()) =
-            Some(Arc::clone(&fast_scheduler));
+        *self
+            .fast_job_scheduler
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = Some(Arc::clone(&fast_scheduler));
 
         let slow_scheduler = JobScheduler::new(self.threading_arc());
         slow_scheduler.start()?;
 
-        *self.slow_job_scheduler.write().unwrap_or_else(|e| e.into_inner()) =
-            Some(Arc::clone(&slow_scheduler));
+        *self
+            .slow_job_scheduler
+            .write()
+            .unwrap_or_else(|e| e.into_inner()) = Some(Arc::clone(&slow_scheduler));
 
         if let Some(db) = self.hooks.init_db(self)? {
             self.set_db(Some(Arc::clone(&db)));
@@ -1294,8 +1299,8 @@ impl ThreadingController for HydrusController {
 mod tests {
     use super::*;
     use crate::processes::hydrus_threading::thread_call;
-    use std::sync::atomic::AtomicUsize;
     use std::sync::Mutex as StdMutex;
+    use std::sync::atomic::AtomicUsize;
 
     /// The temp-dir tests touch a process-global path, so keep them apart.
     static TEMP_DIR_TEST_LOCK: StdMutex<()> = StdMutex::new(());
@@ -1352,7 +1357,9 @@ mod tests {
                 .as_nanos()
         );
 
-        std::env::temp_dir().join("hydrus-controller-tests").join(suffix)
+        std::env::temp_dir()
+            .join("hydrus-controller-tests")
+            .join(suffix)
     }
 
     fn make_controller(hooks: Arc<TestHooks>) -> Arc<HydrusController> {
@@ -1372,11 +1379,7 @@ mod tests {
             method_name == "bump"
         }
 
-        fn call(
-            &self,
-            _method_name: &str,
-            _message: &PubSubMessage,
-        ) -> HydrusResult<()> {
+        fn call(&self, _method_name: &str, _message: &PubSubMessage) -> HydrusResult<()> {
             self.count.fetch_add(1, Ordering::SeqCst);
 
             Ok(())
@@ -1388,7 +1391,10 @@ mod tests {
         let controller = make_controller(TestHooks::new(15000));
 
         assert!(controller.get_boot_timestamp_ms() > 0);
-        assert_eq!(controller.get_boot_timestamp_ms(), controller.get_timestamp_ms("boot"));
+        assert_eq!(
+            controller.get_boot_timestamp_ms(),
+            controller.get_timestamp_ms("boot")
+        );
 
         controller.set_timestamp_ms("custom", 12345);
 
@@ -1548,8 +1554,18 @@ mod tests {
 
         controller.shutdown_job_schedulers();
 
-        assert!(controller.get_threads_snapshot().fast_job_scheduler.is_none());
-        assert!(controller.get_threads_snapshot().slow_job_scheduler.is_none());
+        assert!(
+            controller
+                .get_threads_snapshot()
+                .fast_job_scheduler
+                .is_none()
+        );
+        assert!(
+            controller
+                .get_threads_snapshot()
+                .slow_job_scheduler
+                .is_none()
+        );
     }
 
     #[test]

@@ -81,8 +81,12 @@ pub fn initialise_hydrus_temp_dir() -> HydrusResult<PathBuf> {
 /// dir. Note that `std::env::set_var` is unsafe in edition 2024 because other
 /// threads may be reading the environment; hydrus calls this during early boot.
 pub fn set_env_temp_dir(path: &Path) -> HydrusResult<()> {
-    crate::hydrus_paths::make_sure_directory_exists(path)
-        .map_err(|_| temp_error(format!("Could not create the temp dir \"{}\"!", path.display())))?;
+    crate::hydrus_paths::make_sure_directory_exists(path).map_err(|_| {
+        temp_error(format!(
+            "Could not create the temp dir \"{}\"!",
+            path.display()
+        ))
+    })?;
 
     if !crate::hydrus_paths::directory_is_writeable(path).unwrap_or(false) {
         return Err(temp_error(format!(
@@ -188,7 +192,10 @@ pub fn clean_up_temp_path(file_handle: File, temp_path: &Path) {
     if let Err(_error) = std::fs::remove_file(temp_path) {
         let _guard = TEMP_PATH_LOCK.lock().unwrap();
 
-        in_use_paths().lock().unwrap().insert((get_now(), temp_path.to_path_buf()));
+        in_use_paths()
+            .lock()
+            .unwrap()
+            .insert((get_now(), temp_path.to_path_buf()));
     }
 }
 
@@ -258,7 +265,12 @@ mod tests {
         let (file, path) = get_temp_path("hydrus-test", ".txt", None).unwrap();
 
         assert!(path.exists());
-        assert!(path.file_name().unwrap().to_string_lossy().contains("hydrus-test_"));
+        assert!(
+            path.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .contains("hydrus-test_")
+        );
 
         clean_up_temp_path(file, &path);
 

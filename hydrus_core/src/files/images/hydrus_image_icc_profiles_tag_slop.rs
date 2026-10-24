@@ -4,8 +4,8 @@
 //! [`crate::files::images::hydrus_image_icc_profiles`]. All multi-byte integers and floats are
 //! big-endian, as the ICC spec requires.
 
+use crate::files::images::hydrus_image_math_slop::{Matrix3, float_to_s15_fixed16};
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use crate::files::images::hydrus_image_math_slop::{float_to_s15_fixed16, Matrix3};
 
 fn pad_to_four(bytes: &mut Vec<u8>) {
     let padding = (4 - (bytes.len() % 4)) % 4;
@@ -46,7 +46,11 @@ fn sf32_tag(matrix: Matrix3) -> Vec<u8> {
 
 /// `make_chad_tag_arbitrary_to_D50( src_white_xy )`
 pub fn make_chad_tag_arbitrary_to_d50(src_white_xy: (f64, f64)) -> Vec<u8> {
-    sf32_tag(crate::files::images::hydrus_image_math_slop::generate_bradford_adaptation_matrix(src_white_xy))
+    sf32_tag(
+        crate::files::images::hydrus_image_math_slop::generate_bradford_adaptation_matrix(
+            src_white_xy,
+        ),
+    )
 }
 
 /// `make_chad_tag_D50()`
@@ -163,7 +167,11 @@ pub fn make_text_tag(text: &str) -> Vec<u8> {
     tag.extend_from_slice(&[0; 4]);
 
     for character in text.chars() {
-        tag.push(if character.is_ascii() { character as u8 } else { b'?' });
+        tag.push(if character.is_ascii() {
+            character as u8
+        } else {
+            b'?'
+        });
     }
 
     pad_to_four(&mut tag);

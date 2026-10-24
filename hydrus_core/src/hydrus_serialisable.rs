@@ -25,7 +25,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, OnceLock, RwLock};
 
 use indexmap::IndexMap;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::hydrus_compression;
@@ -189,14 +189,16 @@ pub const SERIALISABLE_TYPE_FILE_FILTERING_IMPORT_OPTIONS: u16 = 148;
 pub const SERIALISABLE_TYPE_LOCATION_IMPORT_OPTIONS: u16 = 149;
 pub const SERIALISABLE_TYPE_TAG_FILTERING_IMPORT_OPTIONS: u16 = 150;
 pub const SERIALISABLE_TYPE_TAG_IMPORT_OPTIONS: u16 = 151;
-pub const SERIALISABLE_TYPE_DUPLICATES_AUTO_RESOLUTION_PAIR_COMPARATOR_ONE_FILE_HARDCODED: u16 = 152;
+pub const SERIALISABLE_TYPE_DUPLICATES_AUTO_RESOLUTION_PAIR_COMPARATOR_ONE_FILE_HARDCODED: u16 =
+    152;
 pub const SERIALISABLE_TYPE_NOTE_IMPORT_OPTIONS: u16 = 153;
 pub const SERIALISABLE_TYPE_NETWORK_CONTEXT_RECORD: u16 = 154;
 pub const SERIALISABLE_TYPE_EXECUTABLE_MANAGER: u16 = 155;
 pub const SERIALISABLE_TYPE_EXECUTABLE_CALLABLE: u16 = 156;
 pub const SERIALISABLE_TYPE_EXECUTABLE_CALL_LOCAL_PROCESS_CALL: u16 = 157;
 pub const SERIALISABLE_TYPE_ID_AND_NAME: u16 = 158;
-pub const SERIALISABLE_TYPE_EXECUTABLE_CALL_LOCAL_PROCESS_INPUT_TEMPLATE_PARAM_PROCESSING_RULE: u16 = 159;
+pub const SERIALISABLE_TYPE_EXECUTABLE_CALL_LOCAL_PROCESS_INPUT_TEMPLATE_PARAM_PROCESSING_RULE:
+    u16 = 159;
 pub const SERIALISABLE_TYPE_EXECUTABLE_CALL_LOCAL_PROCESS_DEFAULT_LAUNCH_FILE: u16 = 160;
 pub const SERIALISABLE_TYPE_EXECUTABLE_CALL_LOCAL_PROCESS_DEFAULT_LAUNCH_URL: u16 = 161;
 pub const SERIALISABLE_TYPE_EXTERNAL_PROGRAMS_IMPORT_OPTIONS: u16 = 162;
@@ -243,10 +245,7 @@ pub trait SerialisableObject: Send + Sync {
     fn get_serialisable_info(&self) -> Value;
 
     /// `_initialise_from_serialisable_info`.
-    fn initialise_from_serialisable_info(
-        &mut self,
-        serialisable_info: &Value,
-    ) -> HydrusResult<()>;
+    fn initialise_from_serialisable_info(&mut self, serialisable_info: &Value) -> HydrusResult<()>;
 
     /// `_update_serialisable_info`. Returns the new version and info.
     fn update_serialisable_info(
@@ -417,10 +416,7 @@ fn with_registry<R>(read: impl FnOnce(&HashMap<u16, FactoryEntry>) -> R) -> R {
 }
 
 /// Register an unnamed type. Returns `false` if the type was already taken.
-pub fn register_serialisable_type(
-    serialisable_type: u16,
-    factory: PlainFactory,
-) -> bool {
+pub fn register_serialisable_type(serialisable_type: u16, factory: PlainFactory) -> bool {
     let mut guard = type_registry().write().unwrap_or_else(|e| e.into_inner());
 
     if guard.contains_key(&serialisable_type) {
@@ -433,10 +429,7 @@ pub fn register_serialisable_type(
 }
 
 /// Register a named type (a `SerialisableBaseNamed` port).
-pub fn register_named_serialisable_type(
-    serialisable_type: u16,
-    factory: NamedFactory,
-) -> bool {
+pub fn register_named_serialisable_type(serialisable_type: u16, factory: NamedFactory) -> bool {
     let mut guard = type_registry().write().unwrap_or_else(|e| e.into_inner());
 
     if guard.contains_key(&serialisable_type) {
@@ -492,31 +485,32 @@ pub fn create_from_serialisable_tuple(
 ) -> HydrusResult<Box<dyn SerialisableObject>> {
     ensure_builtins_once();
 
-    let items = obj_tuple.as_array().ok_or_else(|| {
-        serialisation_error("Serialisable tuple was not a JSON array!")
-    })?;
+    let items = obj_tuple
+        .as_array()
+        .ok_or_else(|| serialisation_error("Serialisable tuple was not a JSON array!"))?;
 
-    let (serialisable_type, name, version, serialisable_info) = match items.len() {
-        3 => (
-            json_u16(&items[0], "serialisable type")?,
-            None,
-            json_u16(&items[1], "serialisable version")?,
-            items[2].clone(),
-        ),
-        4 => (
-            json_u16(&items[0], "serialisable type")?,
-            Some(items[1].as_str().ok_or_else(|| {
-                serialisation_error("Serialisable tuple name was not a string!")
-            })?),
-            json_u16(&items[2], "serialisable version")?,
-            items[3].clone(),
-        ),
-        _ => {
-            return Err(serialisation_error(
-                "Serialisable tuple was not length 3 or 4!",
-            ));
-        }
-    };
+    let (serialisable_type, name, version, serialisable_info) =
+        match items.len() {
+            3 => (
+                json_u16(&items[0], "serialisable type")?,
+                None,
+                json_u16(&items[1], "serialisable version")?,
+                items[2].clone(),
+            ),
+            4 => (
+                json_u16(&items[0], "serialisable type")?,
+                Some(items[1].as_str().ok_or_else(|| {
+                    serialisation_error("Serialisable tuple name was not a string!")
+                })?),
+                json_u16(&items[2], "serialisable version")?,
+                items[3].clone(),
+            ),
+            _ => {
+                return Err(serialisation_error(
+                    "Serialisable tuple was not length 3 or 4!",
+                ));
+            }
+        };
 
     let mut obj = instantiate_serialisable(serialisable_type, name)?;
 
@@ -723,16 +717,19 @@ impl SerialisableValue {
                 json!([META_SERIALISABLE_TYPE_JSON_BYTES, hex_encode(bytes)])
             }
             Self::Object(obj) => {
-                json!([META_SERIALISABLE_TYPE_HYDRUS_SERIALISABLE, obj.get_serialisable_tuple()])
+                json!([
+                    META_SERIALISABLE_TYPE_HYDRUS_SERIALISABLE,
+                    obj.get_serialisable_tuple()
+                ])
             }
         })
     }
 
     /// `convert_meta_serialisable_tuple_to_object`.
     pub fn from_meta_tuple(meta_tuple: &Value) -> HydrusResult<Self> {
-        let items = meta_tuple.as_array().ok_or_else(|| {
-            serialisation_error("Meta serialisable tuple was not a JSON array!")
-        })?;
+        let items = meta_tuple
+            .as_array()
+            .ok_or_else(|| serialisation_error("Meta serialisable tuple was not a JSON array!"))?;
 
         let metatype = items
             .first()
@@ -756,11 +753,9 @@ impl SerialisableValue {
 
                 Ok(Self::Bytes(bytes))
             }
-            m if m == u64::from(META_SERIALISABLE_TYPE_HYDRUS_SERIALISABLE) => {
-                Ok(Self::Object(Arc::from(create_from_serialisable_tuple(
-                    serialisable, false,
-                )?)))
-            }
+            m if m == u64::from(META_SERIALISABLE_TYPE_HYDRUS_SERIALISABLE) => Ok(Self::Object(
+                Arc::from(create_from_serialisable_tuple(serialisable, false)?),
+            )),
             _ => Ok(Self::Json(serialisable.clone())),
         }
     }
@@ -1060,13 +1055,10 @@ impl SerialisableObject for SerialisableList {
         )
     }
 
-    fn initialise_from_serialisable_info(
-        &mut self,
-        serialisable_info: &Value,
-    ) -> HydrusResult<()> {
-        let meta_tuples = serialisable_info.as_array().ok_or_else(|| {
-            serialisation_error("Serialisable list info was not an array!")
-        })?;
+    fn initialise_from_serialisable_info(&mut self, serialisable_info: &Value) -> HydrusResult<()> {
+        let meta_tuples = serialisable_info
+            .as_array()
+            .ok_or_else(|| serialisation_error("Serialisable list info was not an array!"))?;
 
         let mut have_shown_load_error = false;
 
@@ -1075,7 +1067,9 @@ impl SerialisableObject for SerialisableList {
                 Ok(value) => self.items.push(value),
                 Err(e) => {
                     if !have_shown_load_error {
-                        safe_print("An object in a list could not load. It has been discarded from the list. More may also have failed to load, but to stop error spam, they will go silently. Your client may be running on code versions behind its database. Depending on the severity of this error, you may need to rollback to a previous backup. If you have no backup, you may want to kill your hydrus process now to stop the cleansed list ever being saved back to the db.");
+                        safe_print(
+                            "An object in a list could not load. It has been discarded from the list. More may also have failed to load, but to stop error spam, they will go silently. Your client may be running on code versions behind its database. Depending on the severity of this error, you may need to rollback to a previous backup. If you have no backup, you may want to kill your hydrus process now to stop the cleansed list ever being saved back to the db.",
+                        );
                         safe_print(e.to_string());
 
                         have_shown_load_error = true;
@@ -1320,13 +1314,10 @@ impl SerialisableObject for SerialisableDictionary {
         Value::Array(meta_keys_and_meta_values)
     }
 
-    fn initialise_from_serialisable_info(
-        &mut self,
-        serialisable_info: &Value,
-    ) -> HydrusResult<()> {
-        let pairs = serialisable_info.as_array().ok_or_else(|| {
-            serialisation_error("Serialisable dictionary info was not an array!")
-        })?;
+    fn initialise_from_serialisable_info(&mut self, serialisable_info: &Value) -> HydrusResult<()> {
+        let pairs = serialisable_info
+            .as_array()
+            .ok_or_else(|| serialisation_error("Serialisable dictionary info was not an array!"))?;
 
         let mut have_shown_load_error = false;
 
@@ -1357,7 +1348,9 @@ impl SerialisableObject for SerialisableDictionary {
                 }
                 Err(e) => {
                     if !have_shown_load_error {
-                        safe_print("An object in a dictionary could not load. It has been discarded from the dictionary. More may also have failed to load, but to stop error spam, they will go silently. Your client may be running on code versions behind its database. Depending on the severity of this error, you may need to rollback to a previous backup. If you have no backup, you may want to kill your hydrus process now to stop the cleansed dictionary ever being saved back to the db.");
+                        safe_print(
+                            "An object in a dictionary could not load. It has been discarded from the dictionary. More may also have failed to load, but to stop error spam, they will go silently. Your client may be running on code versions behind its database. Depending on the severity of this error, you may need to rollback to a previous backup. If you have no backup, you may want to kill your hydrus process now to stop the cleansed dictionary ever being saved back to the db.",
+                        );
                         safe_print(e.to_string());
 
                         have_shown_load_error = true;
@@ -1426,10 +1419,8 @@ impl SerialisableObject for SerialisableDictionary {
                     ));
                 };
 
-                meta_keys_and_meta_values.push(json!([
-                    [key_metatype, key],
-                    [value_metatype, value]
-                ]));
+                meta_keys_and_meta_values
+                    .push(json!([[key_metatype, key], [value_metatype, value]]));
             }
         }
 
@@ -1445,12 +1436,11 @@ impl SerialisableObject for SerialisableDictionary {
     }
 
     fn get_serialisable_description(&self) -> String {
-        Self::describe_entries(self.entries.iter().map(|(key, value)| {
-            (
-                describe_slot(key),
-                describe_slot(value),
-            )
-        }))
+        Self::describe_entries(
+            self.entries
+                .iter()
+                .map(|(key, value)| (describe_slot(key), describe_slot(value))),
+        )
     }
 }
 
@@ -1555,10 +1545,7 @@ impl SerialisableBytesDictionary {
     }
 
     pub fn get(&self, key: &BytesDictionaryKey) -> Option<&BytesDictionaryValue> {
-        self.entries
-            .iter()
-            .find(|(k, _)| k == key)
-            .map(|(_, v)| v)
+        self.entries.iter().find(|(k, _)| k == key).map(|(_, v)| v)
     }
 
     pub fn len(&self) -> usize {
@@ -1612,10 +1599,7 @@ impl SerialisableObject for SerialisableBytesDictionary {
         Value::Array(pairs)
     }
 
-    fn initialise_from_serialisable_info(
-        &mut self,
-        serialisable_info: &Value,
-    ) -> HydrusResult<()> {
+    fn initialise_from_serialisable_info(&mut self, serialisable_info: &Value) -> HydrusResult<()> {
         let pairs = serialisable_info.as_array().ok_or_else(|| {
             serialisation_error("Serialisable bytes dictionary info was not an array!")
         })?;
@@ -1699,7 +1683,9 @@ impl SerialisableObject for SerialisableBytesDictionary {
                 BytesDictionaryValue::BytesList(_) => "class 'list'".to_string(),
             };
 
-            *counter.entry(format!("{key_str}: {value_str}")).or_insert(0) += 1;
+            *counter
+                .entry(format!("{key_str}: {value_str}"))
+                .or_insert(0) += 1;
         }
 
         let mut result =
@@ -1780,13 +1766,10 @@ impl SerialisableObject for IdAndName {
         json!([hex_encode(&self.object_id), self.name])
     }
 
-    fn initialise_from_serialisable_info(
-        &mut self,
-        serialisable_info: &Value,
-    ) -> HydrusResult<()> {
-        let items = serialisable_info.as_array().ok_or_else(|| {
-            serialisation_error("IdAndName info was not an array!")
-        })?;
+    fn initialise_from_serialisable_info(&mut self, serialisable_info: &Value) -> HydrusResult<()> {
+        let items = serialisable_info
+            .as_array()
+            .ok_or_else(|| serialisation_error("IdAndName info was not an array!"))?;
 
         let (Some(id_serialisable), Some(name)) = (items.first(), items.get(1)) else {
             return Err(serialisation_error("IdAndName info was not length 2!"));
@@ -1819,9 +1802,7 @@ impl SerialisableObject for IdAndName {
 
 // Built-in registrations. Other modules register their own types when ported.
 fn register_builtins() {
-    register_serialisable_type(SERIALISABLE_TYPE_LIST, || {
-        Box::new(SerialisableList::new())
-    });
+    register_serialisable_type(SERIALISABLE_TYPE_LIST, || Box::new(SerialisableList::new()));
     register_serialisable_type(SERIALISABLE_TYPE_DICTIONARY, || {
         Box::new(SerialisableDictionary::new())
     });
@@ -1881,10 +1862,7 @@ mod tests {
             json!([self.number])
         }
 
-        fn initialise_from_serialisable_info(
-            &mut self,
-            info: &Value,
-        ) -> HydrusResult<()> {
+        fn initialise_from_serialisable_info(&mut self, info: &Value) -> HydrusResult<()> {
             self.number = info[0].as_i64().unwrap_or_default();
 
             Ok(())
@@ -2003,10 +1981,7 @@ mod tests {
             2,
             [
                 [false, "raw"],
-                [
-                    true,
-                    [SERIALISABLE_TYPE_ID_AND_NAME, 1, ["00ff", "named"]]
-                ]
+                [true, [SERIALISABLE_TYPE_ID_AND_NAME, 1, ["00ff", "named"]]]
             ]
         ]));
 
@@ -2061,12 +2036,7 @@ mod tests {
             [
                 [["a", 1]],
                 [["b", [SERIALISABLE_TYPE_ID_AND_NAME, 1, ["00ff", "v"]]]],
-                [
-                    [
-                        [SERIALISABLE_TYPE_ID_AND_NAME, 1, ["00ff", "n"]],
-                        "c"
-                    ]
-                ],
+                [[[SERIALISABLE_TYPE_ID_AND_NAME, 1, ["00ff", "n"]], "c"]],
                 []
             ]
         ]));
@@ -2162,10 +2132,7 @@ mod tests {
 
         let loaded = create_from_network_bytes(&bytes, false).unwrap();
 
-        assert_eq!(
-            loaded.as_any().downcast_ref::<IdAndName>().unwrap(),
-            &obj
-        );
+        assert_eq!(loaded.as_any().downcast_ref::<IdAndName>().unwrap(), &obj);
     }
 
     #[test]
@@ -2176,7 +2143,10 @@ mod tests {
         let hash = obj.get_serialised_hash();
 
         assert_eq!(hash.len(), 32);
-        assert_eq!(hash, Sha256::digest(obj.dump_to_string().as_bytes()).to_vec());
+        assert_eq!(
+            hash,
+            Sha256::digest(obj.dump_to_string().as_bytes()).to_vec()
+        );
     }
 
     #[test]

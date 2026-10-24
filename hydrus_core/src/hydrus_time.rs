@@ -13,7 +13,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
-use chrono::{Datelike, Duration as ChronoDuration, Local, LocalResult, NaiveDate, NaiveDateTime, TimeZone};
+use chrono::{
+    Datelike, Duration as ChronoDuration, Local, LocalResult, NaiveDate, NaiveDateTime, TimeZone,
+};
 
 use crate::hydrus_constants::{TIMEZONE_LOCAL, TIMEZONE_UTC};
 use crate::hydrus_numbers::to_human_int;
@@ -88,7 +90,13 @@ pub fn datetime_to_timestamp_ms(dt: NaiveDateTime) -> i64 {
 /// `get_datetime( year, month, day, hour, minute )`
 ///
 /// Returns `None` for invalid dates, where Python raises `ValueError`.
-pub fn get_datetime(year: i32, month: u32, day: u32, hour: u32, minute: u32) -> Option<NaiveDateTime> {
+pub fn get_datetime(
+    year: i32,
+    month: u32,
+    day: u32,
+    hour: u32,
+    minute: u32,
+) -> Option<NaiveDateTime> {
     NaiveDate::from_ymd_opt(year, month, day)?.and_hms_opt(hour, minute, 0)
 }
 
@@ -377,10 +385,13 @@ pub fn timestamp_to_pretty_expires(timestamp: Option<i64>) -> String {
         return "unknown expiration".to_string();
     }
 
-    let time_delta_string = timestamp_to_pretty_time_delta(Some(timestamp), &PrettyTimeDeltaOptions {
-        force_no_iso: true,
-        ..Default::default()
-    });
+    let time_delta_string = timestamp_to_pretty_time_delta(
+        Some(timestamp),
+        &PrettyTimeDeltaOptions {
+            force_no_iso: true,
+            ..Default::default()
+        },
+    );
 
     if time_has_passed(Some(timestamp)) {
         format!("expired {time_delta_string}")
@@ -436,7 +447,8 @@ pub fn milliseconds_duration_to_pretty_time(
     }
 
     if seconds > 0 {
-        let detailed_seconds = seconds as f64 + secondise_ms_float(Some(duration_ms as f64)).unwrap();
+        let detailed_seconds =
+            seconds as f64 + secondise_ms_float(Some(duration_ms as f64)).unwrap();
 
         if detailed_seconds.trunc() == detailed_seconds {
             return format!("{} seconds", to_human_int(detailed_seconds as i128));
@@ -584,9 +596,7 @@ pub fn value_range_to_scanbar_timestamps_ms(value_ms: i64, range_ms: i64) -> Str
         }
     } else if range_seconds > 9 {
         // 23.033/57.067
-        format!(
-            "{value_seconds:02}.{value_ms:03}/{range_seconds:02}.{range_ms:03}"
-        )
+        format!("{value_seconds:02}.{value_ms:03}/{range_seconds:02}.{range_ms:03}")
     } else {
         // 3.033/7.067 or 0.033/0.067
         format!("{value_seconds}.{value_ms:03}/{range_seconds}.{range_ms:03}")
@@ -608,7 +618,10 @@ mod tests {
     fn pretty_time_formatting() {
         let dt = naive(2020, 1, 2, 3, 4, 5);
 
-        assert_eq!(datetime_to_pretty_time(dt, true, false), "2020-01-02 03:04:05");
+        assert_eq!(
+            datetime_to_pretty_time(dt, true, false),
+            "2020-01-02 03:04:05"
+        );
         assert_eq!(datetime_to_pretty_time(dt, false, false), "2020-01-02");
 
         let dt = dt + ChronoDuration::milliseconds(678);
@@ -649,11 +662,26 @@ mod tests {
 
     #[test]
     fn timedelta_formatting() {
-        assert_eq!(time_delta_to_pretty_timedelta(None, true, false), "per month");
-        assert_eq!(time_delta_to_pretty_timedelta(Some(0.0), true, false), "0 seconds");
-        assert_eq!(time_delta_to_pretty_timedelta(Some(1.0), true, false), "1 second");
-        assert_eq!(time_delta_to_pretty_timedelta(Some(1.5), true, false), "1.5 seconds");
-        assert_eq!(time_delta_to_pretty_timedelta(Some(45.67), true, false), "45.7 seconds");
+        assert_eq!(
+            time_delta_to_pretty_timedelta(None, true, false),
+            "per month"
+        );
+        assert_eq!(
+            time_delta_to_pretty_timedelta(Some(0.0), true, false),
+            "0 seconds"
+        );
+        assert_eq!(
+            time_delta_to_pretty_timedelta(Some(1.0), true, false),
+            "1 second"
+        );
+        assert_eq!(
+            time_delta_to_pretty_timedelta(Some(1.5), true, false),
+            "1.5 seconds"
+        );
+        assert_eq!(
+            time_delta_to_pretty_timedelta(Some(45.67), true, false),
+            "45.7 seconds"
+        );
 
         assert_eq!(
             time_delta_to_pretty_timedelta(Some(90.0), true, false),

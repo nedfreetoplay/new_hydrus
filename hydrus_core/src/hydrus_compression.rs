@@ -11,9 +11,9 @@
 
 use std::io::{Read as _, Write as _};
 
+use flate2::Compression;
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use flate2::Compression;
 
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 

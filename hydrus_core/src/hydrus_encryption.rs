@@ -81,18 +81,16 @@ fn make_read_only(path: &Path) -> HydrusResult<()> {
 ///
 /// Writes a self-signed certificate valid for `localhost` to `cert_path` and
 /// its private key to `key_path`, then marks both files read-only.
-pub fn generate_open_ssl_cert_and_key_file(
-    cert_path: &Path,
-    key_path: &Path,
-) -> HydrusResult<()> {
+pub fn generate_open_ssl_cert_and_key_file(cert_path: &Path, key_path: &Path) -> HydrusResult<()> {
     if !CRYPTO_OK {
         return Err(crypto_error(
             "Sorry, to make your own cert, you need the \"cryptography\" library! You should be able to get it with pip.",
         ));
     }
 
-    let mut params = CertificateParams::new(vec!["localhost".to_string()])
-        .map_err(|error| crypto_error(format!("Could not build certificate parameters: {error}")))?;
+    let mut params = CertificateParams::new(vec!["localhost".to_string()]).map_err(|error| {
+        crypto_error(format!("Could not build certificate parameters: {error}"))
+    })?;
 
     let now = OffsetDateTime::now_utc();
 
@@ -153,8 +151,7 @@ mod tests {
 
     #[test]
     fn generates_a_read_only_certificate_and_key() {
-        let temp_dir =
-            crate::hydrus_temp::get_sub_temp_dir("encryption_test").expect("temp dir");
+        let temp_dir = crate::hydrus_temp::get_sub_temp_dir("encryption_test").expect("temp dir");
 
         let cert_path = temp_dir.join("hydrus.crt");
         let key_path = temp_dir.join("hydrus.key");
@@ -165,12 +162,26 @@ mod tests {
         let key = fs::read_to_string(&key_path).expect("read key");
 
         assert!(certificate.starts_with("-----BEGIN CERTIFICATE-----"));
-        assert!(certificate.trim_end().ends_with("-----END CERTIFICATE-----"));
+        assert!(
+            certificate
+                .trim_end()
+                .ends_with("-----END CERTIFICATE-----")
+        );
         assert!(key.starts_with("-----BEGIN PRIVATE KEY-----"));
         assert!(key.trim_end().ends_with("-----END PRIVATE KEY-----"));
 
-        assert!(fs::metadata(&cert_path).expect("cert metadata").permissions().readonly());
-        assert!(fs::metadata(&key_path).expect("key metadata").permissions().readonly());
+        assert!(
+            fs::metadata(&cert_path)
+                .expect("cert metadata")
+                .permissions()
+                .readonly()
+        );
+        assert!(
+            fs::metadata(&key_path)
+                .expect("key metadata")
+                .permissions()
+                .readonly()
+        );
 
         // Undo the protection so Windows can delete the directory.
         make_writable(&cert_path);
@@ -181,7 +192,8 @@ mod tests {
 
     #[test]
     fn unwritable_paths_are_reported() {
-        let missing_dir = crate::hydrus_temp::get_hydrus_temp_dir().join("no_such_dir_for_encryption");
+        let missing_dir =
+            crate::hydrus_temp::get_hydrus_temp_dir().join("no_such_dir_for_encryption");
 
         let result = generate_open_ssl_cert_and_key_file(
             &missing_dir.join("hydrus.crt"),

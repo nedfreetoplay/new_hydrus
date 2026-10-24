@@ -28,6 +28,7 @@ pub mod notes;
 pub mod ratings;
 pub mod schema;
 pub mod serialisable;
+pub mod service_paths;
 pub mod services;
 pub mod url_map;
 

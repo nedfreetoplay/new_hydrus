@@ -177,6 +177,28 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
             tag TEXT UNIQUE
         );
 
+        CREATE TABLE IF NOT EXISTS service_filenames (
+            service_id INTEGER,
+            hash_id INTEGER,
+            filename TEXT,
+            PRIMARY KEY ( service_id, hash_id )
+        );
+        CREATE TABLE IF NOT EXISTS service_directories (
+            service_id INTEGER,
+            directory_id INTEGER,
+            dirname TEXT,
+            num_files INTEGER,
+            total_size INTEGER,
+            note TEXT,
+            PRIMARY KEY ( service_id, directory_id )
+        );
+        CREATE TABLE IF NOT EXISTS service_directory_file_map (
+            service_id INTEGER,
+            directory_id INTEGER,
+            hash_id INTEGER,
+            PRIMARY KEY ( service_id, directory_id, hash_id )
+        );
+
         CREATE TABLE IF NOT EXISTS json_dumps (
             name TEXT PRIMARY KEY,
             dump_type INTEGER,

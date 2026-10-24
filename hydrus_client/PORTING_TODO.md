@@ -184,7 +184,9 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Портирована модель `Page`/`PagesNotebook`; Qt tree view/model дальше.
 - [~] `ClientGUIMediaResultsPanel`, `ClientGUIMediaResultsPanelThumbnails`.
   Готов Qt-панель со списком/иконками и вкладка Files; thumbnails-модель и выбор медиа дальше.
-- [ ] `ClientGUICanvas*`, `ClientGUIMPV`, `ClientGUIMediaModalActions`.
+- [~] `ClientGUICanvas*`, `ClientGUIMPV`, `ClientGUIMediaModalActions`.
+  Готов Qt `HydrusCanvas` (QGraphicsView, загрузка/масштабирование pixmap, вкладка Canvas);
+  hover/media modal actions и mpv дальше.
 - [~] `ClientGUIPopupMessages`, `ClientGUISubscriptions`, `ClientGUITime`.
   Портирована очередь popup-сообщений; subscriptions/time-панели дальше.
 - [ ] `ClientGUINetworking*`, `ClientGUILogin`.

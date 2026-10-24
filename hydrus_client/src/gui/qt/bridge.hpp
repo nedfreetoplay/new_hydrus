@@ -4,6 +4,8 @@
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QGraphicsScene>
+#include <QGraphicsView>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMainWindow>
@@ -18,6 +20,7 @@
 
 class HydrusPanel;
 class HydrusMediaPanel;
+class HydrusCanvas;
 
 class HydrusMainWindow : public QMainWindow {
 public:
@@ -26,6 +29,7 @@ public:
     int add_page(rust::Str title);
     int add_page_widget(rust::Str title, HydrusPanel *panel);
     int add_media_page(rust::Str title, HydrusMediaPanel *panel);
+    int add_canvas_page(rust::Str title, HydrusCanvas *canvas);
     void add_sidebar_item(rust::Str title);
     void add_menu_action(rust::Str menu_title, rust::Str action_title);
     void add_exit_action(rust::Str menu_title, rust::Str action_title);
@@ -65,6 +69,18 @@ private:
     QListWidget *list = nullptr;
 };
 
+class HydrusCanvas : public QWidget {
+public:
+    explicit HydrusCanvas(QWidget *parent = nullptr);
+    bool load_image(rust::Str path);
+    void clear();
+    void fit_in_view();
+
+private:
+    QGraphicsView *view = nullptr;
+    QGraphicsScene *scene = nullptr;
+};
+
 std::unique_ptr<QApplication> new_application();
 int exec_application(QApplication &application);
 void quit_application(QApplication &application);
@@ -93,6 +109,12 @@ void hydrus_media_panel_add_item(HydrusMediaPanel &panel, rust::Str label);
 void hydrus_media_panel_clear(HydrusMediaPanel &panel);
 int hydrus_media_panel_count(const HydrusMediaPanel &panel);
 int hydrus_add_media_page(HydrusMainWindow &window, rust::Str title, HydrusMediaPanel &panel);
+
+std::unique_ptr<HydrusCanvas> new_hydrus_canvas();
+bool hydrus_canvas_load_image(HydrusCanvas &canvas, rust::Str path);
+void hydrus_canvas_clear(HydrusCanvas &canvas);
+void hydrus_canvas_fit(HydrusCanvas &canvas);
+int hydrus_add_canvas_page(HydrusMainWindow &window, rust::Str title, HydrusCanvas &canvas);
 
 void qapp_set_application_name(rust::Str name);
 void qapp_set_application_display_name(rust::Str name);

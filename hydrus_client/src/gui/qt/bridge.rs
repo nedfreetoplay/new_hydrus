@@ -8,6 +8,7 @@ mod ffi {
         type HydrusMainWindow;
         type HydrusPanel;
         type HydrusMediaPanel;
+        type HydrusCanvas;
 
         fn new_application() -> UniquePtr<QApplication>;
         fn exec_application(application: Pin<&mut QApplication>) -> i32;
@@ -44,6 +45,16 @@ mod ffi {
             window: Pin<&mut HydrusMainWindow>,
             title: &str,
             panel: Pin<&mut HydrusMediaPanel>,
+        ) -> i32;
+
+        fn new_hydrus_canvas() -> UniquePtr<HydrusCanvas>;
+        fn hydrus_canvas_load_image(canvas: Pin<&mut HydrusCanvas>, path: &str) -> bool;
+        fn hydrus_canvas_clear(canvas: Pin<&mut HydrusCanvas>);
+        fn hydrus_canvas_fit(canvas: Pin<&mut HydrusCanvas>);
+        fn hydrus_add_canvas_page(
+            window: Pin<&mut HydrusMainWindow>,
+            title: &str,
+            canvas: Pin<&mut HydrusCanvas>,
         ) -> i32;
 
         fn qapp_set_application_name(name: &str);
@@ -106,6 +117,9 @@ pub fn run_application(title: &str, status: &str) {
     ffi::hydrus_media_panel_add_item(media_panel.pin_mut(), "No files loaded yet");
     ffi::hydrus_media_panel_add_item(media_panel.pin_mut(), "Open a page to browse media");
     ffi::hydrus_add_media_page(window.pin_mut(), "Files", media_panel.pin_mut());
+
+    let mut canvas = ffi::new_hydrus_canvas();
+    ffi::hydrus_add_canvas_page(window.pin_mut(), "Canvas", canvas.pin_mut());
 
     for menu in model.menus {
         for action in menu.actions {

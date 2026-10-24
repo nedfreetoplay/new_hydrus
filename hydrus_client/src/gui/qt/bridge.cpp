@@ -3,6 +3,8 @@
 #include <QAction>
 #include <QLabel>
 #include <QMenuBar>
+#include <QPainter>
+#include <QPixmap>
 #include <QStyle>
 #include <QStyleFactory>
 #include <QString>
@@ -88,6 +90,17 @@ int HydrusMainWindow::add_media_page(rust::Str title, HydrusMediaPanel *panel) {
     }
 
     const int index = tabs->addTab(panel, to_qstring(title));
+    tabs->setCurrentIndex(index);
+
+    return index;
+}
+
+int HydrusMainWindow::add_canvas_page(rust::Str title, HydrusCanvas *canvas) {
+    if (canvas == nullptr) {
+        return -1;
+    }
+
+    const int index = tabs->addTab(canvas, to_qstring(title));
     tabs->setCurrentIndex(index);
 
     return index;
@@ -275,6 +288,59 @@ int hydrus_media_panel_count(const HydrusMediaPanel &panel) {
 
 int hydrus_add_media_page(HydrusMainWindow &window, rust::Str title, HydrusMediaPanel &panel) {
     return window.add_media_page(title, &panel);
+}
+
+HydrusCanvas::HydrusCanvas(QWidget *parent) : QWidget(parent) {
+    auto *layout = new QVBoxLayout(this);
+    scene = new QGraphicsScene(this);
+    view = new QGraphicsView(scene, this);
+    view->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
+    layout->addWidget(view);
+}
+
+bool HydrusCanvas::load_image(rust::Str path) {
+    QPixmap pixmap(to_qstring(path));
+
+    if (pixmap.isNull()) {
+        return false;
+    }
+
+    scene->clear();
+    scene->addPixmap(pixmap);
+    scene->setSceneRect(pixmap.rect());
+    fit_in_view();
+
+    return true;
+}
+
+void HydrusCanvas::clear() {
+    scene->clear();
+}
+
+void HydrusCanvas::fit_in_view() {
+    if (!scene->items().isEmpty()) {
+        view->fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+    }
+}
+
+std::unique_ptr<HydrusCanvas> new_hydrus_canvas() {
+    return std::make_unique<HydrusCanvas>();
+}
+
+bool hydrus_canvas_load_image(HydrusCanvas &canvas, rust::Str path) {
+    return canvas.load_image(path);
+}
+
+void hydrus_canvas_clear(HydrusCanvas &canvas) {
+    canvas.clear();
+}
+
+void hydrus_canvas_fit(HydrusCanvas &canvas) {
+    canvas.fit_in_view();
+}
+
+int hydrus_add_canvas_page(HydrusMainWindow &window, rust::Str title, HydrusCanvas &canvas) {
+    return window.add_canvas_page(title, &canvas);
 }
 
 void qapp_set_application_name(rust::Str name) {

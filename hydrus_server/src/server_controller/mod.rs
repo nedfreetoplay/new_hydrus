@@ -33,6 +33,7 @@ pub struct Controller {
     session_manager: OnceLock<Arc<HydrusSessionManagerServer>>,
     busy: Arc<AtomicBool>,
     shutdown_requested: Arc<AtomicBool>,
+    core_controller: OnceLock<Arc<hydrus_core::hydrus_controller::HydrusController>>,
 }
 
 include!("parts/part_01.rs");
@@ -42,6 +43,10 @@ include!("parts/part_02.rs");
 include!("parts/part_03.rs");
 
 include!("parts/part_04.rs");
+
+include!("parts/part_05.rs");
+
+include!("parts/part_06.rs");
 
 #[cfg(test)]
 mod tests;

@@ -48,16 +48,27 @@ async fn handle_request(
         }
     };
 
-    match response_from_context(&hydrus_request, &response_context, context.service()).await {
-        Ok(response) => {
-            hydrus_request.clean_up_temp_file();
-            Ok(response)
-        }
-        Err(error) => {
-            hydrus_request.clean_up_temp_file();
-            Ok(plain_error_response(&error))
-        }
-    }
+    let status_code = response_context.get_status_code();
+
+    let result = match response_from_context(&hydrus_request, &response_context, context.service()).await {
+        Ok(response) => Ok(response),
+        Err(error) => Ok(plain_error_response(&error)),
+    };
+
+    let elapsed = hydrus_request.start_time.elapsed().as_secs_f64();
+
+    println!(
+        "hydrus_server: {} {} {} {} in {:.3}s",
+        context.service_name(),
+        hydrus_request.method,
+        hydrus_request.path,
+        status_code,
+        elapsed
+    );
+
+    hydrus_request.clean_up_temp_file();
+
+    result
 }
 
 async fn build_hydrus_request(

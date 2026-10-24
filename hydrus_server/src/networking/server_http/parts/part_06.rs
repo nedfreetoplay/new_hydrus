@@ -33,6 +33,15 @@ async fn response_from_context(
         StatusCode::from_u16(plan.status_code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR),
     );
 
+    builder = builder.header(
+        "Server",
+        format!(
+            "{} v{}",
+            service.get_service_type().long_str(),
+            SOFTWARE_VERSION
+        ),
+    );
+
     for (name, values) in plan.headers.iter() {
         for value in values {
             builder = builder.header(name, value);

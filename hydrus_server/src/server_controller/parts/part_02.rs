@@ -30,8 +30,10 @@ impl Controller {
 
     /// `init_model`
     pub fn init_model(self: &Arc<Self>) -> HydrusResult<()> {
-        self.open_database()?;
+        let db = self.open_database()?;
+        db.ensure_schema_migrations()?;
         self.open_session_manager()?;
+        self.init_core_controller()?;
         hydrus_process::record_running_start(&self.db_dir, "server");
 
         let service_controller: Arc<
@@ -81,6 +83,7 @@ impl Controller {
     /// `exit`
     pub fn exit(&self) {
         self.shutdown_requested.store(true, Ordering::Relaxed);
+        self.shutdown_core_controller();
         hydrus_core::hydrus_data::clean_running_file(&self.db_dir, "server");
     }
 

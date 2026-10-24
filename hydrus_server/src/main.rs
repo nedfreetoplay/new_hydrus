@@ -19,7 +19,7 @@ use hydrus_core::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use hydrus_core::networking::hydrus_server_request::HydrusRequest;
 
 use networking::server_server::ServerResourceTree;
-use server_controller::Controller;
+use server_controller::{Controller, StartingAction, process_starting_action};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -38,9 +38,22 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> HydrusResult<()> {
-    let db_dir = server_db_dir();
+    let (db_dir, action) = parse_arguments();
 
     hydrus_core::hydrus_paths::make_sure_directory_exists(&db_dir)?;
+
+    match process_starting_action(&db_dir, &action)? {
+        StartingAction::Exit => return Ok(()),
+        StartingAction::Stop => {
+            server_controller::shutdown_sibling_instance(&db_dir)?;
+
+            return Ok(());
+        }
+        StartingAction::Restart => {
+            server_controller::shutdown_sibling_instance(&db_dir)?;
+        }
+        StartingAction::Start => {}
+    }
 
     let controller = Arc::new(Controller::new(db_dir));
 
@@ -94,14 +107,35 @@ async fn run() -> HydrusResult<()> {
     controller.run().await
 }
 
-fn server_db_dir() -> PathBuf {
-    if let Some(db_dir) = std::env::args().nth(1) {
-        return PathBuf::from(db_dir);
+fn parse_arguments() -> (PathBuf, String) {
+    let mut db_dir = None;
+    let mut action = "start".to_string();
+    let mut arguments = std::env::args().skip(1);
+
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--db-dir" => {
+                if let Some(path) = arguments.next() {
+                    db_dir = Some(PathBuf::from(path));
+                }
+            }
+            "--start" => action = "start".to_string(),
+            "--stop" => action = "stop".to_string(),
+            "--restart" => action = "restart".to_string(),
+            "--exit" => action = "exit".to_string(),
+            value if value.starts_with("--db-dir=") => {
+                db_dir = Some(PathBuf::from(&value["--db-dir=".len()..]));
+            }
+            value if !value.starts_with('-') => {
+                db_dir = Some(PathBuf::from(value));
+            }
+            _ => {}
+        }
     }
 
-    if let Some(db_dir) = std::env::var_os("HYDRUS_SERVER_DB_DIR") {
-        return PathBuf::from(db_dir);
-    }
+    let db_dir = db_dir
+        .or_else(|| std::env::var_os("HYDRUS_SERVER_DB_DIR").map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from("server_db"));
 
-    PathBuf::from("server_db")
+    (db_dir, action)
 }

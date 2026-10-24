@@ -71,3 +71,26 @@ fn repository_create_update_is_empty_without_new_rows() {
 
     assert!(update_hashes.is_empty());
 }
+
+#[test]
+fn schema_migrations_recreate_missing_repository_tables() {
+    let dir = TestDir::new();
+    let db = make_db(&dir);
+    let (service_id, _service_key) = create_file_repository(&db, "migrations");
+
+    let update_table = generate_repository_update_table_name(service_id);
+    let (_, _, _, _, ip_addresses) =
+        generate_repository_files_table_names(service_id);
+
+    let db_base = db.db().db_base().unwrap();
+    db_base
+        .execute(&format!("DROP TABLE {update_table};"), &[])
+        .unwrap();
+    db_base
+        .execute(&format!("DROP TABLE {ip_addresses};"), &[])
+        .unwrap();
+
+    assert!(db.ensure_schema_migrations().unwrap());
+    assert!(db.table_exists(&update_table).unwrap());
+    assert!(db.table_exists(&ip_addresses).unwrap());
+}

@@ -23,7 +23,7 @@ use rustls::pki_types::CertificateDer;
 use tokio::net::{TcpListener, TcpSocket};
 use tokio_rustls::TlsAcceptor;
 
-use hydrus_core::hydrus_constants::ServiceType;
+use hydrus_core::hydrus_constants::{SOFTWARE_VERSION, ServiceType};
 use hydrus_core::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use hydrus_core::networking::hydrus_network::ServerService;
 use hydrus_core::networking::hydrus_network_variable_handling::{

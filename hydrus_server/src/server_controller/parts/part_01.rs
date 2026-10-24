@@ -12,6 +12,7 @@ impl Controller {
             session_manager: OnceLock::new(),
             busy: Arc::new(AtomicBool::new(false)),
             shutdown_requested: Arc::new(AtomicBool::new(false)),
+            core_controller: OnceLock::new(),
         }
     }
 

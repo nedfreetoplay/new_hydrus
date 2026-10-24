@@ -20,10 +20,10 @@ accept real HTTP/TLS requests.
 
 ## 2. Controller lifecycle
 
-- [ ] Integrate with the core `HydrusController`/`ControllerHooks`.
+- [x] Integrate with the core `HydrusController`/`ControllerHooks`.
 - [x] Implement `init_model`, `init_view`, `run`, `exit` and shutdown.
 - [x] Start and stop listeners through the async controller loop.
-- [ ] Implement `process_starting_action` and `shutdown_sibling_instance`.
+- [x] Implement `process_starting_action` and `shutdown_sibling_instance`.
 - [x] Implement daemons: `sync_repositories`, `save_dirty_objects`,
       `deferred_physical_deletes`, `nullify_history`.
 - [x] Implement `set_services`, `restart_services` and bandwidth checks (basic).
@@ -41,7 +41,7 @@ accept real HTTP/TLS requests.
 - [x] Port service-info creation, updates and regeneration.
       File and tag repository counts are regenerated from their repository
       tables, and incremental `update_service_info` deltas are supported.
-- [ ] Port repository table creation migrations for existing databases.
+- [x] Port repository table creation migrations for existing databases.
 
 ## 4. Repository content
 
@@ -84,9 +84,10 @@ accept real HTTP/TLS requests.
 
 ## 7. Production hardening
 
-- [ ] Add real database version migrations.
-- [ ] Add concurrency and shutdown tests.
-- [ ] Add large-file, range and upload tests.
-- [ ] Add logging and request diagnostics parity.
-- [ ] Add CLI argument parity and db-path selection.
-- [ ] Add packaging/service-runner documentation.
+- [x] Add idempotent schema migrations for existing databases (deferred
+      delete tables, service info, repository update/IP tables).
+- [x] Add concurrency and shutdown tests.
+- [x] Add large-file, range and upload tests.
+- [x] Add logging and request diagnostics parity.
+- [x] Add CLI argument parity and db-path selection.
+- [x] Add packaging/service-runner documentation.

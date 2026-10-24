@@ -3,6 +3,8 @@ use super::*;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+mod range;
+
 static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 struct TestDir {
@@ -102,4 +104,61 @@ fn cookie_formatter_matches_the_http_cookie_shape() {
         format_cookie(&cookie),
         "session_key=abcd; max_age=100; path=/"
     );
+}
+
+#[tokio::test]
+async fn tls_listener_handles_concurrent_requests() {
+    hydrus_core::initialise();
+
+    let dir = TestDir::new();
+    let controller = Arc::new(Controller::new(&dir.path));
+    let db = controller.open_database().unwrap();
+    let admin_key = db
+        .get_services(None)
+        .unwrap()
+        .into_iter()
+        .find(|service| service.get_service_type() == ServiceType::ServerAdmin)
+        .unwrap()
+        .get_service_key()
+        .to_vec();
+    let runtime = Arc::new(controller.resource_runtime(&admin_key).unwrap());
+    let (cert_path, key_path) = db.db().get_ssl_paths().unwrap();
+    let tls_settings = generate_ssl_context_settings(&cert_path, &key_path).unwrap();
+    let acceptor = Arc::new(build_tls_acceptor(&tls_settings).unwrap());
+
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let context = Arc::new(ServiceContext {
+        runtime: Arc::clone(&runtime),
+    });
+    let handle = tokio::spawn(serve_listener(listener, context, acceptor));
+
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .no_proxy()
+        .build()
+        .unwrap();
+    let base = format!("https://127.0.0.1:{port}");
+
+    let mut tasks = tokio::task::JoinSet::new();
+
+    for _ in 0..8 {
+        let client = client.clone();
+        let url = format!("{base}/busy");
+
+        tasks.spawn(async move {
+            let response = client.get(url).send().await.unwrap();
+
+            (response.status().as_u16(), response.text().await.unwrap())
+        });
+    }
+
+    while let Some(result) = tasks.join_next().await {
+        let (status, body) = result.unwrap();
+
+        assert_eq!(status, 200);
+        assert_eq!(body, "0");
+    }
+
+    handle.abort();
 }

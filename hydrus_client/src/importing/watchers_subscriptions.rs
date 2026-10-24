@@ -3,8 +3,13 @@
 
 use std::collections::BTreeMap;
 
+use hydrus_core::hydrus_exceptions::{HydrusResult, unknown};
+
 use crate::client_defaults::CheckerOptions;
 use crate::importing::file_seeds::FileSeed;
+use crate::networking::client_networking::{HttpTransport, NetworkEngine};
+use crate::networking::client_networking_jobs::NetworkJob;
+use crate::parsing::formula::{ParseFormula, ParsingContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WatcherImport {
@@ -82,6 +87,37 @@ impl WatcherImport {
     pub fn set_highlighted(&mut self, highlighted: bool) {
         self.highlighted = highlighted;
     }
+
+    /// Fetches the watched URL and queues any URLs found by the formula.
+    pub fn run_check<T: HttpTransport>(
+        &mut self,
+        engine: &mut NetworkEngine<T>,
+        formula: &dyn ParseFormula,
+        now: i64,
+    ) -> HydrusResult<usize> {
+        let page = fetch_page(engine, &self.url)?;
+        let before = self.get_num_seeds();
+
+        for url in formula.parse(&ParsingContext::default(), &page, true) {
+            self.add_file_seed(FileSeed::url(url, now));
+        }
+
+        self.mark_checked(now);
+
+        Ok(self.get_num_seeds() - before)
+    }
+}
+
+fn fetch_page<T: HttpTransport>(engine: &mut NetworkEngine<T>, url: &str) -> HydrusResult<String> {
+    engine.add_job(NetworkJob::get(url.to_string()));
+
+    let job = engine
+        .run_next()
+        .ok_or_else(|| unknown("network engine did not run the job"))?;
+
+    job.get_response()
+        .map(|body| String::from_utf8_lossy(body).into_owned())
+        .ok_or_else(|| unknown(job.error.unwrap_or_else(|| "page fetch failed".to_string())))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -122,6 +158,24 @@ impl MultipleWatcherImport {
 
     pub fn get_highlighted_watcher(&self) -> Option<&str> {
         self.highlighted_watcher.as_deref()
+    }
+
+    /// Runs every due watcher and returns the number of newly queued seeds.
+    pub fn run_due_checks<T: HttpTransport>(
+        &mut self,
+        engine: &mut NetworkEngine<T>,
+        formula: &dyn ParseFormula,
+        now: i64,
+    ) -> HydrusResult<usize> {
+        let mut added = 0;
+
+        for watcher in &mut self.watchers {
+            if watcher.is_due(now) {
+                added += watcher.run_check(engine, formula, now)?;
+            }
+        }
+
+        Ok(added)
     }
 }
 
@@ -198,6 +252,26 @@ impl Subscription {
 
     pub fn get_num_seeds(&self) -> usize {
         self.file_seeds.len()
+    }
+
+    /// Runs the subscription's next query against an explicit gallery URL.
+    pub fn run_query<T: HttpTransport>(
+        &mut self,
+        engine: &mut NetworkEngine<T>,
+        url: &str,
+        formula: &dyn ParseFormula,
+        now: i64,
+    ) -> HydrusResult<usize> {
+        let page = fetch_page(engine, url)?;
+        let urls = formula.parse(&ParsingContext::default(), &page, true);
+
+        for url in &urls {
+            self.add_file_seed(FileSeed::url(url.clone(), now));
+        }
+
+        self.last_check_time = now;
+
+        Ok(urls.len())
     }
 }
 
@@ -317,5 +391,98 @@ mod tests {
         manager.pause_all_for_editing();
 
         assert!(manager.get_due_subscription(i64::MAX).is_none());
+    }
+
+    struct MockTransport {
+        body: Vec<u8>,
+    }
+
+    impl crate::networking::client_networking::HttpTransport for MockTransport {
+        fn execute(
+            &self,
+            _request: &crate::networking::client_networking::NetworkRequest,
+        ) -> HydrusResult<crate::networking::client_networking::NetworkResponse> {
+            Ok(crate::networking::client_networking::NetworkResponse {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: self.body.clone(),
+            })
+        }
+    }
+
+    struct DummyFormula(Vec<String>);
+
+    impl ParseFormula for DummyFormula {
+        fn parse(
+            &self,
+            _context: &ParsingContext,
+            _text: &str,
+            _collapse_newlines: bool,
+        ) -> Vec<String> {
+            self.0.clone()
+        }
+
+        fn name(&self) -> &str {
+            "dummy"
+        }
+    }
+
+    fn engine() -> NetworkEngine<MockTransport> {
+        NetworkEngine::new(MockTransport {
+            body: b"page".to_vec(),
+        })
+    }
+
+    #[test]
+    fn watcher_checks_fetch_and_queue_seeds() {
+        let mut watcher = WatcherImport::new("https://example.com", "page", 0);
+        let formula = DummyFormula(vec!["https://example.com/a.jpg".to_string()]);
+
+        let mut engine = engine();
+        assert_eq!(watcher.run_check(&mut engine, &formula, 1000).unwrap(), 1);
+        assert_eq!(watcher.get_num_seeds(), 1);
+        assert!(!watcher.is_due(1000));
+    }
+
+    #[test]
+    fn multiple_watchers_run_due_checks_only() {
+        let mut multi = MultipleWatcherImport::new("https://example.com");
+
+        let mut due = WatcherImport::new("https://example.com/a", "a", 0);
+        due.mark_checked(0);
+
+        let mut paused = WatcherImport::new("https://example.com/b", "b", 0);
+        paused.pause_play_checking();
+
+        multi.add_watcher(due);
+        multi.add_watcher(paused);
+
+        let formula = DummyFormula(vec!["https://example.com/file.jpg".to_string()]);
+        let mut engine = engine();
+
+        assert_eq!(
+            multi.run_due_checks(&mut engine, &formula, 10_000).unwrap(),
+            1
+        );
+        assert_eq!(multi.get_num_seeds(), 1);
+    }
+
+    #[test]
+    fn subscription_queries_update_last_check_time() {
+        let mut subscription = Subscription::new("sub", "query");
+        let formula = DummyFormula(vec![
+            "https://example.com/a.jpg".to_string(),
+            "https://example.com/b.jpg".to_string(),
+        ]);
+        let mut engine = engine();
+
+        assert_eq!(
+            subscription
+                .run_query(&mut engine, "https://example.com/search", &formula, 5000)
+                .unwrap(),
+            2
+        );
+        assert_eq!(subscription.get_num_seeds(), 2);
+        assert_eq!(subscription.last_check_time, 5000);
     }
 }

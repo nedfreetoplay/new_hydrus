@@ -1,4 +1,5 @@
 pub mod call_after;
+pub mod canvas;
 pub mod frame_gui;
 pub mod functions;
 pub mod import_panels;

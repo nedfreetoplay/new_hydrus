@@ -1,4 +1,5 @@
 mod bridge;
+mod panels;
 
 pub use bridge::run_application;
 

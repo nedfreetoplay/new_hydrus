@@ -379,6 +379,19 @@ void HydrusCanvas::fit_in_view() {
     }
 }
 
+void HydrusCanvas::zoom(double factor) {
+    view->scale(factor, factor);
+}
+
+void HydrusCanvas::rotate(int degrees) {
+    view->rotate(degrees);
+}
+
+void HydrusCanvas::reset_view() {
+    view->resetTransform();
+    fit_in_view();
+}
+
 std::unique_ptr<HydrusCanvas> new_hydrus_canvas() {
     return std::make_unique<HydrusCanvas>();
 }
@@ -393,6 +406,18 @@ void hydrus_canvas_clear(HydrusCanvas &canvas) {
 
 void hydrus_canvas_fit(HydrusCanvas &canvas) {
     canvas.fit_in_view();
+}
+
+void hydrus_canvas_zoom(HydrusCanvas &canvas, double factor) {
+    canvas.zoom(factor);
+}
+
+void hydrus_canvas_rotate(HydrusCanvas &canvas, int degrees) {
+    canvas.rotate(degrees);
+}
+
+void hydrus_canvas_reset(HydrusCanvas &canvas) {
+    canvas.reset_view();
 }
 
 int hydrus_add_canvas_page(HydrusMainWindow &window, rust::Str title, HydrusCanvas &canvas) {

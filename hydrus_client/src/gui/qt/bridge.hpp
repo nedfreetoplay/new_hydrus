@@ -83,6 +83,9 @@ public:
     bool load_image(rust::Str path);
     void clear();
     void fit_in_view();
+    void zoom(double factor);
+    void rotate(int degrees);
+    void reset_view();
 
 private:
     QGraphicsView *view = nullptr;
@@ -155,6 +158,9 @@ std::unique_ptr<HydrusCanvas> new_hydrus_canvas();
 bool hydrus_canvas_load_image(HydrusCanvas &canvas, rust::Str path);
 void hydrus_canvas_clear(HydrusCanvas &canvas);
 void hydrus_canvas_fit(HydrusCanvas &canvas);
+void hydrus_canvas_zoom(HydrusCanvas &canvas, double factor);
+void hydrus_canvas_rotate(HydrusCanvas &canvas, int degrees);
+void hydrus_canvas_reset(HydrusCanvas &canvas);
 int hydrus_add_canvas_page(HydrusMainWindow &window, rust::Str title, HydrusCanvas &canvas);
 
 std::unique_ptr<HydrusScrolledPanel> new_hydrus_scrolled_panel();

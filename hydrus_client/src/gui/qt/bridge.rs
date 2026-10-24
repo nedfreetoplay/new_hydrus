@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 #[cxx::bridge]
-mod ffi {
+pub(crate) mod ffi {
     unsafe extern "C++" {
         include!("bridge.hpp");
         type QApplication;
@@ -59,6 +59,9 @@ mod ffi {
         fn hydrus_canvas_load_image(canvas: Pin<&mut HydrusCanvas>, path: &str) -> bool;
         fn hydrus_canvas_clear(canvas: Pin<&mut HydrusCanvas>);
         fn hydrus_canvas_fit(canvas: Pin<&mut HydrusCanvas>);
+        fn hydrus_canvas_zoom(canvas: Pin<&mut HydrusCanvas>, factor: f64);
+        fn hydrus_canvas_rotate(canvas: Pin<&mut HydrusCanvas>, degrees: i32);
+        fn hydrus_canvas_reset(canvas: Pin<&mut HydrusCanvas>);
         fn hydrus_add_canvas_page(
             window: Pin<&mut HydrusMainWindow>,
             title: &str,
@@ -111,6 +114,8 @@ mod ffi {
 
 use crate::gui::frame_gui;
 use crate::gui::qt_init::QtInit;
+
+use super::panels;
 
 pub(crate) fn apply_application_settings(
     app_name: &str,
@@ -196,6 +201,14 @@ pub fn run_application(
     ffi::hydrus_list_set_columns(list_panel.pin_mut(), "Name,Size");
     ffi::hydrus_list_add_row(list_panel.pin_mut(), "example.png,1024");
     ffi::hydrus_add_list_page(window.pin_mut(), "List", list_panel.pin_mut());
+
+    panels::add_networking_pages(window.pin_mut());
+    panels::add_duplicates_page(window.pin_mut());
+    panels::add_import_page(window.pin_mut());
+    panels::add_parsing_page(window.pin_mut());
+    panels::add_options_page(window.pin_mut());
+    panels::add_string_pages(window.pin_mut());
+    panels::add_popup_page(window.pin_mut());
 
     for menu in model.menus {
         for action in menu.actions {

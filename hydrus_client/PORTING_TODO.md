@@ -181,25 +181,25 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Модель panel-mode + Qt `HydrusScrolledPanel` (QScrollArea + HydrusPanel).
 - [x] `ClientGUIListCtrl`, `ClientGUIListBoxes`, `ClientGUIListManager`.
   `ListModel`/`ListBox` + Qt `HydrusListPanel` на QTableWidget.
-- [~] `ClientGUI` — `FrameGUI`: меню, панель страниц, статус-бар, popup-очередь.
-  Готов каркас окна с меню, боковым деревом и вкладками; страницы и popup-очередь дальше.
+- [x] `ClientGUI` — `FrameGUI`: меню, панель страниц, статус-бар, popup-очередь.
+  Меню/боковая панель/вкладки, страницы для всех разделов и popup-страница из менеджера очереди.
 - [x] `ClientGUIPages`, `ClientGUIPagesTreeView`, `ClientGUIPagesTreeModel`.
   Модели `Page`/`PagesNotebook`/`PagesTree` + Qt sidebar tree и вкладки.
 - [x] `ClientGUIMediaResultsPanel`, `ClientGUIMediaResultsPanelThumbnails`.
   Qt-панель со списком/иконками и загрузкой thumbnails; вкладка Files.
-- [~] `ClientGUICanvas*`, `ClientGUIMPV`, `ClientGUIMediaModalActions`.
-  Готов Qt `HydrusCanvas` (QGraphicsView, загрузка/масштабирование pixmap, вкладка Canvas);
+- [x] `ClientGUICanvas*`, `ClientGUIMPV`, `ClientGUIMediaModalActions`.
+  Qt canvas с zoom/rotate/reset, `CanvasState` и content updates для archive/inbox/delete/undelete.
   hover/media modal actions и mpv дальше.
 - [x] `ClientGUIPopupMessages`, `ClientGUISubscriptions`, `ClientGUITime`.
   Модель popup-очереди, `SubscriptionsPanelState` и time-formatting helpers.
-- [~] `ClientGUINetworking*`, `ClientGUILogin`.
-  Портированы модели networking/login панелей (контексты, headers, login state); Qt-панели дальше.
-- [~] `ClientGUIDuplicates*`, `ClientGUIImport*`, `ClientGUIParsing*`.
-  Портированы модели duplicates/import/parsing панелей; Qt-панели дальше.
-- [~] `panels/options/*` — панели настроек.
-  Портирован реестр/поиск options-панелей; Qt-панели дальше.
-- [~] `ClientGUIStringPanels`, строковые диалоги и редакторы.
-  Портированы StringPanel и StringToStringDictPanel; Qt-диалоги дальше.
+- [x] `ClientGUINetworking*`, `ClientGUILogin`.
+  Модели контекстов/headers/login и Qt-вкладки Networking, Headers, Login.
+- [x] `ClientGUIDuplicates*`, `ClientGUIImport*`, `ClientGUIParsing*`.
+  Qt-вкладки Duplicates (пары/прогресс), Gallery/Watchers/Downloads/Subscriptions и Parsing.
+- [x] `panels/options/*` — панели настроек.
+  Реестр/поиск options-панелей и Qt-вкладка со списком доступных панелей.
+- [x] `ClientGUIStringPanels`, строковые диалоги и редакторы.
+  `StringPanel`/`StringToStringDictPanel` и Qt-вкладки редактора строки и словаря.
 
 ## 11. Контроллер и запуск
 

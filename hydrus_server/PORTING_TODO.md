@@ -36,8 +36,10 @@ accept real HTTP/TLS requests.
 - [x] Port physical file/thumbnail storage.
 - [x] Port deferred physical deletes.
 - [x] Port master tag IDs and tag lookup.
-- [ ] Port IP address tracking.
-- [ ] Port service-info creation, updates and regeneration.
+- [x] Port IP address tracking.
+- [x] Port service-info creation, updates and regeneration.
+      File and tag repository counts are regenerated from their repository
+      tables, and incremental `update_service_info` deltas are supported.
 - [ ] Port repository table creation migrations for existing databases.
 
 ## 4. Repository content

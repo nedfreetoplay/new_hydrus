@@ -45,8 +45,9 @@ viewing stats, storage configuration, notes/ratings/urls/service paths, definiti
 сборка `MediaResult`, content updates, tag search/siblings/parents, duplicates/similar files
 и maintenance.
 
-Также начаты: networking (contexts/functions/bandwidth/sessions), importing (options,
-import folders, file seeds), parsing results, duplicates UI-модели и list/pages панели.
+Также начаты: networking (contexts/functions/bandwidth/sessions/jobs/engine на reqwest,
+URL classes), importing (options, import folders, file seeds), parsing results, duplicates
+UI-модели, list/pages/canvas панели, PNG-сериализация и восстановление GUI-сессии.
 
 Актуальный план и флаги: [PORTING_TODO.md](PORTING_TODO.md).
 Архитектура: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

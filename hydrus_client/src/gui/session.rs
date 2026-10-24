@@ -101,8 +101,7 @@ impl GuiSession {
     pub fn load_from_path(path: impl AsRef<Path>) -> std::io::Result<Self> {
         let dump = std::fs::read_to_string(path)?;
 
-        serde_json::from_str(&dump)
-            .map_err(|error| std::io::Error::other(error.to_string()))
+        serde_json::from_str(&dump).map_err(|error| std::io::Error::other(error.to_string()))
     }
 }
 

@@ -34,9 +34,8 @@ impl NetworkBandwidthManager {
         self.rules
             .get(&context.to_string())
             .or_else(|| {
-                self.rules.get(
-                    &NetworkContext::new(context.context_type, None).to_string(),
-                )
+                self.rules
+                    .get(&NetworkContext::new(context.context_type, None).to_string())
             })
             .unwrap_or(&self.default_rules)
     }

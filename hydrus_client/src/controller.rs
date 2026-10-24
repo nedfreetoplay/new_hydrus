@@ -157,7 +157,8 @@ fn default_session() -> GuiSession {
     GuiSession::from_notebook(&notebook)
 }
 
-impl ClientControllerHandle for Controller {    fn publish_message(&self, message: &str) {
+impl ClientControllerHandle for Controller {
+    fn publish_message(&self, message: &str) {
         if let Some(logger) = crate::client_boot::logger() {
             logger.write(message);
             logger.write("\n");
@@ -203,7 +204,8 @@ mod tests {
     }
 
     #[test]
-    fn options_are_saved_and_reloaded() {        let (controller, directory) = temporary_controller();
+    fn options_are_saved_and_reloaded() {
+        let (controller, directory) = temporary_controller();
 
         {
             let mut options = controller.options.write().unwrap();

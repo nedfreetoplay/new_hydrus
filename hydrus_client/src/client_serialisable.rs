@@ -14,11 +14,7 @@ use image::{GrayImage, Luma};
 pub const DEFAULT_WIDTH: u32 = 512;
 
 /// `DumpToPNG` for a serialisable string.
-pub fn dump_string_to_png(
-    path: impl AsRef<Path>,
-    payload: &str,
-    width: u32,
-) -> HydrusResult<()> {
+pub fn dump_string_to_png(path: impl AsRef<Path>, payload: &str, width: u32) -> HydrusResult<()> {
     let compressed = hydrus_compression::compress_string_to_bytes(payload)?;
 
     dump_compressed_bytes_to_png(path, &compressed, width)
@@ -32,11 +28,7 @@ pub fn dump_object_to_png(
     dump_string_to_png(path, &object.dump_to_string(), width)
 }
 
-pub fn dump_bytes_to_png(
-    path: impl AsRef<Path>,
-    payload: &[u8],
-    width: u32,
-) -> HydrusResult<()> {
+pub fn dump_bytes_to_png(path: impl AsRef<Path>, payload: &[u8], width: u32) -> HydrusResult<()> {
     let compressed = hydrus_compression::compress_bytes_to_bytes(payload)?;
 
     dump_compressed_bytes_to_png(path, &compressed, width)
@@ -140,9 +132,8 @@ pub fn load_string_from_png(path: impl AsRef<Path>) -> HydrusResult<String> {
     }
 
     // Older payloads were stored uncompressed.
-    String::from_utf8(payload).map_err(|error| {
-        HydrusException::new(ErrorKind::Serialisation, error.to_string())
-    })
+    String::from_utf8(payload)
+        .map_err(|error| HydrusException::new(ErrorKind::Serialisation, error.to_string()))
 }
 
 pub fn load_bytes_from_png(path: impl AsRef<Path>) -> HydrusResult<Vec<u8>> {

@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use hydrus_core::hydrus_constants::BandwidthType;
 use hydrus_core::networking::hydrus_networking::BandwidthRules;
 
-use crate::networking::client_networking_bandwidth::NetworkBandwidthManager;
 use crate::networking::NetworkContext;
+use crate::networking::client_networking_bandwidth::NetworkBandwidthManager;
 
 pub const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (compatible; Hydrus Client)";
 
@@ -74,10 +74,7 @@ pub fn apply_default_bandwidth_rules(manager: &mut NetworkBandwidthManager) {
     );
 
     manager.set_rules(
-        &NetworkContext::new(
-            crate::client_constants::NETWORK_CONTEXT_DOMAIN,
-            None,
-        ),
+        &NetworkContext::new(crate::client_constants::NETWORK_CONTEXT_DOMAIN, None),
         rules(&[
             (BandwidthType::Requests, 1, 1),
             (BandwidthType::Data, 86_400, 8 * GB),

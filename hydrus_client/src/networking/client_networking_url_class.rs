@@ -36,7 +36,10 @@ impl UrlClass {
         }
     }
 
-    pub fn with_fixed_path(mut self, components: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn with_fixed_path(
+        mut self,
+        components: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
         self.path_components = components
             .into_iter()
             .map(|component| PathComponent::Fixed(component.into()))
@@ -195,7 +198,9 @@ mod tests {
         let class = UrlClass::new("search", "example.com").with_fixed_path(["search"]);
 
         assert_eq!(
-            class.normalise("http://example.com/search?b=2&a=1").unwrap(),
+            class
+                .normalise("http://example.com/search?b=2&a=1")
+                .unwrap(),
             "https://example.com/search?a=1&b=2"
         );
     }

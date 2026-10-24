@@ -37,7 +37,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientTime` — `CalendarDelta`, `ParseDate`, `MergeModifiedTimes`, pretty-форматтеры.
 - [x] `ClientThreading` — `JobStatus`, `ThreadCall`, повторяющиеся задачи, pub/sub-мост в Qt.
 - [x] `ClientLocation` — `LocationContext`, `LocationType`, сериализация.
-- [ ] `ClientApplicationCommand` — enum команд, горячие клавиши, обработчики.
+- [~] `ClientApplicationCommand` — enum команд, горячие клавиши, обработчики.
+  Портировано 48 основных команд и value-object; остальные добавляются вместе с GUI-обработчиками.
 - [ ] `ClientMacIntegration`/`ClientWindowsIntegration` — заглушки и Windows-вызовы.
 
 ## 2. Настройки

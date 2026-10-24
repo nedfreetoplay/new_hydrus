@@ -144,8 +144,27 @@ pub fn get_inbox_hash_ids(db: &DBBase) -> HydrusResult<Vec<i64>> {
     db.query_all("SELECT hash_id FROM file_inbox", &[], |row| row.get(0))
 }
 
-pub fn is_inbox(db: &DBBase, hash_id: i64) -> HydrusResult<bool> {
-    let count: i64 = db
+pub fn get_timestamp(
+    db: &DBBase,
+    service_id: i64,
+    status: ContentStatus,
+    hash_id: i64,
+) -> HydrusResult<Option<i64>> {
+    let table = table_name(service_id, status);
+
+    if !db.table_exists(&table)? {
+        return Ok(None);
+    }
+
+    db.query_one(
+        &format!("SELECT timestamp FROM {table} WHERE hash_id = ?"),
+        &[&hash_id],
+        |row| row.get(0),
+    )
+    .map(|value| value.flatten())
+}
+
+pub fn is_inbox(db: &DBBase, hash_id: i64) -> HydrusResult<bool> {    let count: i64 = db
         .query_one(
             "SELECT COUNT(*) FROM file_inbox WHERE hash_id = ?",
             &[&hash_id],

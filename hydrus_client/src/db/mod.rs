@@ -23,6 +23,7 @@ pub mod maintenance;
 pub mod mappings;
 pub mod master;
 pub mod master_tags;
+pub mod media_results;
 pub mod notes;
 pub mod ratings;
 pub mod schema;

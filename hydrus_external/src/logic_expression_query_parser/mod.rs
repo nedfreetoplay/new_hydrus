@@ -134,6 +134,14 @@ mod tests {
     }
 
     #[test]
+    fn leading_negation_is_preserved() {
+        assert_eq!(
+            clauses("!test"),
+            vec![std::collections::BTreeSet::from(["-test".to_string()])]
+        );
+    }
+
+    #[test]
     fn escapes_allow_operator_text_in_tags() {
         let result = clauses(r"a \or b");
 

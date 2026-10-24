@@ -52,7 +52,7 @@ pub fn convert_to_list_and_simplify(expression: &LogicExpr) -> Vec<BTreeSet<Stri
                 }
             }
             "or" => clauses.push(clause_from_children(children)),
-            "not" => clauses.push(BTreeSet::from([term(&children[0])])),
+            "not" => clauses.push(BTreeSet::from([format!("-{}", term(&children[0]))])),
             _ => {}
         },
     }

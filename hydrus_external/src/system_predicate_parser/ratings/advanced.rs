@@ -44,7 +44,7 @@ pub(crate) fn parse_rating_advanced(state: &mut ParseState) -> HydrusResult<()> 
                 secondary = stripped.trim().to_string();
             }
 
-            parse_service_specifier(&secondary)
+            parse_service_specifier(&secondary)?
         } else {
             ServiceSpecifier {
                 service_types: LOCAL_RATINGS_SERVICES.iter().copied().collect(),
@@ -55,7 +55,7 @@ pub(crate) fn parse_rating_advanced(state: &mut ParseState) -> HydrusResult<()> 
         ServiceSpecifier::default()
     };
 
-    let primary = parse_service_specifier(&workspace);
+    let primary = parse_service_specifier(&workspace)?;
 
     state.text_remainder = String::new();
     state.value = Some(ValueData::RatingAdvanced {

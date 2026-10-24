@@ -6,6 +6,7 @@
 
 mod networking;
 mod server_controller;
+mod server_db;
 mod server_files;
 mod server_globals;
 
@@ -42,6 +43,8 @@ fn run() -> HydrusResult<()> {
     controller.install();
     controller.prepare_files_dir()?;
 
+    let db = controller.open_database()?;
+    let services = db.get_services(None)?;
     let files = controller.files();
 
     let admin_routes = ServerResourceTree::for_service_type(ServiceType::ServerAdmin)?;
@@ -53,6 +56,11 @@ fn run() -> HydrusResult<()> {
     println!(
         "hydrus_server: file storage at \"{}\"",
         files.files_dir().display()
+    );
+    println!(
+        "hydrus_server: {} service(s), first start: {}",
+        services.len(),
+        db.db().is_first_start()
     );
     println!(
         "hydrus_server: administration service has {} routes",

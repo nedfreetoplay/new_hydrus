@@ -1256,6 +1256,101 @@ impl ServerDB {
         Ok(())
     }
 
+    /// `_repository_petition_files( service_id, account_id, service_hash_ids, reason_id )`
+    pub fn repository_petition_files(
+        &self,
+        service_id: i64,
+        account_id: i64,
+        service_hash_ids: &[i64],
+        reason_id: i64,
+    ) -> HydrusResult<()> {
+        let (current_files, _, _, petitioned_files, _) =
+            generate_repository_files_table_names(service_id);
+        let db = self.db.db_base()?;
+        let mut valid_service_hash_ids = Vec::new();
+
+        for service_hash_id in service_hash_ids {
+            if db
+                .query_one(
+                    &format!(
+                        "SELECT 1 FROM {current_files} WHERE service_hash_id = ?;"
+                    ),
+                    &[service_hash_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .is_some()
+            {
+                valid_service_hash_ids.push(*service_hash_id);
+            }
+        }
+
+        let mut deleted = 0_usize;
+        let mut added = 0_usize;
+
+        for service_hash_id in &valid_service_hash_ids {
+            deleted += db.execute(
+                &format!(
+                    "DELETE FROM {petitioned_files} WHERE service_hash_id = ? AND account_id = ?;"
+                ),
+                &[service_hash_id, &account_id],
+            )?;
+            added += db.execute(
+                &format!(
+                    "INSERT OR IGNORE INTO {petitioned_files} ( service_hash_id, account_id, reason_id ) VALUES ( ?, ?, ? );"
+                ),
+                &[service_hash_id, &account_id, &reason_id],
+            )?;
+        }
+
+        self.update_service_info(
+            service_id,
+            ServiceInfoType::NumPetitionedFiles,
+            added as i64 - deleted as i64,
+        )?;
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableFileDeletePetitions),
+        )?;
+
+        Ok(())
+    }
+
+    /// `_repository_deny_file_petition( service_id, service_hash_ids )`
+    pub fn repository_deny_file_petition(
+        &self,
+        service_id: i64,
+        service_hash_ids: &[i64],
+    ) -> HydrusResult<()> {
+        let (_, _, _, petitioned_files, _) =
+            generate_repository_files_table_names(service_id);
+        let db = self.db.db_base()?;
+        let mut deleted = 0_usize;
+
+        for service_hash_id in service_hash_ids {
+            deleted += db.execute(
+                &format!(
+                    "DELETE FROM {petitioned_files} WHERE service_hash_id = ?;"
+                ),
+                &[service_hash_id],
+            )?;
+        }
+
+        if deleted > 0 {
+            self.update_service_info(
+                service_id,
+                ServiceInfoType::NumPetitionedFiles,
+                -(deleted as i64),
+            )?;
+        }
+
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableFileDeletePetitions),
+        )?;
+
+        Ok(())
+    }
+
     /// `_repository_has_file( service_key, hash )`
     pub fn repository_has_file(
         &self,
@@ -1524,6 +1619,108 @@ impl ServerDB {
                 inserted_deleted,
             )?;
         }
+
+        Ok(())
+    }
+
+    /// `_repository_petition_mappings( service_id, account_id, service_tag_id, service_hash_ids, reason_id )`
+    pub fn repository_petition_mappings(
+        &self,
+        service_id: i64,
+        account_id: i64,
+        service_tag_id: i64,
+        service_hash_ids: &[i64],
+        reason_id: i64,
+    ) -> HydrusResult<()> {
+        let (current_mappings, _, _, petitioned_mappings) =
+            generate_repository_mappings_table_names(service_id);
+        let db = self.db.db_base()?;
+        let mut valid_service_hash_ids = Vec::new();
+
+        for service_hash_id in service_hash_ids {
+            if db
+                .query_one(
+                    &format!(
+                        "SELECT 1 FROM {current_mappings} WHERE service_tag_id = ? AND service_hash_id = ?;"
+                    ),
+                    &[&service_tag_id, service_hash_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .is_some()
+            {
+                valid_service_hash_ids.push(*service_hash_id);
+            }
+        }
+
+        let mut deleted = 0_usize;
+        let mut added = 0_usize;
+
+        for service_hash_id in &valid_service_hash_ids {
+            deleted += db.execute(
+                &format!(
+                    "DELETE FROM {petitioned_mappings} WHERE service_tag_id = ? AND service_hash_id = ? AND account_id = ?;"
+                ),
+                &[&service_tag_id, service_hash_id, &account_id],
+            )?;
+            added += db.execute(
+                &format!(
+                    "INSERT OR IGNORE INTO {petitioned_mappings} ( service_tag_id, service_hash_id, account_id, reason_id ) VALUES ( ?, ?, ?, ? );"
+                ),
+                &[
+                    &service_tag_id,
+                    service_hash_id,
+                    &account_id,
+                    &reason_id,
+                ],
+            )?;
+        }
+
+        self.update_service_info(
+            service_id,
+            ServiceInfoType::NumPetitionedMappings,
+            added as i64 - deleted as i64,
+        )?;
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableMappingDeletePetitions),
+        )?;
+
+        Ok(())
+    }
+
+    /// `_repository_deny_mapping_petition( service_id, service_tag_id, service_hash_ids )`
+    pub fn repository_deny_mapping_petition(
+        &self,
+        service_id: i64,
+        service_tag_id: i64,
+        service_hash_ids: &[i64],
+    ) -> HydrusResult<()> {
+        let (_, _, _, petitioned_mappings) =
+            generate_repository_mappings_table_names(service_id);
+        let db = self.db.db_base()?;
+        let mut deleted = 0_usize;
+
+        for service_hash_id in service_hash_ids {
+            deleted += db.execute(
+                &format!(
+                    "DELETE FROM {petitioned_mappings} WHERE service_tag_id = ? AND service_hash_id = ?;"
+                ),
+                &[&service_tag_id, service_hash_id],
+            )?;
+        }
+
+        if deleted > 0 {
+            self.update_service_info(
+                service_id,
+                ServiceInfoType::NumPetitionedMappings,
+                -(deleted as i64),
+            )?;
+        }
+
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableMappingDeletePetitions),
+        )?;
 
         Ok(())
     }
@@ -4226,6 +4423,109 @@ mod tests {
 
         assert_eq!(
             db.get_service_info_specific(service_id, ServiceInfoType::NumPetitionedTagParents)
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn file_petitions_are_counted_and_can_be_denied() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+        let (service_id, _service_key) = create_file_repository(&db, "file petitions");
+        let timestamp = hydrus_time::get_now();
+
+        let source_path = dir.path.join("petition file.bin");
+        std::fs::write(&source_path, b"petition").unwrap();
+        let hash = vec![0xD1; 32];
+        let file = ServerFileInput {
+            hash: hash.clone(),
+            size: 8,
+            mime: Mime::OctetStream,
+            width: None,
+            height: None,
+            duration_ms: None,
+            num_frames: None,
+            num_words: None,
+            path: source_path,
+            thumbnail: None,
+        };
+        db.repository_add_file(service_id, 1, &file, false, timestamp, None)
+            .unwrap();
+
+        let master_hash_id = db.get_master_hash_id(&hash).unwrap();
+        let service_hash_id = db
+            .repository_get_service_hash_id(service_id, master_hash_id, timestamp)
+            .unwrap();
+        let reason_id = db.get_reason_id("file petition reason").unwrap();
+
+        db.repository_petition_files(service_id, 2, &[service_hash_id], reason_id)
+            .unwrap();
+
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumPetitionedFiles)
+                .unwrap(),
+            1
+        );
+
+        db.repository_deny_file_petition(service_id, &[service_hash_id])
+            .unwrap();
+
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumPetitionedFiles)
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn mapping_petitions_are_counted_and_can_be_denied() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+        let (service_id, _service_key) = create_tag_repository(&db, "mapping petitions");
+        let timestamp = hydrus_time::get_now();
+
+        let master_tag_id = db.get_master_tag_id("petition tag").unwrap();
+        let master_hash_ids = db.get_master_hash_ids(&[vec![0xD2; 32]]).unwrap();
+
+        db.repository_add_mappings(
+            service_id,
+            1,
+            master_tag_id,
+            &master_hash_ids,
+            false,
+            timestamp,
+        )
+        .unwrap();
+
+        let service_tag_id = db
+            .repository_get_service_tag_id(service_id, master_tag_id, timestamp)
+            .unwrap();
+        let service_hash_id = db
+            .repository_get_service_hash_ids(service_id, &master_hash_ids, timestamp)
+            .unwrap()[0];
+        let reason_id = db.get_reason_id("mapping petition reason").unwrap();
+
+        db.repository_petition_mappings(
+            service_id,
+            2,
+            service_tag_id,
+            &[service_hash_id],
+            reason_id,
+        )
+        .unwrap();
+
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumPetitionedMappings)
+                .unwrap(),
+            1
+        );
+
+        db.repository_deny_mapping_petition(service_id, service_tag_id, &[service_hash_id])
+            .unwrap();
+
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumPetitionedMappings)
                 .unwrap(),
             0
         );

@@ -39,7 +39,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientLocation` — `LocationContext`, `LocationType`, сериализация.
 - [~] `ClientApplicationCommand` — enum команд, горячие клавиши, обработчики.
   Портировано 48 основных команд и value-object; остальные добавляются вместе с GUI-обработчиками.
-- [ ] `ClientMacIntegration`/`ClientWindowsIntegration` — заглушки и Windows-вызовы.
+- [x] `ClientMacIntegration`/`ClientWindowsIntegration` — заглушки и Windows-вызовы.
 
 ## 2. Настройки
 

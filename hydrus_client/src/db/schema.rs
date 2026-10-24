@@ -211,6 +211,22 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
             PRIMARY KEY ( service_id, directory_id, hash_id )
         );
 
+        CREATE TABLE IF NOT EXISTS remote_thumbnails (
+            service_id INTEGER,
+            hash_id INTEGER,
+            thumbnail BLOB_BYTES,
+            PRIMARY KEY ( service_id, hash_id )
+        );
+        CREATE TABLE IF NOT EXISTS repository_updates (
+            service_id INTEGER,
+            update_index INTEGER,
+            update_hash BLOB_BYTES,
+            begin_timestamp INTEGER,
+            end_timestamp INTEGER,
+            processed INTEGER DEFAULT 0,
+            PRIMARY KEY ( service_id, update_index )
+        );
+
         CREATE TABLE IF NOT EXISTS potential_duplicate_pairs (
             smaller_hash_id INTEGER,
             larger_hash_id INTEGER,

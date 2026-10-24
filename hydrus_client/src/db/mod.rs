@@ -29,6 +29,7 @@ pub mod media_results;
 pub mod module;
 pub mod notes;
 pub mod ratings;
+pub mod repositories;
 pub mod schema;
 pub mod serialisable;
 pub mod service_paths;

@@ -122,9 +122,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientDBFilesDuplicates*`, `ClientDBSimilarFiles`.
   Potential/false-positive пары, alternate/duplicate-группы, perceptual/pixel hashes и
   brute-force similar search; VP-tree индекс можно добавить позже.
-- [~] `ClientDBRepositories`, `ClientDBContentUpdates`, `ClientDBMaintenance`.
-  Портированы content updates и maintenance (timestamps, deferred deletes);
-  repositories дальше.
+- [x] `ClientDBRepositories`, `ClientDBContentUpdates`, `ClientDBMaintenance`.
+  Портированы repositories (updates/remote thumbnails), content updates и maintenance.
 - [~] `ClientDB` — фасад, `create_db`, `update_db` 619→689, интеграция с `HydrusDB`.
   Готов синхронный фасад на `DBBase` с начальной схемой; перевод на `HydrusDB` и цепочка
   миграций 619→689 — следующий шаг.

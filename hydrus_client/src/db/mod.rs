@@ -18,9 +18,12 @@ pub mod files_storage;
 pub mod files_timestamps;
 pub mod files_viewing_stats;
 pub mod master;
+pub mod notes;
+pub mod ratings;
 pub mod schema;
 pub mod serialisable;
 pub mod services;
+pub mod url_map;
 
 pub use services::Service;
 

@@ -93,6 +93,49 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
         CREATE TABLE IF NOT EXISTS ideal_thumbnail_override_location ( path TEXT );
         CREATE TABLE IF NOT EXISTS current_storage_granularity ( granularity INTEGER );
 
+        CREATE TABLE IF NOT EXISTS labels (
+            label_id INTEGER PRIMARY KEY,
+            label TEXT UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS notes (
+            note_id INTEGER PRIMARY KEY,
+            note TEXT UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS file_notes (
+            hash_id INTEGER,
+            name_id INTEGER,
+            note_id INTEGER,
+            PRIMARY KEY ( hash_id, name_id )
+        );
+
+        CREATE TABLE IF NOT EXISTS local_ratings (
+            service_id INTEGER,
+            hash_id INTEGER,
+            rating REAL,
+            PRIMARY KEY ( service_id, hash_id )
+        );
+        CREATE TABLE IF NOT EXISTS local_incdec_ratings (
+            service_id INTEGER,
+            hash_id INTEGER,
+            rating INTEGER,
+            PRIMARY KEY ( service_id, hash_id )
+        );
+
+        CREATE TABLE IF NOT EXISTS url_domains (
+            domain_id INTEGER PRIMARY KEY,
+            domain TEXT UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS urls (
+            url_id INTEGER PRIMARY KEY,
+            domain_id INTEGER,
+            url TEXT UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS url_map (
+            hash_id INTEGER,
+            url_id INTEGER,
+            PRIMARY KEY ( hash_id, url_id )
+        );
+
         CREATE TABLE IF NOT EXISTS json_dumps (
             name TEXT PRIMARY KEY,
             dump_type INTEGER,

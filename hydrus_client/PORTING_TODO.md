@@ -107,8 +107,9 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientDBFilesPhysicalStorage` — конфигурация хранилищ.
 - [ ] `ClientDBMappingsStorage`/`ClientDBMappingsCounts`/кэши.
 - [ ] `ClientDBTagSearch`, siblings/parents/display/suggestions.
-- [ ] `ClientDBDefinitionsCache`, `ClientDBMediaResults`, `ClientDBNotesMap`,
+- [~] `ClientDBDefinitionsCache`, `ClientDBMediaResults`, `ClientDBNotesMap`,
   `ClientDBRatings`, `ClientDBURLMap`, `ClientDBServicePaths`.
+  Портированы notes/ratings/url_map; definitions cache, media results и service paths дальше.
 - [ ] `ClientDBFilesDuplicates*`, `ClientDBSimilarFiles`.
 - [ ] `ClientDBRepositories`, `ClientDBContentUpdates`, `ClientDBMaintenance`.
 - [~] `ClientDB` — фасад, `create_db`, `update_db` 619→689, интеграция с `HydrusDB`.

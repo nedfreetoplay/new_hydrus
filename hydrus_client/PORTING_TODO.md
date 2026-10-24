@@ -30,7 +30,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   состояния там, где можно передать контекст).
 - [x] `ClientConstants` — canvas types, сортировки, статусы импорта, цвета, page states,
   zoom modes, media actions, network contexts.
-- [ ] `ClientData` — `merge_counts`, `convert_zoom_to_percentage`, ASCII-хелперы,
+- [x] `ClientData` — `merge_counts`, `convert_zoom_to_percentage`, ASCII-хелперы,
   `resolution_to_pretty_string`, `Booru`, `Credentials`, `Imageboard`.
 - [ ] `ClientEnvironment` — настройка `REQUESTS_CA_BUNDLE`/путей CA.
 - [ ] `ClientPaths` — удаление в корзину, открытие файла/каталога, нативные свойства файла.

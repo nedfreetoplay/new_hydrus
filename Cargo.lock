@@ -988,6 +988,7 @@ dependencies = [
  "hydrus_core",
  "hydrus_external",
  "image",
+ "percent-encoding",
  "rand 0.8.8",
  "rusqlite",
  "serde",

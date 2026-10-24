@@ -133,7 +133,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientNetworkingContexts` — контексты сетевых запросов.
 - [ ] `ClientNetworkingBandwidth`, `ClientNetworkingSessions`.
 - [ ] `ClientNetworkingDomain`, `ClientNetworkingLogin`, `ClientNetworkingURLClass`.
-- [ ] `ClientNetworkingFunctions`, `ClientNetworkingJobs`.
+- [~] `ClientNetworkingFunctions`, `ClientNetworkingJobs`.
+  Портированы URL/domain/encoding helpers; сетевые job-ы дальше.
 - [ ] `ClientNetworking` — `NetworkEngine` на `reqwest`/`tokio`.
 - [~] `ClientDownloading` — quick download manager.
   Портированы `GalleryIdentifier` и очередь quick-download; сетевой слой дальше.

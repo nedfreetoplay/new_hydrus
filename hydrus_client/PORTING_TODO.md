@@ -43,7 +43,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 ## 2. Настройки
 
-- [ ] `ClientDefaults` — legacy options dict, дефолтные checker/media/duplicate options.
+- [x] `ClientDefaults` — legacy options dict, дефолтные checker/media/duplicate options.
 - [ ] `ClientDefaults` — дефолтные URL classes, simple downloader formulae, bandwidth rules,
   domain manager data, favourite searches.
 - [ ] `ClientOptions` — `SerialisableObject` (type 22, version 8), группы booleans/integers/

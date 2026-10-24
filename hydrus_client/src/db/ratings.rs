@@ -5,12 +5,7 @@ use hydrus_core::hydrus_exceptions::HydrusResult;
 
 use crate::metadata::Rating;
 
-pub fn set_rating(
-    db: &DBBase,
-    service_id: i64,
-    hash_id: i64,
-    rating: Rating,
-) -> HydrusResult<()> {
+pub fn set_rating(db: &DBBase, service_id: i64, hash_id: i64, rating: Rating) -> HydrusResult<()> {
     match rating {
         Rating::Numerical(value) => {
             db.execute(
@@ -53,11 +48,7 @@ pub fn get_numerical_rating(
     )
 }
 
-pub fn get_incdec_rating(
-    db: &DBBase,
-    service_id: i64,
-    hash_id: i64,
-) -> HydrusResult<Option<i64>> {
+pub fn get_incdec_rating(db: &DBBase, service_id: i64, hash_id: i64) -> HydrusResult<Option<i64>> {
     db.query_one(
         "SELECT rating FROM local_incdec_ratings WHERE service_id = ? AND hash_id = ?",
         &[&service_id, &hash_id],
@@ -95,8 +86,8 @@ pub fn delete_rating(db: &DBBase, service_id: i64, hash_id: i64) -> HydrusResult
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::master::get_hash_id;
     use crate::db::ClientDB;
+    use crate::db::master::get_hash_id;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(
@@ -115,7 +106,10 @@ mod tests {
 
         set_rating(db.db(), 1, hash_id, Rating::Numerical(0.75)).unwrap();
 
-        assert_eq!(get_rating(db.db(), 1, hash_id).unwrap(), Some(Rating::Numerical(0.75)));
+        assert_eq!(
+            get_rating(db.db(), 1, hash_id).unwrap(),
+            Some(Rating::Numerical(0.75))
+        );
 
         delete_rating(db.db(), 1, hash_id).unwrap();
 
@@ -136,7 +130,10 @@ mod tests {
 
         set_rating(db.db(), 3, hash_id, Rating::Dislike).unwrap();
 
-        assert_eq!(get_rating(db.db(), 3, hash_id).unwrap(), Some(Rating::Dislike));
+        assert_eq!(
+            get_rating(db.db(), 3, hash_id).unwrap(),
+            Some(Rating::Dislike)
+        );
 
         drop(db);
         let _ = std::fs::remove_dir_all(directory);

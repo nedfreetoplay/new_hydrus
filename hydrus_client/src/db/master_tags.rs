@@ -7,13 +7,7 @@ use hydrus_core::hydrus_tags;
 pub fn get_tag_id(db: &DBBase, tag: &str) -> HydrusResult<i64> {
     let (namespace, subtag) = hydrus_tags::split_tag(tag);
 
-    let namespace_id = get_or_create(
-        db,
-        "namespaces",
-        "namespace_id",
-        "namespace",
-        namespace,
-    )?;
+    let namespace_id = get_or_create(db, "namespaces", "namespace_id", "namespace", namespace)?;
     let subtag_id = get_or_create(db, "subtags", "subtag_id", "subtag", subtag)?;
 
     if let Some(tag_id) = db.query_one(
@@ -130,7 +124,10 @@ mod tests {
         let second = get_tag_id(db.db(), "blue eyes").unwrap();
 
         assert_eq!(first, second);
-        assert_eq!(get_tag(db.db(), first).unwrap().as_deref(), Some("blue eyes"));
+        assert_eq!(
+            get_tag(db.db(), first).unwrap().as_deref(),
+            Some("blue eyes")
+        );
 
         drop(db);
         let _ = std::fs::remove_dir_all(directory);

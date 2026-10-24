@@ -17,7 +17,10 @@ pub fn media_result_to_dict(media_result: &MediaResult, simple: bool) -> Value {
     dict.insert("file_id".to_string(), json!(hash));
     dict.insert("size".to_string(), json!(media_result.get_size()));
     dict.insert("mime".to_string(), json!(mime.as_int()));
-    dict.insert("ext".to_string(), json!(mime.extension().trim_start_matches('.')));
+    dict.insert(
+        "ext".to_string(),
+        json!(mime.extension().trim_start_matches('.')),
+    );
     dict.insert("has_audio".to_string(), json!(media_result.has_audio()));
     dict.insert("is_inbox".to_string(), json!(media_result.get_inbox()));
 
@@ -47,9 +50,7 @@ pub fn media_result_to_dict(media_result: &MediaResult, simple: bool) -> Value {
             .map(|service_key| {
                 (
                     hex_encode(service_key),
-                    media_result
-                        .tags_manager
-                        .get_tags(service_key),
+                    media_result.tags_manager.get_tags(service_key),
                 )
             })
             .filter(|(_, tags)| !tags.is_empty())
@@ -178,17 +179,15 @@ mod tests {
     #[test]
     fn full_api_dict_includes_managers() {
         let mut media = result();
-        media
-            .tags_manager
-            .tags
-            .add_status(b"local tags", "blue eyes", crate::metadata::TagStatus::Current);
+        media.tags_manager.tags.add_status(
+            b"local tags",
+            "blue eyes",
+            crate::metadata::TagStatus::Current,
+        );
 
         let dict = media_result_to_dict(&media, false);
 
-        assert_eq!(
-            dict["tags"]["6c6f63616c2074616773"][0],
-            json!("blue eyes")
-        );
+        assert_eq!(dict["tags"]["6c6f63616c2074616773"][0], json!("blue eyes"));
         assert!(dict.get("locations").is_some());
     }
 

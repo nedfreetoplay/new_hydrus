@@ -84,8 +84,8 @@ pub fn clear_viewing_stats(db: &DBBase) -> HydrusResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::master::get_hash_id;
     use crate::db::ClientDB;
+    use crate::db::master::get_hash_id;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(

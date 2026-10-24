@@ -209,8 +209,14 @@ impl SerialisableObject for LocationContext {
 
     fn get_serialisable_info(&self) -> Value {
         json!([
-            self.current_service_keys.iter().map(hex_encode).collect::<Vec<_>>(),
-            self.deleted_service_keys.iter().map(hex_encode).collect::<Vec<_>>(),
+            self.current_service_keys
+                .iter()
+                .map(hex_encode)
+                .collect::<Vec<_>>(),
+            self.deleted_service_keys
+                .iter()
+                .map(hex_encode)
+                .collect::<Vec<_>>(),
         ])
     }
 

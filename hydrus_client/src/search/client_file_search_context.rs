@@ -205,7 +205,10 @@ impl FileSearchContext {
     }
 }
 
-fn parse_context<T: SerialisableObject + Default>(tuple: &Value, expected_type: u16) -> HydrusResult<T> {
+fn parse_context<T: SerialisableObject + Default>(
+    tuple: &Value,
+    expected_type: u16,
+) -> HydrusResult<T> {
     let values = tuple
         .as_array()
         .ok_or_else(|| serialisation("context must be a serialisable tuple"))?;
@@ -271,8 +274,15 @@ impl SerialisableObject for FileSearchContext {
 
         self.predicates = Vec::new();
 
-        for tuple in values.get(3).and_then(Value::as_array).cloned().unwrap_or_default() {
-            let values = tuple.as_array().ok_or_else(|| serialisation("bad predicate tuple"))?;
+        for tuple in values
+            .get(3)
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+        {
+            let values = tuple
+                .as_array()
+                .ok_or_else(|| serialisation("bad predicate tuple"))?;
             let mut predicate = Predicate::tag("");
             let version = values.get(1).and_then(Value::as_u64).unwrap_or(8) as u16;
             let info = values.get(2).cloned().unwrap_or(Value::Null);

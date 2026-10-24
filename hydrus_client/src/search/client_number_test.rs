@@ -165,7 +165,11 @@ impl NumberTest {
     }
 
     pub fn to_json_value(&self) -> Value {
-        json!([self.serialisable_type(), SERIALISABLE_VERSION, self.get_serialisable_info()])
+        json!([
+            self.serialisable_type(),
+            SERIALISABLE_VERSION,
+            self.get_serialisable_info()
+        ])
     }
 }
 
@@ -270,8 +274,7 @@ mod tests {
 
     #[test]
     fn approximate_tests_use_extra_value() {
-        let percent =
-            NumberTest::new(NUMBER_TEST_OPERATOR_APPROXIMATE_PERCENT, 100.0, Some(0.15));
+        let percent = NumberTest::new(NUMBER_TEST_OPERATOR_APPROXIMATE_PERCENT, 100.0, Some(0.15));
 
         assert!(percent.test(Some(90.0), None));
         assert!(!percent.test(Some(80.0), None));
@@ -288,8 +291,7 @@ mod tests {
         assert!(NumberTest::new(NUMBER_TEST_OPERATOR_EQUAL, 0.0, None).is_zero());
         assert!(NumberTest::new(NUMBER_TEST_OPERATOR_LESS_THAN, 1.0, None).is_zero());
         assert!(
-            NumberTest::new(NUMBER_TEST_OPERATOR_GREATER_THAN, 0.0, None)
-                .is_anything_but_zero()
+            NumberTest::new(NUMBER_TEST_OPERATOR_GREATER_THAN, 0.0, None).is_anything_but_zero()
         );
     }
 

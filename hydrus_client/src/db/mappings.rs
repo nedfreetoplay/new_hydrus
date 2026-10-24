@@ -126,11 +126,7 @@ pub fn get_tags(
     master_tags::get_tags(db, &tag_ids)
 }
 
-pub fn get_num_mappings(
-    db: &DBBase,
-    service_id: i64,
-    status: ContentStatus,
-) -> HydrusResult<i64> {
+pub fn get_num_mappings(db: &DBBase, service_id: i64, status: ContentStatus) -> HydrusResult<i64> {
     let table = table_name(service_id, status);
 
     if !db.table_exists(&table)? {
@@ -147,9 +143,9 @@ pub fn get_num_mappings(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::ClientDB;
     use crate::db::master::get_hash_id;
     use crate::db::master_tags::get_tag_id;
-    use crate::db::ClientDB;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(
@@ -167,14 +163,7 @@ mod tests {
         let hash_id = get_hash_id(db.db(), &[1]).unwrap();
         let tag_id = get_tag_id(db.db(), "blue eyes").unwrap();
 
-        add_mappings(
-            db.db(),
-            1,
-            ContentStatus::Current,
-            hash_id,
-            &[tag_id],
-        )
-        .unwrap();
+        add_mappings(db.db(), 1, ContentStatus::Current, hash_id, &[tag_id]).unwrap();
 
         assert_eq!(
             get_tag_ids(db.db(), 1, ContentStatus::Current, hash_id).unwrap(),
@@ -208,15 +197,21 @@ mod tests {
         add_mappings(db.db(), 2, ContentStatus::Current, hash_id, &[tag_id]).unwrap();
 
         assert_eq!(
-            get_tag_ids(db.db(), 1, ContentStatus::Current, hash_id).unwrap().len(),
+            get_tag_ids(db.db(), 1, ContentStatus::Current, hash_id)
+                .unwrap()
+                .len(),
             1
         );
         assert_eq!(
-            get_tag_ids(db.db(), 1, ContentStatus::Deleted, hash_id).unwrap().len(),
+            get_tag_ids(db.db(), 1, ContentStatus::Deleted, hash_id)
+                .unwrap()
+                .len(),
             1
         );
         assert_eq!(
-            get_tag_ids(db.db(), 2, ContentStatus::Current, hash_id).unwrap().len(),
+            get_tag_ids(db.db(), 2, ContentStatus::Current, hash_id)
+                .unwrap()
+                .len(),
             1
         );
 
@@ -233,9 +228,11 @@ mod tests {
         add_mappings(db.db(), 1, ContentStatus::Current, hash_id, &[tag_id]).unwrap();
         remove_mappings(db.db(), 1, ContentStatus::Current, hash_id, &[tag_id]).unwrap();
 
-        assert!(get_tag_ids(db.db(), 1, ContentStatus::Current, hash_id)
-            .unwrap()
-            .is_empty());
+        assert!(
+            get_tag_ids(db.db(), 1, ContentStatus::Current, hash_id)
+                .unwrap()
+                .is_empty()
+        );
 
         drop(db);
         let _ = std::fs::remove_dir_all(directory);

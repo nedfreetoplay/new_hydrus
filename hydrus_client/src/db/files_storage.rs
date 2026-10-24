@@ -58,7 +58,10 @@ pub fn add_files(
         if matches!(status, ContentStatus::Current | ContentStatus::Deleted) {
             db.execute(
                 &format!("INSERT OR REPLACE INTO {table} ( hash_id, timestamp ) VALUES ( ?, ? )"),
-                &[hash_id, &timestamp.unwrap_or_else(hydrus_core::hydrus_time::get_now)],
+                &[
+                    hash_id,
+                    &timestamp.unwrap_or_else(hydrus_core::hydrus_time::get_now),
+                ],
             )?;
         } else {
             db.execute(
@@ -89,18 +92,16 @@ pub fn remove_files(
     Ok(())
 }
 
-pub fn get_hash_ids(
-    db: &DBBase,
-    service_id: i64,
-    status: ContentStatus,
-) -> HydrusResult<Vec<i64>> {
+pub fn get_hash_ids(db: &DBBase, service_id: i64, status: ContentStatus) -> HydrusResult<Vec<i64>> {
     let table = table_name(service_id, status);
 
     if !db.table_exists(&table)? {
         return Ok(Vec::new());
     }
 
-    db.query_all(&format!("SELECT hash_id FROM {table}"), &[], |row| row.get(0))
+    db.query_all(&format!("SELECT hash_id FROM {table}"), &[], |row| {
+        row.get(0)
+    })
 }
 
 pub fn get_hashes(
@@ -132,10 +133,7 @@ pub fn set_inbox(db: &DBBase, hash_ids: &[i64], inbox: bool) -> HydrusResult<()>
                 &[hash_id],
             )?;
         } else {
-            db.execute(
-                "DELETE FROM file_inbox WHERE hash_id = ?",
-                &[hash_id],
-            )?;
+            db.execute("DELETE FROM file_inbox WHERE hash_id = ?", &[hash_id])?;
         }
     }
 
@@ -196,8 +194,8 @@ pub fn delete_for_service(db: &DBBase, service_id: i64) -> HydrusResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::master::get_hash_id;
     use crate::db::ClientDB;
+    use crate::db::master::get_hash_id;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(
@@ -214,14 +212,7 @@ mod tests {
         let (db, directory) = database();
         let hash_id = get_hash_id(db.db(), &[1, 2, 3]).unwrap();
 
-        add_files(
-            db.db(),
-            1,
-            ContentStatus::Current,
-            &[hash_id],
-            Some(100),
-        )
-        .unwrap();
+        add_files(db.db(), 1, ContentStatus::Current, &[hash_id], Some(100)).unwrap();
 
         assert_eq!(
             get_hash_ids(db.db(), 1, ContentStatus::Current).unwrap(),
@@ -234,9 +225,11 @@ mod tests {
 
         remove_files(db.db(), 1, ContentStatus::Current, &[hash_id]).unwrap();
 
-        assert!(get_hash_ids(db.db(), 1, ContentStatus::Current)
-            .unwrap()
-            .is_empty());
+        assert!(
+            get_hash_ids(db.db(), 1, ContentStatus::Current)
+                .unwrap()
+                .is_empty()
+        );
 
         drop(db);
         let _ = std::fs::remove_dir_all(directory);
@@ -271,11 +264,15 @@ mod tests {
         add_files(db.db(), 2, ContentStatus::Deleted, &[hash_id], None).unwrap();
 
         assert_eq!(
-            get_hash_ids(db.db(), 1, ContentStatus::Current).unwrap().len(),
+            get_hash_ids(db.db(), 1, ContentStatus::Current)
+                .unwrap()
+                .len(),
             1
         );
         assert_eq!(
-            get_hash_ids(db.db(), 2, ContentStatus::Deleted).unwrap().len(),
+            get_hash_ids(db.db(), 2, ContentStatus::Deleted)
+                .unwrap()
+                .len(),
             1
         );
 

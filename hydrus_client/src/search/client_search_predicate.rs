@@ -72,7 +72,10 @@ impl Predicate {
     }
 
     pub fn namespace(namespace: impl Into<String>) -> Self {
-        Self::new(PREDICATE_TYPE_NAMESPACE, PredicateValue::Text(namespace.into()))
+        Self::new(
+            PREDICATE_TYPE_NAMESPACE,
+            PredicateValue::Text(namespace.into()),
+        )
     }
 
     pub fn system_number(predicate_type: i32, number_test: NumberTest) -> Self {
@@ -198,7 +201,11 @@ impl Predicate {
                 format!("OR: {inner}")
             }
             (predicate_type, PredicateValue::Number(number_test)) => {
-                format!("{} {}", predicate_type_string(predicate_type), number_test.to_string())
+                format!(
+                    "{} {}",
+                    predicate_type_string(predicate_type),
+                    number_test.to_string()
+                )
             }
             (PREDICATE_TYPE_SYSTEM_LIMIT, PredicateValue::Number(number_test)) => {
                 format!("limit {}", number_test.value as i64)
@@ -213,7 +220,11 @@ impl Predicate {
                 format!("mime: {names}")
             }
             (PREDICATE_TYPE_SYSTEM_HASH, PredicateValue::Hashes(hashes)) => {
-                let hashes = hashes.iter().map(|hash| hex_encode(hash)).collect::<Vec<_>>().join(", ");
+                let hashes = hashes
+                    .iter()
+                    .map(|hash| hex_encode(hash))
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 format!("hash: {hashes}")
             }
             (predicate_type, PredicateValue::Service { .. }) => {
@@ -285,7 +296,12 @@ fn serialise_value(_predicate_type: i32, value: &PredicateValue) -> Value {
         PredicateValue::Number(number) => number.to_json_value(),
         PredicateValue::Numbers(numbers) => json!(numbers),
         PredicateValue::Hashes(hashes) => {
-            json!(hashes.iter().map(|hash| hex_encode(hash)).collect::<Vec<_>>())
+            json!(
+                hashes
+                    .iter()
+                    .map(|hash| hex_encode(hash))
+                    .collect::<Vec<_>>()
+            )
         }
         PredicateValue::Service {
             operator,
@@ -308,7 +324,10 @@ fn deserialise_value(predicate_type: i32, value: &Value) -> HydrusResult<Predica
 
     if matches!(
         predicate_type,
-        PREDICATE_TYPE_TAG | PREDICATE_TYPE_NAMESPACE | PREDICATE_TYPE_WILDCARD | PREDICATE_TYPE_LABEL
+        PREDICATE_TYPE_TAG
+            | PREDICATE_TYPE_NAMESPACE
+            | PREDICATE_TYPE_WILDCARD
+            | PREDICATE_TYPE_LABEL
     ) {
         return Ok(PredicateValue::Text(
             value.as_str().unwrap_or_default().to_string(),
@@ -337,7 +356,13 @@ fn deserialise_value(predicate_type: i32, value: &Value) -> HydrusResult<Predica
         return Ok(PredicateValue::Numbers(
             value
                 .as_array()
-                .map(|values| values.iter().filter_map(Value::as_i64).map(|v| v as i32).collect())
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(Value::as_i64)
+                        .map(|v| v as i32)
+                        .collect()
+                })
                 .unwrap_or_default(),
         ));
     }
@@ -361,7 +386,8 @@ fn deserialise_value(predicate_type: i32, value: &Value) -> HydrusResult<Predica
         let mut predicates = Vec::new();
 
         for tuple in value.as_array().cloned().unwrap_or_default() {
-            if let Ok(predicate) = hydrus_serialisable::create_from_serialisable_tuple(&tuple, false)
+            if let Ok(predicate) =
+                hydrus_serialisable::create_from_serialisable_tuple(&tuple, false)
             {
                 if let Some(predicate) = predicate.as_any().downcast_ref::<Predicate>() {
                     predicates.push(predicate.clone());
@@ -406,7 +432,10 @@ mod tests {
 
         assert_eq!(predicate.to_string(true), "blue eyes");
         assert_eq!(predicate.get_namespace(), None);
-        assert_eq!(predicate.get_texts_and_namespaces(), (Some("blue eyes".into()), None));
+        assert_eq!(
+            predicate.get_texts_and_namespaces(),
+            (Some("blue eyes".into()), None)
+        );
     }
 
     #[test]
@@ -426,7 +455,11 @@ mod tests {
     fn number_predicates_render_operator() {
         let predicate = Predicate::system_number(
             PREDICATE_TYPE_SYSTEM_WIDTH,
-            NumberTest::new(crate::search::client_number_test::NUMBER_TEST_OPERATOR_GREATER_THAN, 1000.0, None),
+            NumberTest::new(
+                crate::search::client_number_test::NUMBER_TEST_OPERATOR_GREATER_THAN,
+                1000.0,
+                None,
+            ),
         );
 
         assert_eq!(predicate.to_string(true), "width > 1000");
@@ -436,10 +469,7 @@ mod tests {
     fn serialisation_round_trips_tag_and_number() {
         for predicate in [
             Predicate::tag("blue eyes"),
-            Predicate::system_number(
-                PREDICATE_TYPE_SYSTEM_SIZE,
-                NumberTest::new(2, 1024.0, None),
-            ),
+            Predicate::system_number(PREDICATE_TYPE_SYSTEM_SIZE, NumberTest::new(2, 1024.0, None)),
         ] {
             let info = predicate.get_serialisable_info();
             let mut loaded = Predicate::tag("");

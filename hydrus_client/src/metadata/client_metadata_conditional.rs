@@ -61,7 +61,9 @@ impl SerialisableObject for MetadataConditional {
             .ok_or_else(|| serialisation("MetadataConditional info must be a tuple"))?;
 
         let context_info = match values.first().and_then(Value::as_u64) {
-            Some(type_id) if type_id == hydrus_serialisable::SERIALISABLE_TYPE_FILE_SEARCH_CONTEXT as u64 => {
+            Some(type_id)
+                if type_id == hydrus_serialisable::SERIALISABLE_TYPE_FILE_SEARCH_CONTEXT as u64 =>
+            {
                 values.get(2).cloned().unwrap_or(Value::Null)
             }
             _ => info.clone(),

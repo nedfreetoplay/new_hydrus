@@ -133,7 +133,11 @@ fn apply_ratings(
     update: &ContentUpdate,
     hash_ids: &[i64],
 ) -> HydrusResult<()> {
-    let Some(value) = update.details.get("rating").and_then(|value| value.as_f64()) else {
+    let Some(value) = update
+        .details
+        .get("rating")
+        .and_then(|value| value.as_f64())
+    else {
         return Ok(());
     };
 
@@ -186,7 +190,7 @@ fn status_for(action: ContentAction) -> Option<ContentStatus> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{master_tags, ClientDB};
+    use crate::db::{ClientDB, master_tags};
     use hydrus_core::hydrus_constants::ServiceType;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
@@ -197,13 +201,8 @@ mod tests {
         ));
 
         let db = ClientDB::new(&directory).unwrap();
-        services::get_or_add_service(
-            db.db(),
-            b"local tags",
-            ServiceType::LocalTag,
-            "local tags",
-        )
-        .unwrap();
+        services::get_or_add_service(db.db(), b"local tags", ServiceType::LocalTag, "local tags")
+            .unwrap();
         services::get_or_add_service(
             db.db(),
             b"my files",
@@ -219,17 +218,21 @@ mod tests {
     fn applies_mapping_updates() {
         let (db, directory) = database();
         let hash = vec![0xaa];
-        let package = ContentUpdatePackage::from_updates(vec![ContentUpdate::new(
-            ContentAction::Add,
-            b"local tags".to_vec(),
-            ContentType::Mappings,
-        )
-        .with_hashes([hash.clone()])
-        .with_tags(["blue eyes"])]);
+        let package = ContentUpdatePackage::from_updates(vec![
+            ContentUpdate::new(
+                ContentAction::Add,
+                b"local tags".to_vec(),
+                ContentType::Mappings,
+            )
+            .with_hashes([hash.clone()])
+            .with_tags(["blue eyes"]),
+        ]);
 
         let result = apply_content_update_package(db.db(), &package).unwrap();
         let hash_id = master::get_hash_id(db.db(), &hash).unwrap();
-        let service = services::get_service(db.db(), b"local tags").unwrap().unwrap();
+        let service = services::get_service(db.db(), b"local tags")
+            .unwrap()
+            .unwrap();
         let tag_id = master_tags::get_tag_id(db.db(), "blue eyes").unwrap();
 
         assert_eq!(result.applied, 1);
@@ -257,7 +260,9 @@ mod tests {
 
         apply_content_update_package(db.db(), &package).unwrap();
         let hash_id = master::get_hash_id(db.db(), &hash).unwrap();
-        let service = services::get_service(db.db(), b"my files").unwrap().unwrap();
+        let service = services::get_service(db.db(), b"my files")
+            .unwrap()
+            .unwrap();
 
         assert_eq!(
             files_storage::get_hash_ids(db.db(), service.service_id, ContentStatus::Current)
@@ -273,12 +278,14 @@ mod tests {
     #[test]
     fn missing_services_are_skipped() {
         let (db, directory) = database();
-        let package = ContentUpdatePackage::from_updates(vec![ContentUpdate::new(
-            ContentAction::Add,
-            b"missing service".to_vec(),
-            ContentType::Files,
-        )
-        .with_hashes([vec![1]])]);
+        let package = ContentUpdatePackage::from_updates(vec![
+            ContentUpdate::new(
+                ContentAction::Add,
+                b"missing service".to_vec(),
+                ContentType::Files,
+            )
+            .with_hashes([vec![1]]),
+        ]);
 
         let result = apply_content_update_package(db.db(), &package).unwrap();
 

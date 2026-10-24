@@ -27,9 +27,21 @@ impl ServicesManager {
     /// Creates the default local services when they are missing.
     pub fn ensure_local_services(db: &DBBase) -> HydrusResult<Self> {
         for (key, service_type, name) in [
-            (b"my files".as_slice(), ServiceType::LocalFileDomain, "my files"),
-            (b"local tags".as_slice(), ServiceType::LocalTag, "local tags"),
-            (b"trash".as_slice(), ServiceType::LocalFileTrashDomain, "trash"),
+            (
+                b"my files".as_slice(),
+                ServiceType::LocalFileDomain,
+                "my files",
+            ),
+            (
+                b"local tags".as_slice(),
+                ServiceType::LocalTag,
+                "local tags",
+            ),
+            (
+                b"trash".as_slice(),
+                ServiceType::LocalFileTrashDomain,
+                "trash",
+            ),
         ] {
             services::get_or_add_service(db, key, service_type, name)?;
         }
@@ -61,10 +73,7 @@ impl ServicesManager {
             .map(|service| service.service_type)
     }
 
-    pub fn get_services(
-        &self,
-        limited_types: Option<&[ServiceType]>,
-    ) -> Vec<&Service> {
+    pub fn get_services(&self, limited_types: Option<&[ServiceType]>) -> Vec<&Service> {
         self.services
             .values()
             .filter(|service| {

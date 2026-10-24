@@ -127,9 +127,10 @@ impl SerialisableObject for TagContext {
         }
 
         let values = old_info.as_array().cloned().unwrap_or_default();
-        let service_key = values.first().cloned().unwrap_or_else(|| json!(hex_encode(
-            client_constants::COMBINED_TAG_SERVICE_KEY
-        )));
+        let service_key = values
+            .first()
+            .cloned()
+            .unwrap_or_else(|| json!(hex_encode(client_constants::COMBINED_TAG_SERVICE_KEY)));
 
         Ok((
             2,

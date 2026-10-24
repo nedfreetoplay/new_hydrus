@@ -54,11 +54,7 @@ pub fn get_vacuum_timestamp(db: &DBBase, table_name: &str) -> HydrusResult<Optio
     )
 }
 
-pub fn schedule_table_delete(
-    db: &DBBase,
-    table_name: &str,
-    priority: i64,
-) -> HydrusResult<()> {
+pub fn schedule_table_delete(db: &DBBase, table_name: &str, priority: i64) -> HydrusResult<()> {
     db.execute(
         "INSERT OR REPLACE INTO deferred_delete_tables ( table_name, priority ) VALUES ( ?, ? )",
         &[&table_name, &priority],
@@ -144,8 +140,14 @@ mod tests {
         set_analyze_timestamp(db.db(), "files_info", 10).unwrap();
         set_vacuum_timestamp(db.db(), "files_info", 20).unwrap();
 
-        assert_eq!(get_analyze_timestamp(db.db(), "files_info").unwrap(), Some(10));
-        assert_eq!(get_vacuum_timestamp(db.db(), "files_info").unwrap(), Some(20));
+        assert_eq!(
+            get_analyze_timestamp(db.db(), "files_info").unwrap(),
+            Some(10)
+        );
+        assert_eq!(
+            get_vacuum_timestamp(db.db(), "files_info").unwrap(),
+            Some(20)
+        );
 
         drop(db);
         let _ = std::fs::remove_dir_all(directory);
@@ -162,7 +164,10 @@ mod tests {
             get_deferred_table_deletes(db.db()).unwrap(),
             vec![("high".to_string(), 10), ("low".to_string(), 1)]
         );
-        assert_eq!(pop_deferred_table_delete(db.db()).unwrap().as_deref(), Some("high"));
+        assert_eq!(
+            pop_deferred_table_delete(db.db()).unwrap().as_deref(),
+            Some("high")
+        );
         assert_eq!(
             get_deferred_table_deletes(db.db()).unwrap(),
             vec![("low".to_string(), 1)]
@@ -181,7 +186,10 @@ mod tests {
             .unwrap();
         schedule_table_delete(db.db(), "doomed", 0).unwrap();
 
-        assert_eq!(drop_table_if_deferred(db.db()).unwrap().as_deref(), Some("doomed"));
+        assert_eq!(
+            drop_table_if_deferred(db.db()).unwrap().as_deref(),
+            Some("doomed")
+        );
         assert!(!db.db().table_exists("doomed").unwrap());
 
         drop(db);

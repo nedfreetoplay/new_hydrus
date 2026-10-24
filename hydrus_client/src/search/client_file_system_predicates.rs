@@ -61,7 +61,11 @@ impl FileSystemPredicates {
                 PREDICATE_TYPE_SYSTEM_NUM_TAGS => {
                     if let PredicateValue::Number(number) = &predicate.value {
                         let namespace = predicate.get_namespace().unwrap_or("").to_string();
-                        system.num_tags.entry(namespace).or_default().push(number.clone());
+                        system
+                            .num_tags
+                            .entry(namespace)
+                            .or_default()
+                            .push(number.clone());
                     }
                 }
                 PREDICATE_TYPE_SYSTEM_SIZE => system.other_system.push(predicate.clone()),
@@ -229,7 +233,10 @@ mod tests {
         let predicates = [
             Predicate::new(
                 PREDICATE_TYPE_SYSTEM_MIME,
-                PredicateValue::Numbers(vec![Mime::Png.as_int() as i32, Mime::Jpeg.as_int() as i32]),
+                PredicateValue::Numbers(vec![
+                    Mime::Png.as_int() as i32,
+                    Mime::Jpeg.as_int() as i32,
+                ]),
             ),
             number(PREDICATE_TYPE_SYSTEM_LIMIT, 100.0),
         ];

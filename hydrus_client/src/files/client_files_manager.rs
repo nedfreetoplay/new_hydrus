@@ -55,7 +55,11 @@ impl ClientFilesManager {
         let filename = if thumbnail {
             format!("{}.thumbnail", hex_encode(hash))
         } else {
-            format!("{}.{}", hex_encode(hash), mime.extension().trim_start_matches('.'))
+            format!(
+                "{}.{}",
+                hex_encode(hash),
+                mime.extension().trim_start_matches('.')
+            )
         };
 
         self.get_path_in_subfolder(hash, &filename, thumbnail)
@@ -98,9 +102,7 @@ impl ClientFilesManager {
     }
 
     pub fn has_location(&self, path: &Path) -> bool {
-        self.locations
-            .iter()
-            .any(|location| location.path == path)
+        self.locations.iter().any(|location| location.path == path)
     }
 }
 
@@ -126,7 +128,9 @@ mod tests {
 
     #[test]
     fn file_paths_use_hash_prefix_and_mime_extension() {
-        let path = manager().get_file_path(&[0xab, 0xcd], Mime::Png, false).unwrap();
+        let path = manager()
+            .get_file_path(&[0xab, 0xcd], Mime::Png, false)
+            .unwrap();
 
         assert!(path.starts_with("C:/hydrus/files"));
         assert!(path.to_string_lossy().ends_with(".png"));
@@ -151,9 +155,11 @@ mod tests {
 
     #[test]
     fn empty_manager_reports_missing_folders() {
-        assert!(ClientFilesManager::default()
-            .get_thumbnail_path(&[1])
-            .is_err());
+        assert!(
+            ClientFilesManager::default()
+                .get_thumbnail_path(&[1])
+                .is_err()
+        );
     }
 
     #[test]

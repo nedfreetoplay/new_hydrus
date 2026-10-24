@@ -69,10 +69,7 @@ fn get_locations(db: &DBBase, table: &str) -> HydrusResult<Vec<FilesStorageBaseL
     )
 }
 
-pub fn set_subfolders(
-    db: &DBBase,
-    subfolders: &[FilesStorageSubfolder],
-) -> HydrusResult<()> {
+pub fn set_subfolders(db: &DBBase, subfolders: &[FilesStorageSubfolder]) -> HydrusResult<()> {
     db.execute("DELETE FROM client_files_subfolders", &[])?;
 
     for subfolder in subfolders {
@@ -112,10 +109,7 @@ pub fn get_subfolders(
     Ok(subfolders)
 }
 
-pub fn set_ideal_thumbnail_override_location(
-    db: &DBBase,
-    path: Option<&str>,
-) -> HydrusResult<()> {
+pub fn set_ideal_thumbnail_override_location(db: &DBBase, path: Option<&str>) -> HydrusResult<()> {
     db.execute("DELETE FROM ideal_thumbnail_override_location", &[])?;
 
     if let Some(path) = path {
@@ -212,7 +206,9 @@ mod tests {
 
         assert_eq!(get_storage_granularity(db.db()).unwrap(), Some(5));
         assert_eq!(
-            get_ideal_thumbnail_override_location(db.db()).unwrap().as_deref(),
+            get_ideal_thumbnail_override_location(db.db())
+                .unwrap()
+                .as_deref(),
             Some("C:/thumbs")
         );
 

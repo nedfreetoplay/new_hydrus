@@ -7,10 +7,10 @@ use hydrus_external::system_predicate_parser::{
 };
 
 use crate::search::client_number_test::{
-    NumberTest, NUMBER_TEST_OPERATOR_APPROXIMATE_PERCENT, NUMBER_TEST_OPERATOR_EQUAL,
+    NUMBER_TEST_OPERATOR_APPROXIMATE_PERCENT, NUMBER_TEST_OPERATOR_EQUAL,
     NUMBER_TEST_OPERATOR_GREATER_THAN, NUMBER_TEST_OPERATOR_GREATER_THAN_OR_EQUAL_TO,
     NUMBER_TEST_OPERATOR_LESS_THAN, NUMBER_TEST_OPERATOR_LESS_THAN_OR_EQUAL_TO,
-    NUMBER_TEST_OPERATOR_NOT_EQUAL,
+    NUMBER_TEST_OPERATOR_NOT_EQUAL, NumberTest,
 };
 use crate::search::client_search_predicate::{Predicate, PredicateValue};
 use crate::search::predicate_constants::*;
@@ -96,12 +96,7 @@ pub fn convert_system_predicate(parsed: SystemPredicate) -> HydrusResult<Predica
         if let Some(ValueData::HashListWithAlgorithm { hashes, .. }) = &parsed.value {
             return Ok(Predicate::new(
                 PREDICATE_TYPE_SYSTEM_HASH,
-                PredicateValue::Hashes(
-                    hashes
-                        .iter()
-                        .filter_map(|hash| hex_decode(hash))
-                        .collect(),
-                ),
+                PredicateValue::Hashes(hashes.iter().filter_map(|hash| hex_decode(hash)).collect()),
             ));
         }
     }
@@ -161,7 +156,9 @@ fn make_number_test(parsed: &SystemPredicate) -> HydrusResult<NumberTest> {
     let operator = match parsed.operator.as_ref() {
         Some(Operator::Relational(operator)) => relational_operator(*operator),
         Some(Operator::Ratio(operator)) => match operator {
-            hydrus_external::system_predicate_parser::RatioOperator::Equal => NUMBER_TEST_OPERATOR_EQUAL,
+            hydrus_external::system_predicate_parser::RatioOperator::Equal => {
+                NUMBER_TEST_OPERATOR_EQUAL
+            }
             hydrus_external::system_predicate_parser::RatioOperator::WiderThan => {
                 NUMBER_TEST_OPERATOR_GREATER_THAN
             }

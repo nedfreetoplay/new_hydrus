@@ -98,9 +98,9 @@ impl Shortcut {
             .collect();
 
         let key = match self.shortcut_type {
-            SHORTCUT_TYPE_KEYBOARD_CHARACTER => {
-                char::from_u32(self.shortcut_key as u32).unwrap_or('?').to_string()
-            }
+            SHORTCUT_TYPE_KEYBOARD_CHARACTER => char::from_u32(self.shortcut_key as u32)
+                .unwrap_or('?')
+                .to_string(),
             SHORTCUT_TYPE_MOUSE => mouse_string(self.shortcut_key).to_string(),
             _ => special_key_string(self.shortcut_key).to_string(),
         };
@@ -203,7 +203,10 @@ impl ShortcutSet {
             let command_info = pair.get(1)?.as_object()?;
             let command = ApplicationCommand::new(
                 command_info.get("command_type")?.as_i64()? as i32,
-                command_info.get("data").cloned().filter(|value| !value.is_null()),
+                command_info
+                    .get("data")
+                    .cloned()
+                    .filter(|value| !value.is_null()),
             );
 
             set.set_command(shortcut, command);
@@ -286,7 +289,11 @@ mod tests {
             SHORTCUT_TYPE_KEYBOARD_CHARACTER,
             b'g' as i32,
             SHORTCUT_PRESS_TYPE_PRESS,
-            vec![SHORTCUT_MODIFIER_SHIFT, SHORTCUT_MODIFIER_CTRL, SHORTCUT_MODIFIER_SHIFT],
+            vec![
+                SHORTCUT_MODIFIER_SHIFT,
+                SHORTCUT_MODIFIER_CTRL,
+                SHORTCUT_MODIFIER_SHIFT,
+            ],
         );
 
         assert_eq!(

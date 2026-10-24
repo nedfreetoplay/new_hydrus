@@ -5,12 +5,7 @@ use std::collections::BTreeMap;
 use hydrus_core::hydrus_db_base::DBBase;
 use hydrus_core::hydrus_exceptions::HydrusResult;
 
-pub fn set_note(
-    db: &DBBase,
-    hash_id: i64,
-    name: &str,
-    note: &str,
-) -> HydrusResult<()> {
+pub fn set_note(db: &DBBase, hash_id: i64, name: &str, note: &str) -> HydrusResult<()> {
     let name_id = get_or_create(db, "labels", "label", "label_id", name)?;
     let note_id = get_or_create(db, "notes", "note", "note_id", note)?;
 
@@ -99,8 +94,8 @@ fn get_or_create(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::master::get_hash_id;
     use crate::db::ClientDB;
+    use crate::db::master::get_hash_id;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(

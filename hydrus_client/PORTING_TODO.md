@@ -199,7 +199,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Портированы модели networking/login панелей (контексты, headers, login state); Qt-панели дальше.
 - [~] `ClientGUIDuplicates*`, `ClientGUIImport*`, `ClientGUIParsing*`.
   Портированы модели duplicates/import/parsing панелей; Qt-панели дальше.
-- [ ] `panels/options/*` — панели настроек.
+- [~] `panels/options/*` — панели настроек.
+  Портирован реестр/поиск options-панелей; Qt-панели дальше.
 - [ ] `ClientGUIStringPanels`, строковые диалоги и редакторы.
 
 ## 11. Контроллер и запуск

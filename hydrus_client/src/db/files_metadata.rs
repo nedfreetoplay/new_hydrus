@@ -159,6 +159,23 @@ pub fn get_forced_mime(db: &DBBase, hash_id: i64) -> HydrusResult<Option<Mime>> 
     Ok(mime.and_then(Mime::try_from_int))
 }
 
+pub fn set_blurhash(db: &DBBase, hash_id: i64, blurhash: &str) -> HydrusResult<()> {
+    db.execute(
+        "INSERT OR REPLACE INTO blurhashes ( hash_id, blurhash ) VALUES ( ?, ? )",
+        &[&hash_id, &blurhash],
+    )?;
+
+    Ok(())
+}
+
+pub fn get_blurhash(db: &DBBase, hash_id: i64) -> HydrusResult<Option<String>> {
+    db.query_one(
+        "SELECT blurhash FROM blurhashes WHERE hash_id = ?",
+        &[&hash_id],
+        |row| row.get(0),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

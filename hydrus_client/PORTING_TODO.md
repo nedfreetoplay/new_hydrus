@@ -93,8 +93,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Сверено с `TestClientFileStorage.py`: weights/eager/would/needs и вложенные префиксы.
 - [x] `ClientFilesManager` — раскладка файлов/миниатюр, миграция хранилищ.
 - [x] `ClientFiles` — операции чтения/записи, блокировки.
-- [~] `ClientFilesMaintenance`/`ClientFilesMaintenanceManager` — очередь обслуживания.
-  Портированы job ids, веса и очередь с планированием/отменой; сами regen-операции дальше.
+- [x] `ClientFilesMaintenance`/`ClientFilesMaintenanceManager` — очередь обслуживания.
+  Очередь + `FilesMaintenanceExecutor` (metadata, thumbnail, blurhash, transparency, modified time).
 - [x] `ClientTrashManager` — корзина и отложенное удаление.
 - [~] `ClientImageHandling` и обёртки `hydrus_core` (метаданные, perceptual hashes).
   Портированы resize/thumbnail/blurhash/transparency и aHash-заглушка perceptual hash;

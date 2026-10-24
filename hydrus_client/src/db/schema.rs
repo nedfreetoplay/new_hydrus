@@ -61,6 +61,10 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
         CREATE TABLE IF NOT EXISTS has_human_readable_embedded_metadata ( hash_id INTEGER PRIMARY KEY );
         CREATE TABLE IF NOT EXISTS has_software_source ( hash_id INTEGER PRIMARY KEY );
         CREATE TABLE IF NOT EXISTS has_transparency ( hash_id INTEGER PRIMARY KEY );
+        CREATE TABLE IF NOT EXISTS blurhashes (
+            hash_id INTEGER PRIMARY KEY,
+            blurhash TEXT
+        );
 
         CREATE TABLE IF NOT EXISTS file_inbox ( hash_id INTEGER PRIMARY KEY );
 

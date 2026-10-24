@@ -1,6 +1,7 @@
 pub mod client_files;
 pub mod client_files_manager;
 pub mod client_files_physical;
+pub mod images;
 pub mod maintenance;
 pub mod maintenance_manager;
 pub mod trash_manager;

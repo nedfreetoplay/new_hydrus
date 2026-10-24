@@ -92,7 +92,9 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [~] `ClientFilesMaintenance`/`ClientFilesMaintenanceManager` — очередь обслуживания.
   Портированы job ids, веса и очередь с планированием/отменой; сами regen-операции дальше.
 - [x] `ClientTrashManager` — корзина и отложенное удаление.
-- [ ] `ClientImageHandling` и обёртки `hydrus_core` (метаданные, perceptual hashes).
+- [~] `ClientImageHandling` и обёртки `hydrus_core` (метаданные, perceptual hashes).
+  Портированы resize/thumbnail/blurhash/transparency и aHash-заглушка perceptual hash;
+  точный Python DCT-хэш и EXIF/IPTC-обёртки дальше.
 
 ## 7. База данных
 

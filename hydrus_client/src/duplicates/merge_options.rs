@@ -91,11 +91,7 @@ pub struct PotentialDuplicatePair {
 }
 
 impl PotentialDuplicatePair {
-    pub fn new(
-        hash_a: Vec<u8>,
-        hash_b: Vec<u8>,
-        distance: i64,
-    ) -> Self {
+    pub fn new(hash_a: Vec<u8>, hash_b: Vec<u8>, distance: i64) -> Self {
         Self {
             hash_a,
             hash_b,

@@ -57,7 +57,10 @@ impl NetworkBandwidthManager {
     pub fn can_start_request(&mut self, context: &NetworkContext, threshold: i64) -> bool {
         let key = context.to_string();
         let rules = self.rules.get(&key).unwrap_or(&self.default_rules);
-        let tracker = self.trackers.entry(key).or_insert_with(BandwidthTracker::new);
+        let tracker = self
+            .trackers
+            .entry(key)
+            .or_insert_with(BandwidthTracker::new);
 
         rules.can_start_request(tracker, threshold)
     }
@@ -65,7 +68,10 @@ impl NetworkBandwidthManager {
     pub fn can_continue_download(&mut self, context: &NetworkContext, threshold: i64) -> bool {
         let key = context.to_string();
         let rules = self.rules.get(&key).unwrap_or(&self.default_rules);
-        let tracker = self.trackers.entry(key).or_insert_with(BandwidthTracker::new);
+        let tracker = self
+            .trackers
+            .entry(key)
+            .or_insert_with(BandwidthTracker::new);
 
         rules.can_continue_download(tracker, threshold)
     }
@@ -73,7 +79,10 @@ impl NetworkBandwidthManager {
     pub fn get_waiting_estimate(&mut self, context: &NetworkContext) -> i64 {
         let key = context.to_string();
         let rules = self.rules.get(&key).unwrap_or(&self.default_rules);
-        let tracker = self.trackers.entry(key).or_insert_with(BandwidthTracker::new);
+        let tracker = self
+            .trackers
+            .entry(key)
+            .or_insert_with(BandwidthTracker::new);
 
         rules.get_waiting_estimate(tracker)
     }

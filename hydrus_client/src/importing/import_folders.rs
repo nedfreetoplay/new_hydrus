@@ -123,9 +123,7 @@ impl ImportFoldersManager {
     }
 
     pub fn get_folder_mut(&mut self, name: &str) -> Option<&mut ImportFolder> {
-        self.folders
-            .iter_mut()
-            .find(|folder| folder.name == name)
+        self.folders.iter_mut().find(|folder| folder.name == name)
     }
 
     pub fn get_folders(&self) -> &[ImportFolder] {

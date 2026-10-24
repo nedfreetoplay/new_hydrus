@@ -85,7 +85,10 @@ pub fn remove_www_from_domain(domain: &str) -> String {
 /// `ConvertDomainIntoSecondLevelDomain`
 pub fn convert_domain_into_second_level_domain(domain: &str) -> String {
     let domain = remove_www_from_domain(&domain.to_lowercase());
-    let labels: Vec<&str> = domain.split('.').filter(|label| !label.is_empty()).collect();
+    let labels: Vec<&str> = domain
+        .split('.')
+        .filter(|label| !label.is_empty())
+        .collect();
 
     if labels.len() <= 2 {
         labels.join(".")
@@ -120,7 +123,10 @@ pub fn convert_domain_into_all_applicable_domains(domain: &str, discard_www: boo
         domain = remove_www_from_domain(&domain);
     }
 
-    let labels: Vec<&str> = domain.split('.').filter(|label| !label.is_empty()).collect();
+    let labels: Vec<&str> = domain
+        .split('.')
+        .filter(|label| !label.is_empty())
+        .collect();
     let mut domains = Vec::new();
 
     for index in 0..labels.len().saturating_sub(1) {
@@ -167,9 +173,7 @@ pub fn ensure_url_is_encoded(url: &str, keep_fragment: bool) -> String {
 }
 
 /// `NormaliseAndFilterAssociableURLs`
-pub fn normalise_and_filter_associable_urls(
-    urls: impl IntoIterator<Item = String>,
-) -> Vec<String> {
+pub fn normalise_and_filter_associable_urls(urls: impl IntoIterator<Item = String>) -> Vec<String> {
     let mut result = Vec::new();
 
     for url in urls {
@@ -225,10 +229,7 @@ mod tests {
             convert_domain_into_second_level_domain("example.com"),
             "example.com"
         );
-        assert_eq!(
-            convert_domain_into_top_level_domain("example.com"),
-            "com"
-        );
+        assert_eq!(convert_domain_into_top_level_domain("example.com"), "com");
     }
 
     #[test]
@@ -241,8 +242,14 @@ mod tests {
 
     #[test]
     fn scheme_conversion_round_trips() {
-        assert_eq!(convert_https_to_http("https://example.com"), "http://example.com");
-        assert_eq!(convert_http_to_https("http://example.com"), "https://example.com");
+        assert_eq!(
+            convert_https_to_http("https://example.com"),
+            "http://example.com"
+        );
+        assert_eq!(
+            convert_http_to_https("http://example.com"),
+            "https://example.com"
+        );
     }
 
     #[test]

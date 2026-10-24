@@ -43,10 +43,7 @@ pub fn get_perceptual_hashes(db: &DBBase, hash_id: i64) -> HydrusResult<Vec<Vec<
 }
 
 pub fn set_pixel_hash(db: &DBBase, hash_id: i64, pixel_hash: &[u8]) -> HydrusResult<()> {
-    db.execute(
-        "DELETE FROM pixel_hash_map WHERE hash_id = ?",
-        &[&hash_id],
-    )?;
+    db.execute("DELETE FROM pixel_hash_map WHERE hash_id = ?", &[&hash_id])?;
     db.execute(
         "INSERT OR IGNORE INTO pixel_hash_map ( pixel_hash, hash_id ) VALUES ( ?, ? )",
         &[&pixel_hash, &hash_id],
@@ -149,8 +146,8 @@ pub fn get_search_distance(db: &DBBase, hash_id: i64) -> HydrusResult<Option<i64
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::master::get_hash_id;
     use crate::db::ClientDB;
+    use crate::db::master::get_hash_id;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(

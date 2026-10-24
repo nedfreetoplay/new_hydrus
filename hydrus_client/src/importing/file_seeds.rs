@@ -103,7 +103,10 @@ impl FileSeedCache {
     }
 
     pub fn add_seeds(&mut self, seeds: impl IntoIterator<Item = FileSeed>) -> usize {
-        seeds.into_iter().filter(|seed| self.add_seed(seed.clone())).count()
+        seeds
+            .into_iter()
+            .filter(|seed| self.add_seed(seed.clone()))
+            .count()
     }
 
     pub fn get_seed(&self, key: &str) -> Option<&FileSeed> {
@@ -135,10 +138,7 @@ impl FileSeedCache {
     }
 
     pub fn get_undone_seeds(&self) -> Vec<&FileSeed> {
-        self.seeds
-            .values()
-            .filter(|seed| !seed.is_done())
-            .collect()
+        self.seeds.values().filter(|seed| !seed.is_done()).collect()
     }
 
     pub fn get_num_seeds(&self) -> usize {
@@ -186,7 +186,9 @@ mod tests {
 
         assert_eq!(cache.get_num_done(), 1);
         assert_eq!(
-            cache.get_seeds_with_status(client_constants::STATUS_SUCCESSFUL_AND_NEW).len(),
+            cache
+                .get_seeds_with_status(client_constants::STATUS_SUCCESSFUL_AND_NEW)
+                .len(),
             1
         );
     }

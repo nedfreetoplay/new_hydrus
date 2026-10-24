@@ -166,10 +166,7 @@ impl TagImportOptions {
     }
 
     pub fn service_keys(&self) -> Vec<&[u8]> {
-        self.service_options
-            .keys()
-            .map(Vec::as_slice)
-            .collect()
+        self.service_options.keys().map(Vec::as_slice).collect()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -254,9 +251,11 @@ mod tests {
     fn container_defaults_are_permissive() {
         let container = ImportOptionsContainer::default();
 
-        assert!(container
-            .file_filtering
-            .check_file_is_valid(1, Mime::Png, None, None));
+        assert!(
+            container
+                .file_filtering
+                .check_file_is_valid(1, Mime::Png, None, None)
+        );
         assert!(container.tag_import_options.is_empty());
     }
 }

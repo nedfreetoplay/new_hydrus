@@ -95,7 +95,11 @@ impl ListModel {
             let right = b.values.get(column).cloned().unwrap_or_default();
             let ordering = left.cmp(&right);
 
-            if ascending { ordering } else { ordering.reverse() }
+            if ascending {
+                ordering
+            } else {
+                ordering.reverse()
+            }
         });
 
         self.sort_column = Some(column.to_string());

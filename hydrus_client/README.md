@@ -42,7 +42,11 @@ contexts, мост системных предикатов), медиа-моде
 
 БД: схема, сервисы, хэши, master-теги, mappings, files_info/storage/timestamps/inbox,
 viewing stats, storage configuration, notes/ratings/urls/service paths, definitions cache,
-сборка `MediaResult` и применение `ContentUpdatePackage`.
+сборка `MediaResult`, content updates, tag search/siblings/parents, duplicates/similar files
+и maintenance.
+
+Также начаты: networking (contexts/functions/bandwidth/sessions), importing (options,
+import folders, file seeds), parsing results, duplicates UI-модели и list/pages панели.
 
 Актуальный план и флаги: [PORTING_TODO.md](PORTING_TODO.md).
 Архитектура: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

@@ -1,10 +1,10 @@
 //! Client DB module wrapper around `hydrus_core::DBModule`.
 
-use std::collections::BTreeSet;
 use hydrus_core::hydrus_db_base::DBBase;
 use hydrus_core::hydrus_db_module::{
     DBModule, IndexGenerationDict, TableGenerationDict, TableGenerationRow,
 };
+use std::collections::BTreeSet;
 
 /// A declarative client DB module. Individual client modules expose their
 /// table/index generation dictionaries; repair and creation are handled by the
@@ -118,10 +118,7 @@ pub fn client_schema_module<'a>(db: &'a DBBase) -> ClientDBModule<'a> {
             "version",
             "CREATE TABLE IF NOT EXISTS {} ( version INTEGER );",
         ),
-        (
-            "options",
-            "CREATE TABLE IF NOT EXISTS {} ( options TEXT );",
-        ),
+        ("options", "CREATE TABLE IF NOT EXISTS {} ( options TEXT );"),
     ] {
         module = module.with_table(name, query, 1);
     }
@@ -153,7 +150,10 @@ mod tests {
         ));
         std::fs::create_dir_all(&directory).unwrap();
 
-        (DBBase::open(directory.join("client.db")).unwrap(), directory)
+        (
+            DBBase::open(directory.join("client.db")).unwrap(),
+            directory,
+        )
     }
 
     #[test]
@@ -162,7 +162,11 @@ mod tests {
         let module = client_schema_module(&db);
 
         assert_eq!(module.name(), "client schema");
-        assert!(module.get_initial_table_generation_dict().contains_key("services"));
+        assert!(
+            module
+                .get_initial_table_generation_dict()
+                .contains_key("services")
+        );
         assert!(module.get_critical_table_names().contains("version"));
 
         module.create_initial_tables().unwrap();
@@ -177,8 +181,11 @@ mod tests {
     #[test]
     fn table_rows_are_declarative() {
         let (db, directory) = database();
-        let module = ClientDBModule::new("test", &db)
-            .with_table("t", "CREATE TABLE IF NOT EXISTS {} ( x INTEGER );", 5);
+        let module = ClientDBModule::new("test", &db).with_table(
+            "t",
+            "CREATE TABLE IF NOT EXISTS {} ( x INTEGER );",
+            5,
+        );
 
         let row: &TableGenerationRow = module.table_rows().get("t").unwrap();
 

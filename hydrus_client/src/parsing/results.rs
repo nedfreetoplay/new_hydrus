@@ -4,14 +4,32 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ContentKind {
-    Url { url_type: i32, priority: i32 },
-    Hash { hash_type: String, hash_encoding: String },
-    Tag { namespace: Option<String> },
-    Note { note_name: String },
-    Timestamp { timestamp_type: Option<i32> },
-    Title { priority: i32 },
-    HttpHeaders { header_name: String },
-    Variable { temp_variable_name: String },
+    Url {
+        url_type: i32,
+        priority: i32,
+    },
+    Hash {
+        hash_type: String,
+        hash_encoding: String,
+    },
+    Tag {
+        namespace: Option<String>,
+    },
+    Note {
+        note_name: String,
+    },
+    Timestamp {
+        timestamp_type: Option<i32>,
+    },
+    Title {
+        priority: i32,
+    },
+    HttpHeaders {
+        header_name: String,
+    },
+    Variable {
+        temp_variable_name: String,
+    },
     Veto,
 }
 
@@ -31,16 +49,18 @@ impl ParsableContentDescription {
 
     pub fn get_shorthand_content_specific_info_string(&self) -> Option<String> {
         match &self.kind {
-            ContentKind::Url { url_type, priority } => Some(format!("url type {url_type}, p{priority}")),
+            ContentKind::Url { url_type, priority } => {
+                Some(format!("url type {url_type}, p{priority}"))
+            }
             ContentKind::Hash { hash_type, .. } => Some(hash_type.clone()),
             ContentKind::Tag { namespace } => namespace.clone(),
             ContentKind::Note { note_name } => Some(note_name.clone()),
-            ContentKind::Timestamp { timestamp_type } => timestamp_type.map(|value| value.to_string()),
+            ContentKind::Timestamp { timestamp_type } => {
+                timestamp_type.map(|value| value.to_string())
+            }
             ContentKind::Title { priority } => Some(format!("p{priority}")),
             ContentKind::HttpHeaders { header_name } => Some(header_name.clone()),
-            ContentKind::Variable {
-                temp_variable_name,
-            } => Some(temp_variable_name.clone()),
+            ContentKind::Variable { temp_variable_name } => Some(temp_variable_name.clone()),
             ContentKind::Veto => None,
         }
     }
@@ -160,7 +180,9 @@ mod tests {
         );
 
         assert_eq!(
-            description.get_shorthand_content_specific_info_string().as_deref(),
+            description
+                .get_shorthand_content_specific_info_string()
+                .as_deref(),
             Some("creator")
         );
     }

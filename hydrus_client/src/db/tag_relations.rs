@@ -40,11 +40,7 @@ fn table_name(relation: TagRelation, service_id: i64, status: ContentStatus) -> 
     format!("{}_{}_{}", prefix(relation), status, service_id)
 }
 
-pub fn create_tables(
-    db: &DBBase,
-    relation: TagRelation,
-    service_id: i64,
-) -> HydrusResult<()> {
+pub fn create_tables(db: &DBBase, relation: TagRelation, service_id: i64) -> HydrusResult<()> {
     for status in [
         ContentStatus::Current,
         ContentStatus::Deleted,
@@ -176,11 +172,7 @@ pub fn get_pairs_with_tags(
 }
 
 /// `STATICResolveSiblings` — follows the current sibling chain until stable.
-pub fn resolve_siblings(
-    db: &DBBase,
-    service_id: i64,
-    tag: &str,
-) -> HydrusResult<String> {
+pub fn resolve_siblings(db: &DBBase, service_id: i64, tag: &str) -> HydrusResult<String> {
     let mut current = tag.to_string();
     let mut seen = BTreeSet::new();
 
@@ -218,11 +210,7 @@ pub fn resolve_siblings(
 }
 
 /// `STATICGetDescendants` for parents: returns all transitive ancestors.
-pub fn get_ancestors(
-    db: &DBBase,
-    service_id: i64,
-    tag: &str,
-) -> HydrusResult<BTreeSet<String>> {
+pub fn get_ancestors(db: &DBBase, service_id: i64, tag: &str) -> HydrusResult<BTreeSet<String>> {
     let mut ancestors = BTreeSet::new();
     let mut frontier = vec![tag.to_string()];
 
@@ -271,8 +259,8 @@ fn master_tags_lookup(db: &DBBase, tag: &str) -> HydrusResult<Option<i64>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::master_tags::get_tag_id;
     use crate::db::ClientDB;
+    use crate::db::master_tags::get_tag_id;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(
@@ -306,8 +294,7 @@ mod tests {
             vec![(bad, good)]
         );
         assert_eq!(
-            get_pairs_with_tags(db.db(), TagRelation::Siblings, 1, ContentStatus::Current)
-                .unwrap(),
+            get_pairs_with_tags(db.db(), TagRelation::Siblings, 1, ContentStatus::Current).unwrap(),
             vec![("blue eyes".to_string(), "eyes:blue".to_string())]
         );
 
@@ -399,9 +386,11 @@ mod tests {
         )
         .unwrap();
 
-        assert!(get_pairs(db.db(), TagRelation::Siblings, 1, ContentStatus::Current)
-            .unwrap()
-            .is_empty());
+        assert!(
+            get_pairs(db.db(), TagRelation::Siblings, 1, ContentStatus::Current)
+                .unwrap()
+                .is_empty()
+        );
 
         drop(db);
         let _ = std::fs::remove_dir_all(directory);

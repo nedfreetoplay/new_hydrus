@@ -150,7 +150,7 @@ mod tests {
     use super::*;
     use crate::db::master::get_hash_id;
     use crate::db::master_tags::get_tag_id;
-    use crate::db::{mappings, ClientDB};
+    use crate::db::{ClientDB, mappings};
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(
@@ -207,7 +207,8 @@ mod tests {
         let (db, directory) = database();
         let (first, second, _) = seed(db.db());
 
-        let hashes = get_hash_ids_for_wildcard(db.db(), 1, ContentStatus::Current, "*hair*").unwrap();
+        let hashes =
+            get_hash_ids_for_wildcard(db.db(), 1, ContentStatus::Current, "*hair*").unwrap();
 
         assert_eq!(hashes, BTreeSet::from([second]));
 
@@ -237,9 +238,11 @@ mod tests {
     fn missing_tables_are_empty_results() {
         let (db, directory) = database();
 
-        assert!(get_hash_ids_for_tag(db.db(), 99, ContentStatus::Current, "x")
-            .unwrap()
-            .is_empty());
+        assert!(
+            get_hash_ids_for_tag(db.db(), 99, ContentStatus::Current, "x")
+                .unwrap()
+                .is_empty()
+        );
 
         drop(db);
         let _ = std::fs::remove_dir_all(directory);

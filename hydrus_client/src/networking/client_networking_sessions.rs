@@ -121,7 +121,9 @@ mod tests {
     #[test]
     fn domain_helper_creates_domain_context() {
         let mut manager = NetworkSessionManager::new();
-        manager.get_session_for_domain("example.com").set_header("X", "1");
+        manager
+            .get_session_for_domain("example.com")
+            .set_header("X", "1");
 
         assert!(manager.has_session(&NetworkContext::for_domain("example.com")));
     }

@@ -53,7 +53,11 @@ pub fn get_potential_pairs(
     }
 }
 
-pub fn add_false_positive(db: &DBBase, first_hash_id: i64, second_hash_id: i64) -> HydrusResult<()> {
+pub fn add_false_positive(
+    db: &DBBase,
+    first_hash_id: i64,
+    second_hash_id: i64,
+) -> HydrusResult<()> {
     db.execute(
         "INSERT OR IGNORE INTO duplicate_false_positives
          ( smaller_hash_id, larger_hash_id ) VALUES ( ?, ? )",
@@ -156,8 +160,8 @@ pub fn get_duplicate_king(db: &DBBase, media_id: i64) -> HydrusResult<Option<i64
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::master::get_hash_id;
     use crate::db::ClientDB;
+    use crate::db::master::get_hash_id;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
         let directory = std::env::temp_dir().join(format!(
@@ -178,7 +182,10 @@ mod tests {
         add_potential_pair(db.db(), first, second, 4).unwrap();
         add_potential_pair(db.db(), second, first + 100, 10).unwrap();
 
-        assert_eq!(get_potential_pairs(db.db(), Some(5)).unwrap(), vec![(first, second, 4)]);
+        assert_eq!(
+            get_potential_pairs(db.db(), Some(5)).unwrap(),
+            vec![(first, second, 4)]
+        );
 
         remove_potential_pair(db.db(), first, second).unwrap();
 

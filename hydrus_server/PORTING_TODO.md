@@ -49,7 +49,7 @@ accept real HTTP/TLS requests.
 - [x] Port repository mappings and current/deleted mapping tables.
 - [ ] Port mapping petitions.
 - [x] Port current/deleted tag parents and tag siblings.
-- [ ] Port pending and petitioned tag parent/sibling flows.
+- [x] Port pending and petitioned tag parent/sibling flows, including deny operations.
 - [ ] Port file/mapping petition summaries and approval.
 - [ ] Port `ClientToServerUpdate` processing.
 - [ ] Port `Metadata` and update generation.

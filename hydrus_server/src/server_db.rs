@@ -485,6 +485,40 @@ impl ServerDB {
         .ok_or_else(|| HydrusException::new(ErrorKind::DataMissing, "Tag error in database"))
     }
 
+    /// `_get_reason( reason_id )`
+    pub fn get_reason(&self, reason_id: i64) -> HydrusResult<String> {
+        self.db
+            .db_base()?
+            .query_one(
+                "SELECT reason FROM reasons WHERE reason_id = ?;",
+                &[&reason_id],
+                |row| row.get::<_, String>(0),
+            )?
+            .ok_or_else(|| {
+                HydrusException::new(ErrorKind::DataMissing, "Reason error in database")
+            })
+    }
+
+    /// `_get_reason_id( reason )`
+    pub fn get_reason_id(&self, reason: &str) -> HydrusResult<i64> {
+        let db = self.db.db_base()?;
+
+        if let Some(reason_id) = db.query_one(
+            "SELECT reason_id FROM reasons WHERE reason = ?;",
+            &[&reason],
+            |row| row.get::<_, i64>(0),
+        )? {
+            return Ok(reason_id);
+        }
+
+        db.execute(
+            "INSERT INTO reasons ( reason ) VALUES ( ? );",
+            &[&reason],
+        )?;
+
+        Ok(db.get_last_row_id())
+    }
+
     /// `_add_file( file_dict )`
     pub fn add_file(&self, file: &ServerFileInput) -> HydrusResult<i64> {
         let master_hash_id = self.get_master_hash_id(&file.hash)?;
@@ -1774,6 +1808,404 @@ impl ServerDB {
                 inserted as i64,
             )?;
         }
+
+        Ok(())
+    }
+
+    /// `_repository_pend_tag_parent( service_id, account_id, child_master_tag_id, parent_master_tag_id, reason_id )`
+    pub fn repository_pend_tag_parent(
+        &self,
+        service_id: i64,
+        account_id: i64,
+        child_master_tag_id: i64,
+        parent_master_tag_id: i64,
+        reason_id: i64,
+    ) -> HydrusResult<()> {
+        let (current_parents, _, pending_parents, _) =
+            generate_repository_tag_parents_table_names(service_id);
+
+        if self.repository_service_tag_id_exists(service_id, child_master_tag_id)?
+            && self.repository_service_tag_id_exists(service_id, parent_master_tag_id)?
+        {
+            let timestamp = hydrus_time::get_now();
+            let child_service_tag_id = self.repository_get_service_tag_id(
+                service_id,
+                child_master_tag_id,
+                timestamp,
+            )?;
+            let parent_service_tag_id = self.repository_get_service_tag_id(
+                service_id,
+                parent_master_tag_id,
+                timestamp,
+            )?;
+            let db = self.db.db_base()?;
+
+            if db
+                .query_one(
+                    &format!(
+                        "SELECT 1 FROM {current_parents} WHERE child_service_tag_id = ? AND parent_service_tag_id = ?;"
+                    ),
+                    &[&child_service_tag_id, &parent_service_tag_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .is_some()
+            {
+                return Ok(());
+            }
+        }
+
+        let db = self.db.db_base()?;
+        let deleted = db.execute(
+            &format!(
+                "DELETE FROM {pending_parents} WHERE child_master_tag_id = ? AND parent_master_tag_id = ? AND account_id = ?;"
+            ),
+            &[&child_master_tag_id, &parent_master_tag_id, &account_id],
+        )?;
+        let added = db.execute(
+            &format!(
+                "INSERT OR IGNORE INTO {pending_parents} ( child_master_tag_id, parent_master_tag_id, account_id, reason_id ) VALUES ( ?, ?, ?, ? );"
+            ),
+            &[
+                &child_master_tag_id,
+                &parent_master_tag_id,
+                &account_id,
+                &reason_id,
+            ],
+        )?;
+
+        self.update_service_info(
+            service_id,
+            ServiceInfoType::NumPendingTagParents,
+            added as i64 - deleted as i64,
+        )?;
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableParentAddPetitions),
+        )?;
+
+        Ok(())
+    }
+
+    /// `_repository_pend_tag_sibling( service_id, account_id, bad_master_tag_id, good_master_tag_id, reason_id )`
+    pub fn repository_pend_tag_sibling(
+        &self,
+        service_id: i64,
+        account_id: i64,
+        bad_master_tag_id: i64,
+        good_master_tag_id: i64,
+        reason_id: i64,
+    ) -> HydrusResult<()> {
+        let (current_siblings, _, pending_siblings, _) =
+            generate_repository_tag_siblings_table_names(service_id);
+
+        if self.repository_service_tag_id_exists(service_id, bad_master_tag_id)?
+            && self.repository_service_tag_id_exists(service_id, good_master_tag_id)?
+        {
+            let timestamp = hydrus_time::get_now();
+            let bad_service_tag_id = self.repository_get_service_tag_id(
+                service_id,
+                bad_master_tag_id,
+                timestamp,
+            )?;
+            let good_service_tag_id = self.repository_get_service_tag_id(
+                service_id,
+                good_master_tag_id,
+                timestamp,
+            )?;
+            let db = self.db.db_base()?;
+
+            if db
+                .query_one(
+                    &format!(
+                        "SELECT 1 FROM {current_siblings} WHERE bad_service_tag_id = ? AND good_service_tag_id = ?;"
+                    ),
+                    &[&bad_service_tag_id, &good_service_tag_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .is_some()
+            {
+                return Ok(());
+            }
+        }
+
+        let db = self.db.db_base()?;
+        let deleted = db.execute(
+            &format!(
+                "DELETE FROM {pending_siblings} WHERE bad_master_tag_id = ? AND good_master_tag_id = ? AND account_id = ?;"
+            ),
+            &[&bad_master_tag_id, &good_master_tag_id, &account_id],
+        )?;
+        let added = db.execute(
+            &format!(
+                "INSERT OR IGNORE INTO {pending_siblings} ( bad_master_tag_id, good_master_tag_id, account_id, reason_id ) VALUES ( ?, ?, ?, ? );"
+            ),
+            &[
+                &bad_master_tag_id,
+                &good_master_tag_id,
+                &account_id,
+                &reason_id,
+            ],
+        )?;
+
+        self.update_service_info(
+            service_id,
+            ServiceInfoType::NumPendingTagSiblings,
+            added as i64 - deleted as i64,
+        )?;
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableSiblingAddPetitions),
+        )?;
+
+        Ok(())
+    }
+
+    /// `_repository_petition_tag_parent( service_id, account_id, child_service_tag_id, parent_service_tag_id, reason_id )`
+    pub fn repository_petition_tag_parent(
+        &self,
+        service_id: i64,
+        account_id: i64,
+        child_service_tag_id: i64,
+        parent_service_tag_id: i64,
+        reason_id: i64,
+    ) -> HydrusResult<()> {
+        let (current_parents, _, _, petitioned_parents) =
+            generate_repository_tag_parents_table_names(service_id);
+        let db = self.db.db_base()?;
+
+        if db
+            .query_one(
+                &format!(
+                    "SELECT 1 FROM {current_parents} WHERE child_service_tag_id = ? AND parent_service_tag_id = ?;"
+                ),
+                &[&child_service_tag_id, &parent_service_tag_id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .is_none()
+        {
+            return Ok(());
+        }
+
+        let deleted = db.execute(
+            &format!(
+                "DELETE FROM {petitioned_parents} WHERE child_service_tag_id = ? AND parent_service_tag_id = ? AND account_id = ?;"
+            ),
+            &[&child_service_tag_id, &parent_service_tag_id, &account_id],
+        )?;
+        let added = db.execute(
+            &format!(
+                "INSERT OR IGNORE INTO {petitioned_parents} ( child_service_tag_id, parent_service_tag_id, account_id, reason_id ) VALUES ( ?, ?, ?, ? );"
+            ),
+            &[
+                &child_service_tag_id,
+                &parent_service_tag_id,
+                &account_id,
+                &reason_id,
+            ],
+        )?;
+
+        self.update_service_info(
+            service_id,
+            ServiceInfoType::NumPetitionedTagParents,
+            added as i64 - deleted as i64,
+        )?;
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableParentDeletePetitions),
+        )?;
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableParentAddPetitions),
+        )?;
+
+        Ok(())
+    }
+
+    /// `_repository_petition_tag_sibling( service_id, account_id, bad_service_tag_id, good_service_tag_id, reason_id )`
+    pub fn repository_petition_tag_sibling(
+        &self,
+        service_id: i64,
+        account_id: i64,
+        bad_service_tag_id: i64,
+        good_service_tag_id: i64,
+        reason_id: i64,
+    ) -> HydrusResult<()> {
+        let (current_siblings, _, _, petitioned_siblings) =
+            generate_repository_tag_siblings_table_names(service_id);
+        let db = self.db.db_base()?;
+
+        if db
+            .query_one(
+                &format!(
+                    "SELECT 1 FROM {current_siblings} WHERE bad_service_tag_id = ? AND good_service_tag_id = ?;"
+                ),
+                &[&bad_service_tag_id, &good_service_tag_id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .is_none()
+        {
+            return Ok(());
+        }
+
+        let deleted = db.execute(
+            &format!(
+                "DELETE FROM {petitioned_siblings} WHERE bad_service_tag_id = ? AND good_service_tag_id = ? AND account_id = ?;"
+            ),
+            &[&bad_service_tag_id, &good_service_tag_id, &account_id],
+        )?;
+        let added = db.execute(
+            &format!(
+                "INSERT OR IGNORE INTO {petitioned_siblings} ( bad_service_tag_id, good_service_tag_id, account_id, reason_id ) VALUES ( ?, ?, ?, ? );"
+            ),
+            &[
+                &bad_service_tag_id,
+                &good_service_tag_id,
+                &account_id,
+                &reason_id,
+            ],
+        )?;
+
+        self.update_service_info(
+            service_id,
+            ServiceInfoType::NumPetitionedTagSiblings,
+            added as i64 - deleted as i64,
+        )?;
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableSiblingDeletePetitions),
+        )?;
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableSiblingAddPetitions),
+        )?;
+
+        Ok(())
+    }
+
+    /// `_repository_deny_tag_parent_pend`
+    pub fn repository_deny_tag_parent_pend(
+        &self,
+        service_id: i64,
+        child_master_tag_id: i64,
+        parent_master_tag_id: i64,
+    ) -> HydrusResult<()> {
+        let (_, _, pending_parents, _) =
+            generate_repository_tag_parents_table_names(service_id);
+        let deleted = self.db.db_base()?.execute(
+            &format!(
+                "DELETE FROM {pending_parents} WHERE child_master_tag_id = ? AND parent_master_tag_id = ?;"
+            ),
+            &[&child_master_tag_id, &parent_master_tag_id],
+        )?;
+
+        if deleted > 0 {
+            self.update_service_info(
+                service_id,
+                ServiceInfoType::NumPendingTagParents,
+                -(deleted as i64),
+            )?;
+        }
+
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableParentAddPetitions),
+        )?;
+
+        Ok(())
+    }
+
+    /// `_repository_deny_tag_parent_petition`
+    pub fn repository_deny_tag_parent_petition(
+        &self,
+        service_id: i64,
+        child_service_tag_id: i64,
+        parent_service_tag_id: i64,
+    ) -> HydrusResult<()> {
+        let (_, _, _, petitioned_parents) =
+            generate_repository_tag_parents_table_names(service_id);
+        let deleted = self.db.db_base()?.execute(
+            &format!(
+                "DELETE FROM {petitioned_parents} WHERE child_service_tag_id = ? AND parent_service_tag_id = ?;"
+            ),
+            &[&child_service_tag_id, &parent_service_tag_id],
+        )?;
+
+        if deleted > 0 {
+            self.update_service_info(
+                service_id,
+                ServiceInfoType::NumPetitionedTagParents,
+                -(deleted as i64),
+            )?;
+        }
+
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableParentDeletePetitions),
+        )?;
+
+        Ok(())
+    }
+
+    /// `_repository_deny_tag_sibling_pend`
+    pub fn repository_deny_tag_sibling_pend(
+        &self,
+        service_id: i64,
+        bad_master_tag_id: i64,
+        good_master_tag_id: i64,
+    ) -> HydrusResult<()> {
+        let (_, _, pending_siblings, _) =
+            generate_repository_tag_siblings_table_names(service_id);
+        let deleted = self.db.db_base()?.execute(
+            &format!(
+                "DELETE FROM {pending_siblings} WHERE bad_master_tag_id = ? AND good_master_tag_id = ?;"
+            ),
+            &[&bad_master_tag_id, &good_master_tag_id],
+        )?;
+
+        if deleted > 0 {
+            self.update_service_info(
+                service_id,
+                ServiceInfoType::NumPendingTagSiblings,
+                -(deleted as i64),
+            )?;
+        }
+
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableSiblingAddPetitions),
+        )?;
+
+        Ok(())
+    }
+
+    /// `_repository_deny_tag_sibling_petition`
+    pub fn repository_deny_tag_sibling_petition(
+        &self,
+        service_id: i64,
+        bad_service_tag_id: i64,
+        good_service_tag_id: i64,
+    ) -> HydrusResult<()> {
+        let (_, _, _, petitioned_siblings) =
+            generate_repository_tag_siblings_table_names(service_id);
+        let deleted = self.db.db_base()?.execute(
+            &format!(
+                "DELETE FROM {petitioned_siblings} WHERE bad_service_tag_id = ? AND good_service_tag_id = ?;"
+            ),
+            &[&bad_service_tag_id, &good_service_tag_id],
+        )?;
+
+        if deleted > 0 {
+            self.update_service_info(
+                service_id,
+                ServiceInfoType::NumPetitionedTagSiblings,
+                -(deleted as i64),
+            )?;
+        }
+
+        self.regenerate_service_info(
+            Some(service_id),
+            Some(ServiceInfoType::NumActionableSiblingDeletePetitions),
+        )?;
 
         Ok(())
     }
@@ -3717,6 +4149,85 @@ mod tests {
             db.get_service_info_specific(service_id, ServiceInfoType::NumDeletedTagSiblings)
                 .unwrap(),
             1
+        );
+    }
+
+    #[test]
+    fn tag_parent_pending_and_petition_flows_are_counted_and_denied() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+        let (service_id, _service_key) = create_tag_repository(&db, "tag petitions");
+        let timestamp = hydrus_time::get_now();
+
+        let child_id = db.get_master_tag_id("pending child").unwrap();
+        let parent_id = db.get_master_tag_id("pending parent").unwrap();
+        let reason_id = db.get_reason_id("test reason").unwrap();
+
+        db.repository_pend_tag_parent(service_id, 1, child_id, parent_id, reason_id)
+            .unwrap();
+
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumPendingTagParents)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.get_service_info_specific(
+                service_id,
+                ServiceInfoType::NumActionableParentAddPetitions
+            )
+            .unwrap(),
+            1
+        );
+
+        db.repository_deny_tag_parent_pend(service_id, child_id, parent_id)
+            .unwrap();
+
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumPendingTagParents)
+                .unwrap(),
+            0
+        );
+
+        db.repository_add_tag_parent(service_id, 1, child_id, parent_id, false, timestamp)
+            .unwrap();
+        db.get_service_info_specific(service_id, ServiceInfoType::NumTagParents)
+            .unwrap();
+        db.regenerate_service_info(Some(service_id), None).unwrap();
+
+        let child_service_tag_id = db
+            .repository_get_service_tag_id(service_id, child_id, timestamp)
+            .unwrap();
+        let parent_service_tag_id = db
+            .repository_get_service_tag_id(service_id, parent_id, timestamp)
+            .unwrap();
+
+        db.repository_petition_tag_parent(
+            service_id,
+            1,
+            child_service_tag_id,
+            parent_service_tag_id,
+            reason_id,
+        )
+        .unwrap();
+
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumPetitionedTagParents)
+                .unwrap(),
+            1
+        );
+
+        db.repository_deny_tag_parent_petition(
+            service_id,
+            child_service_tag_id,
+            parent_service_tag_id,
+        )
+        .unwrap();
+
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumPetitionedTagParents)
+                .unwrap(),
+            0
         );
     }
 

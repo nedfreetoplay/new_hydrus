@@ -2,7 +2,8 @@
 //!
 //! Python asks `HG.controller` for the hydrus temp dir. The controller lives
 //! above this crate, so the port stores the path in a process-global and
-//! exposes [`set_hydrus_temp_dir`] for boot code to call.
+//! exposes [`set_hydrus_temp_dir`] for boot code to call. Unit-test builds use
+//! a thread-local override instead so tests can run in parallel.
 //!
 //! `tempfile.mkstemp` returns `(fd, path)`. The Rust equivalent returns an open
 //! [`std::fs::File`] alongside the path; dropping the file closes it.
@@ -13,11 +14,24 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[cfg(test)]
+use std::cell::RefCell;
+
 use crate::hydrus_constants::PLATFORM_WINDOWS;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::hydrus_time::{get_now, time_has_passed};
 
 static HYDROS_TEMP_DIR: OnceLock<Mutex<Option<PathBuf>>> = OnceLock::new();
+
+// Unit tests run concurrently in one process, so they must not share the
+// process-global temp dir: a test that deletes its temp dir would otherwise
+// pull the rug out from under every other test. In test builds
+// `set_hydrus_temp_dir` writes a thread-local override instead, which keeps
+// each test's temp dir private. See `set_hydrus_temp_dir`.
+#[cfg(test)]
+thread_local! {
+    static TEST_HYDROS_TEMP_DIR: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
+}
 
 static TEMP_PATH_LOCK: Mutex<()> = Mutex::new(());
 
@@ -41,15 +55,31 @@ fn temp_error(message: impl Into<String>) -> HydrusException {
 }
 
 /// Set the hydrus working temp dir, normally called during boot.
+///
+/// In unit-test builds this writes a thread-local override rather than the
+/// process-global, so parallel tests each get their own temp dir.
 pub fn set_hydrus_temp_dir(path: impl Into<PathBuf>) {
-    *HYDROS_TEMP_DIR
-        .get_or_init(|| Mutex::new(None))
-        .lock()
-        .unwrap() = Some(path.into());
+    let path = path.into();
+
+    #[cfg(test)]
+    TEST_HYDROS_TEMP_DIR.with(|temp_dir| *temp_dir.borrow_mut() = Some(path));
+
+    #[cfg(not(test))]
+    {
+        *HYDROS_TEMP_DIR
+            .get_or_init(|| Mutex::new(None))
+            .lock()
+            .unwrap() = Some(path);
+    }
 }
 
 /// The hydrus working temp dir, or the OS temp dir if boot has not set one.
 pub fn get_hydrus_temp_dir() -> PathBuf {
+    #[cfg(test)]
+    if let Some(path) = TEST_HYDROS_TEMP_DIR.with(|temp_dir| temp_dir.borrow().clone()) {
+        return path;
+    }
+
     HYDROS_TEMP_DIR
         .get_or_init(|| Mutex::new(None))
         .lock()
@@ -239,14 +269,8 @@ pub fn clean_up_old_temp_paths() {
 mod tests {
     use super::*;
 
-    // The hydrus temp dir is process-global, so tests that change or depend on
-    // it must not run concurrently.
-    static TEMP_DIR_TEST_LOCK: Mutex<()> = Mutex::new(());
-
     #[test]
     fn temp_dirs_are_unique() {
-        let _guard = TEMP_DIR_TEST_LOCK.lock().unwrap();
-
         let first = get_sub_temp_dir("hydrus-test").unwrap();
         let second = get_sub_temp_dir("hydrus-test").unwrap();
 
@@ -260,8 +284,6 @@ mod tests {
 
     #[test]
     fn temp_files_are_created_and_removable() {
-        let _guard = TEMP_DIR_TEST_LOCK.lock().unwrap();
-
         let (file, path) = get_temp_path("hydrus-test", ".txt", None).unwrap();
 
         assert!(path.exists());
@@ -292,8 +314,6 @@ mod tests {
 
     #[test]
     fn hydrus_temp_dir_round_trip() {
-        let _guard = TEMP_DIR_TEST_LOCK.lock().unwrap();
-
         let original = get_hydrus_temp_dir();
         let path = get_sub_temp_dir("hydrus-tempdir-test").unwrap();
 

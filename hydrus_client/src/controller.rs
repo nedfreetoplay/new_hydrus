@@ -13,23 +13,30 @@ use hydrus_core::hydrus_serialisable::SerialisableObject;
 use crate::client_globals::ClientControllerHandle;
 use crate::client_options::ClientOptions;
 use crate::db::{ClientDB, services};
+use crate::gui::pages::{Page, PageType, PagesNotebook};
+use crate::gui::session::GuiSession;
 
 const OPTIONS_NAME: &str = "client options";
+const SESSION_FILENAME: &str = "gui session.json";
 
 pub struct Controller {
     db_dir: PathBuf,
     db: ClientDB,
     options: RwLock<ClientOptions>,
+    session: RwLock<GuiSession>,
 }
 
 impl Controller {
     pub fn new(db_dir: impl AsRef<Path>) -> HydrusResult<Self> {
         let db_dir = db_dir.as_ref().to_path_buf();
+        let session = GuiSession::load_from_path(db_dir.join(SESSION_FILENAME))
+            .unwrap_or_else(|_| default_session());
 
         Ok(Self {
             db: ClientDB::new(&db_dir)?,
             db_dir,
             options: RwLock::new(ClientOptions::new()),
+            session: RwLock::new(session),
         })
     }
 
@@ -112,7 +119,30 @@ impl Controller {
         let options = self.options.read().unwrap();
 
         self.db
-            .set_serialisable(OPTIONS_NAME, &*options as &dyn SerialisableObject)
+            .set_serialisable(OPTIONS_NAME, &*options as &dyn SerialisableObject)?;
+
+        let session = self.session.read().unwrap();
+
+        session
+            .save_to_path(self.db_dir.join(SESSION_FILENAME))
+            .map_err(|error| {
+                hydrus_core::hydrus_exceptions::HydrusException::new(
+                    hydrus_core::hydrus_exceptions::ErrorKind::FileMissing,
+                    error.to_string(),
+                )
+            })
+    }
+
+    pub fn session(&self) -> GuiSession {
+        self.session.read().unwrap().clone()
+    }
+
+    pub fn set_session(&self, session: GuiSession) {
+        *self.session.write().unwrap() = session;
+    }
+
+    pub fn session_path(&self) -> PathBuf {
+        self.db_dir.join(SESSION_FILENAME)
     }
 
     pub fn install_global(self: &Arc<Self>) -> bool {
@@ -120,8 +150,14 @@ impl Controller {
     }
 }
 
-impl ClientControllerHandle for Controller {
-    fn publish_message(&self, message: &str) {
+fn default_session() -> GuiSession {
+    let mut notebook = PagesNotebook::new();
+    notebook.add_page(Page::new("Welcome", PageType::Search));
+
+    GuiSession::from_notebook(&notebook)
+}
+
+impl ClientControllerHandle for Controller {    fn publish_message(&self, message: &str) {
         if let Some(logger) = crate::client_boot::logger() {
             logger.write(message);
             logger.write("\n");
@@ -158,15 +194,16 @@ mod tests {
         assert!(services.iter().any(|service| service.name == "my files"));
         assert!(services.iter().any(|service| service.name == "local tags"));
         assert!(!controller.options().get_boolean("advanced_mode"));
-        assert!(controller.status_line().contains("services"));
+        assert_eq!(controller.status_line().contains("services"), true);
+        assert_eq!(controller.session().pages.len(), 1);
+        assert_eq!(controller.session().pages[0].name, "Welcome");
 
         drop(controller);
         let _ = std::fs::remove_dir_all(directory);
     }
 
     #[test]
-    fn options_are_saved_and_reloaded() {
-        let (controller, directory) = temporary_controller();
+    fn options_are_saved_and_reloaded() {        let (controller, directory) = temporary_controller();
 
         {
             let mut options = controller.options.write().unwrap();
@@ -179,6 +216,25 @@ mod tests {
         reloaded.init_model().unwrap();
 
         assert!(reloaded.options().get_boolean("advanced_mode"));
+
+        drop(reloaded);
+        drop(controller);
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn session_is_saved_and_restored() {
+        let (controller, directory) = temporary_controller();
+
+        let mut notebook = PagesNotebook::new();
+        notebook.add_page(Page::new("files", PageType::Import));
+        controller.set_session(GuiSession::from_notebook(&notebook));
+        controller.save().unwrap();
+
+        let reloaded = Controller::new(&directory).unwrap();
+
+        assert_eq!(reloaded.session().pages.len(), 1);
+        assert_eq!(reloaded.session().pages[0].name, "files");
 
         drop(reloaded);
         drop(controller);

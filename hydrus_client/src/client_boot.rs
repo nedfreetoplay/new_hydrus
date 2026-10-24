@@ -18,6 +18,8 @@ pub fn boot() -> HydrusResult<()> {
     hydrus_core::initialise();
     hydrus_core::files::hydrus_file_handling::initialise_mimes_to_default_thumbnail_paths();
     crate::client_options::register_serialisable_type();
+    crate::client_location::register_serialisable_type();
+    crate::search::register_serialisable_types();
 
     let logger = HydrusLogger::new(db_dir, "client")?;
     let _ = LOGGER.set(logger);

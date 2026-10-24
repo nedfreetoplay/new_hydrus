@@ -200,15 +200,15 @@ impl Predicate {
                     .join(" or ");
                 format!("OR: {inner}")
             }
+            (PREDICATE_TYPE_SYSTEM_LIMIT, PredicateValue::Number(number_test)) => {
+                format!("limit {}", number_test.value as i64)
+            }
             (predicate_type, PredicateValue::Number(number_test)) => {
                 format!(
                     "{} {}",
                     predicate_type_string(predicate_type),
                     number_test.to_string()
                 )
-            }
-            (PREDICATE_TYPE_SYSTEM_LIMIT, PredicateValue::Number(number_test)) => {
-                format!("limit {}", number_test.value as i64)
             }
             (PREDICATE_TYPE_SYSTEM_MIME, PredicateValue::Numbers(mimes)) => {
                 let names = mimes

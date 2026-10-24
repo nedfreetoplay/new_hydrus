@@ -98,7 +98,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 ## 7. База данных
 
-- [ ] `ClientDBModule` — базовый trait/структура поверх `hydrus_core::DBModule`.
+- [x] `ClientDBModule` — базовый trait/структура поверх `hydrus_core::DBModule`.
 - [x] `ClientDBMaster` — hashes/namespaces/subtags/tags/texts/notes/urls/url_domains.
   Портированы hashes, namespaces/subtags/tags; texts/notes/urls — через отдельные модули.
 - [x] `ClientDBServices` — services/service_info.

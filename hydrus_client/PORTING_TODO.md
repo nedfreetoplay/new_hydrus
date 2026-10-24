@@ -65,7 +65,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 - [x] `ClientNumberTest` — `NumberTest`, `NumberTestCollect`, парсинг/сравнение.
 - [x] `ClientSearchPredicate` — `Predicate`, `SystemPredicate`, сериализация, `ToString`.
-- [ ] `ClientSearchTagContext` — контекст тегов и сервисов.
+- [x] `ClientSearchTagContext` — контекст тегов и сервисов.
 - [ ] `ClientSearchFileSearchContext` — `FileSearchContext`, системные предикаты.
 - [ ] `ClientSearchAutocomplete` — autocomplete-теги и сортировка.
 - [ ] `ClientSearchParseSystemPredicates` — мост к `hydrus_external`.

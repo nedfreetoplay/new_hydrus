@@ -115,6 +115,8 @@ pub const COMBINED_LOCAL_FILE_DOMAINS_SERVICE_KEY: &[u8] = b"all local media";
 pub const HYDRUS_LOCAL_FILE_STORAGE_SERVICE_KEY: &[u8] = b"all local files";
 pub const COMBINED_FILE_SERVICE_KEY: &[u8] = b"all known files";
 pub const COMBINED_DELETED_FILE_SERVICE_KEY: &[u8] = b"all deleted files";
+pub const COMBINED_TAG_SERVICE_KEY: &[u8] = b"all known tags";
+pub const DEFAULT_LOCAL_TAG_SERVICE_KEY: &[u8] = b"local tags";
 
 pub const MEDIA_VIEWER_ACTION_SHOW_WITH_NATIVE: i32 = 0;
 pub const MEDIA_VIEWER_ACTION_SHOW_WITH_NATIVE_PAUSED: i32 = 1;

@@ -59,7 +59,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientRatings` — `Rating`, `RatingsManager`, числовые/лайк-рейтинги.
 - [x] `ClientContentUpdates` — `ContentUpdate`, `ContentUpdatePackage`, слияние.
 - [x] `ClientMetadataConditional` — условные правила метаданных.
-- [ ] `ClientFileMigration`/`ClientMetadataMigration*` — маршрутизация метаданных.
+- [~] `ClientFileMigration`/`ClientMetadataMigration*` — маршрутизация метаданных.
+  Портирована генерация content updates для move/duplicate; metadata routers дальше.
 
 ## 4. Поиск
 

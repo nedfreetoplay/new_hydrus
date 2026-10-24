@@ -1,10 +1,12 @@
 pub mod client_content_updates;
+pub mod client_file_migration;
 pub mod client_metadata_conditional;
 pub mod client_ratings;
 pub mod client_tag_sorting;
 pub mod client_tags;
 
 pub use client_content_updates::{ContentAction, ContentUpdate, ContentUpdatePackage};
+pub use client_file_migration::{MoveAction, build_local_file_migration_package};
 pub use client_metadata_conditional::MetadataConditional;
 pub use client_ratings::{Rating, RatingsManager};
 pub use client_tag_sorting::TagSort;

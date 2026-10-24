@@ -1,8 +1,6 @@
 //! System predicate table section.
 
-use crate::system_predicate_parser::types::{
-    OperatorKind as O, Predicate as P, UnitKind as U, ValueKind as V,
-};
+use crate::system_predicate_parser::types::Predicate as P;
 
 use super::spec;
 

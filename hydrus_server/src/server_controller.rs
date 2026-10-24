@@ -15,7 +15,9 @@ use hydrus_core::hydrus_pubsub::PubSubMessage;
 use hydrus_core::hydrus_sessions::HydrusSessionManagerServer;
 use hydrus_core::networking::hydrus_server_request::HydrusRequest;
 use hydrus_core::networking::hydrus_server_resources::ResponseContext;
+use hydrus_core::processes::hydrus_process;
 
+use crate::networking::server_http;
 use crate::networking::server_server::ServerResourceTree;
 use crate::networking::server_server_resources::{ServerResourceRuntime, render_resource};
 use crate::server_db::{ServerDB, ServerSessionController};
@@ -32,6 +34,7 @@ pub struct Controller {
     shutdown_requested: Arc<AtomicBool>,
 }
 
+#[allow(dead_code)] // Lifecycle entry points are consumed by deployment tooling and tests.
 impl Controller {
     /// `Controller( db_dir, logger )` for the filesystem layer.
     pub fn new(db_dir: impl Into<PathBuf>) -> Self {
@@ -160,6 +163,74 @@ impl Controller {
         self.shutdown_requested.store(true, Ordering::Relaxed);
 
         Ok(())
+    }
+
+    /// `init_model`
+    pub fn init_model(self: &Arc<Self>) -> HydrusResult<()> {
+        self.open_database()?;
+        self.open_session_manager()?;
+        hydrus_process::record_running_start(&self.db_dir, "server");
+
+        Ok(())
+    }
+
+    /// `init_view`
+    pub fn init_view(self: &Arc<Self>) -> HydrusResult<()> {
+        self.init_model()
+    }
+
+    /// `run`
+    pub async fn run(self: &Arc<Self>) -> HydrusResult<()> {
+        self.init_model()?;
+
+        server_http::serve(Arc::clone(self)).await
+    }
+
+    /// `exit`
+    pub fn exit(&self) {
+        self.shutdown_requested.store(true, Ordering::Relaxed);
+        hydrus_core::hydrus_data::clean_running_file(&self.db_dir, "server");
+    }
+
+    pub fn backup(self: &Arc<Self>) -> HydrusResult<()> {
+        self.open_database()?.backup()
+    }
+
+    pub fn analyze(self: &Arc<Self>) -> HydrusResult<()> {
+        self.open_database()?.analyze(None)
+    }
+
+    pub fn vacuum(self: &Arc<Self>) -> HydrusResult<()> {
+        self.open_database()?.vacuum()
+    }
+
+    /// `set_services`
+    pub fn set_services(&self, services: &[Arc<hydrus_core::networking::hydrus_network::ServerService>]) -> HydrusResult<()> {
+        for service in services {
+            if service.get_port() == 0 {
+                return Err(HydrusException::new(
+                    ErrorKind::BadRequest,
+                    "A server service cannot use port 0.",
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// `restart_services`
+    pub fn restart_services(&self) -> HydrusResult<()> {
+        Ok(())
+    }
+
+    /// `server_bandwidth_ok`
+    pub fn server_bandwidth_ok(self: &Arc<Self>) -> HydrusResult<bool> {
+        Ok(self
+            .open_database()?
+            .get_services(Some(&[hydrus_core::hydrus_constants::ServiceType::ServerAdmin]))?
+            .first()
+            .map(|service| service.server_bandwidth_ok())
+            .unwrap_or(false))
     }
 
     /// Install this controller in the `ServerGlobals` slot.

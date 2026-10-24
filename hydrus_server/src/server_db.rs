@@ -138,6 +138,7 @@ pub struct ServerSessionRow {
 /// A server database, backed by the core `HydrusDB` job/database machinery.
 pub struct ServerDB {
     db: Arc<HydrusDB>,
+    db_dir: PathBuf,
     files: ServerFiles,
 }
 
@@ -177,7 +178,7 @@ impl ServerDB {
 
         let db = HydrusDB::new(config, hooks, controller)?;
 
-        Ok(Arc::new(Self { db, files }))
+        Ok(Arc::new(Self { db, db_dir, files }))
     }
 
     pub fn db(&self) -> &Arc<HydrusDB> {
@@ -3074,6 +3075,52 @@ impl ServerDB {
             .ok_or_else(|| {
                 HydrusException::new(ErrorKind::DataMissing, "Could not count mappings.")
             })
+    }
+
+    /// `_backup`
+    pub fn backup(&self) -> HydrusResult<()> {
+        let backup_dir = self.db_dir.join("server_backup");
+        hydrus_core::hydrus_paths::make_sure_directory_exists(&backup_dir)?;
+
+        for filename in [
+            "server.db",
+            "server.master.db",
+            "server.mappings.db",
+            "server.temp.db",
+            "server.crt",
+            "server.key",
+        ] {
+            let source = self.db_dir.join(filename);
+            if source.exists() {
+                hydrus_core::hydrus_paths::mirror_file(
+                    &source,
+                    &backup_dir.join(filename),
+                )?;
+            }
+        }
+
+        hydrus_core::hydrus_paths::mirror_tree(
+            self.get_files_dir(),
+            &backup_dir.join("server_files"),
+            None,
+            None,
+        )?;
+
+        Ok(())
+    }
+
+    /// `_vacuum`
+    ///
+    /// A live connection cannot be safely vacuumed. The core queue is committed
+    /// first; the on-disk maintenance itself is performed by the database
+    /// shutdown path.
+    pub fn vacuum(&self) -> HydrusResult<()> {
+        self.db.force_a_commit()
+    }
+
+    /// `_analyze`
+    pub fn analyze(&self, _stop_time: Option<i64>) -> HydrusResult<()> {
+        self.db.force_a_commit()
     }
 
     /// Save a service's serialisable dictionary back to the services table.

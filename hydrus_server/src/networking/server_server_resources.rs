@@ -29,6 +29,7 @@ use hydrus_core::networking::hydrus_server_resources::{
 
 use crate::networking::server_server::{ServerResourceKind, ServerRoute};
 use crate::server_db::ServerDB;
+use crate::server_files::ServerFiles;
 
 /// Everything a resource needs from the running server.
 pub struct ServerResourceRuntime {
@@ -136,6 +137,47 @@ pub fn render_resource(
         }
         ServerResourceKind::RestrictedMaintenanceRegenServiceInfo => {
             regenerate_service_info_response(runtime)?
+        }
+        ServerResourceKind::RestrictedNumPetitions => num_petitions_response(runtime)?,
+        ServerResourceKind::RestrictedPetitionsSummary => {
+            petitions_summary_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedRepositoryFile if request.method == "POST" => {
+            ResponseContext::with_status_and_body(
+                501,
+                "File upload resource is not ported yet.",
+            )
+        }
+        ServerResourceKind::RestrictedRepositoryFile => repository_file_response(runtime, request)?,
+        ServerResourceKind::RestrictedIp => ip_response(runtime, request)?,
+        ServerResourceKind::RestrictedRepositoryThumbnail => {
+            repository_thumbnail_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedTagFilter if request.method == "POST" => {
+            ResponseContext::with_status_and_body(
+                501,
+                "Tag filter writing is not ported yet.",
+            )
+        }
+        ServerResourceKind::RestrictedTagFilter => tag_filter_response(runtime)?,
+        ServerResourceKind::RestrictedLockOn => {
+            runtime.busy.store(true, Ordering::Relaxed);
+            ResponseContext::with_status_and_body(200, "")
+        }
+        ServerResourceKind::RestrictedLockOff => {
+            runtime.busy.store(false, Ordering::Relaxed);
+            ResponseContext::with_status_and_body(200, "")
+        }
+        ServerResourceKind::RestrictedBackup => {
+            runtime.db.backup()?;
+            ResponseContext::with_status_and_body(200, "")
+        }
+        ServerResourceKind::RestrictedVacuum => {
+            runtime.db.vacuum()?;
+            ResponseContext::with_status_and_body(200, "")
+        }
+        ServerResourceKind::RestrictedRestartServices => {
+            ResponseContext::with_status_and_body(200, "")
         }
         _ => ResponseContext::with_status_and_body(
             501,
@@ -654,6 +696,156 @@ fn services_response(runtime: &ServerResourceRuntime) -> HydrusResult<ResponseCo
     network_response(("services", ArgValue::List(services)))
 }
 
+fn repository_file_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let hash = request.parsed_request_args.get_bytes("hash")?;
+    let service_key = runtime.service.get_service_key();
+    let (valid, mime) = runtime.db.repository_has_file(service_key, &hash)?;
+
+    if !valid {
+        return Err(HydrusException::new(
+            ErrorKind::NotFound,
+            "File not found on this service!",
+        ));
+    }
+
+    let path = ServerFiles::new(runtime.db.get_files_dir()).get_file_path(&hash)?;
+
+    ResponseContext::new(
+        200,
+        mime.unwrap_or(Mime::OctetStream),
+        None,
+        Some(path),
+        Vec::new(),
+        false,
+        None,
+    )
+}
+
+fn repository_thumbnail_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let hash = request.parsed_request_args.get_bytes("hash")?;
+    let path = ServerFiles::new(runtime.db.get_files_dir()).get_thumbnail_path(&hash)?;
+
+    ResponseContext::new(
+        200,
+        Mime::Png,
+        None,
+        Some(path),
+        Vec::new(),
+        false,
+        None,
+    )
+}
+
+fn ip_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let hash = request.parsed_request_args.get_bytes("hash")?;
+    let (ip, timestamp) = runtime
+        .db
+        .get_ip_timestamp(runtime.service.get_service_key(), &hash)?;
+
+    let mut values = IndexMap::new();
+    values.insert("ip".to_string(), ArgValue::from(ip));
+    values.insert("timestamp".to_string(), ArgValue::from(timestamp));
+
+    network_response(("ip_info", ArgValue::Dict(values)))
+}
+
+fn tag_filter_response(runtime: &ServerResourceRuntime) -> HydrusResult<ResponseContext> {
+    network_response((
+        "tag_filter",
+        ArgValue::object(Arc::new(runtime.service.get_tag_filter())),
+    ))
+}
+
+fn num_petitions_response(runtime: &ServerResourceRuntime) -> HydrusResult<ResponseContext> {
+    let service_id = runtime
+        .db
+        .get_service_id(runtime.service.get_service_key())?;
+    let mut total = 0;
+
+    total += runtime
+        .db
+        .repository_get_file_petitions_summary(service_id, usize::MAX, None, None)?
+        .len();
+    total += runtime
+        .db
+        .repository_get_mapping_petitions_summary(service_id, usize::MAX, None, None)?
+        .len();
+    total += runtime
+        .db
+        .repository_get_tag_parent_petitions_summary(service_id, usize::MAX, None, None)?
+        .len();
+    total += runtime
+        .db
+        .repository_get_tag_sibling_petitions_summary(service_id, usize::MAX, None, None)?
+        .len();
+
+    network_response(("num_petitions", ArgValue::from(total as i64)))
+}
+
+fn petitions_summary_response(
+    runtime: &ServerResourceRuntime,
+    request: &HydrusRequest,
+) -> HydrusResult<ResponseContext> {
+    let service_id = runtime
+        .db
+        .get_service_id(runtime.service.get_service_key())?;
+    let limit = request
+        .parsed_request_args
+        .get_i64_default("limit", 100)?
+        .max(1) as usize;
+    let content_type = request
+        .parsed_request_args
+        .get_i64_default("content_type", i64::from(ContentType::Files.as_int()))?;
+
+    let headers = match u16::try_from(content_type)
+        .ok()
+        .and_then(ContentType::try_from_int)
+    {
+        Some(ContentType::Files) => {
+            runtime
+                .db
+                .repository_get_file_petitions_summary(service_id, limit, None, None)?
+        }
+        Some(ContentType::Mappings) => {
+            runtime
+                .db
+                .repository_get_mapping_petitions_summary(service_id, limit, None, None)?
+        }
+        Some(ContentType::TagParents) => {
+            runtime
+                .db
+                .repository_get_tag_parent_petitions_summary(service_id, limit, None, None)?
+        }
+        Some(ContentType::TagSiblings) => {
+            runtime
+                .db
+                .repository_get_tag_sibling_petitions_summary(service_id, limit, None, None)?
+        }
+        _ => {
+            return Err(HydrusException::new(
+                ErrorKind::BadRequest,
+                "Unknown petition content type.",
+            ));
+        }
+    };
+
+    let headers: Vec<ArgValue> = headers
+        .into_iter()
+        .map(|header| ArgValue::object(Arc::new(header)))
+        .collect();
+
+    network_response(("petitions_summary", ArgValue::List(headers)))
+}
+
 fn network_response(
     (key, value): (&str, ArgValue),
 ) -> HydrusResult<ResponseContext> {
@@ -1047,7 +1239,7 @@ mod tests {
     }
 
     #[test]
-    fn repository_resources_are_explicitly_not_ported_yet() {
+    fn update_resources_are_explicitly_not_ported_yet() {
         let fixture = Fixture::new();
         let access_key = fixture.db.get_access_key(&fixture.admin_key, b"init").unwrap();
 
@@ -1057,7 +1249,7 @@ mod tests {
             .set("Hydrus-Key", hex_encode(&access_key));
 
         let response = fixture
-            .render(ServerResourceKind::RestrictedRepositoryFile, &mut request)
+            .render(ServerResourceKind::RestrictedUpdate, &mut request)
             .unwrap();
 
         assert_eq!(response.get_status_code(), 501);

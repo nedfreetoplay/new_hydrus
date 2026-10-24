@@ -18,7 +18,6 @@ use hydrus_core::hydrus_constants::ServiceType;
 use hydrus_core::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use hydrus_core::networking::hydrus_server_request::HydrusRequest;
 
-use networking::server_http;
 use networking::server_server::ServerResourceTree;
 use server_controller::Controller;
 
@@ -92,7 +91,7 @@ async fn run() -> HydrusResult<()> {
         String::from_utf8_lossy(busy_response.get_body_bytes().unwrap_or_default())
     );
 
-    server_http::serve(controller).await
+    controller.run().await
 }
 
 fn server_db_dir() -> PathBuf {

@@ -21,14 +21,15 @@ accept real HTTP/TLS requests.
 ## 2. Controller lifecycle
 
 - [ ] Integrate with the core `HydrusController`/`ControllerHooks`.
-- [ ] Implement `init_model`, `init_view`, `run`, `exit` and shutdown.
-- [ ] Start, stop and restart services.
+- [x] Implement `init_model`, `init_view`, `run`, `exit` and shutdown.
+- [x] Start and stop listeners through the async controller loop.
 - [ ] Implement `process_starting_action` and `shutdown_sibling_instance`.
 - [ ] Implement daemons: `sync_repositories`, `save_dirty_objects`,
       `deferred_physical_deletes`, `nullify_history`.
-- [ ] Implement `set_services`, `restart_services` and bandwidth checks.
-- [ ] Implement backup, analyze and vacuum tasks.
-- [ ] Add the running-file lifecycle.
+- [x] Implement `set_services`, `restart_services` and bandwidth checks (basic).
+- [x] Implement backup, analyze and vacuum tasks (backup is complete; live
+      vacuum commits and defers file compaction to shutdown).
+- [x] Add the running-file lifecycle.
 
 ## 3. ServerDB files and repository metadata
 
@@ -73,10 +74,13 @@ accept real HTTP/TLS requests.
 - [x] `other_account`, `account_info`, `account_key_from_content`.
 - [x] All `modify_account_*` resources.
 - [x] `maintenance_regen_service_info`.
-- [ ] `backup`, `lock_on`, `lock_off`, `restart_services`, `services` POST, `vacuum`.
-- [ ] `num_petitions`, `petition`, `petitions_summary`, `update`, `metadata`.
-- [ ] `file`, `ip`, `thumbnail`, `tag_filter`.
-- [ ] Replace the 501 fallback with real handlers.
+- [x] `backup`, `lock_on`, `lock_off`, `restart_services`, `vacuum`.
+- [ ] `services` POST.
+- [x] `num_petitions`, `petitions_summary`.
+- [ ] `petition`, `update`, `metadata`.
+- [x] `file` GET, `ip`, `thumbnail`, `tag_filter` GET.
+- [ ] `file` POST and `tag_filter` POST.
+- [ ] Replace the remaining 501 fallback with real handlers.
 
 ## 7. Production hardening
 

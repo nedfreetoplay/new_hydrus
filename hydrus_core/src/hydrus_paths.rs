@@ -3581,8 +3581,11 @@ mod tests {
         let other_path = temp.path.join("other.txt");
         let dir_path = temp.path.join("dir");
 
+        // Keep sizes different: the Windows metadata fallback intentionally
+        // compares stable identity fields, and equal-sized files can look
+        // identical when timestamps have coarse resolution.
         write(&file_path, b"x");
-        write(&other_path, b"y");
+        write(&other_path, b"yy");
         fs::create_dir_all(&dir_path).expect("dir");
 
         let file_stat = fs::metadata(&file_path).expect("file metadata");

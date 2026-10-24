@@ -164,7 +164,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Портирована модель `Page`/`PagesNotebook`; Qt tree view/model дальше.
 - [ ] `ClientGUIMediaResultsPanel`, `ClientGUIMediaResultsPanelThumbnails`.
 - [ ] `ClientGUICanvas*`, `ClientGUIMPV`, `ClientGUIMediaModalActions`.
-- [ ] `ClientGUIPopupMessages`, `ClientGUISubscriptions`, `ClientGUITime`.
+- [~] `ClientGUIPopupMessages`, `ClientGUISubscriptions`, `ClientGUITime`.
+  Портирована очередь popup-сообщений; subscriptions/time-панели дальше.
 - [ ] `ClientGUINetworking*`, `ClientGUILogin`.
 - [ ] `ClientGUIDuplicates*`, `ClientGUIImport*`, `ClientGUIParsing*`.
 - [ ] `panels/options/*` — панели настроек.

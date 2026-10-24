@@ -150,10 +150,8 @@ pub fn command_type_string(command_type: i32) -> &'static str {
 /// Maps command ids to the GUI/controller handlers that consume them.
 #[derive(Default)]
 pub struct ApplicationCommandRouter {
-    handlers: std::collections::BTreeMap<
-        i32,
-        Box<dyn Fn(&ApplicationCommand) -> bool + Send + Sync>,
-    >,
+    handlers:
+        std::collections::BTreeMap<i32, Box<dyn Fn(&ApplicationCommand) -> bool + Send + Sync>>,
 }
 
 impl ApplicationCommandRouter {

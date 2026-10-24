@@ -187,8 +187,10 @@ impl MappingCountsCache {
         current: i64,
         pending: i64,
     ) {
-        self.entries
-            .insert((file_service_id, tag_service_id, tag_id), (current, pending));
+        self.entries.insert(
+            (file_service_id, tag_service_id, tag_id),
+            (current, pending),
+        );
         self.dirty = true;
     }
 
@@ -240,7 +242,8 @@ impl MappingCountsCache {
 }
 
 #[cfg(test)]
-mod tests {    use super::*;
+mod tests {
+    use super::*;
     use crate::db::ClientDB;
     use crate::db::master_tags::get_tag_id;
 

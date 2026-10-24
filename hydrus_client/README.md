@@ -39,9 +39,9 @@ cargo run -p hydrus_client
 поиск, медиа-модель, файлы, БД-слой, сеть (engine на reqwest), импорт/парсинг/дубликаты,
 GUI-модели и Qt-каркас с canvas, PNG-сериализация и восстановление сессии.
 
-Поведение файлового хранилища и URL-кодирования сверено с `hydrus_python/hydrus/test`
-(`TestClientFileStorage.py`, `TestClientNetworking.py`); интеграционный тест
-`python_db_compat` проверяет открытие Python-shaped `client.db`.
+Поведение файлового хранилища, URL-кодирования и системных предикатов сверено с
+`hydrus_python/hydrus/test`; интеграционный тест `python_db_compat` проверяет открытие
+Python-shaped `client.db`. Сейчас проходит 419 unit-тестов и 2 integration-теста.
 
 Остались в основном Qt-виджеты для уже готовых моделей и «глубокие» операции
 импорта/дубликатов; фундамент, сеть, БД и API-сервер уже портированы.

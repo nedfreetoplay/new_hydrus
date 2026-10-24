@@ -218,10 +218,16 @@ pub fn simple_command_name(command_type: i32) -> &'static str {
         SIMPLE_DUPLICATE_FILTER_EXACTLY_THE_SAME => "duplicate filter exactly the same",
         SIMPLE_DUPLICATE_FILTER_FALSE_POSITIVE => "duplicate filter false positive",
         SIMPLE_DUPLICATE_FILTER_SKIP => "duplicate filter skip",
-        SIMPLE_DUPLICATE_FILTER_THIS_IS_BETTER_AND_DELETE_OTHER => "duplicate filter this is better and delete other",
-        SIMPLE_DUPLICATE_FILTER_THIS_IS_BETTER_BUT_KEEP_BOTH => "duplicate filter this is better but keep both",
+        SIMPLE_DUPLICATE_FILTER_THIS_IS_BETTER_AND_DELETE_OTHER => {
+            "duplicate filter this is better and delete other"
+        }
+        SIMPLE_DUPLICATE_FILTER_THIS_IS_BETTER_BUT_KEEP_BOTH => {
+            "duplicate filter this is better but keep both"
+        }
         SIMPLE_DUPLICATE_MEDIA_SET_ALTERNATE => "duplicate media set alternate",
-        SIMPLE_DUPLICATE_MEDIA_SET_ALTERNATE_COLLECTIONS => "duplicate media set alternate collections",
+        SIMPLE_DUPLICATE_MEDIA_SET_ALTERNATE_COLLECTIONS => {
+            "duplicate media set alternate collections"
+        }
         SIMPLE_DUPLICATE_MEDIA_SET_CUSTOM => "duplicate media set custom",
         SIMPLE_DUPLICATE_MEDIA_SET_FOCUSED_BETTER => "duplicate media set focused better",
         SIMPLE_DUPLICATE_MEDIA_SET_FOCUSED_KING => "duplicate media set focused king",
@@ -230,7 +236,9 @@ pub fn simple_command_name(command_type: i32) -> &'static str {
         SIMPLE_EXPORT_FILES => "export files",
         SIMPLE_EXPORT_FILES_QUICK_AUTO_EXPORT => "export files quick auto export",
         SIMPLE_FLIP_DARKMODE => "flip darkmode",
-        SIMPLE_FLIP_DEBUG_FORCE_IDLE_MODE_DO_NOT_SET_THIS => "flip debug force idle mode do not set this",
+        SIMPLE_FLIP_DEBUG_FORCE_IDLE_MODE_DO_NOT_SET_THIS => {
+            "flip debug force idle mode do not set this"
+        }
         SIMPLE_FOCUS_MEDIA_VIEWER => "focus media viewer",
         SIMPLE_GLOBAL_AUDIO_MUTE => "global audio mute",
         SIMPLE_GLOBAL_AUDIO_MUTE_FLIP => "global audio mute flip",
@@ -276,14 +284,22 @@ pub fn simple_command_name(command_type: i32) -> &'static str {
         SIMPLE_RESTART_APPLICATION => "restart application",
         SIMPLE_SET_MEDIA_FOCUS => "set media focus",
         SIMPLE_SET_SEARCH_FOCUS => "set search focus",
-        SIMPLE_SHOW_AND_FOCUS_MANAGE_TAGS_FAVOURITE_TAGS => "show and focus manage tags favourite tags",
-        SIMPLE_SHOW_AND_FOCUS_MANAGE_TAGS_FILE_LOOKUP_SCRIPT_TAGS => "show and focus manage tags file lookup script tags",
+        SIMPLE_SHOW_AND_FOCUS_MANAGE_TAGS_FAVOURITE_TAGS => {
+            "show and focus manage tags favourite tags"
+        }
+        SIMPLE_SHOW_AND_FOCUS_MANAGE_TAGS_FILE_LOOKUP_SCRIPT_TAGS => {
+            "show and focus manage tags file lookup script tags"
+        }
         SIMPLE_SHOW_AND_FOCUS_MANAGE_TAGS_RECENT_TAGS => "show and focus manage tags recent tags",
         SIMPLE_SHOW_AND_FOCUS_MANAGE_TAGS_RELATED_TAGS => "show and focus manage tags related tags",
         SIMPLE_SHOW_HIDE_SPLITTERS => "show hide splitters",
         SIMPLE_SHOW_MENU => "show menu",
-        SIMPLE_SWITCH_BETWEEN_100_PERCENT_AND_CANVAS_ZOOM => "switch between 100 percent and canvas zoom",
-        SIMPLE_SWITCH_BETWEEN_FULLSCREEN_BORDERLESS_AND_REGULAR_FRAMED_WINDOW => "switch between fullscreen borderless and regular framed window",
+        SIMPLE_SWITCH_BETWEEN_100_PERCENT_AND_CANVAS_ZOOM => {
+            "switch between 100 percent and canvas zoom"
+        }
+        SIMPLE_SWITCH_BETWEEN_FULLSCREEN_BORDERLESS_AND_REGULAR_FRAMED_WINDOW => {
+            "switch between fullscreen borderless and regular framed window"
+        }
         SIMPLE_SYNCHRONISED_WAIT_SWITCH => "synchronised wait switch",
         SIMPLE_UNCLOSE_PAGE => "unclose page",
         SIMPLE_UNDELETE_FILE => "undelete file",
@@ -297,20 +313,42 @@ pub fn simple_command_name(command_type: i32) -> &'static str {
         SIMPLE_EXIT_APPLICATION_FORCE_MAINTENANCE => "exit application force maintenance",
         SIMPLE_ZOOM_IN_VIEWER_CENTER => "zoom in viewer center",
         SIMPLE_ZOOM_OUT_VIEWER_CENTER => "zoom out viewer center",
-        SIMPLE_SWITCH_BETWEEN_100_PERCENT_AND_CANVAS_ZOOM_VIEWER_CENTER => "switch between 100 percent and canvas zoom viewer center",
-        SIMPLE_DUPLICATE_MEDIA_DISSOLVE_FOCUSED_ALTERNATE_GROUP => "duplicate media dissolve focused alternate group",
-        SIMPLE_DUPLICATE_MEDIA_DISSOLVE_ALTERNATE_GROUP => "duplicate media dissolve alternate group",
-        SIMPLE_DUPLICATE_MEDIA_DISSOLVE_FOCUSED_DUPLICATE_GROUP => "duplicate media dissolve focused duplicate group",
-        SIMPLE_DUPLICATE_MEDIA_DISSOLVE_DUPLICATE_GROUP => "duplicate media dissolve duplicate group",
-        SIMPLE_DUPLICATE_MEDIA_REMOVE_FOCUSED_FROM_ALTERNATE_GROUP => "duplicate media remove focused from alternate group",
-        SIMPLE_DUPLICATE_MEDIA_REMOVE_FOCUSED_FROM_DUPLICATE_GROUP => "duplicate media remove focused from duplicate group",
-        SIMPLE_DUPLICATE_MEDIA_RESET_FOCUSED_POTENTIAL_SEARCH => "duplicate media reset focused potential search",
+        SIMPLE_SWITCH_BETWEEN_100_PERCENT_AND_CANVAS_ZOOM_VIEWER_CENTER => {
+            "switch between 100 percent and canvas zoom viewer center"
+        }
+        SIMPLE_DUPLICATE_MEDIA_DISSOLVE_FOCUSED_ALTERNATE_GROUP => {
+            "duplicate media dissolve focused alternate group"
+        }
+        SIMPLE_DUPLICATE_MEDIA_DISSOLVE_ALTERNATE_GROUP => {
+            "duplicate media dissolve alternate group"
+        }
+        SIMPLE_DUPLICATE_MEDIA_DISSOLVE_FOCUSED_DUPLICATE_GROUP => {
+            "duplicate media dissolve focused duplicate group"
+        }
+        SIMPLE_DUPLICATE_MEDIA_DISSOLVE_DUPLICATE_GROUP => {
+            "duplicate media dissolve duplicate group"
+        }
+        SIMPLE_DUPLICATE_MEDIA_REMOVE_FOCUSED_FROM_ALTERNATE_GROUP => {
+            "duplicate media remove focused from alternate group"
+        }
+        SIMPLE_DUPLICATE_MEDIA_REMOVE_FOCUSED_FROM_DUPLICATE_GROUP => {
+            "duplicate media remove focused from duplicate group"
+        }
+        SIMPLE_DUPLICATE_MEDIA_RESET_FOCUSED_POTENTIAL_SEARCH => {
+            "duplicate media reset focused potential search"
+        }
         SIMPLE_DUPLICATE_MEDIA_RESET_POTENTIAL_SEARCH => "duplicate media reset potential search",
-        SIMPLE_DUPLICATE_MEDIA_REMOVE_FOCUSED_POTENTIALS => "duplicate media remove focused potentials",
+        SIMPLE_DUPLICATE_MEDIA_REMOVE_FOCUSED_POTENTIALS => {
+            "duplicate media remove focused potentials"
+        }
         SIMPLE_DUPLICATE_MEDIA_REMOVE_POTENTIALS => "duplicate media remove potentials",
         SIMPLE_DUPLICATE_MEDIA_SET_POTENTIAL => "duplicate media set potential",
-        SIMPLE_DUPLICATE_MEDIA_CLEAR_ALL_FALSE_POSITIVES => "duplicate media clear all false positives",
-        SIMPLE_DUPLICATE_MEDIA_CLEAR_ALL_FOCUSED_FALSE_POSITIVES => "duplicate media clear all focused false positives",
+        SIMPLE_DUPLICATE_MEDIA_CLEAR_ALL_FALSE_POSITIVES => {
+            "duplicate media clear all false positives"
+        }
+        SIMPLE_DUPLICATE_MEDIA_CLEAR_ALL_FOCUSED_FALSE_POSITIVES => {
+            "duplicate media clear all focused false positives"
+        }
         SIMPLE_RUN_ALL_EXPORT_FOLDERS => "run all export folders",
         SIMPLE_MOVE_PAGES_SELECTION_LEFT => "move pages selection left",
         SIMPLE_MOVE_PAGES_SELECTION_RIGHT => "move pages selection right",
@@ -344,7 +382,9 @@ pub fn simple_command_name(command_type: i32) -> &'static str {
         SIMPLE_MAC_QUICKLOOK => "mac quicklook",
         SIMPLE_COPY_URLS => "copy urls",
         SIMPLE_OPEN_FILE_IN_WEB_BROWSER => "open file in web browser",
-        SIMPLE_OPEN_SELECTION_IN_NEW_DUPLICATES_FILTER_PAGE => "open selection in new duplicates filter page",
+        SIMPLE_OPEN_SELECTION_IN_NEW_DUPLICATES_FILTER_PAGE => {
+            "open selection in new duplicates filter page"
+        }
         SIMPLE_OPEN_SIMILAR_LOOKING_FILES => "open similar looking files",
         SIMPLE_COPY_FILE_HASHES => "copy file hashes",
         SIMPLE_COPY_FILE_BITMAP => "copy file bitmap",
@@ -362,8 +402,12 @@ pub fn simple_command_name(command_type: i32) -> &'static str {
         SIMPLE_ZOOM_CANVAS_FILL_Y_VIEWER_CENTER => "zoom canvas fill y viewer center",
         SIMPLE_ZOOM_CANVAS_FILL_AUTO => "zoom canvas fill auto",
         SIMPLE_ZOOM_CANVAS_FILL_AUTO_VIEWER_CENTER => "zoom canvas fill auto viewer center",
-        SIMPLE_SWITCH_BETWEEN_100_PERCENT_AND_CANVAS_FIT_AND_FILL_ZOOM => "switch between 100 percent and canvas fit and fill zoom",
-        SIMPLE_SWITCH_BETWEEN_100_PERCENT_AND_CANVAS_FIT_AND_FILL_ZOOM_VIEWER_CENTER => "switch between 100 percent and canvas fit and fill zoom viewer center",
+        SIMPLE_SWITCH_BETWEEN_100_PERCENT_AND_CANVAS_FIT_AND_FILL_ZOOM => {
+            "switch between 100 percent and canvas fit and fill zoom"
+        }
+        SIMPLE_SWITCH_BETWEEN_100_PERCENT_AND_CANVAS_FIT_AND_FILL_ZOOM_VIEWER_CENTER => {
+            "switch between 100 percent and canvas fit and fill zoom viewer center"
+        }
         SIMPLE_ZOOM_DEFAULT_VIEWER_CENTER => "zoom default viewer center",
         SIMPLE_RESET_PAN_TO_CENTER => "reset pan to center",
         SIMPLE_CLOSE_MEDIA_VIEWER_AND_FOCUS_TAB => "close media viewer and focus tab",
@@ -372,18 +416,32 @@ pub fn simple_command_name(command_type: i32) -> &'static str {
         SIMPLE_RESIZE_WINDOW_TO_MEDIA => "resize window to media",
         SIMPLE_RESIZE_WINDOW_TO_MEDIA_VIEWER_CENTER => "resize window to media viewer center",
         SIMPLE_RESIZE_WINDOW_TO_MEDIA_ZOOMED => "resize window to media zoomed",
-        SIMPLE_RESIZE_WINDOW_TO_MEDIA_ZOOMED_VIEWER_CENTER => "resize window to media zoomed viewer center",
+        SIMPLE_RESIZE_WINDOW_TO_MEDIA_ZOOMED_VIEWER_CENTER => {
+            "resize window to media zoomed viewer center"
+        }
         SIMPLE_OPEN_OPTIONS => "open options",
-        SIMPLE_DUPLICATE_MEDIA_CLEAR_INTERNAL_FALSE_POSITIVES => "duplicate media clear internal false positives",
-        SIMPLE_CLOSE_MEDIA_VIEWER_AND_FOCUS_TAB_AND_FOCUS_MEDIA => "close media viewer and focus tab and focus media",
+        SIMPLE_DUPLICATE_MEDIA_CLEAR_INTERNAL_FALSE_POSITIVES => {
+            "duplicate media clear internal false positives"
+        }
+        SIMPLE_CLOSE_MEDIA_VIEWER_AND_FOCUS_TAB_AND_FOCUS_MEDIA => {
+            "close media viewer and focus tab and focus media"
+        }
         SIMPLE_VIEW_RANDOM => "view random",
         SIMPLE_UNDO_RANDOM => "undo random",
         SIMPLE_FOCUS_TAB_AND_MEDIA => "focus tab and media",
-        SIMPLE_DUPLICATE_FILTER_APPROVE_AUTO_RESOLUTION => "duplicate filter approve auto resolution",
+        SIMPLE_DUPLICATE_FILTER_APPROVE_AUTO_RESOLUTION => {
+            "duplicate filter approve auto resolution"
+        }
         SIMPLE_DUPLICATE_FILTER_DENY_AUTO_RESOLUTION => "duplicate filter deny auto resolution",
-        SIMPLE_FLIP_TRANSPARENCY_CHECKERBOARD_MEDIA_VIEWER => "flip transparency checkerboard media viewer",
-        SIMPLE_FLIP_TRANSPARENCY_CHECKERBOARD_MEDIA_VIEWER_DUPLICATE_FILTER => "flip transparency checkerboard media viewer duplicate filter",
-        SIMPLE_FLIP_TRANSPARENCY_CHECKERBOARD_GREENSCREEN => "flip transparency checkerboard greenscreen",
+        SIMPLE_FLIP_TRANSPARENCY_CHECKERBOARD_MEDIA_VIEWER => {
+            "flip transparency checkerboard media viewer"
+        }
+        SIMPLE_FLIP_TRANSPARENCY_CHECKERBOARD_MEDIA_VIEWER_DUPLICATE_FILTER => {
+            "flip transparency checkerboard media viewer duplicate filter"
+        }
+        SIMPLE_FLIP_TRANSPARENCY_CHECKERBOARD_GREENSCREEN => {
+            "flip transparency checkerboard greenscreen"
+        }
         SIMPLE_START_SLIDESHOW => "start slideshow",
         SIMPLE_WINDOW_ALWAYS_ON_TOP_FLIP => "window always on top flip",
         SIMPLE_WINDOW_ALWAYS_ON_TOP_ON => "window always on top on",
@@ -392,13 +450,19 @@ pub fn simple_command_name(command_type: i32) -> &'static str {
         SIMPLE_RENAME_PAGE => "rename page",
         SIMPLE_FLIP_THISWINDOW_SLIDESHOW_SHUFFLE => "flip thiswindow slideshow shuffle",
         SIMPLE_FLIP_GLOBAL_SLIDESHOW_SHUFFLE => "flip global slideshow shuffle",
-        SIMPLE_FLIP_THISWINDOW_SLIDESHOW_ALWAYS_PLAY_DURATION_MEDIA_ONCE_THROUGH => "flip thiswindow slideshow always play duration media once through",
-        SIMPLE_FLIP_GLOBAL_SLIDESHOW_ALWAYS_PLAY_DURATION_MEDIA_ONCE_THROUGH => "flip global slideshow always play duration media once through",
+        SIMPLE_FLIP_THISWINDOW_SLIDESHOW_ALWAYS_PLAY_DURATION_MEDIA_ONCE_THROUGH => {
+            "flip thiswindow slideshow always play duration media once through"
+        }
+        SIMPLE_FLIP_GLOBAL_SLIDESHOW_ALWAYS_PLAY_DURATION_MEDIA_ONCE_THROUGH => {
+            "flip global slideshow always play duration media once through"
+        }
         SIMPLE_PER_PLAYER_AUDIO_MUTE => "per player audio mute",
         SIMPLE_PER_PLAYER_AUDIO_MUTE_FLIP => "per player audio mute flip",
         SIMPLE_PER_PLAYER_AUDIO_UNMUTE => "per player audio unmute",
         SIMPLE_WINDOW_ALWAYS_ON_TOP_WHILE_PLAYING_FLIP => "window always on top while playing flip",
-        SIMPLE_SHOW_DETAILED_EMBEDDED_FILE_METADATA_WINDOW => "show detailed embedded file metadata window",
+        SIMPLE_SHOW_DETAILED_EMBEDDED_FILE_METADATA_WINDOW => {
+            "show detailed embedded file metadata window"
+        }
         _ => "unknown command",
     }
 }

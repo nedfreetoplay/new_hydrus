@@ -7,11 +7,7 @@ use hydrus_core::hydrus_tags;
 
 use crate::db::tag_relations;
 
-pub fn get_display_tag(
-    db: &DBBase,
-    tag_service_id: i64,
-    tag: &str,
-) -> HydrusResult<String> {
+pub fn get_display_tag(db: &DBBase, tag_service_id: i64, tag: &str) -> HydrusResult<String> {
     tag_relations::resolve_siblings(db, tag_service_id, tag)
 }
 
@@ -36,11 +32,7 @@ pub fn get_display_tags(
 }
 
 /// Returns display tags that start with the requested prefix.
-pub fn get_suggested_tags(
-    db: &DBBase,
-    prefix: &str,
-    limit: usize,
-) -> HydrusResult<Vec<String>> {
+pub fn get_suggested_tags(db: &DBBase, prefix: &str, limit: usize) -> HydrusResult<Vec<String>> {
     let pattern = format!("{}%", escape_like(prefix));
 
     let rows: Vec<(String, String)> = db.query_all(
@@ -80,9 +72,9 @@ fn escape_like(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::ClientDB;
     use crate::db::master_tags::get_tag_id;
     use crate::db::tag_relations::{self, TagRelation};
-    use crate::db::ClientDB;
     use hydrus_core::hydrus_constants::ContentStatus;
 
     fn database() -> (ClientDB, std::path::PathBuf) {
@@ -112,7 +104,10 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(get_display_tag(db.db(), 1, "blue eyes").unwrap(), "eyes:blue");
+        assert_eq!(
+            get_display_tag(db.db(), 1, "blue eyes").unwrap(),
+            "eyes:blue"
+        );
         assert_eq!(
             get_display_tags(db.db(), 1, ["blue eyes".to_string()]).unwrap(),
             vec!["eyes:blue"]

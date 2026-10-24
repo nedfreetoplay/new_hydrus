@@ -45,10 +45,7 @@ impl SingleFileMetadataRouter {
                     let tags = media_result.tags_manager.get_tags(service_key);
 
                     if !tags.is_empty() {
-                        gathered.insert(
-                            format!("tags:{}", hex_encode(service_key)),
-                            tags,
-                        );
+                        gathered.insert(format!("tags:{}", hex_encode(service_key)), tags);
                     }
                 }
                 MetadataImporter::Namespace { namespace } => {

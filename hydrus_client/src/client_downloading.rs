@@ -131,10 +131,7 @@ impl QuickDownloadManager {
     }
 
     /// Queues a download with the file URL used to fetch it.
-    pub fn download_urls(
-        &mut self,
-        pairs: impl IntoIterator<Item = (Vec<u8>, String)>,
-    ) {
+    pub fn download_urls(&mut self, pairs: impl IntoIterator<Item = (Vec<u8>, String)>) {
         for (hash, url) in pairs {
             if self.finished.contains(&hash) || self.active.contains(&hash) {
                 continue;
@@ -173,13 +170,8 @@ impl QuickDownloadManager {
             }
             None => {
                 self.fail(&hash);
-                let message = job
-                    .error
-                    .unwrap_or_else(|| "download failed".to_string());
-                Some((
-                    hash,
-                    Err(hydrus_core::hydrus_exceptions::unknown(message)),
-                ))
+                let message = job.error.unwrap_or_else(|| "download failed".to_string());
+                Some((hash, Err(hydrus_core::hydrus_exceptions::unknown(message))))
             }
         }
     }

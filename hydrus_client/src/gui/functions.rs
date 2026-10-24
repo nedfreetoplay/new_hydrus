@@ -127,7 +127,11 @@ pub fn scale_pixmap(
         let target_width = (image_width as f64 * scale).round().max(1.0) as u32;
         let target_height = (image_height as f64 * scale).round().max(1.0) as u32;
 
-        image.resize(target_width, target_height, image::imageops::FilterType::Lanczos3)
+        image.resize(
+            target_width,
+            target_height,
+            image::imageops::FilterType::Lanczos3,
+        )
     } else {
         image.resize_exact(width, height, image::imageops::FilterType::Lanczos3)
     }
@@ -137,13 +141,8 @@ pub fn image_to_rgba_bytes(image: &image::DynamicImage) -> Vec<u8> {
     image.to_rgba8().into_raw()
 }
 
-pub fn image_from_rgba_bytes(
-    width: u32,
-    height: u32,
-    bytes: &[u8],
-) -> Option<image::DynamicImage> {
-    image::RgbaImage::from_raw(width, height, bytes.to_vec())
-        .map(image::DynamicImage::ImageRgba8)
+pub fn image_from_rgba_bytes(width: u32, height: u32, bytes: &[u8]) -> Option<image::DynamicImage> {
+    image::RgbaImage::from_raw(width, height, bytes.to_vec()).map(image::DynamicImage::ImageRgba8)
 }
 
 #[cfg(test)]

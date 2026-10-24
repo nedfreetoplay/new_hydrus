@@ -108,7 +108,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientDBSerialisable` — json_dict/json_dumps/json_dumps_named/json_dumps_hashed.
   Портированы simple, named и hashed варианты.
 - [x] `ClientDBFilesMetadataBasic` — files_info и флаги метаданных.
-  Портирована таблица `files_info`; флаги (icc/exif/xmp/…) дальше.
+  Портированы `files_info`, forced mime и флаги icc/exif/xmp/iptc/transparency/etc.
 - [x] `ClientDBFilesStorage` — current/deleted/pending/petitioned files, inbox.
 - [x] `ClientDBFilesTimestamps`, `ClientDBFilesInbox`, `ClientDBFilesViewingStats`.
 - [x] `ClientDBFilesPhysicalStorage` — конфигурация хранилищ.

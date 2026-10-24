@@ -50,6 +50,18 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
         );
         CREATE INDEX IF NOT EXISTS files_info_mime_index ON files_info ( mime );
 
+        CREATE TABLE IF NOT EXISTS files_info_forced_filetypes (
+            hash_id INTEGER PRIMARY KEY,
+            forced_mime INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS has_icc_profile ( hash_id INTEGER PRIMARY KEY );
+        CREATE TABLE IF NOT EXISTS has_exif ( hash_id INTEGER PRIMARY KEY );
+        CREATE TABLE IF NOT EXISTS has_xmp ( hash_id INTEGER PRIMARY KEY );
+        CREATE TABLE IF NOT EXISTS has_iptc ( hash_id INTEGER PRIMARY KEY );
+        CREATE TABLE IF NOT EXISTS has_human_readable_embedded_metadata ( hash_id INTEGER PRIMARY KEY );
+        CREATE TABLE IF NOT EXISTS has_software_source ( hash_id INTEGER PRIMARY KEY );
+        CREATE TABLE IF NOT EXISTS has_transparency ( hash_id INTEGER PRIMARY KEY );
+
         CREATE TABLE IF NOT EXISTS file_inbox ( hash_id INTEGER PRIMARY KEY );
 
         CREATE TABLE IF NOT EXISTS archive_timestamps (

@@ -69,3 +69,149 @@ pub fn has_file_info(db: &DBBase, hash_id: i64) -> HydrusResult<bool> {
 
     Ok(count > 0)
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MetadataFlag {
+    IccProfile,
+    Exif,
+    Xmp,
+    Iptc,
+    HumanReadableEmbeddedMetadata,
+    SoftwareSource,
+    Transparency,
+}
+
+impl MetadataFlag {
+    pub fn table(self) -> &'static str {
+        match self {
+            Self::IccProfile => "has_icc_profile",
+            Self::Exif => "has_exif",
+            Self::Xmp => "has_xmp",
+            Self::Iptc => "has_iptc",
+            Self::HumanReadableEmbeddedMetadata => "has_human_readable_embedded_metadata",
+            Self::SoftwareSource => "has_software_source",
+            Self::Transparency => "has_transparency",
+        }
+    }
+}
+
+pub fn set_metadata_flag(
+    db: &DBBase,
+    hash_id: i64,
+    flag: MetadataFlag,
+    value: bool,
+) -> HydrusResult<()> {
+    let table = flag.table();
+
+    if value {
+        db.execute(
+            &format!("INSERT OR IGNORE INTO {table} ( hash_id ) VALUES ( ? )"),
+            &[&hash_id],
+        )?;
+    } else {
+        db.execute(
+            &format!("DELETE FROM {table} WHERE hash_id = ?"),
+            &[&hash_id],
+        )?;
+    }
+
+    Ok(())
+}
+
+pub fn has_metadata_flag(
+    db: &DBBase,
+    hash_id: i64,
+    flag: MetadataFlag,
+) -> HydrusResult<bool> {
+    let table = flag.table();
+    let count: i64 = db
+        .query_one(
+            &format!("SELECT COUNT(*) FROM {table} WHERE hash_id = ?"),
+            &[&hash_id],
+            |row| row.get(0),
+        )?
+        .unwrap_or(0);
+
+    Ok(count > 0)
+}
+
+pub fn get_hash_ids_with_flag(db: &DBBase, flag: MetadataFlag) -> HydrusResult<Vec<i64>> {
+    db.query_all(
+        &format!("SELECT hash_id FROM {}", flag.table()),
+        &[],
+        |row| row.get(0),
+    )
+}
+
+pub fn set_forced_mime(db: &DBBase, hash_id: i64, mime: Mime) -> HydrusResult<()> {
+    db.execute(
+        "INSERT OR REPLACE INTO files_info_forced_filetypes ( hash_id, forced_mime )
+         VALUES ( ?, ? )",
+        &[&hash_id, &mime.as_int()],
+    )?;
+
+    Ok(())
+}
+
+pub fn get_forced_mime(db: &DBBase, hash_id: i64) -> HydrusResult<Option<Mime>> {
+    let mime: Option<u16> = db.query_one(
+        "SELECT forced_mime FROM files_info_forced_filetypes WHERE hash_id = ?",
+        &[&hash_id],
+        |row| row.get(0),
+    )?;
+
+    Ok(mime.and_then(Mime::try_from_int))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::master::get_hash_id;
+    use crate::db::ClientDB;
+
+    fn database() -> (ClientDB, std::path::PathBuf) {
+        let directory = std::env::temp_dir().join(format!(
+            "hydrus_client_fileflags_{}_{}",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+
+        (ClientDB::new(&directory).unwrap(), directory)
+    }
+
+    #[test]
+    fn metadata_flags_round_trip() {
+        let (db, directory) = database();
+        let hash_id = get_hash_id(db.db(), &[1]).unwrap();
+
+        assert!(!has_metadata_flag(db.db(), hash_id, MetadataFlag::Exif).unwrap());
+
+        set_metadata_flag(db.db(), hash_id, MetadataFlag::Exif, true).unwrap();
+        set_metadata_flag(db.db(), hash_id, MetadataFlag::Transparency, true).unwrap();
+
+        assert!(has_metadata_flag(db.db(), hash_id, MetadataFlag::Exif).unwrap());
+        assert_eq!(
+            get_hash_ids_with_flag(db.db(), MetadataFlag::Transparency).unwrap(),
+            vec![hash_id]
+        );
+
+        set_metadata_flag(db.db(), hash_id, MetadataFlag::Exif, false).unwrap();
+        assert!(!has_metadata_flag(db.db(), hash_id, MetadataFlag::Exif).unwrap());
+
+        drop(db);
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn forced_mime_round_trips() {
+        let (db, directory) = database();
+        let hash_id = get_hash_id(db.db(), &[2]).unwrap();
+
+        set_forced_mime(db.db(), hash_id, Mime::Png).unwrap();
+
+        assert_eq!(get_forced_mime(db.db(), hash_id).unwrap(), Some(Mime::Png));
+
+        drop(db);
+        let _ = std::fs::remove_dir_all(directory);
+    }
+}

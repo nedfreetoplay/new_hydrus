@@ -52,6 +52,30 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
 
         CREATE TABLE IF NOT EXISTS file_inbox ( hash_id INTEGER PRIMARY KEY );
 
+        CREATE TABLE IF NOT EXISTS archive_timestamps (
+            hash_id INTEGER PRIMARY KEY,
+            timestamp INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS file_modified_timestamps (
+            hash_id INTEGER PRIMARY KEY,
+            timestamp INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS file_domain_modified_timestamps (
+            service_id INTEGER,
+            hash_id INTEGER,
+            timestamp INTEGER,
+            PRIMARY KEY ( service_id, hash_id )
+        );
+
+        CREATE TABLE IF NOT EXISTS file_viewing_stats (
+            hash_id INTEGER,
+            canvas_type INTEGER,
+            last_viewed_timestamp_ms INTEGER,
+            views INTEGER,
+            viewtime_ms INTEGER,
+            PRIMARY KEY ( hash_id, canvas_type )
+        );
+
         CREATE TABLE IF NOT EXISTS json_dumps (
             name TEXT PRIMARY KEY,
             dump_type INTEGER,

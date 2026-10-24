@@ -11,8 +11,11 @@ use hydrus_core::hydrus_db_base::DBBase;
 use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_core::hydrus_paths;
 
+pub mod files_inbox;
 pub mod files_metadata;
 pub mod files_storage;
+pub mod files_timestamps;
+pub mod files_viewing_stats;
 pub mod master;
 pub mod schema;
 pub mod serialisable;

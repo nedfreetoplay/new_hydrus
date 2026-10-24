@@ -114,7 +114,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [ ] `ClientDBTagSearch`, siblings/parents/display/suggestions.
 - [~] `ClientDBDefinitionsCache`, `ClientDBMediaResults`, `ClientDBNotesMap`,
   `ClientDBRatings`, `ClientDBURLMap`, `ClientDBServicePaths`.
-  Портированы notes/ratings/url_map; definitions cache, media results и service paths дальше.
+  Портированы notes/ratings/url_map и tags/hashes definitions cache; media results и
+  service paths дальше.
 - [ ] `ClientDBFilesDuplicates*`, `ClientDBSimilarFiles`.
 - [~] `ClientDBRepositories`, `ClientDBContentUpdates`, `ClientDBMaintenance`.
   Портированы content updates и maintenance (timestamps, deferred deletes);

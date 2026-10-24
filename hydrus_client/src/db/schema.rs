@@ -168,6 +168,15 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
             priority INTEGER
         );
 
+        CREATE TABLE IF NOT EXISTS local_hashes_cache (
+            hash_id INTEGER PRIMARY KEY,
+            hash BLOB_BYTES UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS local_tags_cache (
+            tag_id INTEGER PRIMARY KEY,
+            tag TEXT UNIQUE
+        );
+
         CREATE TABLE IF NOT EXISTS json_dumps (
             name TEXT PRIMARY KEY,
             dump_type INTEGER,

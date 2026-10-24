@@ -12,6 +12,7 @@ use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_core::hydrus_paths;
 
 pub mod content_updates;
+pub mod definitions_cache;
 pub mod files_inbox;
 pub mod files_metadata;
 pub mod files_physical_storage;

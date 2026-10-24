@@ -254,6 +254,25 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
             version INTEGER,
             dump TEXT
         );
+        CREATE TABLE IF NOT EXISTS json_dict (
+            name TEXT PRIMARY KEY,
+            dump TEXT
+        );
+        CREATE TABLE IF NOT EXISTS json_dumps_named (
+            dump_type INTEGER,
+            dump_name TEXT,
+            version INTEGER,
+            timestamp_ms INTEGER,
+            dump TEXT,
+            PRIMARY KEY ( dump_type, dump_name )
+        );
+        CREATE TABLE IF NOT EXISTS json_dumps_hashed (
+            hash BLOB_BYTES,
+            dump_type INTEGER,
+            version INTEGER,
+            dump TEXT,
+            PRIMARY KEY ( hash, dump_type )
+        );
         ",
     )?;
 

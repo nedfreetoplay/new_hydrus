@@ -106,7 +106,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Портированы hashes, namespaces/subtags/tags; texts/notes/urls — через отдельные модули.
 - [x] `ClientDBServices` — services/service_info.
 - [x] `ClientDBSerialisable` — json_dict/json_dumps/json_dumps_named/json_dumps_hashed.
-  Портирован `json_dumps`; остальные варианты добавятся вместе с импортом.
+  Портированы simple, named и hashed варианты.
 - [x] `ClientDBFilesMetadataBasic` — files_info и флаги метаданных.
   Портирована таблица `files_info`; флаги (icc/exif/xmp/…) дальше.
 - [x] `ClientDBFilesStorage` — current/deleted/pending/petitioned files, inbox.

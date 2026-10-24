@@ -28,7 +28,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 - [x] `ClientGlobals` — глобальные флаги/ссылка на контроллер (без глобального мутабельного
   состояния там, где можно передать контекст).
-- [ ] `ClientConstants` — canvas types, сортировки, статусы импорта, цвета, page states,
+- [x] `ClientConstants` — canvas types, сортировки, статусы импорта, цвета, page states,
   zoom modes, media actions, network contexts.
 - [ ] `ClientData` — `merge_counts`, `convert_zoom_to_percentage`, ASCII-хелперы,
   `resolution_to_pretty_string`, `Booru`, `Credentials`, `Imageboard`.

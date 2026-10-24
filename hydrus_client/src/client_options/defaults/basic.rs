@@ -1,39 +1,10 @@
-//! The default `ClientOptions` dictionary.
-//!
-//! The Python object defaults to several hundred keys. The port starts with the
-//! keys used by the model, database and GUI shell; new keys are added next to
-//! the feature that needs them.
+//! Boolean, integer and string option defaults.
 
 use serde_json::{Map, Value, json};
 
 use crate::client_constants;
-use crate::client_defaults::{darkmode_colours, default_colours};
 
-pub fn default_options_dictionary() -> Map<String, Value> {
-    let mut dictionary = Map::new();
-
-    dictionary.insert("booleans".to_string(), Value::Object(booleans()));
-    dictionary.insert("integers".to_string(), Value::Object(integers()));
-    dictionary.insert("floats".to_string(), Value::Object(floats()));
-    dictionary.insert("strings".to_string(), Value::Object(strings()));
-    dictionary.insert(
-        "noneable_integers".to_string(),
-        Value::Object(noneable_integers()),
-    );
-    dictionary.insert(
-        "noneable_strings".to_string(),
-        Value::Object(noneable_strings()),
-    );
-    dictionary.insert("string_list".to_string(), Value::Object(string_list()));
-    dictionary.insert("integer_list".to_string(), Value::Object(integer_list()));
-    dictionary.insert("keys".to_string(), Value::Object(keys()));
-    dictionary.insert("key_list".to_string(), Value::Object(Map::new()));
-    dictionary.insert("colours".to_string(), colours());
-
-    dictionary
-}
-
-fn booleans() -> Map<String, Value> {
+pub(super) fn booleans() -> Map<String, Value> {
     let entries: &[(&str, bool)] = &[
         ("advanced_mode", false),
         ("use_nice_resolution_strings", true),
@@ -85,7 +56,7 @@ fn booleans() -> Map<String, Value> {
         .collect()
 }
 
-fn integers() -> Map<String, Value> {
+pub(super) fn integers() -> Map<String, Value> {
     let entries: &[(&str, i64)] = &[
         ("video_buffer_size", 96 * 1024 * 1024),
         ("related_tags_concurrence_threshold_percent", 6),
@@ -160,11 +131,11 @@ fn integers() -> Map<String, Value> {
         .collect()
 }
 
-fn floats() -> Map<String, Value> {
+pub(super) fn floats() -> Map<String, Value> {
     Map::new()
 }
 
-fn strings() -> Map<String, Value> {
+pub(super) fn strings() -> Map<String, Value> {
     let entries: &[(&str, &str)] = &[
         ("app_display_name", "hydrus client"),
         ("namespace_connector", ":"),
@@ -193,138 +164,4 @@ fn strings() -> Map<String, Value> {
         .iter()
         .map(|(name, value)| (name.to_string(), json!(value)))
         .collect()
-}
-
-fn noneable_integers() -> Map<String, Value> {
-    let entries: &[(&str, Option<i64>)] = &[
-        ("forced_search_limit", None),
-        ("num_recent_tags", Some(20)),
-        ("num_recent_tags_in_quick_dialog", Some(10)),
-        ("duplicate_background_switch_intensity_a", Some(0)),
-        ("duplicate_background_switch_intensity_b", Some(3)),
-        ("duplicate_filter_auto_commit_batch_size", Some(1)),
-        ("media_viewer_cursor_autohide_time_ms", Some(700)),
-        ("animated_scanbar_hide_height", Some(5)),
-        ("last_backup_time", None),
-        ("export_path_character_limit", None),
-        ("export_dirname_character_limit", None),
-    ];
-
-    entries
-        .iter()
-        .map(|(name, value)| (name.to_string(), json!(value)))
-        .collect()
-}
-
-fn noneable_strings() -> Map<String, Value> {
-    let entries: &[(&str, Option<&str>)] = &[
-        ("favourite_file_lookup_script", None),
-        ("suggested_tags_layout", Some("notebook")),
-        ("backup_path", None),
-        ("last_png_export_dir", None),
-        ("media_background_bmp_path", None),
-        ("http_proxy", None),
-        ("https_proxy", None),
-        ("no_proxy", Some("127.0.0.1")),
-        ("qt_style_name", None),
-        ("qt_stylesheet_name", None),
-    ];
-
-    entries
-        .iter()
-        .map(|(name, value)| (name.to_string(), json!(value)))
-        .collect()
-}
-
-fn string_list() -> Map<String, Value> {
-    let mut map = Map::new();
-
-    map.insert(
-        "default_media_viewer_custom_shortcuts".to_string(),
-        json!([]),
-    );
-    map.insert("favourite_tags".to_string(), json!([]));
-    map.insert(
-        "advanced_file_deletion_reasons".to_string(),
-        json!([
-            "I do not like it.",
-            "It is bad quality.",
-            "It is not appropriate for this client.",
-            "Temporary delete--I want to bring it back later."
-        ]),
-    );
-    map.insert(
-        "user_namespace_group_by_sort".to_string(),
-        json!(["creator", "series", "character", "species", "", "meta"]),
-    );
-
-    map
-}
-
-fn integer_list() -> Map<String, Value> {
-    let mut map = Map::new();
-
-    map.insert(
-        "file_viewing_stats_interesting_canvas_types".to_string(),
-        json!([
-            client_constants::CANVAS_MEDIA_VIEWER,
-            client_constants::CANVAS_CLIENT_API
-        ]),
-    );
-    map.insert(
-        "command_palette_provider_order".to_string(),
-        json!([
-            client_constants::COMMAND_PALETTE_PROVIDER_CALCULATOR,
-            client_constants::COMMAND_PALETTE_PROVIDER_MAIN_MENU,
-            client_constants::COMMAND_PALETTE_PROVIDER_MEDIA_MENU,
-            client_constants::COMMAND_PALETTE_PROVIDER_PAGES_HISTORY,
-            client_constants::COMMAND_PALETTE_PROVIDER_PAGES,
-            client_constants::COMMAND_PALETTE_PROVIDER_FAVOURITE_SEARCH
-        ]),
-    );
-    map.insert(
-        "tab_tree_splitter_sizes_left".to_string(),
-        json!([200, 1000]),
-    );
-    map.insert(
-        "tab_tree_splitter_sizes_right".to_string(),
-        json!([1000, 200]),
-    );
-    map.insert(
-        "treeview_expanding_panel_splitter_size".to_string(),
-        json!([700, 150]),
-    );
-
-    map
-}
-
-fn keys() -> Map<String, Value> {
-    let mut map = Map::new();
-
-    map.insert(
-        "default_tag_service_tab".to_string(),
-        json!(hex_encode(b"local tags")),
-    );
-    map.insert(
-        "default_tag_service_search_page".to_string(),
-        json!(hex_encode(b"all known tags")),
-    );
-    map.insert(
-        "options_ratings_panel_template_service_key".to_string(),
-        json!(hex_encode(b"preview ratings")),
-    );
-
-    map
-}
-
-fn colours() -> Value {
-    let mut sets = Map::new();
-    sets.insert("default".to_string(), Value::Object(default_colours()));
-    sets.insert("darkmode".to_string(), Value::Object(darkmode_colours()));
-
-    Value::Object(sets)
-}
-
-fn hex_encode(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }

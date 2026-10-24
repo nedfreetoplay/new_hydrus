@@ -35,7 +35,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientEnvironment` — настройка `REQUESTS_CA_BUNDLE`/путей CA.
 - [x] `ClientPaths` — удаление в корзину, открытие файла/каталога, нативные свойства файла.
 - [x] `ClientTime` — `CalendarDelta`, `ParseDate`, `MergeModifiedTimes`, pretty-форматтеры.
-- [ ] `ClientThreading` — `JobStatus`, `ThreadCall`, повторяющиеся задачи, pub/sub-мост в Qt.
+- [x] `ClientThreading` — `JobStatus`, `ThreadCall`, повторяющиеся задачи, pub/sub-мост в Qt.
 - [ ] `ClientLocation` — `LocationContext`, `LocationType`, сериализация.
 - [ ] `ClientApplicationCommand` — enum команд, горячие клавиши, обработчики.
 - [ ] `ClientMacIntegration`/`ClientWindowsIntegration` — заглушки и Windows-вызовы.

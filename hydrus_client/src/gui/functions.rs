@@ -113,6 +113,39 @@ pub fn wrap_tool_tip(text: &str, max_line_length: usize) -> String {
     lines.join("\n")
 }
 
+/// `ClientGUIFunctionsImage` helpers: all conversions go through `image` so the
+/// GUI layer never needs to know about Pillow/numpy.
+pub fn scale_pixmap(
+    image: &image::DynamicImage,
+    width: u32,
+    height: u32,
+    keep_aspect: bool,
+) -> image::DynamicImage {
+    if keep_aspect {
+        let (image_width, image_height) = (image.width(), image.height());
+        let scale = (width as f64 / image_width as f64).min(height as f64 / image_height as f64);
+        let target_width = (image_width as f64 * scale).round().max(1.0) as u32;
+        let target_height = (image_height as f64 * scale).round().max(1.0) as u32;
+
+        image.resize(target_width, target_height, image::imageops::FilterType::Lanczos3)
+    } else {
+        image.resize_exact(width, height, image::imageops::FilterType::Lanczos3)
+    }
+}
+
+pub fn image_to_rgba_bytes(image: &image::DynamicImage) -> Vec<u8> {
+    image.to_rgba8().into_raw()
+}
+
+pub fn image_from_rgba_bytes(
+    width: u32,
+    height: u32,
+    bytes: &[u8],
+) -> Option<image::DynamicImage> {
+    image::RgbaImage::from_raw(width, height, bytes.to_vec())
+        .map(image::DynamicImage::ImageRgba8)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,5 +185,26 @@ mod tests {
             wrap_tool_tip("one two three four", 8),
             "one two\nthree\nfour"
         );
+    }
+
+    #[test]
+    fn pixmap_scaling_respects_aspect_and_exact_modes() {
+        let image = image::DynamicImage::new_rgba8(100, 50);
+
+        let keep = scale_pixmap(&image, 40, 40, true);
+        assert_eq!((keep.width(), keep.height()), (40, 20));
+
+        let exact = scale_pixmap(&image, 40, 40, false);
+        assert_eq!((exact.width(), exact.height()), (40, 40));
+    }
+
+    #[test]
+    fn rgba_bytes_round_trip() {
+        let image = image::DynamicImage::new_rgba8(2, 2);
+        let bytes = image_to_rgba_bytes(&image);
+
+        assert_eq!(bytes.len(), 16);
+        assert!(image_from_rgba_bytes(2, 2, &bytes).is_some());
+        assert!(image_from_rgba_bytes(2, 2, &bytes[..8]).is_none());
     }
 }

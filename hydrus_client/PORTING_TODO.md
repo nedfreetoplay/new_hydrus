@@ -170,8 +170,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Добавлены `HydrusPanel`, QLabel/QPushButton/QCheckBox/QLineEdit и layout-based страницы.
 - [x] `QtInit`, `QtPorting`, `QtInitImportTest` — инициализация, стиль, логирование Qt.
   Qt 6-only (`is_supported_qt_version`), стиль и QSS применяются к `QApplication`.
-- [~] `ClientGUIFunctions`, `ClientGUIFunctionsImage` — конвертация изображений/иконок.
-  Портированы цветовые/текстовые/тултип-хелперы; image-часть дальше.
+- [x] `ClientGUIFunctions`, `ClientGUIFunctionsImage` — конвертация изображений/иконок.
+  Цвета/текст/тултипы + scale_pixmap, RGBA↔DynamicImage.
 - [x] `ClientGUICore`, `ClientGUICallAfter`, `ClientGUIAsync` — мост потоков и call-after.
 - [x] `ClientGUIStyle`, `ClientGUISplash`, `ClientGUIShortcuts`, `ClientGUIShortcutControls`.
   Портированы QSS-стиль, Shortcut/ShortcutSet, ShortcutEditor и SplashModel.

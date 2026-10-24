@@ -43,8 +43,9 @@ GUI-модели и Qt-каркас с canvas, PNG-сериализация и �
 `hydrus_python/hydrus/test`; интеграционный тест `python_db_compat` проверяет открытие
 Python-shaped `client.db`. Сейчас проходит 480 unit-тестов и 2 integration-теста.
 
-Остались в основном Qt-виджеты для уже готовых моделей и «глубокие» операции
-импорта/дубликатов; фундамент, сеть, БД и API-сервер уже портированы.
+Все пункты `PORTING_TODO.md` закрыты: фундамент, сеть, БД, импорт/парсинг,
+дубликаты, Qt-панели и DCT-перцептивные хэши портированы. Каждый файл
+`hydrus_client/src` укладывается в 200 строк.
 
 БД: схема, сервисы, хэши, master-теги, mappings, files_info/storage/timestamps/inbox,
 viewing stats, storage configuration, notes/ratings/urls/service paths, definitions cache,

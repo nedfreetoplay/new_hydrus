@@ -64,7 +64,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 ## 4. Поиск
 
 - [x] `ClientNumberTest` — `NumberTest`, `NumberTestCollect`, парсинг/сравнение.
-- [ ] `ClientSearchPredicate` — `Predicate`, `SystemPredicate`, сериализация, `ToString`.
+- [x] `ClientSearchPredicate` — `Predicate`, `SystemPredicate`, сериализация, `ToString`.
 - [ ] `ClientSearchTagContext` — контекст тегов и сервисов.
 - [ ] `ClientSearchFileSearchContext` — `FileSearchContext`, системные предикаты.
 - [ ] `ClientSearchAutocomplete` — autocomplete-теги и сортировка.

@@ -90,7 +90,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientFiles` — операции чтения/записи, блокировки.
 - [~] `ClientFilesMaintenance`/`ClientFilesMaintenanceManager` — очередь обслуживания.
   Портированы job ids, веса и очередь с планированием/отменой; сами regen-операции дальше.
-- [ ] `ClientTrashManager` — корзина и отложенное удаление.
+- [x] `ClientTrashManager` — корзина и отложенное удаление.
 - [ ] `ClientImageHandling` и обёртки `hydrus_core` (метаданные, perceptual hashes).
 
 ## 7. База данных

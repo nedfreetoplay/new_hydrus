@@ -45,6 +45,9 @@ fn run() -> HydrusResult<()> {
 
     let db = controller.open_database()?;
     let services = db.get_services(None)?;
+
+    controller.open_session_manager()?;
+
     let files = controller.files();
 
     let admin_routes = ServerResourceTree::for_service_type(ServiceType::ServerAdmin)?;

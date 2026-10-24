@@ -11,8 +11,9 @@ use std::sync::{Arc, OnceLock, Weak};
 use hydrus_core::hydrus_db::DBController;
 use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_core::hydrus_pubsub::PubSubMessage;
+use hydrus_core::hydrus_sessions::HydrusSessionManagerServer;
 
-use crate::server_db::ServerDB;
+use crate::server_db::{ServerDB, ServerSessionController};
 use crate::server_files::ServerFiles;
 use crate::server_globals::{self, ServerController};
 
@@ -21,6 +22,7 @@ pub struct Controller {
     db_dir: PathBuf,
     files_dir: PathBuf,
     db: OnceLock<Arc<ServerDB>>,
+    session_manager: OnceLock<Arc<HydrusSessionManagerServer>>,
 }
 
 impl Controller {
@@ -33,6 +35,7 @@ impl Controller {
             db_dir,
             files_dir,
             db: OnceLock::new(),
+            session_manager: OnceLock::new(),
         }
     }
 
@@ -64,6 +67,25 @@ impl Controller {
         let _ = self.db.set(Arc::clone(&db));
 
         Ok(db)
+    }
+
+    /// Open the session manager and load existing sessions from the database.
+    pub fn open_session_manager(
+        self: &Arc<Self>,
+    ) -> HydrusResult<Arc<HydrusSessionManagerServer>> {
+        if let Some(manager) = self.session_manager.get() {
+            return Ok(Arc::clone(manager));
+        }
+
+        let db = self.open_database()?;
+        let session_controller = Arc::new(ServerSessionController::new(db));
+        let manager = HydrusSessionManagerServer::new(session_controller)?;
+
+        manager.refresh_all_accounts(None)?;
+
+        let _ = self.session_manager.set(Arc::clone(&manager));
+
+        Ok(manager)
     }
 
     /// Install this controller in the `ServerGlobals` slot.

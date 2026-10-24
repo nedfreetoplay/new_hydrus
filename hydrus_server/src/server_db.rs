@@ -13,18 +13,27 @@ use std::sync::Arc;
 
 use chrono::Datelike;
 use serde_json::json;
+use sha2::{Digest, Sha256};
 
 use hydrus_core::hydrus_constants::{
     DEFAULT_SERVER_ADMIN_PORT, REPOSITORIES, SERVER_ADMIN_KEY, SOFTWARE_VERSION, ServiceType,
     TIMEZONE_LOCAL,
 };
+use hydrus_core::hydrus_data::generate_key;
 use hydrus_core::hydrus_db::{DBController, DBHooks, HydrusDB, HydrusDBConfig};
 use hydrus_core::hydrus_db_base::{DBBase, DBCursorTransactionWrapper};
 use hydrus_core::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
-use hydrus_core::hydrus_serialisable::SerialisableObject;
+use hydrus_core::hydrus_pubsub::Subscriber;
+use hydrus_core::hydrus_serialisable::{
+    SerialisableDictionary, SerialisableObject, create_from_string,
+};
+use hydrus_core::hydrus_sessions::{
+    Account as SessionAccountTrait, ExistingSession, SessionController,
+};
 use hydrus_core::hydrus_time;
 use hydrus_core::networking::hydrus_network::{
-    ServerService, generate_service, generate_service_from_serialisable_tuple,
+    Account as NetworkAccount, AccountType, ServerService, generate_service,
+    generate_service_from_serialisable_tuple,
 };
 
 use crate::server_files::ServerFiles;
@@ -99,6 +108,15 @@ pub fn generate_repository_tag_siblings_table_names(
 /// `generate_repository_update_table_name( service_id )`
 pub fn generate_repository_update_table_name(service_id: i64) -> String {
     format!("updates_{service_id}")
+}
+
+/// One row from `read( 'sessions' )`.
+pub struct ServerSessionRow {
+    pub session_key: Vec<u8>,
+    pub service_key: Vec<u8>,
+    pub account: Arc<NetworkAccount>,
+    pub hashed_access_key: Vec<u8>,
+    pub expires: i64,
 }
 
 /// A server database, backed by the core `HydrusDB` job/database machinery.
@@ -326,20 +344,337 @@ impl ServerDB {
         Ok(rows.into_iter().collect())
     }
 
-    /// Insert a service row.
-    ///
-    /// Python's `_add_service` also creates the null/admin account types and
-    /// their registration keys. That account setup belongs to the next layer;
-    /// this method creates the service and its repository tables.
-    pub fn add_service(&self, service: &ServerService) -> HydrusResult<i64> {
-        let db = self.db.db_base()?;
-        let service_id = insert_service_row(&db, service)?;
+    /// `_add_account_type( service_id, account_type )`
+    pub fn add_account_type(
+        &self,
+        service_id: i64,
+        account_type: &AccountType,
+    ) -> HydrusResult<i64> {
+        add_account_type(&self.db.db_base()?, service_id, account_type)
+    }
 
-        if REPOSITORIES.contains(&service.get_service_type()) {
-            create_repository_tables(&db, service_id)?;
+    /// `_get_account_type( service_id, account_type_id )`
+    pub fn get_account_type(
+        &self,
+        service_id: i64,
+        account_type_id: i64,
+    ) -> HydrusResult<Arc<AccountType>> {
+        get_account_type(&self.db.db_base()?, service_id, account_type_id)
+    }
+
+    /// `_get_account_types( service_key, account )`
+    pub fn get_account_types(&self, service_key: &[u8]) -> HydrusResult<Vec<Arc<AccountType>>> {
+        let service_id = self.get_service_id(service_key)?;
+
+        get_account_types(&self.db.db_base()?, service_id)
+    }
+
+    /// `_get_account_type_id( service_id, account_type_key )`
+    pub fn get_account_type_id(
+        &self,
+        service_id: i64,
+        account_type_key: &[u8],
+    ) -> HydrusResult<i64> {
+        get_account_type_id(&self.db.db_base()?, service_id, account_type_key)
+    }
+
+    /// `_generate_registration_keys( service_id, num, account_type_id, expires, force_registration_key = None )`
+    pub fn generate_registration_keys(
+        &self,
+        service_id: i64,
+        num: usize,
+        account_type_id: i64,
+        expires: Option<i64>,
+        force_registration_key: Option<&[u8]>,
+    ) -> HydrusResult<Vec<Vec<u8>>> {
+        generate_registration_keys(
+            &self.db.db_base()?,
+            service_id,
+            num,
+            account_type_id,
+            expires,
+            force_registration_key,
+        )
+    }
+
+    /// `_get_access_key( service_key, registration_key )`
+    pub fn get_access_key(
+        &self,
+        service_key: &[u8],
+        registration_key: &[u8],
+    ) -> HydrusResult<Vec<u8>> {
+        let service_id = self.get_service_id(service_key)?;
+
+        get_access_key(&self.db.db_base()?, service_id, registration_key)
+    }
+
+    /// `_get_account_key_from_access_key( service_key, access_key )`
+    pub fn get_account_key_from_access_key(
+        &self,
+        service_key: &[u8],
+        access_key: &[u8],
+    ) -> HydrusResult<Vec<u8>> {
+        let service_id = self.get_service_id(service_key)?;
+
+        get_account_key_from_access_key(&self.db.db_base()?, service_id, access_key)
+    }
+
+    /// `_get_account( service_id, account_id )`
+    pub fn get_account(&self, service_id: i64, account_id: i64) -> HydrusResult<NetworkAccount> {
+        get_account(&self.db.db_base()?, service_id, account_id)
+    }
+
+    /// `_get_account_from_account_key( service_key, account_key )`
+    pub fn get_account_from_account_key(
+        &self,
+        service_key: &[u8],
+        account_key: &[u8],
+    ) -> HydrusResult<NetworkAccount> {
+        let service_id = self.get_service_id(service_key)?;
+        let account_id = self.get_account_id(account_key)?;
+
+        self.get_account(service_id, account_id)
+    }
+
+    /// `_get_account_id( account_key )`
+    pub fn get_account_id(&self, account_key: &[u8]) -> HydrusResult<i64> {
+        get_account_id(&self.db.db_base()?, account_key)
+    }
+
+    /// `_get_account_key_from_account_id( account_id )`
+    pub fn get_account_key_from_account_id(&self, account_id: i64) -> HydrusResult<Vec<u8>> {
+        get_account_key_from_account_id(&self.db.db_base()?, account_id)
+    }
+
+    /// `_verify_access_key( service_key, access_key )`
+    pub fn verify_access_key(
+        &self,
+        service_key: &[u8],
+        access_key: &[u8],
+    ) -> HydrusResult<bool> {
+        let service_id = self.get_service_id(service_key)?;
+
+        verify_access_key(&self.db.db_base()?, service_id, access_key)
+    }
+
+    /// `_add_session( session_key, service_key, account_key, expires )`
+    pub fn add_session(
+        &self,
+        session_key: &[u8],
+        service_key: &[u8],
+        account_key: &[u8],
+        expires: i64,
+    ) -> HydrusResult<()> {
+        let service_id = self.get_service_id(service_key)?;
+        let account_id = self.get_account_id(account_key)?;
+        let db = self.db.db_base()?;
+
+        db.execute(
+            "INSERT INTO sessions ( session_key, service_id, account_id, expires ) VALUES ( ?, ?, ?, ? );",
+            &[&session_key, &service_id, &account_id, &expires],
+        )?;
+
+        Ok(())
+    }
+
+    /// `_get_sessions( service_key = None )`
+    pub fn get_sessions(
+        &self,
+        service_key: Option<&[u8]>,
+    ) -> HydrusResult<Vec<ServerSessionRow>> {
+        let db = self.db.db_base()?;
+        let now = hydrus_time::get_now();
+
+        db.execute("DELETE FROM sessions WHERE ? > expires;", &[&now])?;
+
+        let rows = match service_key {
+            Some(service_key) => {
+                let service_id = self.get_service_id(service_key)?;
+
+                db.query_all(
+                    "SELECT session_key, service_id, account_id, expires FROM sessions WHERE service_id = ?;",
+                    &[&service_id],
+                    |row| {
+                        Ok((
+                            row.get::<_, Vec<u8>>(0)?,
+                            row.get::<_, i64>(1)?,
+                            row.get::<_, i64>(2)?,
+                            row.get::<_, i64>(3)?,
+                        ))
+                    },
+                )?
+            }
+            None => db.query_all(
+                "SELECT session_key, service_id, account_id, expires FROM sessions;",
+                &[],
+                |row| {
+                    Ok((
+                        row.get::<_, Vec<u8>>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, i64>(2)?,
+                        row.get::<_, i64>(3)?,
+                    ))
+                },
+            )?,
+        };
+
+        let mut service_ids_to_keys: std::collections::HashMap<i64, Vec<u8>> =
+            std::collections::HashMap::new();
+        let mut account_ids_to_accounts: std::collections::HashMap<i64, Arc<NetworkAccount>> =
+            std::collections::HashMap::new();
+        let mut account_ids_to_hashed_access_keys: std::collections::HashMap<i64, Vec<u8>> =
+            std::collections::HashMap::new();
+        let mut sessions = Vec::with_capacity(rows.len());
+
+        for (session_key, service_id, account_id, expires) in rows {
+            let service_key = match service_ids_to_keys.get(&service_id) {
+                Some(service_key) => service_key.clone(),
+                None => {
+                    let service_key = self.get_service_key(service_id)?;
+                    service_ids_to_keys.insert(service_id, service_key.clone());
+                    service_key
+                }
+            };
+
+            let account = match account_ids_to_accounts.get(&account_id) {
+                Some(account) => account.clone(),
+                None => {
+                    let account = Arc::new(self.get_account(service_id, account_id)?);
+                    account_ids_to_accounts.insert(account_id, Arc::clone(&account));
+                    account
+                }
+            };
+
+            let hashed_access_key = match account_ids_to_hashed_access_keys.get(&account_id) {
+                Some(hashed_access_key) => hashed_access_key.clone(),
+                None => {
+                    let hashed_access_key = db
+                        .query_one(
+                            "SELECT hashed_access_key FROM accounts WHERE account_id = ?;",
+                            &[&account_id],
+                            |row| row.get::<_, Vec<u8>>(0),
+                        )?
+                        .ok_or_else(|| {
+                            HydrusException::new(
+                                ErrorKind::DataMissing,
+                                "Could not find the session account's access key.",
+                            )
+                        })?;
+                    account_ids_to_hashed_access_keys
+                        .insert(account_id, hashed_access_key.clone());
+                    hashed_access_key
+                }
+            };
+
+            sessions.push(ServerSessionRow {
+                session_key,
+                service_key,
+                account,
+                hashed_access_key,
+                expires,
+            });
         }
 
-        Ok(service_id)
+        Ok(sessions)
+    }
+
+    /// Insert a service, create its account setup, and return the admin access
+    /// key. Python's `_add_service` performs the same sequence and returns the
+    /// key from the forced `init` registration token for the admin service.
+    pub fn add_service_with_admin_access_key(
+        &self,
+        service: &ServerService,
+    ) -> HydrusResult<(i64, Vec<u8>)> {
+        add_service_full(&self.db.db_base()?, service)
+    }
+
+    /// Insert a service and return its database id.
+    pub fn add_service(&self, service: &ServerService) -> HydrusResult<i64> {
+        self.add_service_with_admin_access_key(service)
+            .map(|(service_id, _)| service_id)
+    }
+}
+
+/// Wrapper that gives the core session manager the narrow `Account` interface
+/// without changing the network `Account` type.
+pub struct ServerSessionAccount {
+    account: Arc<NetworkAccount>,
+}
+
+impl SessionAccountTrait for ServerSessionAccount {
+    fn get_account_key(&self) -> Vec<u8> {
+        self.account.get_account_key()
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.account.is_dirty()
+    }
+}
+
+/// `SessionController` implementation backed by `ServerDB`.
+pub struct ServerSessionController {
+    db: Arc<ServerDB>,
+}
+
+impl ServerSessionController {
+    pub fn new(db: Arc<ServerDB>) -> Self {
+        Self { db }
+    }
+}
+
+impl SessionController for ServerSessionController {
+    fn read_sessions(&self, service_key: Option<&[u8]>) -> HydrusResult<Vec<ExistingSession>> {
+        Ok(self
+            .db
+            .get_sessions(service_key)?
+            .into_iter()
+            .map(|session| ExistingSession {
+                session_key: session.session_key,
+                service_key: session.service_key,
+                account: Arc::new(ServerSessionAccount {
+                    account: Arc::clone(&session.account),
+                }),
+                hashed_access_key: session.hashed_access_key,
+                expires: session.expires,
+            })
+            .collect())
+    }
+
+    fn read_account(
+        &self,
+        service_key: &[u8],
+        account_key: &[u8],
+    ) -> HydrusResult<Arc<dyn SessionAccountTrait>> {
+        let account = Arc::new(
+            self.db
+                .get_account_from_account_key(service_key, account_key)?,
+        );
+
+        Ok(Arc::new(ServerSessionAccount { account }))
+    }
+
+    fn read_account_key_from_access_key(
+        &self,
+        service_key: &[u8],
+        access_key: &[u8],
+    ) -> HydrusResult<Vec<u8>> {
+        self.db
+            .get_account_key_from_access_key(service_key, access_key)
+    }
+
+    fn write_session(
+        &self,
+        session_key: &[u8],
+        service_key: &[u8],
+        account_key: &[u8],
+        expires: i64,
+    ) -> HydrusResult<()> {
+        self.db
+            .add_session(session_key, service_key, account_key, expires)
+    }
+
+    fn subscribe(&self, _subscriber: Arc<dyn Subscriber>, _method_name: &str, _topic: &str) {
+        // Wired to the controller's pub/sub daemon with the controller layer.
     }
 }
 
@@ -412,7 +747,7 @@ impl DBHooks for ServerDBHooks {
             None,
         )?;
 
-        insert_service_row(db, &admin_service)?;
+        add_service_full(db, &admin_service)?;
 
         Ok(())
     }
@@ -434,6 +769,48 @@ impl DBHooks for ServerDBHooks {
     }
 }
 
+fn add_service_full(
+    db: &DBBase,
+    service: &ServerService,
+) -> HydrusResult<(i64, Vec<u8>)> {
+    let service_id = insert_service_row(db, service)?;
+
+    let null_account_type = AccountType::generate_null_account_type();
+    let null_account_type_id = add_account_type(db, service_id, &null_account_type)?;
+
+    let null_registration_keys =
+        generate_registration_keys(db, service_id, 1, null_account_type_id, None, None)?;
+    let null_access_key = get_access_key(db, service_id, &null_registration_keys[0])?;
+
+    // The null access key is consumed here and never shown again.
+    let _ = get_account_key_from_access_key(db, service_id, &null_access_key)?;
+
+    let admin_account_type = AccountType::generate_admin_account_type(service.get_service_type())?;
+    let admin_account_type_id = add_account_type(db, service_id, &admin_account_type)?;
+
+    let force_registration_key = if service.get_service_type() == ServiceType::ServerAdmin {
+        Some(b"init".as_slice())
+    } else {
+        None
+    };
+
+    let admin_registration_keys = generate_registration_keys(
+        db,
+        service_id,
+        1,
+        admin_account_type_id,
+        None,
+        force_registration_key,
+    )?;
+    let admin_access_key = get_access_key(db, service_id, &admin_registration_keys[0])?;
+
+    if REPOSITORIES.contains(&service.get_service_type()) {
+        create_repository_tables(db, service_id)?;
+    }
+
+    Ok((service_id, admin_access_key))
+}
+
 fn insert_service_row(db: &DBBase, service: &ServerService) -> HydrusResult<i64> {
     let (service_key, service_type, name, port, dictionary) = service.to_tuple()?;
     let dictionary_string = dictionary.dump_to_string();
@@ -450,6 +827,344 @@ fn insert_service_row(db: &DBBase, service: &ServerService) -> HydrusResult<i64>
     )?;
 
     Ok(db.get_last_row_id())
+}
+
+fn add_account_type(
+    db: &DBBase,
+    service_id: i64,
+    account_type: &AccountType,
+) -> HydrusResult<i64> {
+    db.execute(
+        "INSERT INTO account_types ( service_id, dump ) VALUES ( ?, ? );",
+        &[&service_id, &account_type.dump_to_string()],
+    )?;
+
+    Ok(db.get_last_row_id())
+}
+
+fn parse_account_type(dump: &str) -> HydrusResult<Arc<AccountType>> {
+    let object = create_from_string(dump, false)?;
+
+    let account_type = object
+        .as_any()
+        .downcast_ref::<AccountType>()
+        .ok_or_else(|| {
+            HydrusException::new(
+                ErrorKind::Serialisation,
+                "The account type did not deserialise as an AccountType.",
+            )
+        })?;
+
+    Ok(Arc::new(account_type.clone()))
+}
+
+fn get_account_type(
+    db: &DBBase,
+    service_id: i64,
+    account_type_id: i64,
+) -> HydrusResult<Arc<AccountType>> {
+    let dump = db
+        .query_one(
+            "SELECT dump FROM account_types WHERE service_id = ? AND account_type_id = ?;",
+            &[&service_id, &account_type_id],
+            |row| row.get::<_, String>(0),
+        )?
+        .ok_or_else(|| {
+            HydrusException::new(
+                ErrorKind::DataMissing,
+                "Could not find the given account type for that service!",
+            )
+        })?;
+
+    parse_account_type(&dump)
+}
+
+fn get_account_types(db: &DBBase, service_id: i64) -> HydrusResult<Vec<Arc<AccountType>>> {
+    let dumps = db.query_all(
+        "SELECT dump FROM account_types WHERE service_id = ? ORDER BY account_type_id;",
+        &[&service_id],
+        |row| row.get::<_, String>(0),
+    )?;
+
+    dumps.iter().map(|dump| parse_account_type(dump)).collect()
+}
+
+fn get_account_type_id(
+    db: &DBBase,
+    service_id: i64,
+    account_type_key: &[u8],
+) -> HydrusResult<i64> {
+    let rows = db.query_all(
+        "SELECT account_type_id, dump FROM account_types WHERE service_id = ?;",
+        &[&service_id],
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+    )?;
+
+    for (account_type_id, dump) in rows {
+        let account_type = parse_account_type(&dump)?;
+
+        if account_type.get_account_type_key() == account_type_key {
+            return Ok(account_type_id);
+        }
+    }
+
+    Err(HydrusException::new(
+        ErrorKind::DataMissing,
+        "Could not find the given account type key!",
+    ))
+}
+
+fn generate_registration_keys(
+    db: &DBBase,
+    service_id: i64,
+    num: usize,
+    account_type_id: i64,
+    expires: Option<i64>,
+    force_registration_key: Option<&[u8]>,
+) -> HydrusResult<Vec<Vec<u8>>> {
+    let account_type = get_account_type(db, service_id, account_type_id)?;
+
+    if account_type.is_null_account() {
+        let existing = db.query_one(
+            "SELECT 1 FROM accounts WHERE account_type_id = ?;",
+            &[&account_type_id],
+            |row| row.get::<_, i64>(0),
+        )?;
+
+        if existing.is_some() {
+            return Err(HydrusException::new(
+                ErrorKind::BadRequest,
+                "You cannot create new null accounts!",
+            ));
+        }
+    }
+
+    let mut registration_keys = Vec::with_capacity(num);
+
+    for _ in 0..num {
+        let registration_key = match force_registration_key {
+            Some(key) => key.to_vec(),
+            None => generate_key().to_vec(),
+        };
+        let account_key = generate_key().to_vec();
+        let access_key = generate_key().to_vec();
+        let registration_key_hash = sha256(&registration_key);
+
+        db.execute(
+            "INSERT INTO registration_keys ( registration_key, service_id, account_type_id, account_key, access_key, expires ) VALUES ( ?, ?, ?, ?, ?, ? );",
+            &[
+                &registration_key_hash,
+                &service_id,
+                &account_type_id,
+                &account_key,
+                &access_key,
+                &expires,
+            ],
+        )?;
+
+        registration_keys.push(registration_key);
+    }
+
+    Ok(registration_keys)
+}
+
+fn get_access_key(
+    db: &DBBase,
+    service_id: i64,
+    registration_key: &[u8],
+) -> HydrusResult<Vec<u8>> {
+    let registration_key_hash = sha256(registration_key);
+
+    let exists = db.query_one(
+        "SELECT 1 FROM registration_keys WHERE service_id = ? AND registration_key = ?;",
+        &[&service_id, &registration_key_hash],
+        |row| row.get::<_, i64>(0),
+    )?;
+
+    if exists.is_none() {
+        return Err(HydrusException::new(
+            ErrorKind::InsufficientCredentials,
+            "The service could not find that registration token in its database.",
+        ));
+    }
+
+    let access_key = generate_key().to_vec();
+
+    db.execute(
+        "UPDATE registration_keys SET access_key = ? WHERE service_id = ? AND registration_key = ?;",
+        &[&access_key, &service_id, &registration_key_hash],
+    )?;
+
+    Ok(access_key)
+}
+
+fn get_account_key_from_access_key(
+    db: &DBBase,
+    service_id: i64,
+    access_key: &[u8],
+) -> HydrusResult<Vec<u8>> {
+    let hashed_access_key = sha256(access_key);
+
+    if let Some(account_key) = db.query_one(
+        "SELECT account_key FROM accounts WHERE service_id = ? AND hashed_access_key = ?;",
+        &[&service_id, &hashed_access_key],
+        |row| row.get::<_, Vec<u8>>(0),
+    )? {
+        return Ok(account_key);
+    }
+
+    let Some((account_type_id, account_key, expires)) = db.query_one(
+        "SELECT account_type_id, account_key, expires FROM registration_keys WHERE access_key = ?;",
+        &[&access_key],
+        |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, Vec<u8>>(1)?,
+                row.get::<_, Option<i64>>(2)?,
+            ))
+        },
+    )?
+    else {
+        return Err(HydrusException::new(
+            ErrorKind::InsufficientCredentials,
+            "The service could not find that account in its database.",
+        ));
+    };
+
+    db.execute(
+        "DELETE FROM registration_keys WHERE access_key = ?;",
+        &[&access_key],
+    )?;
+
+    let account_type = get_account_type(db, service_id, account_type_id)?;
+    let created = hydrus_time::get_now();
+    let account = NetworkAccount::new(account_key.clone(), account_type, created, expires);
+    let (stored_key, _, _, _, dictionary) =
+        NetworkAccount::generate_tuple_from_account(&account)?;
+
+    db.execute(
+        "INSERT INTO accounts ( service_id, account_key, hashed_access_key, account_type_id, created, expires, dictionary_string ) VALUES ( ?, ?, ?, ?, ?, ?, ? );",
+        &[
+            &service_id,
+            &stored_key,
+            &hashed_access_key,
+            &account_type_id,
+            &created,
+            &expires,
+            &dictionary.dump_to_string(),
+        ],
+    )?;
+
+    Ok(stored_key)
+}
+
+fn get_account(db: &DBBase, service_id: i64, account_id: i64) -> HydrusResult<NetworkAccount> {
+    let (account_key, account_type_id, created, expires, dictionary_string) = db
+        .query_one(
+            "SELECT account_key, account_type_id, created, expires, dictionary_string FROM accounts WHERE service_id = ? AND account_id = ?;",
+            &[&service_id, &account_id],
+            |row| {
+                Ok((
+                    row.get::<_, Vec<u8>>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, Option<i64>>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            },
+        )?
+        .ok_or_else(|| {
+            HydrusException::new(
+                ErrorKind::InsufficientCredentials,
+                "The service could not find that account in its database.",
+            )
+        })?;
+
+    let account_type = get_account_type(db, service_id, account_type_id)?;
+    let dictionary = parse_dictionary(&dictionary_string)?;
+
+    NetworkAccount::generate_account_from_tuple(
+        account_key,
+        account_type,
+        created,
+        expires,
+        dictionary,
+    )
+}
+
+fn get_account_id(db: &DBBase, account_key: &[u8]) -> HydrusResult<i64> {
+    db.query_one(
+        "SELECT account_id FROM accounts WHERE account_key = ?;",
+        &[&account_key],
+        |row| row.get::<_, i64>(0),
+    )?
+    .ok_or_else(|| {
+        HydrusException::new(
+            ErrorKind::InsufficientCredentials,
+            "The service could not find that account id in its database.",
+        )
+    })
+}
+
+fn get_account_key_from_account_id(db: &DBBase, account_id: i64) -> HydrusResult<Vec<u8>> {
+    db.query_one(
+        "SELECT account_key FROM accounts WHERE account_id = ?;",
+        &[&account_id],
+        |row| row.get::<_, Vec<u8>>(0),
+    )?
+    .ok_or_else(|| {
+        HydrusException::new(
+            ErrorKind::InsufficientCredentials,
+            "The service could not find that account_id in its database.",
+        )
+    })
+}
+
+fn verify_access_key(
+    db: &DBBase,
+    service_id: i64,
+    access_key: &[u8],
+) -> HydrusResult<bool> {
+    let hashed_access_key = sha256(access_key);
+
+    if db
+        .query_one(
+            "SELECT 1 FROM accounts WHERE service_id = ? AND hashed_access_key = ?;",
+            &[&service_id, &hashed_access_key],
+            |row| row.get::<_, i64>(0),
+        )?
+        .is_some()
+    {
+        return Ok(true);
+    }
+
+    Ok(db
+        .query_one(
+            "SELECT 1 FROM registration_keys WHERE service_id = ? AND access_key = ?;",
+            &[&service_id, &access_key],
+            |row| row.get::<_, i64>(0),
+        )?
+        .is_some())
+}
+
+fn parse_dictionary(dump: &str) -> HydrusResult<SerialisableDictionary> {
+    let object = create_from_string(dump, false)?;
+
+    let dictionary = object
+        .as_any()
+        .downcast_ref::<SerialisableDictionary>()
+        .ok_or_else(|| {
+            HydrusException::new(
+                ErrorKind::Serialisation,
+                "The account dictionary did not deserialise as a SerialisableDictionary.",
+            )
+        })?;
+
+    Ok(dictionary.clone())
+}
+
+fn sha256(data: &[u8]) -> Vec<u8> {
+    Sha256::digest(data).to_vec()
 }
 
 fn create_repository_tables(db: &DBBase, service_id: i64) -> HydrusResult<()> {
@@ -717,6 +1432,7 @@ mod tests {
 
     use hydrus_core::hydrus_constants::{DEFAULT_SERVICE_PORT, REPOSITORIES};
     use hydrus_core::hydrus_db::NullDBController;
+    use hydrus_core::hydrus_sessions::HydrusSessionManagerServer;
 
     static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -827,6 +1543,121 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn admin_registration_key_creates_a_usable_admin_account() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+
+        let admin_key = db
+            .get_service_keys(Some(&[ServiceType::ServerAdmin]))
+            .unwrap()[0]
+            .clone();
+
+        let account_types = db.get_account_types(&admin_key).unwrap();
+        assert_eq!(account_types.len(), 2);
+        assert!(
+            account_types
+                .iter()
+                .any(|account_type| account_type.get_title() == "null account")
+        );
+        assert!(
+            account_types
+                .iter()
+                .any(|account_type| account_type.get_title() == "administrator")
+        );
+
+        let access_key = db.get_access_key(&admin_key, b"init").unwrap();
+
+        assert!(db.verify_access_key(&admin_key, &access_key).unwrap());
+
+        let account_key = db
+            .get_account_key_from_access_key(&admin_key, &access_key)
+            .unwrap();
+
+        assert!(db.verify_access_key(&admin_key, &access_key).unwrap());
+
+        let account_id = db.get_account_id(&account_key).unwrap();
+
+        assert!(account_id > 0);
+        assert_eq!(
+            db.get_account_key_from_account_id(account_id).unwrap(),
+            account_key
+        );
+
+        let account = db
+            .get_account_from_account_key(&admin_key, &account_key)
+            .unwrap();
+
+        assert_eq!(account.get_account_key(), account_key);
+        assert_eq!(account.get_account_type().get_title(), "administrator");
+
+        // The registration token is consumed when the account is created.
+        assert!(db.get_access_key(&admin_key, b"init").is_err());
+    }
+
+    #[test]
+    fn unknown_registration_key_is_rejected() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+
+        let admin_key = db
+            .get_service_keys(Some(&[ServiceType::ServerAdmin]))
+            .unwrap()[0]
+            .clone();
+
+        let error = db.get_access_key(&admin_key, b"not-the-token").unwrap_err();
+
+        assert!(error.is_a(ErrorKind::InsufficientCredentials));
+    }
+
+    #[test]
+    fn session_manager_can_add_and_restore_a_session() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+
+        let admin_key = db
+            .get_service_keys(Some(&[ServiceType::ServerAdmin]))
+            .unwrap()[0]
+            .clone();
+        let access_key = db.get_access_key(&admin_key, b"init").unwrap();
+        let account_key = db
+            .get_account_key_from_access_key(&admin_key, &access_key)
+            .unwrap();
+
+        let session_controller: Arc<dyn SessionController> =
+            Arc::new(ServerSessionController::new(Arc::clone(&db)));
+        let manager =
+            HydrusSessionManagerServer::new(session_controller).expect("session manager");
+
+        let (session_key, expires) = manager
+            .add_session(&admin_key, &access_key)
+            .expect("session is created");
+
+        assert!(expires > hydrus_time::get_now());
+
+        let account = manager
+            .get_account(&admin_key, &session_key)
+            .expect("session resolves to the account");
+
+        assert_eq!(account.get_account_key(), account_key);
+
+        manager
+            .refresh_all_accounts(None)
+            .expect("sessions reload from the database");
+
+        let reloaded = manager
+            .get_account(&admin_key, &session_key)
+            .expect("reloaded session resolves");
+
+        assert_eq!(reloaded.get_account_key(), account_key);
+
+        let rows = db.get_sessions(Some(&admin_key)).unwrap();
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].session_key, session_key);
+        assert_eq!(rows[0].account.get_account_key(), account_key);
     }
 
     #[test]

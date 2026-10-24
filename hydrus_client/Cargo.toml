@@ -9,6 +9,7 @@ cxx = "1"
 cxx-qt = "0.10"
 cxx-qt-lib = { version = "0.10", features = ["qt_gui"] }
 hydrus_core = { path = "../hydrus_core" }
+hydrus_external = { path = "../hydrus_external" }
 rand = "0.8"
 rusqlite = "0.40.2"
 serde = { version = "1", features = ["derive"] }

@@ -1,15 +1,15 @@
 pub mod client_file_search_context;
 pub mod client_file_system_predicates;
 pub mod client_number_test;
+pub mod client_search_parse_system_predicates;
 pub mod client_search_predicate;
 pub mod client_search_tag_context;
 pub mod predicate_constants;
 
-pub use client_file_search_context::{
-    FileSearchContext, SEARCH_TYPE_AND, SEARCH_TYPE_OR,
-};
+pub use client_file_search_context::{FileSearchContext, SEARCH_TYPE_AND, SEARCH_TYPE_OR};
 pub use client_file_system_predicates::FileSystemPredicates;
 pub use client_number_test::NumberTest;
+pub use client_search_parse_system_predicates::parse_system_predicate;
 pub use client_search_predicate::{Predicate, PredicateCount, PredicateValue};
 pub use client_search_tag_context::TagContext;
 

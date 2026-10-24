@@ -986,6 +986,7 @@ dependencies = [
  "cxx-qt-build",
  "cxx-qt-lib",
  "hydrus_core",
+ "hydrus_external",
  "rand 0.8.8",
  "rusqlite",
  "serde",

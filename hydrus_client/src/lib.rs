@@ -10,6 +10,7 @@ pub mod client_location;
 pub mod client_mac_integration;
 pub mod client_options;
 pub mod client_paths;
+pub mod client_serialisable;
 pub mod client_threading;
 pub mod client_time;
 pub mod client_windows_integration;

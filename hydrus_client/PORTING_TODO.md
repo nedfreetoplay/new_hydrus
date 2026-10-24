@@ -52,7 +52,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   strings/keys/colours, typed get/set.
 - [~] `ClientOptions` — миграции версий 1→8 и значения по умолчанию.
   Портированы шаги 3→8; шаги 1→2 и точные GUI-структуры появятся вместе с медиа-опциями.
-- [ ] `ClientSerialisable` — импорт/экспорт объектов через PNG (после GUI-фазы).
+- [x] `ClientSerialisable` — импорт/экспорт объектов через PNG (после GUI-фазы).
+  Реализован совместимый пиксельный payload (header height + длина + compressed bytes).
 
 ## 3. Метаданные
 

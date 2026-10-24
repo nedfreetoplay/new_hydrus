@@ -58,7 +58,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientTagSorting` — `SortType`, `TagSort`, применение к тегам.
 - [x] `ClientRatings` — `Rating`, `RatingsManager`, числовые/лайк-рейтинги.
 - [x] `ClientContentUpdates` — `ContentUpdate`, `ContentUpdatePackage`, слияние.
-- [ ] `ClientMetadataConditional` — условные правила метаданных.
+- [x] `ClientMetadataConditional` — условные правила метаданных.
 - [ ] `ClientFileMigration`/`ClientMetadataMigration*` — маршрутизация метаданных.
 
 ## 4. Поиск

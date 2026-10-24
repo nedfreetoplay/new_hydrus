@@ -164,7 +164,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   редактор шорткатов дальше.
 - [~] `ClientGUITopLevelWindows`, `ClientGUITopLevelWindowsPanels`.
   Портирована модель top-level окна (типы/геометрия/accept-reject); Qt-диалоги дальше.
-- [ ] `ClientGUIScrolledPanels`, `ClientGUICommon` — базовые виджеты.
+- [~] `ClientGUIScrolledPanels`, `ClientGUICommon` — базовые виджеты.
+  Портирована модель edit/manage/review панели; Qt-виджеты и `ClientGUICommon` дальше.
 - [ ] `ClientGUIListCtrl`, `ClientGUIListBoxes`, `ClientGUIListManager`.
 - [~] `ClientGUI` — `FrameGUI`: меню, панель страниц, статус-бар, popup-очередь.
   Готов каркас окна с меню, боковым деревом и вкладками; страницы и popup-очередь дальше.

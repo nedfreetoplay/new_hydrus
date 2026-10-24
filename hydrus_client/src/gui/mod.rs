@@ -4,6 +4,7 @@ pub mod functions;
 pub mod pages;
 pub mod popup_messages;
 pub mod qt_init;
+pub mod scrolled_panels;
 pub mod shortcuts;
 pub mod style;
 pub mod top_level_windows;

@@ -81,7 +81,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientMediaList` — `MediaList`, `MediaCollection`.
 - [~] `ClientMediaSort`, `ClientMediaCollect`, `ClientMediaFileFilter`.
   Сортировка и группировка портированы; file filter появится вместе с поиском.
-- [ ] `ClientMediaResultCache`, `ClientMediaResultAPI`.
+- [x] `ClientMediaResultCache`, `ClientMediaResultAPI`.
 
 ## 6. Файлы
 

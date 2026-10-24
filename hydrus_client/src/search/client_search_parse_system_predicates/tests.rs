@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::search::predicate_constants::*;
+
 #[test]
 fn parses_simple_system_predicates() {
     let predicate = parse_system_predicate("system:inbox").unwrap();

@@ -63,3 +63,6 @@ pub struct Predicate {
     pub inclusive: bool,
     pub count: PredicateCount,
 }
+
+#[cfg(test)]
+mod tests;

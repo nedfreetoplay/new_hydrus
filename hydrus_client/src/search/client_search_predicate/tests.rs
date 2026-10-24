@@ -1,5 +1,8 @@
 use super::*;
 
+use crate::search::predicate_constants::*;
+use hydrus_core::hydrus_serialisable::SerialisableObject;
+
 #[test]
 fn tag_predicates_render_like_python() {
     let predicate = Predicate::tag("blue eyes");

@@ -46,3 +46,6 @@ mod types;
 
 use convert::convert;
 use helpers::*;
+
+#[cfg(test)]
+mod tests;

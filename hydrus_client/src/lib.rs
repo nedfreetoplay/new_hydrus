@@ -15,6 +15,7 @@ pub mod client_time;
 pub mod client_windows_integration;
 pub mod controller;
 pub mod db;
+pub mod duplicates;
 pub mod files;
 pub mod gui;
 pub mod importing;

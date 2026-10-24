@@ -44,7 +44,8 @@ accept real HTTP/TLS requests.
 
 ## 4. Repository content
 
-- [ ] Port repository add/delete files.
+- [x] Port repository add/delete files.
+- [x] Port `repository_has_file` and the repository service-hash map.
 - [ ] Port mappings and mapping petitions.
 - [ ] Port tag parents and tag siblings.
 - [ ] Port file/mapping petition summaries and approval.

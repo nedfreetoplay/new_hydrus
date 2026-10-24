@@ -958,6 +958,301 @@ impl ServerDB {
             })
     }
 
+    /// `_repository_get_service_hash_id( service_id, master_hash_id, timestamp )`
+    pub fn repository_get_service_hash_id(
+        &self,
+        service_id: i64,
+        master_hash_id: i64,
+        timestamp: i64,
+    ) -> HydrusResult<i64> {
+        let (hash_map, _) = generate_repository_master_map_table_names(service_id);
+        let db = self.db.db_base()?;
+
+        if let Some(service_hash_id) = db.query_one(
+            &format!(
+                "SELECT service_hash_id FROM {hash_map} WHERE master_hash_id = ?;"
+            ),
+            &[&master_hash_id],
+            |row| row.get::<_, i64>(0),
+        )? {
+            return Ok(service_hash_id);
+        }
+
+        db.execute(
+            &format!(
+                "INSERT INTO {hash_map} ( master_hash_id, hash_id_timestamp ) VALUES ( ?, ? );"
+            ),
+            &[&master_hash_id, &timestamp],
+        )?;
+
+        self.update_service_info(service_id, ServiceInfoType::NumFileHashes, 1)?;
+
+        Ok(db.get_last_row_id())
+    }
+
+    /// `_repository_get_service_hash_ids( service_id, master_hash_ids, timestamp )`
+    pub fn repository_get_service_hash_ids(
+        &self,
+        service_id: i64,
+        master_hash_ids: &[i64],
+        timestamp: i64,
+    ) -> HydrusResult<Vec<i64>> {
+        let mut service_hash_ids = Vec::with_capacity(master_hash_ids.len());
+
+        for master_hash_id in master_hash_ids {
+            service_hash_ids.push(self.repository_get_service_hash_id(
+                service_id,
+                *master_hash_id,
+                timestamp,
+            )?);
+        }
+
+        Ok(service_hash_ids)
+    }
+
+    /// `_repository_get_master_hash_ids( service_id, service_hash_ids )`
+    pub fn repository_get_master_hash_ids(
+        &self,
+        service_id: i64,
+        service_hash_ids: &[i64],
+    ) -> HydrusResult<Vec<i64>> {
+        let (hash_map, _) = generate_repository_master_map_table_names(service_id);
+        let db = self.db.db_base()?;
+        let mut master_hash_ids = Vec::with_capacity(service_hash_ids.len());
+
+        for service_hash_id in service_hash_ids {
+            let master_hash_id = db
+                .query_one(
+                    &format!(
+                        "SELECT master_hash_id FROM {hash_map} WHERE service_hash_id = ?;"
+                    ),
+                    &[service_hash_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .ok_or_else(|| {
+                    HydrusException::new(
+                        ErrorKind::DataMissing,
+                        "Missing master_hash_id map error!",
+                    )
+                })?;
+
+            master_hash_ids.push(master_hash_id);
+        }
+
+        Ok(master_hash_ids)
+    }
+
+    /// `_repository_service_hash_id_exists( service_id, master_hash_id )`
+    pub fn repository_service_hash_id_exists(
+        &self,
+        service_id: i64,
+        master_hash_id: i64,
+    ) -> HydrusResult<bool> {
+        let (hash_map, _) = generate_repository_master_map_table_names(service_id);
+
+        Ok(self
+            .db
+            .db_base()?
+            .query_one(
+                &format!(
+                    "SELECT 1 FROM {hash_map} WHERE master_hash_id = ?;"
+                ),
+                &[&master_hash_id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .is_some())
+    }
+
+    /// `_repository_add_file( service_id, account_id, file_dict, overwrite_deleted, timestamp )`
+    pub fn repository_add_file(
+        &self,
+        service_id: i64,
+        account_id: i64,
+        file: &ServerFileInput,
+        overwrite_deleted: bool,
+        timestamp: i64,
+        ip: Option<&str>,
+    ) -> HydrusResult<()> {
+        let master_hash_id = self.add_file(file)?;
+        let service_hash_id =
+            self.repository_get_service_hash_id(service_id, master_hash_id, timestamp)?;
+        let (current_files, deleted_files, _, _, ip_addresses) =
+            generate_repository_files_table_names(service_id);
+        let db = self.db.db_base()?;
+
+        if let Some(ip) = ip {
+            db.execute(
+                &format!(
+                    "INSERT INTO {ip_addresses} ( master_hash_id, ip, ip_timestamp ) VALUES ( ?, ?, ? );"
+                ),
+                &[&master_hash_id, &ip, &timestamp],
+            )?;
+        }
+
+        if db
+            .query_one(
+                &format!(
+                    "SELECT 1 FROM {current_files} WHERE service_hash_id = ?;"
+                ),
+                &[&service_hash_id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .is_some()
+        {
+            return Ok(());
+        }
+
+        if overwrite_deleted {
+            let deleted = db.execute(
+                &format!(
+                    "DELETE FROM {deleted_files} WHERE service_hash_id = ?;"
+                ),
+                &[&service_hash_id],
+            )?;
+
+            if deleted > 0 {
+                self.update_service_info(
+                    service_id,
+                    ServiceInfoType::NumDeletedFiles,
+                    -(deleted as i64),
+                )?;
+            }
+        } else if db
+            .query_one(
+                &format!(
+                    "SELECT 1 FROM {deleted_files} WHERE service_hash_id = ?;"
+                ),
+                &[&service_hash_id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .is_some()
+        {
+            return Ok(());
+        }
+
+        db.execute(
+            &format!(
+                "INSERT INTO {current_files} ( service_hash_id, account_id, file_timestamp ) VALUES ( ?, ?, ? );"
+            ),
+            &[&service_hash_id, &account_id, &timestamp],
+        )?;
+
+        self.update_service_info(service_id, ServiceInfoType::NumFiles, 1)?;
+
+        self.clear_deferred_physical_delete(Some(&file.hash), Some(&file.hash))?;
+
+        Ok(())
+    }
+
+    /// `_repository_delete_files( service_id, account_id, service_hash_ids, timestamp )`
+    pub fn repository_delete_files(
+        &self,
+        service_id: i64,
+        account_id: i64,
+        service_hash_ids: &[i64],
+        timestamp: i64,
+    ) -> HydrusResult<()> {
+        let (current_files, deleted_files, _, petitioned_files, _) =
+            generate_repository_files_table_names(service_id);
+        let db = self.db.db_base()?;
+        let mut valid_service_hash_ids = Vec::new();
+
+        for service_hash_id in service_hash_ids {
+            if db
+                .query_one(
+                    &format!(
+                        "SELECT 1 FROM {current_files} WHERE service_hash_id = ?;"
+                    ),
+                    &[service_hash_id],
+                    |row| row.get::<_, i64>(0),
+                )?
+                .is_some()
+            {
+                valid_service_hash_ids.push(*service_hash_id);
+            }
+        }
+
+        for service_hash_id in &valid_service_hash_ids {
+            db.execute(
+                &format!(
+                    "DELETE FROM {current_files} WHERE service_hash_id = ?;"
+                ),
+                &[service_hash_id],
+            )?;
+            db.execute(
+                &format!(
+                    "DELETE FROM {petitioned_files} WHERE service_hash_id = ?;"
+                ),
+                &[service_hash_id],
+            )?;
+        }
+
+        if !valid_service_hash_ids.is_empty() {
+            self.update_service_info(
+                service_id,
+                ServiceInfoType::NumFiles,
+                -(valid_service_hash_ids.len() as i64),
+            )?;
+        }
+
+        let mut inserted_deleted = 0_i64;
+
+        for service_hash_id in &valid_service_hash_ids {
+            inserted_deleted += db.execute(
+                &format!(
+                    "INSERT OR IGNORE INTO {deleted_files} ( service_hash_id, account_id, file_timestamp ) VALUES ( ?, ?, ? );"
+                ),
+                &[service_hash_id, &account_id, &timestamp],
+            )? as i64;
+        }
+
+        if inserted_deleted > 0 {
+            self.update_service_info(
+                service_id,
+                ServiceInfoType::NumDeletedFiles,
+                inserted_deleted,
+            )?;
+        }
+
+        let master_hash_ids =
+            self.repository_get_master_hash_ids(service_id, &valid_service_hash_ids)?;
+
+        self.defer_files_delete_if_now_orphan(&master_hash_ids, false, Some(service_id))?;
+
+        Ok(())
+    }
+
+    /// `_repository_has_file( service_key, hash )`
+    pub fn repository_has_file(
+        &self,
+        service_key: &[u8],
+        hash: &[u8],
+    ) -> HydrusResult<(bool, Option<Mime>)> {
+        if !self.master_hash_exists(hash)? {
+            return Ok((false, None));
+        }
+
+        let service_id = self.get_service_id(service_key)?;
+        let master_hash_id = self.get_master_hash_id(hash)?;
+        let (hash_map, _) = generate_repository_master_map_table_names(service_id);
+        let (current_files, _, _, _, _) =
+            generate_repository_files_table_names(service_id);
+        let db = self.db.db_base()?;
+
+        let mime = db
+            .query_one(
+                &format!(
+                    "SELECT mime FROM files_info NATURAL JOIN {hash_map} NATURAL JOIN {current_files} WHERE master_hash_id = ?;"
+                ),
+                &[&master_hash_id],
+                |row| row.get::<_, i64>(0),
+            )?
+            .and_then(|mime| u16::try_from(mime).ok())
+            .and_then(Mime::try_from_int);
+
+        Ok((mime.is_some(), mime))
+    }
+
     /// `_add_account_type( service_id, account_type )`
     pub fn add_account_type(
         &self,
@@ -2581,6 +2876,111 @@ mod tests {
             db.defer_files_delete_if_now_orphan(&[master_hash_id], false, None)
                 .unwrap(),
             0
+        );
+    }
+
+    fn create_file_repository(db: &ServerDB, label: &str) -> (i64, Vec<u8>) {
+        let service = generate_service(
+            vec![0x33; 32],
+            ServiceType::FileRepository,
+            format!("{label} repository"),
+            DEFAULT_SERVICE_PORT,
+            None,
+        )
+        .unwrap();
+        let service_id = db.add_service(&service).unwrap();
+
+        (service_id, service.get_service_key().to_vec())
+    }
+
+    #[test]
+    fn repository_add_and_delete_files_updates_tables_and_info() {
+        let dir = TestDir::new();
+        let db = make_db(&dir);
+        let (service_id, service_key) = create_file_repository(&db, "file ops");
+
+        let source_path = dir.path.join("represented.bin");
+        std::fs::write(&source_path, b"represented file").unwrap();
+
+        let hash = vec![0xB1; 32];
+        let file = ServerFileInput {
+            hash: hash.clone(),
+            size: 16,
+            mime: Mime::OctetStream,
+            width: None,
+            height: None,
+            duration_ms: None,
+            num_frames: None,
+            num_words: None,
+            path: source_path,
+            thumbnail: Some(b"thumbnail".to_vec()),
+        };
+
+        db.repository_add_file(
+            service_id,
+            1,
+            &file,
+            false,
+            hydrus_time::get_now(),
+            Some("127.0.0.1"),
+        )
+        .unwrap();
+
+        assert_eq!(
+            db.repository_has_file(&service_key, &hash).unwrap(),
+            (true, Some(Mime::OctetStream))
+        );
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumFiles)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.get_ip_timestamp(&service_key, &hash).unwrap().0,
+            "127.0.0.1"
+        );
+
+        let (hash_map, _) = generate_repository_master_map_table_names(service_id);
+        let master_hash_id = db.get_master_hash_id(&hash).unwrap();
+        let service_hash_id = db
+            .db()
+            .db_base()
+            .unwrap()
+            .query_one(
+                &format!(
+                    "SELECT service_hash_id FROM {hash_map} WHERE master_hash_id = ?;"
+                ),
+                &[&master_hash_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap()
+            .unwrap();
+
+        db.repository_delete_files(
+            service_id,
+            1,
+            &[service_hash_id],
+            hydrus_time::get_now(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            db.repository_has_file(&service_key, &hash).unwrap(),
+            (false, None)
+        );
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumFiles)
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            db.get_service_info_specific(service_id, ServiceInfoType::NumDeletedFiles)
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            db.get_deferred_physical_delete().unwrap(),
+            (Some(hash.clone()), Some(hash))
         );
     }
 

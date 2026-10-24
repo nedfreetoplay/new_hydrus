@@ -215,7 +215,10 @@ impl FileImportJob {
     ) -> HydrusResult<FileImportStatus> {
         self.generate_pre_import_hash_and_status(is_in_db)?;
 
-        if !self.pre_import_file_status.should_import(&self.import_options) {
+        if !self
+            .pre_import_file_status
+            .should_import(&self.import_options)
+        {
             self.post_import_file_status = self.pre_import_file_status.duplicate();
 
             return Ok(self.post_import_file_status.clone());
@@ -234,12 +237,8 @@ impl FileImportJob {
             return Ok(self.post_import_file_status.clone());
         }
 
-        self.post_import_file_status = FileImportStatus::new(
-            STATUS_UNKNOWN,
-            self.hash.clone(),
-            self.get_mime(),
-            "",
-        );
+        self.post_import_file_status =
+            FileImportStatus::new(STATUS_UNKNOWN, self.hash.clone(), self.get_mime(), "");
 
         Ok(self.post_import_file_status.clone())
     }

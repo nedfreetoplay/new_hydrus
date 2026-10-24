@@ -3,7 +3,12 @@
 
 use std::collections::BTreeMap;
 
+use hydrus_core::hydrus_exceptions::{HydrusResult, unknown};
+
 use crate::importing::file_seeds::FileSeed;
+use crate::networking::client_networking::{HttpTransport, NetworkEngine};
+use crate::networking::client_networking_jobs::NetworkJob;
+use crate::parsing::formula::{ParseFormula, ParsingContext};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImportStatus {
@@ -157,6 +162,58 @@ impl GalleryImport {
             &self.file_queue.status
         }
     }
+
+    /// Fetches the next queued gallery page. Returns the page URL and body.
+    pub fn run_next_gallery_page<T: HttpTransport>(
+        &mut self,
+        engine: &mut NetworkEngine<T>,
+    ) -> Option<(String, HydrusResult<String>)> {
+        let url = self
+            .gallery_seeds
+            .keys()
+            .next()
+            .cloned()
+            .or_else(|| self.initial_search_urls.first().cloned())?;
+
+        self.gallery_queue.status = ImportStatus::Working;
+        engine.add_job(NetworkJob::get(url.clone()));
+
+        let job = engine.run_next()?;
+
+        let result = match job.get_response() {
+            Some(body) => Ok(String::from_utf8_lossy(body).into_owned()),
+            None => Err(unknown(
+                job.error
+                    .unwrap_or_else(|| "gallery request failed".to_string()),
+            )),
+        };
+
+        self.gallery_seeds.remove(&url);
+        self.gallery_queue.mark_finished();
+
+        Some((url, result))
+    }
+
+    /// Parses a gallery page and queues every returned URL as a file seed.
+    pub fn apply_gallery_formula(
+        &mut self,
+        formula: &dyn ParseFormula,
+        text: &str,
+        created: i64,
+    ) -> usize {
+        let mut added = 0;
+
+        for url in formula.parse(&ParsingContext::default(), text, true) {
+            let before = self.get_num_seeds();
+            self.add_file_seed(FileSeed::url(url, created));
+
+            if self.get_num_seeds() > before {
+                added += 1;
+            }
+        }
+
+        added
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -248,7 +305,7 @@ impl SimpleDownloaderImport {
     }
 
     pub fn get_status(&self) -> ImportStatus {
-        if self.jobs.is_empty() {
+        if self.jobs.is_empty() || self.jobs.iter().all(|job| job.status.is_finished()) {
             ImportStatus::Finished
         } else if self
             .jobs
@@ -259,6 +316,62 @@ impl SimpleDownloaderImport {
         } else {
             ImportStatus::Ready
         }
+    }
+
+    /// Fetches the next job's page. The job is marked finished on success.
+    pub fn run_next_job<T: HttpTransport>(
+        &mut self,
+        engine: &mut NetworkEngine<T>,
+    ) -> Option<(String, HydrusResult<String>)> {
+        let index = self
+            .jobs
+            .iter()
+            .position(|job| job.status == ImportStatus::Ready)?;
+
+        let url = self.jobs[index].url.clone();
+        self.jobs[index].status = ImportStatus::Working;
+        self.current_job = Some(index);
+        engine.add_job(NetworkJob::get(url.clone()));
+
+        let job = engine.run_next()?;
+
+        let result = match job.get_response() {
+            Some(body) => {
+                self.jobs[index].status = ImportStatus::Finished;
+                Ok(String::from_utf8_lossy(body).into_owned())
+            }
+            None => {
+                self.jobs[index].status = ImportStatus::Error(
+                    job.error
+                        .clone()
+                        .unwrap_or_else(|| "simple download failed".to_string()),
+                );
+                Err(unknown(
+                    job.error
+                        .unwrap_or_else(|| "simple download failed".to_string()),
+                ))
+            }
+        };
+
+        self.current_job = None;
+
+        Some((url, result))
+    }
+
+    /// Parses a fetched page and queues the returned file URLs.
+    pub fn apply_downloader_formula(
+        &mut self,
+        formula: &dyn ParseFormula,
+        text: &str,
+        created: i64,
+    ) -> usize {
+        let urls = formula.parse(&ParsingContext::default(), text, true);
+
+        for url in &urls {
+            self.add_file_seed(FileSeed::url(url.clone(), created));
+        }
+
+        urls.len()
     }
 }
 
@@ -328,5 +441,83 @@ mod tests {
 
         assert!(import.jobs.is_empty());
         assert_eq!(import.get_status(), ImportStatus::Finished);
+    }
+
+    struct MockTransport {
+        body: Vec<u8>,
+    }
+
+    impl crate::networking::client_networking::HttpTransport for MockTransport {
+        fn execute(
+            &self,
+            _request: &crate::networking::client_networking::NetworkRequest,
+        ) -> HydrusResult<crate::networking::client_networking::NetworkResponse> {
+            Ok(crate::networking::client_networking::NetworkResponse {
+                status: 200,
+                headers: BTreeMap::new(),
+                body: self.body.clone(),
+            })
+        }
+    }
+
+    struct DummyFormula(Vec<String>);
+
+    impl ParseFormula for DummyFormula {
+        fn parse(
+            &self,
+            _context: &ParsingContext,
+            _text: &str,
+            _collapse_newlines: bool,
+        ) -> Vec<String> {
+            self.0.clone()
+        }
+
+        fn name(&self) -> &str {
+            "dummy"
+        }
+    }
+
+    #[test]
+    fn gallery_pages_are_fetched_and_parsed() {
+        let mut gallery = GalleryImport::new("blue eyes", "example", 0);
+        gallery
+            .initial_search_urls
+            .push("https://example.com/gallery".to_string());
+
+        let mut engine = NetworkEngine::new(MockTransport {
+            body: b"<html>page</html>".to_vec(),
+        });
+
+        let (url, body) = gallery.run_next_gallery_page(&mut engine).unwrap();
+        assert_eq!(url, "https://example.com/gallery");
+        assert_eq!(body.unwrap(), "<html>page</html>");
+        assert!(gallery.gallery_finished());
+
+        let formula = DummyFormula(vec![
+            "https://example.com/a.jpg".to_string(),
+            "https://example.com/b.jpg".to_string(),
+        ]);
+
+        assert_eq!(gallery.apply_gallery_formula(&formula, "text", 10), 2);
+        assert_eq!(gallery.get_num_seeds(), 2);
+    }
+
+    #[test]
+    fn simple_downloader_jobs_use_the_network() {
+        let mut import = SimpleDownloaderImport::new("formula");
+        import.pend_job("https://example.com/page");
+
+        let mut engine = NetworkEngine::new(MockTransport {
+            body: b"page body".to_vec(),
+        });
+
+        let (url, body) = import.run_next_job(&mut engine).unwrap();
+        assert_eq!(url, "https://example.com/page");
+        assert_eq!(body.unwrap(), "page body");
+        assert_eq!(import.get_status(), ImportStatus::Finished);
+
+        let formula = DummyFormula(vec!["https://example.com/file.png".to_string()]);
+        assert_eq!(import.apply_downloader_formula(&formula, "text", 5), 1);
+        assert_eq!(import.get_num_seeds(), 1);
     }
 }

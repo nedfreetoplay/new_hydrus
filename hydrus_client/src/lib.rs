@@ -1,3 +1,4 @@
+pub mod api;
 pub mod client_application_command;
 pub mod client_boot;
 pub mod client_constants;

@@ -132,8 +132,10 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 ## 10. GUI (Qt 6 Widgets, `cxx-qt`)
 
-- [ ] C++-слой `gui/qt`: `QApplication`, `QMainWindow`, `QWidget`, `QLabel`, кнопки,
+- [~] C++-слой `gui/qt`: `QApplication`, `QMainWindow`, `QWidget`, `QLabel`, кнопки,
   layout-ы, меню, статус-бар, splitter, tab-widget.
+  Готовы QApplication/QMainWindow/меню/статус-бар/splitter/tab-widget; виджеты и layout-ы
+  добавляются по мере портирования панелей.
 - [ ] `QtInit`, `QtPorting`, `QtInitImportTest` — инициализация, стиль, логирование Qt.
 - [ ] `ClientGUIFunctions`, `ClientGUIFunctionsImage` — конвертация изображений/иконок.
 - [ ] `ClientGUICore`, `ClientGUICallAfter`, `ClientGUIAsync` — мост потоков и call-after.
@@ -141,7 +143,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [ ] `ClientGUITopLevelWindows`, `ClientGUITopLevelWindowsPanels`.
 - [ ] `ClientGUIScrolledPanels`, `ClientGUICommon` — базовые виджеты.
 - [ ] `ClientGUIListCtrl`, `ClientGUIListBoxes`, `ClientGUIListManager`.
-- [ ] `ClientGUI` — `FrameGUI`: меню, панель страниц, статус-бар, popup-очередь.
+- [~] `ClientGUI` — `FrameGUI`: меню, панель страниц, статус-бар, popup-очередь.
+  Готов каркас окна с меню, боковым деревом и вкладками; страницы и popup-очередь дальше.
 - [ ] `ClientGUIPages`, `ClientGUIPagesTreeView`, `ClientGUIPagesTreeModel`.
 - [ ] `ClientGUIMediaResultsPanel`, `ClientGUIMediaResultsPanelThumbnails`.
 - [ ] `ClientGUICanvas*`, `ClientGUIMPV`, `ClientGUIMediaModalActions`.

@@ -26,6 +26,13 @@ cargo build -p hydrus_client
 cargo run -p hydrus_client
 ```
 
+Если `cl.exe` не находится, запускайте сборку через обёртку (загружает VS 2022 и Qt):
+
+```powershell
+.\scripts\cargo.ps1 test -p hydrus_client
+.\scripts\cargo.ps1 run -p hydrus_client
+```
+
 ## Статус портирования
 
 Актуальный план и флаги: [PORTING_TODO.md](PORTING_TODO.md).

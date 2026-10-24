@@ -34,6 +34,13 @@ impl Controller {
         self.open_session_manager()?;
         hydrus_process::record_running_start(&self.db_dir, "server");
 
+        let service_controller: Arc<
+            dyn hydrus_core::networking::hydrus_network::ServerServiceController,
+        > = self.clone();
+        hydrus_core::networking::hydrus_network::set_server_service_controller(Some(
+            service_controller,
+        ));
+
         Ok(())
     }
 
@@ -45,6 +52,28 @@ impl Controller {
     /// `run`
     pub async fn run(self: &Arc<Self>) -> HydrusResult<()> {
         self.init_model()?;
+
+        let daemon_controller = Arc::clone(self);
+
+        tokio::spawn(async move {
+            let mut interval =
+                tokio::time::interval(std::time::Duration::from_secs(60));
+
+            loop {
+                interval.tick().await;
+
+                if daemon_controller.shutdown_requested.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                let controller = Arc::clone(&daemon_controller);
+
+                let _ = tokio::task::spawn_blocking(move || {
+                    let _ = controller.run_daemons();
+                })
+                .await;
+            }
+        });
 
         server_http::serve(Arc::clone(self)).await
     }

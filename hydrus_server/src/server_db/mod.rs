@@ -18,7 +18,8 @@ use sha2::{Digest, Sha256};
 use hydrus_core::hydrus_constants::{
     DEFAULT_SERVER_ADMIN_PORT, FILE_REPOSITORY_SERVICE_INFO_TYPES, Mime, REPOSITORIES,
     SERVER_ADMIN_KEY, SOFTWARE_VERSION, ContentStatus, ContentType, ContentUpdate,
-    ServiceInfoType, ServiceType, TAG_REPOSITORY_SERVICE_INFO_TYPES, TIMEZONE_LOCAL,
+    DefinitionsType, ServiceInfoType, ServiceType, TAG_REPOSITORY_SERVICE_INFO_TYPES,
+    TIMEZONE_LOCAL,
 };
 use hydrus_core::hydrus_data::generate_key;
 use hydrus_core::hydrus_db::{DBController, DBHooks, HydrusDB, HydrusDBConfig};
@@ -33,8 +34,10 @@ use hydrus_core::hydrus_sessions::{
 };
 use hydrus_core::hydrus_time;
 use hydrus_core::networking::hydrus_network::{
-    Account as NetworkAccount, AccountType, ClientToServerUpdate, Content, ContentData, Petition,
-    PetitionHeader, ServerService, generate_service, generate_service_from_serialisable_tuple,
+    Account as NetworkAccount, AccountType, ClientToServerUpdate, Content, ContentData,
+    ContentUpdatePackage, ContentUpdateRow, DefinitionValue, DefinitionsUpdate,
+    DefinitionsUpdateRow, Petition, PetitionHeader, ServerService, UpdateBuilder, generate_service,
+    generate_service_from_serialisable_tuple,
 };
 
 use crate::server_files::ServerFiles;
@@ -127,6 +130,24 @@ include!("parts/part_30d.rs");
 include!("parts/part_30e.rs");
 
 include!("parts/part_31.rs");
+
+include!("parts/part_32.rs");
+
+include!("parts/part_33.rs");
+
+include!("parts/part_34.rs");
+
+include!("parts/part_35.rs");
+
+include!("parts/part_36.rs");
+
+include!("parts/part_37.rs");
+
+include!("parts/part_38.rs");
+
+include!("parts/part_39.rs");
+
+include!("parts/part_40.rs");
 
 #[cfg(test)]
 mod tests;

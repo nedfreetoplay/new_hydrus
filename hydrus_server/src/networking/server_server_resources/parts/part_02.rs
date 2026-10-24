@@ -50,16 +50,16 @@ pub fn render_resource(
         ServerResourceKind::RestrictedOptions => options_response(runtime)?,
         ServerResourceKind::RestrictedAllAccounts => all_accounts_response(runtime, request)?,
         ServerResourceKind::RestrictedAccountTypes if request.method == "POST" => {
-            ResponseContext::with_status_and_body(
-                501,
-                "This server resource is not ported yet.",
-            )
+            account_types_post_response(runtime, request)?
         }
         ServerResourceKind::RestrictedAccountTypes => account_types_response(runtime)?,
         ServerResourceKind::RestrictedRegistrationKeys => {
             registration_keys_response(runtime, request)?
         }
         ServerResourceKind::RestrictedServiceInfo => service_info_response(runtime)?,
+        ServerResourceKind::RestrictedServices if request.method == "POST" => {
+            services_post_response(runtime, request)?
+        }
         ServerResourceKind::RestrictedServices => services_response(runtime)?,
         ServerResourceKind::RestrictedOptionsModifyNullificationPeriod => {
             nullification_period_response(runtime, request)?
@@ -99,12 +99,14 @@ pub fn render_resource(
         ServerResourceKind::RestrictedPetitionsSummary => {
             petitions_summary_response(runtime, request)?
         }
-        ServerResourceKind::RestrictedMetadataUpdate => metadata_response(runtime)?,
+        ServerResourceKind::RestrictedMetadataUpdate => metadata_response(runtime, request)?,
+        ServerResourceKind::RestrictedPetition => petition_response(runtime, request)?,
+        ServerResourceKind::RestrictedUpdate if request.method == "POST" => {
+            update_post_response(runtime, request)?
+        }
+        ServerResourceKind::RestrictedUpdate => update_response(runtime, request)?,
         ServerResourceKind::RestrictedRepositoryFile if request.method == "POST" => {
-            ResponseContext::with_status_and_body(
-                501,
-                "File upload resource is not ported yet.",
-            )
+            repository_file_post_response(runtime, request)?
         }
         ServerResourceKind::RestrictedRepositoryFile => repository_file_response(runtime, request)?,
         ServerResourceKind::RestrictedIp => ip_response(runtime, request)?,
@@ -112,10 +114,7 @@ pub fn render_resource(
             repository_thumbnail_response(runtime, request)?
         }
         ServerResourceKind::RestrictedTagFilter if request.method == "POST" => {
-            ResponseContext::with_status_and_body(
-                501,
-                "Tag filter writing is not ported yet.",
-            )
+            tag_filter_post_response(runtime, request)?
         }
         ServerResourceKind::RestrictedTagFilter => tag_filter_response(runtime)?,
         ServerResourceKind::RestrictedLockOn => {
@@ -137,6 +136,7 @@ pub fn render_resource(
         ServerResourceKind::RestrictedRestartServices => {
             ResponseContext::with_status_and_body(200, "")
         }
+        #[allow(unreachable_patterns)]
         _ => ResponseContext::with_status_and_body(
             501,
             "This server resource is not ported yet.",

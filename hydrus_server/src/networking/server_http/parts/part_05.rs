@@ -49,8 +49,14 @@ async fn handle_request(
     };
 
     match response_from_context(&hydrus_request, &response_context, context.service()).await {
-        Ok(response) => Ok(response),
-        Err(error) => Ok(plain_error_response(&error)),
+        Ok(response) => {
+            hydrus_request.clean_up_temp_file();
+            Ok(response)
+        }
+        Err(error) => {
+            hydrus_request.clean_up_temp_file();
+            Ok(plain_error_response(&error))
+        }
     }
 }
 
@@ -99,10 +105,45 @@ async fn build_hydrus_request(
         } else if hydrus_request.body.is_empty() {
             hydrus_request.parsed_request_args = ParsedRequestArguments::new();
         } else {
-            return Err(HydrusException::new(
-                ErrorKind::BadRequest,
-                "Did not recognise Content-Type header for this upload.",
-            ));
+            let (mut file_handle, temp_path) =
+                hydrus_core::hydrus_temp::get_temp_path("file_upload", "", None)?;
+
+            std::io::Write::write_all(&mut file_handle, &hydrus_request.body).map_err(
+                |error| {
+                    HydrusException::new(
+                        ErrorKind::BadRequest,
+                        format!("Could not write the upload to disk: {error}"),
+                    )
+                },
+            )?;
+            std::io::Write::flush(&mut file_handle).map_err(|error| {
+                HydrusException::new(
+                    ErrorKind::BadRequest,
+                    format!("Could not flush the upload to disk: {error}"),
+                )
+            })?;
+
+            let parsed_args =
+                hydrus_core::networking::hydrus_network_variable_handling::parse_file_arguments(
+                    &temp_path,
+                    false,
+                );
+
+            match parsed_args {
+                Ok(parsed_args) => {
+                    hydrus_request.parsed_request_args = parsed_args;
+                    hydrus_request.temp_file_info = Some(
+                        hydrus_core::networking::hydrus_server_request::TempFileInfo::new(
+                            file_handle,
+                            temp_path,
+                        ),
+                    );
+                }
+                Err(error) => {
+                    hydrus_core::hydrus_temp::clean_up_temp_path(file_handle, &temp_path);
+                    return Err(error);
+                }
+            }
         }
     }
 

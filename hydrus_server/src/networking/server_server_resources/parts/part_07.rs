@@ -81,7 +81,15 @@ fn check_account_rules(
             check_permission(request, ContentType::Accounts, PermissionAction::Moderate)?;
         }
         ServerResourceKind::RestrictedAccountTypes => {
-            check_permission(request, ContentType::Accounts, PermissionAction::Create)?;
+            if request.method == "POST" {
+                check_permission(
+                    request,
+                    ContentType::AccountTypes,
+                    PermissionAction::Moderate,
+                )?;
+            } else {
+                check_permission(request, ContentType::Accounts, PermissionAction::Create)?;
+            }
         }
         ServerResourceKind::RestrictedRegistrationKeys => {
             check_permission(request, ContentType::Accounts, PermissionAction::Create)?;
@@ -93,6 +101,27 @@ fn check_account_rules(
         | ServerResourceKind::RestrictedOptionsModifyUpdatePeriod
         | ServerResourceKind::RestrictedMaintenanceRegenServiceInfo => {
             check_permission(request, ContentType::Options, PermissionAction::Moderate)?;
+        }
+        ServerResourceKind::RestrictedRepositoryFile if request.method == "POST" => {
+            check_permission(request, ContentType::Files, PermissionAction::Create)?;
+        }
+        ServerResourceKind::RestrictedTagFilter if request.method == "POST" => {
+            check_permission(request, ContentType::Options, PermissionAction::Moderate)?;
+        }
+        ServerResourceKind::RestrictedPetition => {
+            let content_type = request
+                .parsed_request_args
+                .get_i64("content_type")
+                .ok()
+                .and_then(|value| u16::try_from(value).ok())
+                .and_then(ContentType::try_from_int);
+            let Some(content_type) = content_type else {
+                return Err(HydrusException::new(
+                    ErrorKind::BadRequest,
+                    "Unknown petition content type!",
+                ));
+            };
+            check_permission(request, content_type, PermissionAction::Moderate)?;
         }
         ServerResourceKind::RestrictedAccountOtherAccount
         | ServerResourceKind::RestrictedAccountInfo

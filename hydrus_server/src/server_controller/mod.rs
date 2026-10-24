@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock, Weak};
 
+use hydrus_core::hydrus_constants::ServiceType;
 use hydrus_core::hydrus_db::DBController;
 use hydrus_core::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use hydrus_core::hydrus_pubsub::PubSubMessage;
@@ -39,6 +40,8 @@ include!("parts/part_01.rs");
 include!("parts/part_02.rs");
 
 include!("parts/part_03.rs");
+
+include!("parts/part_04.rs");
 
 #[cfg(test)]
 mod tests;

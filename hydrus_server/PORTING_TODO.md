@@ -24,7 +24,7 @@ accept real HTTP/TLS requests.
 - [x] Implement `init_model`, `init_view`, `run`, `exit` and shutdown.
 - [x] Start and stop listeners through the async controller loop.
 - [ ] Implement `process_starting_action` and `shutdown_sibling_instance`.
-- [ ] Implement daemons: `sync_repositories`, `save_dirty_objects`,
+- [x] Implement daemons: `sync_repositories`, `save_dirty_objects`,
       `deferred_physical_deletes`, `nullify_history`.
 - [x] Implement `set_services`, `restart_services` and bandwidth checks (basic).
 - [x] Implement backup, analyze and vacuum tasks (backup is complete; live
@@ -55,7 +55,7 @@ accept real HTTP/TLS requests.
 - [x] Port file, mapping, tag-parent and tag-sibling petition summaries.
 - [x] Port petition approval/denial processing.
 - [x] Port basic `ClientToServerUpdate` processing for files, mappings and tag relations.
-- [ ] Port `Metadata` and update generation.
+- [x] Port `Metadata` and update generation.
 - [x] Port `nullify_history`.
 - [x] Port account reward processing.
 
@@ -66,7 +66,7 @@ accept real HTTP/TLS requests.
 - [x] Port ban, unban, expiry, message and delete-all-content.
 - [x] Port options nullification/update period changes.
 - [x] Port account-type create/update/delete.
-- [ ] Refresh account/session caches after mutations.
+- [x] Refresh account/session caches after mutations.
 
 ## 6. Remaining resources
 
@@ -75,12 +75,12 @@ accept real HTTP/TLS requests.
 - [x] All `modify_account_*` resources.
 - [x] `maintenance_regen_service_info`.
 - [x] `backup`, `lock_on`, `lock_off`, `restart_services`, `vacuum`.
-- [ ] `services` POST.
+- [x] `services` POST.
 - [x] `num_petitions`, `petitions_summary`.
-- [ ] `petition`, `update`, `metadata`.
+- [x] `petition`, `update`, `metadata`.
 - [x] `file` GET, `ip`, `thumbnail`, `tag_filter` GET.
-- [ ] `file` POST and `tag_filter` POST.
-- [ ] Replace the remaining 501 fallback with real handlers.
+- [x] `file` POST and `tag_filter` POST.
+- [x] Replace the remaining 501 fallback with real handlers.
 
 ## 7. Production hardening
 

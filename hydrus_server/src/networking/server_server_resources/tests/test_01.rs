@@ -126,18 +126,16 @@ use hydrus_core::networking::hydrus_server::LOCAL_DOMAIN;
     }
 
     #[test]
-    fn update_resources_are_explicitly_not_ported_yet() {
+    fn update_endpoint_requires_authentication() {
         let fixture = Fixture::new();
-        let access_key = fixture.db.get_access_key(&fixture.admin_key, b"init").unwrap();
-
         let mut request = fixture.request("GET");
         request
-            .request_headers
-            .set("Hydrus-Key", hex_encode(&access_key));
+            .parsed_request_args
+            .insert("update_hash", ArgValue::from(vec![0xAB; 32]));
 
-        let response = fixture
+        let error = fixture
             .render(ServerResourceKind::RestrictedUpdate, &mut request)
-            .unwrap();
+            .unwrap_err();
 
-        assert_eq!(response.get_status_code(), 501);
+        assert_eq!(error.kind(), ErrorKind::MissingCredentials);
     }

@@ -146,5 +146,7 @@ fn modify_account_type_response(
         &account_type_key,
     )?;
 
+    refresh_accounts(runtime)?;
+
     Ok(ResponseContext::with_status_and_body(200, ""))
 }

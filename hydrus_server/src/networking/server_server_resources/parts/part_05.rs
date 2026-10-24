@@ -13,6 +13,8 @@ fn modify_account_ban_response(
         expires,
     )?;
 
+    refresh_accounts(runtime)?;
+
     Ok(ResponseContext::with_status_and_body(200, ""))
 }
 fn modify_account_delete_all_content_response(
@@ -45,6 +47,8 @@ fn modify_account_expires_response(
         expires,
     )?;
 
+    refresh_accounts(runtime)?;
+
     Ok(ResponseContext::with_status_and_body(200, ""))
 }
 fn modify_account_set_message_response(
@@ -60,6 +64,8 @@ fn modify_account_set_message_response(
         &message,
     )?;
 
+    refresh_accounts(runtime)?;
+
     Ok(ResponseContext::with_status_and_body(200, ""))
 }
 fn modify_account_unban_response(
@@ -71,6 +77,8 @@ fn modify_account_unban_response(
     runtime
         .db
         .modify_account_unban(runtime.service.get_service_key(), &subject_key)?;
+
+    refresh_accounts(runtime)?;
 
     Ok(ResponseContext::with_status_and_body(200, ""))
 }
@@ -143,8 +151,10 @@ fn services_response(runtime: &ServerResourceRuntime) -> HydrusResult<ResponseCo
 
     network_response(("services", ArgValue::List(services)))
 }
-fn metadata_response(runtime: &ServerResourceRuntime) -> HydrusResult<ResponseContext> {
-    let metadata = runtime.service.get_metadata()?;
 
-    network_response(("metadata", ArgValue::object(metadata)))
+
+fn refresh_accounts(runtime: &ServerResourceRuntime) -> HydrusResult<()> {
+    runtime
+        .session_manager
+        .refresh_accounts(runtime.service.get_service_key(), None)
 }

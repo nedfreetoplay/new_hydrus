@@ -695,6 +695,7 @@ pub struct SubprocessContext {
     chunk_queue: Arc<(Mutex<ChunkQueue>, Condvar)>,
     new_chunk_desired: Arc<crate::processes::hydrus_threading::Event>,
     finished: Arc<AtomicBool>,
+    closed: Arc<AtomicBool>,
     reader: Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
@@ -733,13 +734,14 @@ impl SubprocessContext {
         ));
         let new_chunk_desired = Arc::new(crate::processes::hydrus_threading::Event::new());
         let finished = Arc::new(AtomicBool::new(false));
+        let closed = Arc::new(AtomicBool::new(false));
 
         let reader = {
             let cmd = cmd.clone();
-            let process = Arc::clone(&process);
             let chunk_queue = Arc::clone(&chunk_queue);
             let new_chunk_desired = Arc::clone(&new_chunk_desired);
             let finished = Arc::clone(&finished);
+            let closed = Arc::clone(&closed);
             let bufsize = bufsize;
 
             std::thread::Builder::new()
@@ -748,10 +750,10 @@ impl SubprocessContext {
                     Self::thread_reader(
                         &cmd,
                         stdout,
-                        &process,
                         &chunk_queue,
                         &new_chunk_desired,
                         &finished,
+                        &closed,
                         bufsize,
                     )
                 })
@@ -770,6 +772,7 @@ impl SubprocessContext {
             chunk_queue,
             new_chunk_desired,
             finished,
+            closed,
             reader: Mutex::new(Some(reader)),
         })
     }
@@ -777,19 +780,19 @@ impl SubprocessContext {
     fn thread_reader(
         cmd: &SubprocessCommand,
         mut stdout: std::process::ChildStdout,
-        process: &Arc<Mutex<Child>>,
         chunk_queue: &Arc<(Mutex<ChunkQueue>, Condvar)>,
         new_chunk_desired: &Arc<crate::processes::hydrus_threading::Event>,
         finished: &Arc<AtomicBool>,
+        closed: &Arc<AtomicBool>,
         bufsize: usize,
     ) {
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             loop {
-                if check_program_is_not_shutting_down().is_err() {
+                if closed.load(Ordering::Relaxed) {
                     return;
                 }
 
-                if process_has_exited(process) {
+                if check_program_is_not_shutting_down().is_err() {
                     return;
                 }
 
@@ -806,32 +809,40 @@ impl SubprocessContext {
                     continue;
                 }
 
-                if process_has_exited(process) {
+                let mut buffer = vec![0_u8; bufsize.max(1)];
+                let mut filled = 0;
+
+                // Python's buffered `stdout.read( n )` fills the requested
+                // buffer unless the stream ends. Rust's raw `Read` may return
+                // a partial pipe read, and video frames must arrive as one
+                // complete chunk.
+                while filled < buffer.len() {
+                    match stdout.read(&mut buffer[filled..]) {
+                        Ok(0) => break,
+                        Ok(n) => filled += n,
+                        Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+                        Err(error) if error.kind() == std::io::ErrorKind::InvalidInput => {
+                            show_text(format!(
+                                "Probably not a big deal, but the Subprocess Command \"{cmd}\" closed its stdout early. If this keeps happening, please let hydev know!"
+                            ));
+
+                            return;
+                        }
+                        Err(_) => return,
+                    }
+                }
+
+                if filled == 0 {
                     return;
                 }
 
-                let mut buffer = vec![0_u8; bufsize.max(1)];
+                buffer.truncate(filled);
 
-                match stdout.read(&mut buffer) {
-                    Ok(0) => return,
-                    Ok(n) => {
-                        buffer.truncate(n);
+                let (queue, condvar) = &**chunk_queue;
 
-                        let (queue, condvar) = &**chunk_queue;
+                lock(queue).chunks.push_back(Some(buffer));
 
-                        lock(queue).chunks.push_back(Some(buffer));
-
-                        condvar.notify_all();
-                    }
-                    Err(e) if e.kind() == std::io::ErrorKind::InvalidInput => {
-                        show_text(format!(
-                            "Probably not a big deal, but the Subprocess Command \"{cmd}\" closed its stdout early. If this keeps happening, please let hydev know!"
-                        ));
-
-                        return;
-                    }
-                    Err(_) => return,
-                }
+                condvar.notify_all();
             }
         }));
 
@@ -908,15 +919,17 @@ impl SubprocessContext {
     }
 
     /// `close_process()`
-    pub fn close_process(&self) {        {
+    pub fn close_process(&self) {
+        {
             let mut process = lock(&self.process);
 
-            if let Ok(Some(_)) = process.try_wait() {
-                return;
+            if !matches!(process.try_wait(), Ok(Some(_))) {
+                terminate_and_reap_process(&mut process);
             }
-
-            terminate_and_reap_process(&mut process);
         }
+
+        self.closed.store(true, Ordering::Relaxed);
+        self.new_chunk_desired.set();
 
         if let Some(reader) = lock(&self.reader).take() {
             let _ = reader.join();
@@ -938,12 +951,6 @@ impl Drop for SubprocessContext {
     fn drop(&mut self) {
         self.close_process();
     }
-}
-
-fn process_has_exited(process: &Arc<Mutex<Child>>) -> bool {
-    let mut process = lock(process);
-
-    matches!(process.try_wait(), Ok(Some(_)))
 }
 
 /// `class SubprocessContextReader`

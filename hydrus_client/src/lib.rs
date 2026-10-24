@@ -21,5 +21,6 @@ pub mod importing;
 pub mod media;
 pub mod metadata;
 pub mod networking;
+pub mod parsing;
 pub mod search;
 pub mod services;

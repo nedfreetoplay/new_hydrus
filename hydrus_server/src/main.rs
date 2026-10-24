@@ -18,13 +18,17 @@ use hydrus_core::hydrus_constants::ServiceType;
 use hydrus_core::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use hydrus_core::networking::hydrus_server_request::HydrusRequest;
 
+use networking::server_http;
 use networking::server_server::ServerResourceTree;
 use server_controller::Controller;
 
-fn main() -> ExitCode {
+#[tokio::main]
+async fn main() -> ExitCode {
     hydrus_core::initialise();
 
-    match run() {
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+
+    match run().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{}", hydrus_core::hydrus_data::print_exception(&error, false));
@@ -34,7 +38,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn run() -> HydrusResult<()> {
+async fn run() -> HydrusResult<()> {
     let db_dir = server_db_dir();
 
     hydrus_core::hydrus_paths::make_sure_directory_exists(&db_dir)?;
@@ -88,7 +92,7 @@ fn run() -> HydrusResult<()> {
         String::from_utf8_lossy(busy_response.get_body_bytes().unwrap_or_default())
     );
 
-    Ok(())
+    server_http::serve(controller).await
 }
 
 fn server_db_dir() -> PathBuf {

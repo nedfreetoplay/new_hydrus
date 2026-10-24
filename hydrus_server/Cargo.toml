@@ -4,8 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+bytes = "1"
 chrono = "0.4"
+http-body-util = "0.1"
 hydrus_core = { path = "../hydrus_core" }
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
 indexmap = "2"
+rustls = "0.23"
+rustls-pemfile = "2"
 serde_json = "1.0"
 sha2 = "0.10"
+tokio = { version = "1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "time"] }
+tokio-rustls = "0.26"

@@ -3,6 +3,8 @@
 #include <QAction>
 #include <QLabel>
 #include <QMenuBar>
+#include <QStyle>
+#include <QStyleFactory>
 #include <QString>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
@@ -151,4 +153,26 @@ void hydrus_set_title(HydrusMainWindow &window, rust::Str title) {
 
 void hydrus_resize_window(HydrusMainWindow &window, int width, int height) {
     window.resize_window(width, height);
+}
+
+void qapp_set_application_name(rust::Str name) {
+    QApplication::setApplicationName(to_qstring(name));
+}
+
+void qapp_set_application_display_name(rust::Str name) {
+    QApplication::setApplicationDisplayName(to_qstring(name));
+}
+
+void qapp_set_organization_name(rust::Str name) {
+    QApplication::setOrganizationName(to_qstring(name));
+}
+
+void qapp_set_style(rust::Str name) {
+    if (QStyle *style = QStyleFactory::create(to_qstring(name))) {
+        QApplication::setStyle(style);
+    }
+}
+
+void qapp_set_stylesheet(rust::Str stylesheet) {
+    qApp->setStyleSheet(to_qstring(stylesheet));
 }

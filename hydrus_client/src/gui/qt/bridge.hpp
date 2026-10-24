@@ -45,3 +45,9 @@ void hydrus_add_exit_action(HydrusMainWindow &window, rust::Str menu, rust::Str 
 void hydrus_set_status(HydrusMainWindow &window, rust::Str message);
 void hydrus_set_title(HydrusMainWindow &window, rust::Str title);
 void hydrus_resize_window(HydrusMainWindow &window, int width, int height);
+
+void qapp_set_application_name(rust::Str name);
+void qapp_set_application_display_name(rust::Str name);
+void qapp_set_organization_name(rust::Str name);
+void qapp_set_style(rust::Str name);
+void qapp_set_stylesheet(rust::Str stylesheet);

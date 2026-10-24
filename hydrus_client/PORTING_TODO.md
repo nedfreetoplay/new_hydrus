@@ -144,11 +144,13 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   layout-ы, меню, статус-бар, splitter, tab-widget.
   Готовы QApplication/QMainWindow/меню/статус-бар/splitter/tab-widget; виджеты и layout-ы
   добавляются по мере портирования панелей.
-- [ ] `QtInit`, `QtPorting`, `QtInitImportTest` — инициализация, стиль, логирование Qt.
+- [x] `QtInit`, `QtPorting`, `QtInitImportTest` — инициализация, стиль, логирование Qt.
+  Qt 6-only (`is_supported_qt_version`), стиль и QSS применяются к `QApplication`.
 - [ ] `ClientGUIFunctions`, `ClientGUIFunctionsImage` — конвертация изображений/иконок.
 - [ ] `ClientGUICore`, `ClientGUICallAfter`, `ClientGUIAsync` — мост потоков и call-after.
 - [~] `ClientGUIStyle`, `ClientGUISplash`, `ClientGUIShortcuts`, `ClientGUIShortcutControls`.
-  Портированы `Shortcut`/`ShortcutSet`; стиль, splash и редактор шорткатов дальше.
+  Портированы `Shortcut`/`ShortcutSet` и `ClientGUIStyle` (light/dark QSS); splash и
+  редактор шорткатов дальше.
 - [ ] `ClientGUITopLevelWindows`, `ClientGUITopLevelWindowsPanels`.
 - [ ] `ClientGUIScrolledPanels`, `ClientGUICommon` — базовые виджеты.
 - [ ] `ClientGUIListCtrl`, `ClientGUIListBoxes`, `ClientGUIListManager`.

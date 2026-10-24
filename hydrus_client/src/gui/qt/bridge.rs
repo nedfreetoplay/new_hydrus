@@ -21,14 +21,38 @@ mod ffi {
         fn hydrus_set_status(window: Pin<&mut HydrusMainWindow>, message: &str);
         fn hydrus_set_title(window: Pin<&mut HydrusMainWindow>, title: &str);
         fn hydrus_resize_window(window: Pin<&mut HydrusMainWindow>, width: i32, height: i32);
+
+        fn qapp_set_application_name(name: &str);
+        fn qapp_set_application_display_name(name: &str);
+        fn qapp_set_organization_name(name: &str);
+        fn qapp_set_style(name: &str);
+        fn qapp_set_stylesheet(stylesheet: &str);
     }
 }
 
 use crate::gui::frame_gui;
+use crate::gui::qt_init::QtInit;
+
+pub(crate) fn apply_application_settings(
+    app_name: &str,
+    display_name: &str,
+    organization_name: &str,
+    style_name: &str,
+    stylesheet: &str,
+) {
+    ffi::qapp_set_application_name(app_name);
+    ffi::qapp_set_application_display_name(display_name);
+    ffi::qapp_set_organization_name(organization_name);
+    ffi::qapp_set_style(style_name);
+    ffi::qapp_set_stylesheet(stylesheet);
+}
 
 pub fn run_application(title: &str, status: &str) {
     let model = frame_gui::default_frame_gui();
     let mut app = ffi::new_application();
+
+    QtInit::default().apply().ok();
+
     let mut window = ffi::new_hydrus_main_window();
 
     ffi::hydrus_set_title(window.pin_mut(), title);

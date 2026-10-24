@@ -16,6 +16,7 @@ pub mod controller;
 pub mod db;
 pub mod files;
 pub mod gui;
+pub mod importing;
 pub mod media;
 pub mod metadata;
 pub mod networking;

@@ -144,9 +144,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   `NetworkEngine` + `HttpTransport`, blocking reqwest-транспорт и тестовый mock.
 - [~] `ClientDownloading` — quick download manager.
   Портированы `GalleryIdentifier` и очередь quick-download; сетевой слой дальше.
-- [~] `ClientAPI` + `networking/api` — локальный Client API сервер.
-  Портирован `ApiManager` с маршрутами api_version/get_services/search_files и access key;
-  HTTP-транспорт сервера дальше.
+- [x] `ClientAPI` + `networking/api` — локальный Client API сервер.
+  `ApiManager` (routes/access key) + `ApiServer` на TcpListener с JSON-ответами и тестами.
 
 ## 9. Импорт, парсинг, дубликаты
 

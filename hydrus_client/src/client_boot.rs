@@ -22,6 +22,10 @@ pub fn boot() -> HydrusResult<()> {
     crate::search::register_serialisable_types();
     crate::metadata::register_serialisable_types();
     crate::networking::client_networking_contexts::register_serialisable_type();
+    hydrus_core::hydrus_serialisable::register_serialisable_type(
+        hydrus_core::hydrus_serialisable::SERIALISABLE_TYPE_GALLERY_IDENTIFIER,
+        || Box::new(crate::client_downloading::GalleryIdentifier::default()),
+    );
 
     let logger = HydrusLogger::new(db_dir, "client")?;
     let _ = LOGGER.set(logger);

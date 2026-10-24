@@ -135,7 +135,8 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [ ] `ClientNetworkingDomain`, `ClientNetworkingLogin`, `ClientNetworkingURLClass`.
 - [ ] `ClientNetworkingFunctions`, `ClientNetworkingJobs`.
 - [ ] `ClientNetworking` — `NetworkEngine` на `reqwest`/`tokio`.
-- [ ] `ClientDownloading` — quick download manager.
+- [~] `ClientDownloading` — quick download manager.
+  Портированы `GalleryIdentifier` и очередь quick-download; сетевой слой дальше.
 - [ ] `ClientAPI` + `networking/api` — локальный Client API сервер.
 
 ## 9. Импорт, парсинг, дубликаты

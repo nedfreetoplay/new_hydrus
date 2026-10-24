@@ -76,6 +76,23 @@ pub fn create_db(db: &DBBase) -> HydrusResult<()> {
             PRIMARY KEY ( hash_id, canvas_type )
         );
 
+        CREATE TABLE IF NOT EXISTS current_client_files_locations (
+            path TEXT PRIMARY KEY,
+            weight INTEGER,
+            max_num_bytes INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS ideal_client_files_locations (
+            path TEXT PRIMARY KEY,
+            weight INTEGER,
+            max_num_bytes INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS client_files_subfolders (
+            prefix TEXT PRIMARY KEY,
+            location TEXT
+        );
+        CREATE TABLE IF NOT EXISTS ideal_thumbnail_override_location ( path TEXT );
+        CREATE TABLE IF NOT EXISTS current_storage_granularity ( granularity INTEGER );
+
         CREATE TABLE IF NOT EXISTS json_dumps (
             name TEXT PRIMARY KEY,
             dump_type INTEGER,

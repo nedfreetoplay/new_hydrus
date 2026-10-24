@@ -13,6 +13,7 @@ use hydrus_core::hydrus_paths;
 
 pub mod files_inbox;
 pub mod files_metadata;
+pub mod files_physical_storage;
 pub mod files_storage;
 pub mod files_timestamps;
 pub mod files_viewing_stats;

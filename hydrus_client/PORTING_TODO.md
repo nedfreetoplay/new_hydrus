@@ -104,7 +104,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
   Портирована таблица `files_info`; флаги (icc/exif/xmp/…) дальше.
 - [x] `ClientDBFilesStorage` — current/deleted/pending/petitioned files, inbox.
 - [x] `ClientDBFilesTimestamps`, `ClientDBFilesInbox`, `ClientDBFilesViewingStats`.
-- [ ] `ClientDBFilesPhysicalStorage` — конфигурация хранилищ.
+- [x] `ClientDBFilesPhysicalStorage` — конфигурация хранилищ.
 - [ ] `ClientDBMappingsStorage`/`ClientDBMappingsCounts`/кэши.
 - [ ] `ClientDBTagSearch`, siblings/parents/display/suggestions.
 - [ ] `ClientDBDefinitionsCache`, `ClientDBMediaResults`, `ClientDBNotesMap`,

@@ -113,7 +113,7 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 - [x] `ClientDBFilesTimestamps`, `ClientDBFilesInbox`, `ClientDBFilesViewingStats`.
 - [x] `ClientDBFilesPhysicalStorage` — конфигурация хранилищ.
 - [~] `ClientDBMappingsStorage`/`ClientDBMappingsCounts`/кэши.
-  Портированы current/deleted/pending/petitioned mappings; counts и кэши дальше.
+  Портированы mappings и counts; VR-кэши counts дальше.
 - [~] `ClientDBTagSearch`, siblings/parents/display/suggestions.
   Портированы поиск по tag/namespace/wildcard, storage и применение siblings/parents;
   display/suggestions дальше.

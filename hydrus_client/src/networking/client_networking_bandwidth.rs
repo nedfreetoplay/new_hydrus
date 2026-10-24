@@ -27,8 +27,17 @@ impl NetworkBandwidthManager {
     }
 
     pub fn get_rules(&self, context: &NetworkContext) -> &BandwidthRules {
+        self.rules_for(context)
+    }
+
+    fn rules_for(&self, context: &NetworkContext) -> &BandwidthRules {
         self.rules
             .get(&context.to_string())
+            .or_else(|| {
+                self.rules.get(
+                    &NetworkContext::new(context.context_type, None).to_string(),
+                )
+            })
             .unwrap_or(&self.default_rules)
     }
 
@@ -56,7 +65,12 @@ impl NetworkBandwidthManager {
 
     pub fn can_start_request(&mut self, context: &NetworkContext, threshold: i64) -> bool {
         let key = context.to_string();
-        let rules = self.rules.get(&key).unwrap_or(&self.default_rules);
+        let generic_key = NetworkContext::new(context.context_type, None).to_string();
+        let rules = self
+            .rules
+            .get(&key)
+            .or_else(|| self.rules.get(&generic_key))
+            .unwrap_or(&self.default_rules);
         let tracker = self
             .trackers
             .entry(key)
@@ -67,7 +81,12 @@ impl NetworkBandwidthManager {
 
     pub fn can_continue_download(&mut self, context: &NetworkContext, threshold: i64) -> bool {
         let key = context.to_string();
-        let rules = self.rules.get(&key).unwrap_or(&self.default_rules);
+        let generic_key = NetworkContext::new(context.context_type, None).to_string();
+        let rules = self
+            .rules
+            .get(&key)
+            .or_else(|| self.rules.get(&generic_key))
+            .unwrap_or(&self.default_rules);
         let tracker = self
             .trackers
             .entry(key)
@@ -78,7 +97,12 @@ impl NetworkBandwidthManager {
 
     pub fn get_waiting_estimate(&mut self, context: &NetworkContext) -> i64 {
         let key = context.to_string();
-        let rules = self.rules.get(&key).unwrap_or(&self.default_rules);
+        let generic_key = NetworkContext::new(context.context_type, None).to_string();
+        let rules = self
+            .rules
+            .get(&key)
+            .or_else(|| self.rules.get(&generic_key))
+            .unwrap_or(&self.default_rules);
         let tracker = self
             .trackers
             .entry(key)

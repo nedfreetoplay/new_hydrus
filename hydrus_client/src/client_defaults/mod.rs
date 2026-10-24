@@ -5,8 +5,12 @@ use serde_json::{Map, Value, json};
 use crate::client_constants;
 
 mod colours;
+mod network;
 
 pub use colours::{darkmode_colours, default_colours};
+pub use network::{
+    CustomHeader, DEFAULT_USER_AGENT, apply_default_bandwidth_rules, default_custom_headers,
+};
 
 /// Legacy YAML-backed options (the `options` table).
 pub fn legacy_options() -> Map<String, Value> {

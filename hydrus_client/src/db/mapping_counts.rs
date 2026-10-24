@@ -160,9 +160,87 @@ pub fn clear_counts(
     Ok(())
 }
 
+/// In-memory layer used while a tag service is being edited in bulk.
+#[derive(Debug, Default)]
+pub struct MappingCountsCache {
+    entries: BTreeMap<(i64, i64, i64), (i64, i64)>,
+    dirty: bool,
+}
+
+impl MappingCountsCache {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn get(&self, file_service_id: i64, tag_service_id: i64, tag_id: i64) -> (i64, i64) {
+        self.entries
+            .get(&(file_service_id, tag_service_id, tag_id))
+            .copied()
+            .unwrap_or((0, 0))
+    }
+
+    pub fn set(
+        &mut self,
+        file_service_id: i64,
+        tag_service_id: i64,
+        tag_id: i64,
+        current: i64,
+        pending: i64,
+    ) {
+        self.entries
+            .insert((file_service_id, tag_service_id, tag_id), (current, pending));
+        self.dirty = true;
+    }
+
+    pub fn add(
+        &mut self,
+        file_service_id: i64,
+        tag_service_id: i64,
+        tag_id: i64,
+        current_delta: i64,
+        pending_delta: i64,
+    ) {
+        let (current, pending) = self.get(file_service_id, tag_service_id, tag_id);
+        self.set(
+            file_service_id,
+            tag_service_id,
+            tag_id,
+            current + current_delta,
+            pending + pending_delta,
+        );
+    }
+
+    pub fn remove(&mut self, file_service_id: i64, tag_service_id: i64, tag_id: i64) -> bool {
+        self.dirty = true;
+        self.entries
+            .remove(&(file_service_id, tag_service_id, tag_id))
+            .is_some()
+    }
+
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        self.dirty = true;
+    }
+
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    pub fn set_clean(&mut self) {
+        self.dirty = false;
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
 #[cfg(test)]
-mod tests {
-    use super::*;
+mod tests {    use super::*;
     use crate::db::ClientDB;
     use crate::db::master_tags::get_tag_id;
 
@@ -218,5 +296,34 @@ mod tests {
 
         drop(db);
         let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn in_memory_cache_accumulates_and_tracks_dirty() {
+        let mut cache = MappingCountsCache::new();
+
+        cache.add(1, 2, 3, 5, 1);
+        cache.add(1, 2, 3, -2, 4);
+        cache.add(1, 2, 4, 1, 0);
+
+        assert_eq!(cache.get(1, 2, 3), (3, 5));
+        assert_eq!(cache.len(), 2);
+        assert!(cache.is_dirty());
+
+        cache.set_clean();
+        assert!(!cache.is_dirty());
+
+        cache.remove(1, 2, 3);
+        assert_eq!(cache.get(1, 2, 3), (0, 0));
+        assert!(cache.is_dirty());
+    }
+
+    #[test]
+    fn cache_clear_empties_entries() {
+        let mut cache = MappingCountsCache::new();
+        cache.set(1, 1, 1, 2, 3);
+        cache.clear();
+
+        assert!(cache.is_empty());
     }
 }

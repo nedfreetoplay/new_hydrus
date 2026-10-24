@@ -5,7 +5,7 @@
 //! file, and read the `Canvas`, `CanvasPreview` and `TimeLine` tables.
 
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension};
 
@@ -179,23 +179,24 @@ pub fn get_clip_properties(
     })
 }
 
-fn unique_temp_path(label: &str, extension: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(
-        "hydrus_clip_{}_{}_{}{}",
-        label,
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos(),
-        extension
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use rusqlite::params;
+    use std::path::PathBuf;
+
+    fn unique_temp_path(label: &str, extension: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "hydrus_clip_{}_{}_{}{}",
+            label,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
+            extension
+        ))
+    }
 
     fn build_clip(
         label: &str,

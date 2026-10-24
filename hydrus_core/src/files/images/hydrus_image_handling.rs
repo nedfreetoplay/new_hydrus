@@ -19,8 +19,7 @@ use image::codecs::png::{CompressionType, FilterType as PngFilterType, PngEncode
 use image::codecs::webp::WebPEncoder;
 use image::metadata::Orientation;
 use image::{
-    DynamicImage, GenericImageView, ImageDecoder, ImageError, ImageFormat, ImageReader, RgbImage,
-    RgbaImage,
+    DynamicImage, GenericImageView, ImageDecoder, ImageError, ImageFormat, ImageReader, RgbaImage,
 };
 use sha2::{Digest, Sha256};
 
@@ -813,7 +812,7 @@ pub fn pad_image(image: &DynamicImage, target_resolution: (u32, u32)) -> Dynamic
 mod tests {
     use super::*;
     use image::codecs::png::PngEncoder;
-    use image::{Rgb, Rgba};
+    use image::{Rgb, RgbImage, Rgba};
     use std::path::PathBuf;
 
     fn unique_path(label: &str, extension: &str) -> PathBuf {

@@ -18,7 +18,7 @@ use crate::hydrus_constants::Filter;
 use crate::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 use crate::hydrus_numbers;
 use crate::hydrus_serialisable::{
-    self, SERIALISABLE_TYPE_TAG_FILTER, SerialisableObject, register_serialisable_type,
+    SERIALISABLE_TYPE_TAG_FILTER, SerialisableObject, register_serialisable_type,
 };
 use crate::hydrus_text;
 
@@ -1102,6 +1102,7 @@ impl SerialisableObject for TagFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::hydrus_serialisable;
 
     fn tags(values: &[&str]) -> HashSet<String> {
         values.iter().map(|value| value.to_string()).collect()

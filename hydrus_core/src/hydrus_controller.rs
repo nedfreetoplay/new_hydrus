@@ -1664,9 +1664,9 @@ mod tests {
         assert!(third.exists());
         assert_ne!(first, third);
 
-        // Leave `third` in place: it is the process-global temp dir that the
-        // rest of the test binary uses. Deleting it here would make unrelated
-        // tests race against a missing parent directory.
+        // Leave `third` in place: it is this test's thread-local temp dir.
+        // Deleting it here would leave later tests on this thread (for example
+        // with `--test-threads=1`) pointing at a missing path.
     }
 
     #[test]
@@ -1702,8 +1702,9 @@ mod tests {
         assert!(!temp_dir.exists());
         assert!(controller.db().is_none());
 
-        // Restore the globals for the other tests in this binary. Shutdown
-        // removed the temp dir, so make a fresh one for them to use.
+        // Restore the process-global shutdown flag. Shutdown removed this
+        // thread's temp dir, so make a fresh one for later tests that run on
+        // the same thread (for example with `--test-threads=1`).
         hydrus_globals::set_model_shutdown(false);
         let _ = hydrus_temp::initialise_hydrus_temp_dir();
     }

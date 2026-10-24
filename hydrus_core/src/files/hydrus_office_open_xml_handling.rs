@@ -4,7 +4,6 @@
 //! whether a document is DOCX/XLSX/PPTX, `docProps/app.xml` carries a word
 //! count, and `docProps/thumbnail.jpeg` is an embedded preview image.
 
-use std::io::Cursor;
 use std::path::Path;
 
 use image::DynamicImage;
@@ -216,7 +215,7 @@ pub fn get_docx_info(path: impl AsRef<Path>) -> Option<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
+    use std::io::{Cursor, Write};
     use std::path::PathBuf;
     use zip::ZipWriter;
     use zip::write::SimpleFileOptions;

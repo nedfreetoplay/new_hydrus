@@ -2184,9 +2184,9 @@ pub const ROWS_S_TEXT: &str = " rows/s";
 // ============================================================================
 //
 // Python registers adapters that YAML-dump dicts/lists/tuples into TEXT_YAML
-// columns and convert INTEGER_BOOLEAN to bool. In Rust the serde/rusqlite
-// traits do the same job; see `hydrus_serde_sql` in this crate for the
-// `Yaml` and `Bool` wrappers.
+// columns and convert INTEGER_BOOLEAN to bool. The Rust port has no YAML
+// adapter layer: dynamic values travel as `serde_json::Value` (with
+// `preserve_order`) and integers are stored directly.
 
 #[cfg(test)]
 mod tests {

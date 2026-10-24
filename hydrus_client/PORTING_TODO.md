@@ -16,13 +16,13 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 ## 0. Инструменты и каркас
 
-- [ ] Зафиксировать тулчейн: Qt 6.12.0 (`C:\Qt\6.12.0\msvc2022_64`), MSVC 2022,
+- [x] Зафиксировать тулчейн: Qt 6.12.0 (`C:\Qt\6.12.0\msvc2022_64`), MSVC 2022,
   `cxx-qt` 0.10, `cargo`, CMake/Ninja; описать переменные окружения сборки.
-- [ ] Настроить `hydrus_client/Cargo.toml`, `build.rs` (`cxx-qt-build`), зависимости
+- [x] Настроить `hydrus_client/Cargo.toml`, `build.rs` (`cxx-qt-build`), зависимости
   (`hydrus_core`, `cxx`, `cxx-qt`, `cxx-qt-lib`, `chrono`, `serde`, `serde_json`, `rand`).
-- [ ] Создать структуру `src/` (`lib.rs`, `main.rs`, подмодули по подсистемам).
-- [ ] Реализовать инициализацию `hydrus_core` в точке входа (dirs, globals, logger).
-- [ ] Smoke-тест: приложение поднимает `QApplication` и пустое `QMainWindow`.
+- [x] Создать структуру `src/` (`lib.rs`, `main.rs`, подмодули по подсистемам).
+- [x] Реализовать инициализацию `hydrus_core` в точке входа (dirs, globals, logger).
+- [x] Smoke-тест: приложение поднимает `QApplication` и пустое `QMainWindow`.
 
 ## 1. Инфраструктура клиента
 

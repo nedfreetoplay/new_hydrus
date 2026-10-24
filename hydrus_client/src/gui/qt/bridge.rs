@@ -6,6 +6,7 @@ mod ffi {
         include!("bridge.hpp");
         type QApplication;
         type HydrusMainWindow;
+        type HydrusPanel;
 
         fn new_application() -> UniquePtr<QApplication>;
         fn exec_application(application: Pin<&mut QApplication>) -> i32;
@@ -21,6 +22,18 @@ mod ffi {
         fn hydrus_set_status(window: Pin<&mut HydrusMainWindow>, message: &str);
         fn hydrus_set_title(window: Pin<&mut HydrusMainWindow>, title: &str);
         fn hydrus_resize_window(window: Pin<&mut HydrusMainWindow>, width: i32, height: i32);
+
+        fn new_hydrus_panel() -> UniquePtr<HydrusPanel>;
+        fn hydrus_panel_add_label(panel: Pin<&mut HydrusPanel>, text: &str);
+        fn hydrus_panel_add_button(panel: Pin<&mut HydrusPanel>, text: &str);
+        fn hydrus_panel_add_checkbox(panel: Pin<&mut HydrusPanel>, text: &str, checked: bool);
+        fn hydrus_panel_add_line_edit(panel: Pin<&mut HydrusPanel>, placeholder: &str);
+        fn hydrus_panel_add_stretch(panel: Pin<&mut HydrusPanel>);
+        fn hydrus_add_page_widget(
+            window: Pin<&mut HydrusMainWindow>,
+            title: &str,
+            panel: Pin<&mut HydrusPanel>,
+        ) -> i32;
 
         fn qapp_set_application_name(name: &str);
         fn qapp_set_application_display_name(name: &str);
@@ -63,9 +76,16 @@ pub fn run_application(title: &str, status: &str) {
         ffi::hydrus_add_sidebar_item(window.pin_mut(), item);
     }
 
-    for page in model.pages {
-        ffi::hydrus_add_page(window.pin_mut(), page);
-    }
+    let mut panel = ffi::new_hydrus_panel();
+    ffi::hydrus_panel_add_label(
+        panel.pin_mut(),
+        "Welcome to Hydrus Client — Rust/Qt 6 port.",
+    );
+    ffi::hydrus_panel_add_line_edit(panel.pin_mut(), "Search tags…");
+    ffi::hydrus_panel_add_button(panel.pin_mut(), "Search");
+    ffi::hydrus_panel_add_checkbox(panel.pin_mut(), "Darkmode", false);
+    ffi::hydrus_panel_add_stretch(panel.pin_mut());
+    ffi::hydrus_add_page_widget(window.pin_mut(), model.pages.first().copied().unwrap_or("Welcome"), panel.pin_mut());
 
     for menu in model.menus {
         for action in menu.actions {

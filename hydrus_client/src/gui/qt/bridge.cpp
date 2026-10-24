@@ -71,6 +71,17 @@ int HydrusMainWindow::add_page(rust::Str title) {
     return index;
 }
 
+int HydrusMainWindow::add_page_widget(rust::Str title, HydrusPanel *panel) {
+    if (panel == nullptr) {
+        return -1;
+    }
+
+    const int index = tabs->addTab(panel, to_qstring(title));
+    tabs->setCurrentIndex(index);
+
+    return index;
+}
+
 void HydrusMainWindow::add_sidebar_item(rust::Str title) {
     if (sidebar == nullptr) {
         return;
@@ -153,6 +164,65 @@ void hydrus_set_title(HydrusMainWindow &window, rust::Str title) {
 
 void hydrus_resize_window(HydrusMainWindow &window, int width, int height) {
     window.resize_window(width, height);
+}
+
+HydrusPanel::HydrusPanel(QWidget *parent) : QWidget(parent) {
+    layout = new QVBoxLayout(this);
+    layout->setContentsMargins(12, 12, 12, 12);
+}
+
+void HydrusPanel::add_label(rust::Str text) {
+    auto *label = new QLabel(to_qstring(text), this);
+    label->setWordWrap(true);
+    layout->addWidget(label);
+}
+
+void HydrusPanel::add_button(rust::Str text) {
+    layout->addWidget(new QPushButton(to_qstring(text), this));
+}
+
+void HydrusPanel::add_checkbox(rust::Str text, bool checked) {
+    auto *checkbox = new QCheckBox(to_qstring(text), this);
+    checkbox->setChecked(checked);
+    layout->addWidget(checkbox);
+}
+
+void HydrusPanel::add_line_edit(rust::Str placeholder) {
+    auto *edit = new QLineEdit(this);
+    edit->setPlaceholderText(to_qstring(placeholder));
+    layout->addWidget(edit);
+}
+
+void HydrusPanel::add_stretch() {
+    layout->addStretch(1);
+}
+
+std::unique_ptr<HydrusPanel> new_hydrus_panel() {
+    return std::make_unique<HydrusPanel>();
+}
+
+void hydrus_panel_add_label(HydrusPanel &panel, rust::Str text) {
+    panel.add_label(text);
+}
+
+void hydrus_panel_add_button(HydrusPanel &panel, rust::Str text) {
+    panel.add_button(text);
+}
+
+void hydrus_panel_add_checkbox(HydrusPanel &panel, rust::Str text, bool checked) {
+    panel.add_checkbox(text, checked);
+}
+
+void hydrus_panel_add_line_edit(HydrusPanel &panel, rust::Str placeholder) {
+    panel.add_line_edit(placeholder);
+}
+
+void hydrus_panel_add_stretch(HydrusPanel &panel) {
+    panel.add_stretch();
+}
+
+int hydrus_add_page_widget(HydrusMainWindow &window, rust::Str title, HydrusPanel &panel) {
+    return window.add_page_widget(title, &panel);
 }
 
 void qapp_set_application_name(rust::Str name) {

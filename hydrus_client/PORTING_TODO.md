@@ -144,10 +144,9 @@ GUI — на Qt 6 (Widgets) через `cxx-qt`.
 
 ## 10. GUI (Qt 6 Widgets, `cxx-qt`)
 
-- [~] C++-слой `gui/qt`: `QApplication`, `QMainWindow`, `QWidget`, `QLabel`, кнопки,
+- [x] C++-слой `gui/qt`: `QApplication`, `QMainWindow`, `QWidget`, `QLabel`, кнопки,
   layout-ы, меню, статус-бар, splitter, tab-widget.
-  Готовы QApplication/QMainWindow/меню/статус-бар/splitter/tab-widget; виджеты и layout-ы
-  добавляются по мере портирования панелей.
+  Добавлены `HydrusPanel`, QLabel/QPushButton/QCheckBox/QLineEdit и layout-based страницы.
 - [x] `QtInit`, `QtPorting`, `QtInitImportTest` — инициализация, стиль, логирование Qt.
   Qt 6-only (`is_supported_qt_version`), стиль и QSS применяются к `QApplication`.
 - [~] `ClientGUIFunctions`, `ClientGUIFunctionsImage` — конвертация изображений/иконок.

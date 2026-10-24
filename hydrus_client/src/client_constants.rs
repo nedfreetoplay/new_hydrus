@@ -109,6 +109,13 @@ pub const IMPORT_FOLDER_MOVE: i32 = 2;
 pub const EXIT_SESSION_SESSION_NAME: &str = "exit session";
 pub const LAST_SESSION_SESSION_NAME: &str = "last session";
 
+/// Virtual local-file service keys from `ClientConstants.py`.
+pub const TRASH_SERVICE_KEY: &[u8] = b"trash";
+pub const COMBINED_LOCAL_FILE_DOMAINS_SERVICE_KEY: &[u8] = b"all local media";
+pub const HYDRUS_LOCAL_FILE_STORAGE_SERVICE_KEY: &[u8] = b"all local files";
+pub const COMBINED_FILE_SERVICE_KEY: &[u8] = b"all known files";
+pub const COMBINED_DELETED_FILE_SERVICE_KEY: &[u8] = b"all deleted files";
+
 pub const MEDIA_VIEWER_ACTION_SHOW_WITH_NATIVE: i32 = 0;
 pub const MEDIA_VIEWER_ACTION_SHOW_WITH_NATIVE_PAUSED: i32 = 1;
 pub const MEDIA_VIEWER_ACTION_SHOW_BEHIND_EMBED: i32 = 2;

@@ -1,3 +1,4 @@
+pub mod file_import;
 pub mod file_seeds;
 pub mod gallery_and_urls;
 pub mod import_folders;
@@ -5,6 +6,7 @@ pub mod options;
 pub mod options_manager;
 pub mod watchers_subscriptions;
 
+pub use file_import::{FileImportJob, FileImportStatus};
 pub use file_seeds::{FileSeed, FileSeedCache};
 pub use gallery_and_urls::{
     GalleryImport, ImportQueue, ImportStatus, SimpleDownloaderImport, SimpleDownloaderJob,

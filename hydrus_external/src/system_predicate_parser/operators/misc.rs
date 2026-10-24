@@ -26,8 +26,10 @@ pub(super) fn parse_views(state: &mut ParseState, string: &str) -> HydrusResult<
 
     string = string.trim_start_matches([',', ' ']).to_string();
 
-    let (remaining, relational) =
-        super::parse_operator_relational(&string, crate::system_predicate_parser::types::OperatorKind::Relational)?;
+    let (remaining, relational) = super::parse_operator_relational(
+        &string,
+        crate::system_predicate_parser::types::OperatorKind::Relational,
+    )?;
 
     state.text_remainder = remaining;
     state.operator = Some(Operator::Views {
@@ -123,7 +125,10 @@ pub(super) fn parse_ratio_special(state: &mut ParseState, string: &str) -> Hydru
         if string.contains(prefix) {
             state.text_remainder = String::new();
             state.operator = Some(Operator::Ratio(operator));
-            state.value = Some(ValueData::Ratio { first: 1, second: 1 });
+            state.value = Some(ValueData::Ratio {
+                first: 1,
+                second: 1,
+            });
             return Ok(());
         }
     }

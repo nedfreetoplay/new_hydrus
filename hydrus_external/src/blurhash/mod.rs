@@ -11,7 +11,9 @@ pub use decode::{blurhash_components, blurhash_decode};
 pub use encode::blurhash_encode;
 
 pub use colour::{linear_to_srgb, sign_pow, srgb_to_linear};
-pub(crate) fn value_error(message: impl Into<String>) -> hydrus_core::hydrus_exceptions::HydrusException {
+pub(crate) fn value_error(
+    message: impl Into<String>,
+) -> hydrus_core::hydrus_exceptions::HydrusException {
     hydrus_core::hydrus_exceptions::HydrusException::new(
         hydrus_core::hydrus_exceptions::ErrorKind::Parse,
         message,

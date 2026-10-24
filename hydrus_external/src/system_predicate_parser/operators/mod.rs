@@ -4,8 +4,8 @@ mod file_service;
 mod misc;
 mod rating;
 mod relational;
-mod tag_relational;
 mod tag_advanced;
+mod tag_relational;
 
 use std::sync::LazyLock;
 
@@ -34,12 +34,24 @@ pub(crate) fn operator_strings() -> &'static Vec<(String, RelationalOperator)> {
             ("greater than".to_string(), RelationalOperator::Greater),
             ("\u{2264}".to_string(), RelationalOperator::LessEqual),
             ("<=".to_string(), RelationalOperator::LessEqual),
-            ("fewer than or equal to".to_string(), RelationalOperator::LessEqual),
-            ("less than or equal to".to_string(), RelationalOperator::LessEqual),
+            (
+                "fewer than or equal to".to_string(),
+                RelationalOperator::LessEqual,
+            ),
+            (
+                "less than or equal to".to_string(),
+                RelationalOperator::LessEqual,
+            ),
             ("\u{2265}".to_string(), RelationalOperator::GreaterEqual),
             (">=".to_string(), RelationalOperator::GreaterEqual),
-            ("more than or equal to".to_string(), RelationalOperator::GreaterEqual),
-            ("greater than or equal to".to_string(), RelationalOperator::GreaterEqual),
+            (
+                "more than or equal to".to_string(),
+                RelationalOperator::GreaterEqual,
+            ),
+            (
+                "greater than or equal to".to_string(),
+                RelationalOperator::GreaterEqual,
+            ),
             ("\u{2248}".to_string(), RelationalOperator::Approx),
             ("~=".to_string(), RelationalOperator::Approx),
             ("about".to_string(), RelationalOperator::Approx),
@@ -75,9 +87,7 @@ pub(crate) fn parse_operator(
     match spec {
         OperatorKind::ViewsRelational => misc::parse_views(state, &string),
         OperatorKind::RelationalNumberTest => misc::parse_number_test(state, &string),
-        OperatorKind::Relational
-        | OperatorKind::RelationalExact
-        | OperatorKind::RelationalTime => {
+        OperatorKind::Relational | OperatorKind::RelationalExact | OperatorKind::RelationalTime => {
             let (remaining, operator) = parse_operator_relational(&string, spec)?;
             state.text_remainder = remaining;
             state.operator = Some(super::types::Operator::Relational(operator));
@@ -92,7 +102,9 @@ pub(crate) fn parse_operator(
         OperatorKind::OnlyEqual => misc::parse_only_equal(state, &string),
         OperatorKind::RatioOperators => misc::parse_ratio_operator(state, &string),
         OperatorKind::RatioOperatorsSpecial => misc::parse_ratio_special(state, &string),
-        OperatorKind::TagAdvancedGubbins => tag_advanced::parse_tag_advanced_operator(state, &string),
+        OperatorKind::TagAdvancedGubbins => {
+            tag_advanced::parse_tag_advanced_operator(state, &string)
+        }
         OperatorKind::EqualNotConsuming => Ok(()),
     }
 }

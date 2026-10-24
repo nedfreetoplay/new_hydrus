@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use hydrus_core::hydrus_constants::{ServiceType, LOCAL_RATINGS_SERVICES};
+use hydrus_core::hydrus_constants::{LOCAL_RATINGS_SERVICES, ServiceType};
 
 use crate::system_predicate_parser::parse_error;
 use crate::system_predicate_parser::types::ServiceSpecifier;
@@ -28,7 +28,10 @@ pub fn parse_service_specifier(text: &str) -> HydrusResult<ServiceSpecifier> {
         .map(|service_type| (service_type.short_str(), *service_type))
         .collect();
 
-    if names.iter().any(|name| short_names.contains_key(name.as_str())) {
+    if names
+        .iter()
+        .any(|name| short_names.contains_key(name.as_str()))
+    {
         let mut service_types = BTreeSet::new();
 
         for name in &names {

@@ -20,9 +20,9 @@ pub use predicates::{
 };
 pub use ratings::parse_service_specifier;
 pub use types::{
-    CanvasType, DateOrTimeInterval, FileServiceStatus, FiletypeRegistry, LogicalOperator,
-    Operator, OperatorKind, Predicate, RatioOperator, RelationalOperator, ServiceSpecifier,
-    SystemPredicate, TagDisplayType, Unit, UnitKind, ValueData, ValueKind,
+    CanvasType, DateOrTimeInterval, FileServiceStatus, FiletypeRegistry, LogicalOperator, Operator,
+    OperatorKind, Predicate, RatioOperator, RelationalOperator, ServiceSpecifier, SystemPredicate,
+    TagDisplayType, Unit, UnitKind, ValueData, ValueKind,
 };
 
 pub(crate) fn parse_error(message: impl Into<String>) -> HydrusException {

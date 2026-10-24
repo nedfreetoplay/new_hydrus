@@ -44,12 +44,12 @@ pub fn parse(src: &str) -> HydrusResult<LogicExpr> {
                         break;
                     }
 
-                    let top_precedence = top
-                        .precedence()
-                        .ok_or_else(|| parse_error(format!("Syntax error: '{top:?}' is not an operator")))?;
-                    let precedence = token
-                        .precedence()
-                        .ok_or_else(|| parse_error(format!("Syntax error: '{token:?}' is not an operator")))?;
+                    let top_precedence = top.precedence().ok_or_else(|| {
+                        parse_error(format!("Syntax error: '{top:?}' is not an operator"))
+                    })?;
+                    let precedence = token.precedence().ok_or_else(|| {
+                        parse_error(format!("Syntax error: '{token:?}' is not an operator"))
+                    })?;
 
                     if top_precedence > precedence
                         || (top_precedence == precedence && *top != Token::Not)

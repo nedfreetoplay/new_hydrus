@@ -86,7 +86,9 @@ pub(crate) fn parse_error(message: impl Into<String>) -> HydrusException {
 }
 
 /// `parse_logic_expression_query( input_str )`
-pub fn parse_logic_expression_query(input: &str) -> HydrusResult<Vec<std::collections::BTreeSet<String>>> {
+pub fn parse_logic_expression_query(
+    input: &str,
+) -> HydrusResult<Vec<std::collections::BTreeSet<String>>> {
     let tree = parse(input)?;
     let tree = convert_to_and_or_not(&tree);
     let tree = move_not_inwards(&tree);
@@ -145,20 +147,32 @@ mod tests {
     fn escapes_allow_operator_text_in_tags() {
         let result = clauses(r"a \or b");
 
-        assert_eq!(result, vec![std::collections::BTreeSet::from(["a or b".to_string()])]);
+        assert_eq!(
+            result,
+            vec![std::collections::BTreeSet::from(["a or b".to_string()])]
+        );
     }
 
     #[test]
     fn tautologies_are_filtered() {
         let result = clauses("a or not a");
 
-        assert_eq!(result, vec![std::collections::BTreeSet::from(["a".to_string(), "-a".to_string()])]);
+        assert_eq!(
+            result,
+            vec![std::collections::BTreeSet::from([
+                "a".to_string(),
+                "-a".to_string()
+            ])]
+        );
     }
 
     #[test]
     fn syntax_errors_are_reported() {
         for expression in ["", "a and", "(a", "a )"] {
-            assert!(parse_logic_expression_query(expression).is_err(), "{expression}");
+            assert!(
+                parse_logic_expression_query(expression).is_err(),
+                "{expression}"
+            );
         }
     }
 }

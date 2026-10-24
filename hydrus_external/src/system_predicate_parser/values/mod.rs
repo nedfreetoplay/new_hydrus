@@ -24,8 +24,12 @@ pub(crate) fn parse_value(
 
     match spec {
         ValueKind::Natural | ValueKind::Integer => parse_integer(state, &string, spec),
-        ValueKind::Sha256HashListWithDistance => hashes::parse_hashes_with_distance(state, &string, false),
-        ValueKind::SimilarToHashListWithDistance => hashes::parse_hashes_with_distance(state, &string, true),
+        ValueKind::Sha256HashListWithDistance => {
+            hashes::parse_hashes_with_distance(state, &string, false)
+        }
+        ValueKind::SimilarToHashListWithDistance => {
+            hashes::parse_hashes_with_distance(state, &string, true)
+        }
         ValueKind::HashListWithAlgorithm => hashes::parse_hashes_with_algorithm(state, &string),
         ValueKind::FiletypeList => filetypes::parse_filetypes(state, &string, filetypes),
         ValueKind::DateOrTimeInterval => super::dates::parse_date_or_time_interval(state, &string),
@@ -51,11 +55,7 @@ pub(crate) fn parse_value(
     }
 }
 
-fn parse_integer(
-    state: &mut ParseState,
-    string: &str,
-    spec: ValueKind,
-) -> HydrusResult<()> {
+fn parse_integer(state: &mut ParseState, string: &str, spec: ValueKind) -> HydrusResult<()> {
     if string.starts_with("has") || string.starts_with("no") {
         state.text_remainder = String::new();
         state.value = Some(match spec {
@@ -87,9 +87,7 @@ fn parse_integer(
 
     if spec == ValueKind::Natural {
         if value < 0 {
-            return Err(parse_error(
-                "Invalid value, expected a positive integer!",
-            ));
+            return Err(parse_error("Invalid value, expected a positive integer!"));
         }
 
         state.value = Some(ValueData::Natural(value as u64));
@@ -132,8 +130,8 @@ fn parse_tag_advanced_tag(state: &mut ParseState, string: &str) -> HydrusResult<
         .map(|captures| captures["tag"].to_string())
         .unwrap_or_else(|| string.to_string());
 
-    let tag = hydrus_core::hydrus_tags::clean_tag(&raw_tag)
-        .unwrap_or_else(|_| "invalid tag".to_string());
+    let tag =
+        hydrus_core::hydrus_tags::clean_tag(&raw_tag).unwrap_or_else(|_| "invalid tag".to_string());
 
     state.text_remainder = String::new();
     state.value = Some(ValueData::TagAdvancedTag(tag));

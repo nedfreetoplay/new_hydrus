@@ -2,17 +2,15 @@ use std::f64::consts::PI;
 
 use hydrus_core::hydrus_exceptions::HydrusResult;
 
-use super::value_error;
 use super::colour::{linear_to_srgb, sign_pow, srgb_to_linear};
+use super::value_error;
 
 use hydrus_core::files::images::hydrus_blurhash::base83_decode;
 
 /// `blurhash_components( blurhash )`
 pub fn blurhash_components(blurhash: &str) -> HydrusResult<(u32, u32)> {
     if blurhash.len() < 6 {
-        return Err(value_error(
-            "Blurhash must be at least 6 characters long.",
-        ));
+        return Err(value_error("Blurhash must be at least 6 characters long."));
     }
 
     let size_info = base83_decode(&blurhash[0..1])?;
@@ -37,7 +35,9 @@ pub fn blurhash_decode(
     }
 
     if width == 0 || height == 0 {
-        return Err(value_error("Blurhash decoding needs a non-zero resolution."));
+        return Err(value_error(
+            "Blurhash decoding needs a non-zero resolution.",
+        ));
     }
 
     let quant_max_value = base83_decode(&blurhash[1..2])?;
@@ -56,10 +56,8 @@ pub fn blurhash_decode(
         let ac_value = base83_decode(&blurhash[start..start + 2])?;
 
         colours.push([
-            sign_pow((f64::from(ac_value / (19 * 19)) - 9.0) / 9.0, 2.0)
-                * real_max_value,
-            sign_pow((f64::from(ac_value / 19 % 19) - 9.0) / 9.0, 2.0)
-                * real_max_value,
+            sign_pow((f64::from(ac_value / (19 * 19)) - 9.0) / 9.0, 2.0) * real_max_value,
+            sign_pow((f64::from(ac_value / 19 % 19) - 9.0) / 9.0, 2.0) * real_max_value,
             sign_pow((f64::from(ac_value % 19) - 9.0) / 9.0, 2.0) * real_max_value,
         ]);
     }

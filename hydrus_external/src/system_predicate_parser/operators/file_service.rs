@@ -7,10 +7,7 @@ use crate::system_predicate_parser::parse_error;
 use crate::system_predicate_parser::state::ParseState;
 use crate::system_predicate_parser::types::{FileServiceStatus, Operator};
 
-pub(super) fn parse_file_service_status(
-    state: &mut ParseState,
-    string: &str,
-) -> HydrusResult<()> {
+pub(super) fn parse_file_service_status(state: &mut ParseState, string: &str) -> HydrusResult<()> {
     for (pattern, status) in [
         (r"(is )?currently in", FileServiceStatus::IsCurrentlyIn),
         (

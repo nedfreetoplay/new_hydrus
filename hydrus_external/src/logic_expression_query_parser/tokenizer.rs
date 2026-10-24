@@ -63,9 +63,7 @@ fn keyword(rest: &str) -> Option<(Token, usize)> {
         ("iff", Token::Iff),
     ] {
         if let Some(after) = rest.strip_prefix(name) {
-            if after.starts_with('(')
-                || after.chars().next().is_some_and(char::is_whitespace)
-            {
+            if after.starts_with('(') || after.chars().next().is_some_and(char::is_whitespace) {
                 return Some((token, name.len()));
             }
         }

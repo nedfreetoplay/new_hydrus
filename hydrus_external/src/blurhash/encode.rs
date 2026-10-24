@@ -2,8 +2,8 @@ use std::f64::consts::PI;
 
 use hydrus_core::hydrus_exceptions::HydrusResult;
 
-use super::value_error;
 use super::colour::{linear_to_srgb, sign_pow, srgb_to_linear};
+use super::value_error;
 
 use hydrus_core::files::images::hydrus_blurhash::base83_encode;
 
@@ -70,12 +70,14 @@ pub fn blurhash_encode(
         + (u32::from(linear_to_srgb(components[0][1])) << 8)
         + u32::from(linear_to_srgb(components[0][2]));
 
-    let quant_max_ac_component =
-        ((max_ac_component * 166.0 - 0.5).floor()).clamp(0.0, 82.0) as u32;
+    let quant_max_ac_component = ((max_ac_component * 166.0 - 0.5).floor()).clamp(0.0, 82.0) as u32;
     let norm_factor = (f64::from(quant_max_ac_component) + 1.0) / 166.0;
 
     let mut blurhash = String::new();
-    blurhash.push_str(&base83_encode((components_x - 1) + (components_y - 1) * 9, 1));
+    blurhash.push_str(&base83_encode(
+        (components_x - 1) + (components_y - 1) * 9,
+        1,
+    ));
     blurhash.push_str(&base83_encode(quant_max_ac_component, 1));
     blurhash.push_str(&base83_encode(dc_value, 4));
 

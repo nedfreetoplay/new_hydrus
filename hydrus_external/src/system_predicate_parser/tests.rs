@@ -40,7 +40,9 @@ fn date_and_duration_predicates_parse() {
     assert_eq!(predicate.predicate, Predicate::ModDate);
     assert!(matches!(
         predicate.value,
-        Some(ValueData::DateOrTimeInterval(DateOrTimeInterval::DateTime(_)))
+        Some(ValueData::DateOrTimeInterval(DateOrTimeInterval::DateTime(
+            _
+        )))
     ));
 
     let predicate = parse("system:duration > 1 hour 30 mins");
@@ -105,7 +107,10 @@ fn filetypes_and_advanced_predicates_parse() {
 fn ratio_views_and_file_service_predicates_parse() {
     assert_eq!(
         parse("system:ratio wider than 16:9").value,
-        Some(ValueData::Ratio { first: 16, second: 9 })
+        Some(ValueData::Ratio {
+            first: 16,
+            second: 9
+        })
     );
 
     assert!(matches!(

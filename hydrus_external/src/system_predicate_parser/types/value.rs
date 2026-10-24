@@ -105,12 +105,22 @@ impl FiletypeRegistry {
 
         for mime in Mime::ALL {
             let value = vec![mime.as_int()];
-            registry.values.insert(mime.as_str().to_string(), value.clone());
-            registry.values.insert(mime.mimetype_str().to_string(), value);
+            registry
+                .values
+                .insert(mime.as_str().to_string(), value.clone());
+            registry
+                .values
+                .insert(mime.mimetype_str().to_string(), value);
         }
 
-        registry.insert("gif", vec![Mime::StaticGif.as_int(), Mime::AnimationGif.as_int()]);
-        registry.insert("image/gif", vec![Mime::StaticGif.as_int(), Mime::AnimationGif.as_int()]);
+        registry.insert(
+            "gif",
+            vec![Mime::StaticGif.as_int(), Mime::AnimationGif.as_int()],
+        );
+        registry.insert(
+            "image/gif",
+            vec![Mime::StaticGif.as_int(), Mime::AnimationGif.as_int()],
+        );
 
         registry
     }

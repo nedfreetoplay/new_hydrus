@@ -28,10 +28,8 @@ pub(super) fn parse_filetypes(
         .collect::<Vec<_>>()
         .join("|");
 
-    let regex = Regex::new(&format!(
-        r"^(?:(?:{alternatives})(?:[\s,]+|$))+"
-    ))
-    .expect("valid filetype regex");
+    let regex = Regex::new(&format!(r"^(?:(?:{alternatives})(?:[\s,]+|$))+"))
+        .expect("valid filetype regex");
 
     let found = regex
         .find(string)

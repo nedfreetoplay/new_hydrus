@@ -22,9 +22,7 @@ pub(super) fn parse_hashes_with_distance(
     let captures = regex
         .captures(string)
         .map_err(|error| parse_error(error.to_string()))?
-        .ok_or_else(|| {
-            parse_error("Invalid value, expected a list of hashes with distance")
-        })?;
+        .ok_or_else(|| parse_error("Invalid value, expected a list of hashes with distance"))?;
 
     let hashes: BTreeSet<String> = captures["hashes"]
         .replace(',', " ")

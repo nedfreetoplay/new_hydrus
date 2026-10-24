@@ -1,0 +1,182 @@
+//! System predicate table section.
+
+use crate::system_predicate_parser::types::{
+    OperatorKind as O, Predicate as P, UnitKind as U, ValueKind as V,
+};
+
+use super::spec;
+
+pub(super) fn specs() -> Vec<super::PredicateSpec> {
+    vec![
+        spec("has tags", P::HasTags, None, None, None),
+        spec("untagged|no tags", P::Untagged, None, None, None),
+        spec(
+            "num(ber)?( of)? tags",
+            P::NumOfTags,
+            Some(O::Relational),
+            Some(V::Natural),
+            None,
+        ),
+        spec(
+            r"num(ber)?( of)? (?=[^\s].* tags)",
+            P::NumOfTagsWithNamespace,
+            None,
+            Some(V::NamespaceAndNumTags),
+            None,
+        ),
+        spec(
+            "num(ber)?( of)? urls",
+            P::NumOfUrls,
+            Some(O::Relational),
+            Some(V::Natural),
+            None,
+        ),
+        spec(
+            "num(ber)?( of)? words",
+            P::NumOfWords,
+            Some(O::RelationalNumberTest),
+            Some(V::Natural),
+            None,
+        ),
+        spec(
+            "height",
+            P::Height,
+            Some(O::RelationalNumberTest),
+            Some(V::Natural),
+            Some(U::PixelsOrNone),
+        ),
+        spec(
+            "width",
+            P::Width,
+            Some(O::RelationalNumberTest),
+            Some(V::Natural),
+            Some(U::PixelsOrNone),
+        ),
+        spec(
+            "file ?size",
+            P::Filesize,
+            Some(O::Relational),
+            Some(V::Natural),
+            Some(U::Filesize),
+        ),
+        spec(
+            "similar to(?! data)( files)?",
+            P::SimilarToFiles,
+            None,
+            Some(V::Sha256HashListWithDistance),
+            None,
+        ),
+        spec(
+            "similar to data",
+            P::SimilarToData,
+            None,
+            Some(V::SimilarToHashListWithDistance),
+            None,
+        ),
+        spec(
+            "limit",
+            P::Limit,
+            Some(O::OnlyEqual),
+            Some(V::Natural),
+            None,
+        ),
+        spec(
+            "file ?type",
+            P::Filetype,
+            Some(O::Equal),
+            Some(V::FiletypeList),
+            None,
+        ),
+        spec(
+            r"hash( \(?(md5|sha1|sha512)\)?)?",
+            P::Hash,
+            Some(O::Equal),
+            Some(V::HashListWithAlgorithm),
+            None,
+        ),
+        spec(
+            "archived? (date|time)|(date|time) archived|archived.",
+            P::ArchivedDate,
+            Some(O::RelationalTime),
+            Some(V::DateOrTimeInterval),
+            None,
+        ),
+        spec(
+            "modified (date|time)|(date|time) modified|modified",
+            P::ModDate,
+            Some(O::RelationalTime),
+            Some(V::DateOrTimeInterval),
+            None,
+        ),
+        spec(
+            "last view(ed)? (date|time)|(date|time) last viewed|last viewed",
+            P::LastViewedTime,
+            Some(O::RelationalTime),
+            Some(V::DateOrTimeInterval),
+            None,
+        ),
+        spec(
+            "import(ed)? (date|time)|(date|time) imported|imported",
+            P::TimeImported,
+            Some(O::RelationalTime),
+            Some(V::DateOrTimeInterval),
+            None,
+        ),
+        spec(
+            "duration",
+            P::Duration,
+            Some(O::RelationalNumberTest),
+            Some(V::TimeToMsec),
+            None,
+        ),
+        spec(
+            "framerate",
+            P::Framerate,
+            Some(O::Relational),
+            Some(V::Natural),
+            Some(U::FpsOrNone),
+        ),
+        spec(
+            "num(ber)?( of)? frames",
+            P::NumOfFrames,
+            Some(O::RelationalNumberTest),
+            Some(V::Natural),
+            None,
+        ),
+        spec(
+            "file service",
+            P::FileService,
+            Some(O::FileServiceStatus),
+            Some(V::AnyString),
+            None,
+        ),
+        spec(
+            "num(ber)?( of)? file relationships",
+            P::NumFileRels,
+            Some(O::Relational),
+            Some(V::Natural),
+            Some(U::FileRelationshipType),
+        ),
+        spec(
+            r"ratio(?=.*\d)",
+            P::Ratio,
+            Some(O::RatioOperators),
+            Some(V::Ratio),
+            None,
+        ),
+        spec(
+            r"ratio(?!.*\d)",
+            P::RatioSpecial,
+            Some(O::RatioOperatorsSpecial),
+            None,
+            None,
+        ),
+        spec(
+            "num(ber)?( of)? pixels",
+            P::NumPixels,
+            Some(O::Relational),
+            Some(V::Natural),
+            Some(U::Pixels),
+        ),
+    ]
+}

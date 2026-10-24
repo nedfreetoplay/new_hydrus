@@ -14,10 +14,7 @@ use super::parse_error;
 use super::state::ParseState;
 use super::types::{OperatorKind, ValueData};
 
-pub(crate) fn parse_rating_numerical(
-    state: &mut ParseState,
-    string: &str,
-) -> HydrusResult<()> {
+pub(crate) fn parse_rating_numerical(state: &mut ParseState, string: &str) -> HydrusResult<()> {
     let regex = Regex::new(r"^(?P<name>.+?)\s+(?P<num>\d+)/(?P<den>\d+)$")
         .expect("valid numerical rating regex");
     let captures = regex
@@ -42,10 +39,7 @@ pub(crate) fn parse_rating_numerical(
     Ok(())
 }
 
-pub(crate) fn parse_like_dislike(
-    state: &mut ParseState,
-    string: &str,
-) -> HydrusResult<()> {
+pub(crate) fn parse_like_dislike(state: &mut ParseState, string: &str) -> HydrusResult<()> {
     let (value, mut service_name) = if let Some(name) = string.strip_suffix("dislike") {
         (0.0, name.to_string())
     } else if let Some(name) = string.strip_suffix("like") {
@@ -72,12 +66,8 @@ pub(crate) fn parse_like_dislike(
     Ok(())
 }
 
-pub(crate) fn parse_rating_inc_dec(
-    state: &mut ParseState,
-    string: &str,
-) -> HydrusResult<()> {
-    let regex = Regex::new(r"^(?P<name>.+?)\s+(?P<num>\d+)$")
-        .expect("valid inc/dec rating regex");
+pub(crate) fn parse_rating_inc_dec(state: &mut ParseState, string: &str) -> HydrusResult<()> {
+    let regex = Regex::new(r"^(?P<name>.+?)\s+(?P<num>\d+)$").expect("valid inc/dec rating regex");
     let captures = regex
         .captures(string)
         .map_err(|error| parse_error(error.to_string()))?
@@ -109,8 +99,7 @@ pub(crate) fn parse_namespace_and_num_tags(
         namespace = String::new();
     }
 
-    let (_, operator) =
-        parse_operator_relational(&captures["operator"], OperatorKind::Relational)?;
+    let (_, operator) = parse_operator_relational(&captures["operator"], OperatorKind::Relational)?;
 
     state.text_remainder = String::new();
     state.value = Some(ValueData::NamespaceAndNumTags {

@@ -5,9 +5,7 @@ use hydrus_core::hydrus_exceptions::HydrusResult;
 
 use crate::system_predicate_parser::parse_error;
 use crate::system_predicate_parser::predicates::string_looks_like_date;
-use crate::system_predicate_parser::types::{
-    OperatorKind, RelationalOperator,
-};
+use crate::system_predicate_parser::types::{OperatorKind, RelationalOperator};
 
 pub(crate) fn parse_operator_relational(
     string: &str,

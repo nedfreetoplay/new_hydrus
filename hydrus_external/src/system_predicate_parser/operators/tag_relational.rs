@@ -14,17 +14,13 @@ pub(super) fn parse_tag_relational(state: &mut ParseState, string: &str) -> Hydr
         .map(|(text, _)| fancy_regex::escape(text))
         .collect::<Vec<_>>()
         .join("|");
-    let regex = Regex::new(&format!(
-        r"^(?P<namespace>.*)\s+(?P<op>({alternatives}))"
-    ))
-    .expect("valid tag relational regex");
+    let regex = Regex::new(&format!(r"^(?P<namespace>.*)\s+(?P<op>({alternatives}))"))
+        .expect("valid tag relational regex");
     let captures = regex
         .captures(string)
         .map_err(|error| parse_error(error.to_string()))?
         .ok_or_else(|| {
-            parse_error(
-                "Invalid operator, expected a tag followed by a relational operator",
-            )
+            parse_error("Invalid operator, expected a tag followed by a relational operator")
         })?;
 
     let mut namespace = captures["namespace"].to_string();
@@ -44,9 +40,7 @@ pub(super) fn parse_tag_relational(state: &mut ParseState, string: &str) -> Hydr
 
     if !matches!(
         operator,
-        RelationalOperator::Less
-            | RelationalOperator::Greater
-            | RelationalOperator::Approx
+        RelationalOperator::Less | RelationalOperator::Greater | RelationalOperator::Approx
     ) {
         operator = RelationalOperator::Approx;
     }

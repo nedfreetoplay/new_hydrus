@@ -13,9 +13,9 @@ pub(crate) fn parse_date_or_time_interval(
 ) -> HydrusResult<()> {
     if string == "now" {
         state.text_remainder = String::new();
-        state.value = Some(ValueData::DateOrTimeInterval(
-            DateOrTimeInterval::DateTime(chrono::Local::now().naive_local()),
-        ));
+        state.value = Some(ValueData::DateOrTimeInterval(DateOrTimeInterval::DateTime(
+            chrono::Local::now().naive_local(),
+        )));
 
         return Ok(());
     }
@@ -61,10 +61,9 @@ pub(crate) fn parse_date_or_time_interval(
         }
     }
 
-    let date = Regex::new(
-        r"^(?P<year>[0-9][0-9][0-9][0-9])-(?P<month>[0-9][0-9]?)-(?P<day>[0-9][0-9]?)",
-    )
-    .expect("valid date regex");
+    let date =
+        Regex::new(r"^(?P<year>[0-9][0-9][0-9][0-9])-(?P<month>[0-9][0-9]?)-(?P<day>[0-9][0-9]?)")
+            .expect("valid date regex");
 
     if let Some(captures) = date
         .captures(string)
@@ -78,11 +77,10 @@ pub(crate) fn parse_date_or_time_interval(
             .and_then(|date| date.and_hms_opt(0, 0, 0))
             .ok_or_else(|| parse_error("Invalid value, expected a date or a time interval"))?;
 
-        state.text_remainder =
-            string[captures.get(0).expect("whole match").end()..].to_string();
-        state.value = Some(ValueData::DateOrTimeInterval(
-            DateOrTimeInterval::DateTime(value),
-        ));
+        state.text_remainder = string[captures.get(0).expect("whole match").end()..].to_string();
+        state.value = Some(ValueData::DateOrTimeInterval(DateOrTimeInterval::DateTime(
+            value,
+        )));
 
         return Ok(());
     }

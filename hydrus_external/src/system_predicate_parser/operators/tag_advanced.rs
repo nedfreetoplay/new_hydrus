@@ -34,10 +34,8 @@ pub(crate) fn parse_tag_advanced_operator(
     state: &mut ParseState,
     string: &str,
 ) -> HydrusResult<()> {
-    let colon_regex = Regex::new(r#"\:(?=(?:[^"]*"[^"]*")*[^"]*$)"#)
-        .expect("valid colon regex");
-    let comma_regex = Regex::new(r#",(?=(?:[^"]*"[^"]*")*[^"]*$)"#)
-        .expect("valid comma regex");
+    let colon_regex = Regex::new(r#"\:(?=(?:[^"]*"[^"]*")*[^"]*$)"#).expect("valid colon regex");
+    let comma_regex = Regex::new(r#",(?=(?:[^"]*"[^"]*")*[^"]*$)"#).expect("valid comma regex");
 
     let colon_match = colon_regex
         .find(string)
@@ -60,8 +58,7 @@ pub(crate) fn parse_tag_advanced_operator(
     let mut statuses = Vec::new();
 
     for component in split_not_in_quotes(gubbins, ',') {
-        let quoted =
-            Regex::new(r#"^[^"]*"(?P<name>.+)"[^"]*$"#).expect("valid quoted name regex");
+        let quoted = Regex::new(r#"^[^"]*"(?P<name>.+)"[^"]*$"#).expect("valid quoted name regex");
 
         if let Some(captures) = quoted
             .captures(&component)

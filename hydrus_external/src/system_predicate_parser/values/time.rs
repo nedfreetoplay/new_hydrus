@@ -64,10 +64,22 @@ pub(super) fn parse_time_interval(state: &mut ParseState, string: &str) -> Hydru
         .map_err(|error| parse_error(error.to_string()))?
         .ok_or_else(|| parse_error("Invalid value, expected a time interval"))?;
 
-    let mut days: u32 = captures.name("day").and_then(|v| v.as_str().parse().ok()).unwrap_or(0);
-    let mut hours: u32 = captures.name("hour").and_then(|v| v.as_str().parse().ok()).unwrap_or(0);
-    let mut minutes: u32 = captures.name("minute").and_then(|v| v.as_str().parse().ok()).unwrap_or(0);
-    let mut seconds: u32 = captures.name("second").and_then(|v| v.as_str().parse().ok()).unwrap_or(0);
+    let mut days: u32 = captures
+        .name("day")
+        .and_then(|v| v.as_str().parse().ok())
+        .unwrap_or(0);
+    let mut hours: u32 = captures
+        .name("hour")
+        .and_then(|v| v.as_str().parse().ok())
+        .unwrap_or(0);
+    let mut minutes: u32 = captures
+        .name("minute")
+        .and_then(|v| v.as_str().parse().ok())
+        .unwrap_or(0);
+    let mut seconds: u32 = captures
+        .name("second")
+        .and_then(|v| v.as_str().parse().ok())
+        .unwrap_or(0);
 
     if days + hours + minutes + seconds == 0 {
         return Err(parse_error("Invalid value, expected a time interval"));

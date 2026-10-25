@@ -18,11 +18,17 @@ hydrus_client::db          ClientDB (сейчас на DBBase), services/hashes/
   ↑
 hydrus_client::controller  boot модели, локальные сервисы, сохранение опций
   ↑
-hydrus_client::gui         Qt 6 Widgets через cxx-qt + C++-фасад
+hydrus_client::gui::view_model  ViewModel: данные и состояние страниц без Qt
+  ↑
+hydrus_client::gui::qt      View: рендер ViewModel через cxx-qt + C++-фасад
 ```
 
 ## Ключевые решения
 
+- **MVVM.** Контроллер и модели панелей собираются в
+  `gui::view_model::MainViewModel` (заголовок, статус, вкладки, меню и
+  описания страниц). `gui::qt` только превращает эти значения в виджеты, без
+  логики приложения и без знания о сессии/БД.
 - **Qt 6.12 + cxx-qt 0.10.** `cxx-qt-lib` не оборачивает QtWidgets, поэтому
   используется собственный минимальный C++-фасад (`src/gui/qt/bridge.*`),
   который растёт вместе с портируемыми виджетами.

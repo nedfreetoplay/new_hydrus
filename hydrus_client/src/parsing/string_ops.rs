@@ -1,7 +1,6 @@
 //! Converter, joiner and processor from `hydrus/client/ClientStrings.py`.
 
-use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
-use regex::Regex;
+use percent_encoding::{AsciiSet, NON_ALPHANUMERIC};
 
 use crate::parsing::string_match::StringMatch;
 use crate::parsing::string_tools::StringSplitter;
@@ -65,7 +64,6 @@ mod base64;
 mod encodings;
 use encodings::apply_conversion;
 pub use encodings::decode_html_entities;
-pub(crate) use encodings::{decode, encode};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StringJoiner {

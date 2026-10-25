@@ -1,9 +1,6 @@
 //! Number tests from `hydrus/client/search/ClientNumberTest.py`.
 
-use std::any::Any;
-
-use hydrus_core::hydrus_exceptions::HydrusResult;
-use hydrus_core::hydrus_serialisable::{self, SerialisableObject};
+use hydrus_core::hydrus_serialisable::SerialisableObject;
 use serde_json::{Value, json};
 
 pub const NUMBER_TEST_OPERATOR_LESS_THAN: i32 = 0;
@@ -188,7 +185,6 @@ pub fn operator_string(operator: i32) -> &'static str {
 }
 
 mod serialisation;
-pub use serialisation::*;
 
 #[cfg(test)]
 mod tests;

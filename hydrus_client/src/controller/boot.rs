@@ -1,27 +1,18 @@
 //! Controller boot/init helpers.
 
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 
 use hydrus_core::hydrus_exceptions::HydrusResult;
-use hydrus_core::hydrus_serialisable::SerialisableObject;
 
 use crate::client_application_command::{ApplicationCommand, SIMPLE_REFRESH, SIMPLE_UNDO};
 use crate::client_defaults::{apply_default_bandwidth_rules, apply_default_domain_manager_data};
-use crate::client_globals::ClientControllerHandle;
 use crate::client_options::ClientOptions;
-use crate::db::{ClientDB, files_physical_storage, services};
-use crate::files::{
-    ClientFilesManager, FilesMaintenanceManager, FilesStorageBaseLocation, FilesStorageSubfolder,
-    TrashManager,
-};
-use crate::gui::pages::{Page, PageType, PagesNotebook};
-use crate::gui::session::GuiSession;
+use crate::db::files_physical_storage;
+use crate::files::{ClientFilesManager, FilesStorageBaseLocation, FilesStorageSubfolder};
 use crate::gui::shortcuts::{
     SHORTCUT_MODIFIER_CTRL, SHORTCUT_PRESS_TYPE_PRESS, SHORTCUT_TYPE_KEYBOARD_CHARACTER, Shortcut,
     ShortcutSet,
 };
-use crate::gui::style::ClientGUIStyle;
 use crate::networking::client_networking_bandwidth::NetworkBandwidthManager;
 use crate::networking::client_networking_domain::DomainManager;
 use crate::services::ServicesManager;

@@ -1,9 +1,7 @@
 //! Client DB module wrapper around `hydrus_core::DBModule`.
 
 use hydrus_core::hydrus_db_base::DBBase;
-use hydrus_core::hydrus_db_module::{
-    DBModule, IndexGenerationDict, TableGenerationDict, TableGenerationRow,
-};
+use hydrus_core::hydrus_db_module::{DBModule, IndexGenerationDict, TableGenerationDict};
 use std::collections::BTreeSet;
 
 /// A declarative client DB module. Individual client modules expose their
@@ -137,7 +135,7 @@ pub fn client_schema_module<'a>(db: &'a DBBase) -> ClientDBModule<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use hydrus_core::hydrus_db_module::DBModule;
+    use hydrus_core::hydrus_db_module::{DBModule, TableGenerationRow};
 
     fn database() -> (DBBase, std::path::PathBuf) {
         use std::sync::atomic::{AtomicU64, Ordering};

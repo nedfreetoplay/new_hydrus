@@ -1,3 +1,4 @@
+use super::encodings::{decode, encode};
 use super::*;
 
 #[test]

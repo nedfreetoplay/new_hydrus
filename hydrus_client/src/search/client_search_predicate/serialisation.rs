@@ -2,12 +2,10 @@
 
 use std::any::Any;
 
-use hydrus_core::hydrus_constants::Mime;
 use hydrus_core::hydrus_exceptions::{HydrusResult, serialisation};
 use hydrus_core::hydrus_serialisable::{self, SerialisableObject};
 use serde_json::{Value, json};
 
-use crate::search::client_number_test::NumberTest;
 use crate::search::predicate_constants::*;
 
 use super::deserialise::deserialise_value;

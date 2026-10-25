@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use crate::media::MediaSingle;
 use crate::search::FileSearchContext;
-use crate::search::predicate_constants::PredicateType;
 
 #[derive(Debug, Clone, Default)]
 pub struct MediaFileFilter {
@@ -41,7 +40,7 @@ impl MediaFileFilter {
 mod tests {
     use super::*;
     use crate::media::MediaResult;
-    use crate::search::predicate_constants::PredicateType::SystemMime;
+    use crate::search::predicate_constants::PredicateType;
     use crate::search::{Predicate, PredicateValue};
     use hydrus_core::files::hydrus_file_handling::FileInfo;
     use hydrus_core::hydrus_constants::Mime;

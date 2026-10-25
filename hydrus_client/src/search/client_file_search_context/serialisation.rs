@@ -1,11 +1,6 @@
 //! Split out from the parent module.
 
-use crate::client_location::LocationContext;
-use crate::media::MediaResult;
-use crate::search::client_file_system_predicates::FileSystemPredicates;
-use crate::search::client_search_predicate::{Predicate, PredicateValue};
-use crate::search::client_search_tag_context::TagContext;
-use crate::search::predicate_constants::*;
+use crate::search::client_search_predicate::Predicate;
 use hydrus_core::hydrus_exceptions::{HydrusResult, serialisation};
 use hydrus_core::hydrus_serialisable::{self, SerialisableObject};
 use serde_json::{Value, json};

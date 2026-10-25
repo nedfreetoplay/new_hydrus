@@ -1,5 +1,8 @@
 use super::*;
 
+use crate::db::services;
+use crate::gui::pages::{Page, PageType, PagesNotebook};
+
 fn temporary_controller() -> (Controller, PathBuf) {
     let directory = std::env::temp_dir().join(format!(
         "hydrus_client_controller_{}_{}",

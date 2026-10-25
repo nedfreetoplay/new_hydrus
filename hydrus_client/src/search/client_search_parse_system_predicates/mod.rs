@@ -1,22 +1,12 @@
 //! Bridge from `hydrus/client/search/ClientSearchParseSystemPredicates.py` to
 //! the already ported `hydrus_external::system_predicate_parser`.
 
-use hydrus_core::hydrus_constants::ContentStatus;
-use hydrus_core::hydrus_exceptions::{HydrusException, HydrusResult};
-use hydrus_external::system_predicate_parser::{
-    self, Operator, RelationalOperator, SystemPredicate, Unit, ValueData,
-};
+use hydrus_core::hydrus_exceptions::HydrusResult;
+use hydrus_external::system_predicate_parser::{self, SystemPredicate};
 
 use crate::services::ServicesManager;
 
-use crate::search::client_number_test::{
-    NUMBER_TEST_OPERATOR_APPROXIMATE_PERCENT, NUMBER_TEST_OPERATOR_EQUAL,
-    NUMBER_TEST_OPERATOR_GREATER_THAN, NUMBER_TEST_OPERATOR_GREATER_THAN_OR_EQUAL_TO,
-    NUMBER_TEST_OPERATOR_LESS_THAN, NUMBER_TEST_OPERATOR_LESS_THAN_OR_EQUAL_TO,
-    NUMBER_TEST_OPERATOR_NOT_EQUAL, NumberTest,
-};
-use crate::search::client_search_predicate::{Predicate, PredicateValue};
-use crate::search::predicate_constants::*;
+use crate::search::client_search_predicate::Predicate;
 
 /// `SystemPredicateParser.parse_system_predicate`, converted to a client predicate.
 pub fn parse_system_predicate(text: &str) -> HydrusResult<Predicate> {
@@ -45,7 +35,6 @@ mod helpers;
 mod types;
 
 use convert::convert;
-use helpers::*;
 
 #[cfg(test)]
 mod tests;

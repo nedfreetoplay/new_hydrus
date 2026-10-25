@@ -1,6 +1,6 @@
 //! Strings encoders, decoders and conversion steps.
 
-use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, percent_decode_str, utf8_percent_encode};
+use percent_encoding::{percent_decode_str, utf8_percent_encode};
 use regex::Regex;
 
 use super::{Conversion, EncodingType, URL_ENCODE_SET};

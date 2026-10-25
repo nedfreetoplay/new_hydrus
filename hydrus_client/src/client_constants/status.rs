@@ -2,8 +2,6 @@
 
 use std::fmt;
 
-use super::*;
-
 /// File import status, mirroring the `STATUS_*` values from `ClientConstants.py`.
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

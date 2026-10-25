@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 use serde_json::{Value, json};
 
 use crate::media::MediaResult;
-use crate::metadata::TagStatus;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MetadataImporter {

@@ -56,7 +56,7 @@ impl<B: ApiBackend + 'static> ApiServer<B> {
             .map_err(|error| HydrusException::new(ErrorKind::Unknown, error.to_string()))
     }
 
-    pub fn start(mut self) -> HydrusResult<ApiServerHandle> {
+    pub fn start(self) -> HydrusResult<ApiServerHandle> {
         let address = self.local_addr()?;
         let shutdown = self.shutdown.clone();
         let thread_shutdown = shutdown.clone();

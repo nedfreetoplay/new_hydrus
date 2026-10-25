@@ -1,6 +1,5 @@
 //! Predicate deserialisation.
 
-use hydrus_core::hydrus_constants::Mime;
 use hydrus_core::hydrus_exceptions::{HydrusResult, serialisation};
 use hydrus_core::hydrus_serialisable::{self, SerialisableObject};
 use serde_json::Value;

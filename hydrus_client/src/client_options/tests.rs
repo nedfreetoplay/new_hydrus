@@ -1,4 +1,5 @@
 use super::*;
+use hydrus_core::hydrus_serialisable::SerialisableObject;
 
 #[test]
 fn defaults_round_trip_through_accessors() {

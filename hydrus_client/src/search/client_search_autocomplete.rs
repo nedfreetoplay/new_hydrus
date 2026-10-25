@@ -2,7 +2,7 @@
 
 use crate::search::client_search_predicate::{Predicate, PredicateValue};
 use crate::search::parse_system_predicate;
-use crate::search::predicate_constants::{PREDICATE_TYPE_TAG, PREDICATE_TYPE_WILDCARD};
+use crate::search::predicate_constants::PredicateType;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TagAutocompleteOptions {
@@ -129,12 +129,12 @@ impl ParsedAutocompleteText {
 
         if self.is_explicit_wildcard(allow_auto_wildcard_conversion) {
             Some(Predicate::new(
-                PREDICATE_TYPE_WILDCARD,
+                PredicateType::Wildcard,
                 PredicateValue::Text(text),
             ))
         } else if self.is_tag_search(allow_auto_wildcard_conversion) {
             Some(Predicate::new(
-                PREDICATE_TYPE_TAG,
+                PredicateType::Tag,
                 PredicateValue::Text(text),
             ))
         } else {

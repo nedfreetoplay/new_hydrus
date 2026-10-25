@@ -88,8 +88,8 @@ pub struct FavouriteSearchRow {
     pub name: String,
     pub file_search_context: FileSearchContext,
     pub synchronised: bool,
-    pub sort_type: i32,
-    pub sort_order: i32,
+    pub sort_type: client_constants::SortType,
+    pub sort_order: client_constants::SortOrder,
 }
 
 impl FavouriteSearchRow {
@@ -111,8 +111,8 @@ impl FavouriteSearchRow {
             name: name.into(),
             file_search_context,
             synchronised: true,
-            sort_type: client_constants::SORT_FILES_BY_FILESIZE,
-            sort_order: client_constants::SORT_DESC,
+            sort_type: client_constants::SortType::FileSize,
+            sort_order: client_constants::SortOrder::Descending,
         }
     }
 }
@@ -120,13 +120,13 @@ impl FavouriteSearchRow {
 /// `set_default_favourite_search_manager_data`
 pub fn default_favourite_searches() -> Vec<FavouriteSearchRow> {
     let predicates = vec![
-        Predicate::new(PREDICATE_TYPE_SYSTEM_INBOX, PredicateValue::None),
+        Predicate::new(PredicateType::SystemInbox, PredicateValue::None),
         Predicate::system_number(
-            PREDICATE_TYPE_SYSTEM_LIMIT,
+            PredicateType::SystemLimit,
             NumberTest::new(NUMBER_TEST_OPERATOR_EQUAL, 256.0, None),
         ),
         Predicate::new(
-            PREDICATE_TYPE_SYSTEM_MIME,
+            PredicateType::SystemMime,
             PredicateValue::Numbers(
                 [Mime::Png, Mime::Jpeg, Mime::Mp4Video]
                     .into_iter()

@@ -6,7 +6,7 @@ use hydrus_core::files::hydrus_file_handling::{self as core_files, FileInfo};
 use hydrus_core::hydrus_constants::Mime;
 use hydrus_core::hydrus_exceptions::{ErrorKind, HydrusException, HydrusResult};
 
-use crate::client_constants::{self, STATUS_DELETED, STATUS_ERROR, STATUS_UNKNOWN};
+use crate::client_constants::Status;
 use crate::importing::options::ImportOptionsContainer;
 
 mod status;
@@ -78,7 +78,7 @@ impl FileImportJob {
         self.pre_import_file_status = if is_in_db(&hash)? {
             redundant_status(hash, None)
         } else {
-            FileImportStatus::new(STATUS_UNKNOWN, Some(hash), None, "")
+            FileImportStatus::new(Status::Unknown, Some(hash), None, "")
         };
 
         Ok(self.pre_import_file_status.clone())
@@ -139,7 +139,7 @@ impl FileImportJob {
 
         if self.check_is_good_to_import().is_err() {
             self.post_import_file_status = FileImportStatus::new(
-                STATUS_ERROR,
+                Status::Error,
                 self.hash.clone(),
                 self.get_mime(),
                 "file did not pass the import file filter",
@@ -149,7 +149,7 @@ impl FileImportJob {
         }
 
         self.post_import_file_status =
-            FileImportStatus::new(STATUS_UNKNOWN, self.hash.clone(), self.get_mime(), "");
+            FileImportStatus::new(Status::Unknown, self.hash.clone(), self.get_mime(), "");
 
         Ok(self.post_import_file_status.clone())
     }

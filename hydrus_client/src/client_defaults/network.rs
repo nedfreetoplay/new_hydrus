@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use hydrus_core::hydrus_constants::BandwidthType;
 use hydrus_core::networking::hydrus_networking::BandwidthRules;
 
+use crate::client_constants::NetworkContextType;
 use crate::networking::NetworkContext;
 use crate::networking::client_networking_bandwidth::NetworkBandwidthManager;
 
@@ -74,7 +75,7 @@ pub fn apply_default_bandwidth_rules(manager: &mut NetworkBandwidthManager) {
     );
 
     manager.set_rules(
-        &NetworkContext::new(crate::client_constants::NETWORK_CONTEXT_DOMAIN, None),
+        &NetworkContext::new(NetworkContextType::Domain, None),
         rules(&[
             (BandwidthType::Requests, 1, 1),
             (BandwidthType::Data, 86_400, 8 * GB),
@@ -108,10 +109,7 @@ mod tests {
 
         assert!(manager.has_rules(&NetworkContext::default_context()));
         assert!(manager.has_rules(&NetworkContext::hydrus()));
-        assert!(manager.has_rules(&NetworkContext::new(
-            crate::client_constants::NETWORK_CONTEXT_DOMAIN,
-            None
-        )));
+        assert!(manager.has_rules(&NetworkContext::new(NetworkContextType::Domain, None)));
     }
 
     #[test]

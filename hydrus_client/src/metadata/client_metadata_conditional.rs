@@ -8,6 +8,7 @@ use serde_json::Value;
 
 use crate::media::MediaResult;
 use crate::search::FileSearchContext;
+use crate::search::predicate_constants::PredicateType;
 
 pub const SERIALISABLE_VERSION: u16 = 1;
 
@@ -95,7 +96,7 @@ pub fn register_serialisable_type() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::predicate_constants::PREDICATE_TYPE_SYSTEM_INBOX;
+    use crate::search::predicate_constants::PredicateType::SystemInbox;
     use crate::search::{Predicate, PredicateValue};
     use hydrus_core::files::hydrus_file_handling::FileInfo;
     use hydrus_core::hydrus_constants::Mime;
@@ -130,7 +131,7 @@ mod tests {
     fn inbox_condition_filters_media() {
         let mut context = FileSearchContext::new();
         context.set_predicates(vec![Predicate::new(
-            PREDICATE_TYPE_SYSTEM_INBOX,
+            PredicateType::SystemInbox,
             PredicateValue::None,
         )]);
 

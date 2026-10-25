@@ -1,18 +1,56 @@
 //! Tag sorting from `hydrus/client/metadata/ClientTagSorting.py`.
 
+use std::fmt;
+
 use hydrus_core::hydrus_text;
 use serde_json::{Value, json};
 
-use crate::client_constants;
+use crate::client_constants::SortOrder;
 
-pub const SORT_BY_HUMAN_TAG: i32 = 0;
-pub const SORT_BY_HUMAN_SUBTAG: i32 = 1;
-pub const SORT_BY_COUNT: i32 = 2;
+/// Tag sort type, mirroring the `SORT_BY_*` values from `ClientTagSorting.py`.
+#[repr(i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TagSortType {
+    HumanTag = 0,
+    HumanSubtag = 1,
+    Count = 2,
+}
+
+impl TagSortType {
+    pub const ALL: &'static [TagSortType] = &[
+        TagSortType::HumanTag,
+        TagSortType::HumanSubtag,
+        TagSortType::Count,
+    ];
+
+    pub const fn as_int(self) -> i32 {
+        self as i32
+    }
+
+    pub fn try_from_int(value: i32) -> Option<Self> {
+        match value {
+            0 => Some(TagSortType::HumanTag),
+            1 => Some(TagSortType::HumanSubtag),
+            2 => Some(TagSortType::Count),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for TagSortType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            TagSortType::HumanTag => "human tag",
+            TagSortType::HumanSubtag => "human subtag",
+            TagSortType::Count => "count",
+        })
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TagSort {
-    pub sort_type: i32,
-    pub sort_order: i32,
+    pub sort_type: TagSortType,
+    pub sort_order: SortOrder,
     pub use_siblings: bool,
     pub group_by: String,
 }
@@ -24,7 +62,12 @@ impl Default for TagSort {
 }
 
 impl TagSort {
-    pub fn new(sort_type: i32, sort_order: i32, use_siblings: bool, group_by: String) -> Self {
+    pub fn new(
+        sort_type: TagSortType,
+        sort_order: SortOrder,
+        use_siblings: bool,
+        group_by: String,
+    ) -> Self {
         Self {
             sort_type,
             sort_order,
@@ -35,8 +78,8 @@ impl TagSort {
 
     pub fn static_get_text_asc_default() -> Self {
         Self::new(
-            SORT_BY_HUMAN_TAG,
-            client_constants::SORT_ASC,
+            TagSortType::HumanTag,
+            SortOrder::Ascending,
             true,
             String::new(),
         )
@@ -44,39 +87,35 @@ impl TagSort {
 
     pub fn static_get_text_asc_user_grouped_default() -> Self {
         Self::new(
-            SORT_BY_HUMAN_SUBTAG,
-            client_constants::SORT_ASC,
+            TagSortType::HumanSubtag,
+            SortOrder::Ascending,
             true,
             "creator".to_string(),
         )
     }
 
     pub fn affected_by_count(&self) -> bool {
-        self.sort_type == SORT_BY_COUNT
+        self.sort_type == TagSortType::Count
     }
 
     /// `ToString()`
     pub fn to_string(&self) -> String {
-        let sort_type = match self.sort_type {
-            SORT_BY_HUMAN_TAG => "human tag",
-            SORT_BY_HUMAN_SUBTAG => "human subtag",
-            SORT_BY_COUNT => "count",
-            _ => "unknown",
-        };
-
-        let direction = client_constants::sort_order_string(self.sort_order);
+        let direction = self.sort_order;
 
         if self.group_by.is_empty() {
-            format!("{sort_type}, {direction}")
+            format!("{}, {direction}", self.sort_type)
         } else {
-            format!("{sort_type}, {direction}, grouped by {}", self.group_by)
+            format!(
+                "{}, {direction}, grouped by {}",
+                self.sort_type, self.group_by
+            )
         }
     }
 
     pub fn to_dict_for_api(&self) -> Value {
         json!({
-            "sort_type": self.sort_type,
-            "sort_order": self.sort_order,
+            "sort_type": self.sort_type.as_int(),
+            "sort_order": self.sort_order.as_int(),
             "use_siblings": self.use_siblings,
             "group_by": self.group_by,
         })
@@ -85,7 +124,7 @@ impl TagSort {
     /// Sorts tags in place using the same human sort keys as hydrus_core.
     pub fn sort_tags(&self, tags: &mut [String]) {
         match self.sort_type {
-            SORT_BY_HUMAN_SUBTAG => tags.sort_by(|a, b| {
+            TagSortType::HumanSubtag => tags.sort_by(|a, b| {
                 human_subtag_key(a)
                     .cmp(&human_subtag_key(b))
                     .then_with(|| a.cmp(b))
@@ -93,7 +132,7 @@ impl TagSort {
             _ => hydrus_text::human_text_sort_strings(tags),
         }
 
-        if self.sort_order == client_constants::SORT_DESC {
+        if self.sort_order == SortOrder::Descending {
             tags.reverse();
         }
     }
@@ -121,13 +160,13 @@ mod tests {
     fn defaults_match_python_constructors() {
         let sort = TagSort::static_get_text_asc_default();
 
-        assert_eq!(sort.sort_type, SORT_BY_HUMAN_TAG);
-        assert_eq!(sort.sort_order, client_constants::SORT_ASC);
+        assert_eq!(sort.sort_type, TagSortType::HumanTag);
+        assert_eq!(sort.sort_order, SortOrder::Ascending);
         assert!(sort.use_siblings);
 
         let grouped = TagSort::static_get_text_asc_user_grouped_default();
 
-        assert_eq!(grouped.sort_type, SORT_BY_HUMAN_SUBTAG);
+        assert_eq!(grouped.sort_type, TagSortType::HumanSubtag);
         assert_eq!(grouped.group_by, "creator");
     }
 
@@ -138,8 +177,8 @@ mod tests {
 
         TagSort::static_get_text_asc_default().sort_tags(&mut ascending);
         TagSort::new(
-            SORT_BY_HUMAN_TAG,
-            client_constants::SORT_DESC,
+            TagSortType::HumanTag,
+            SortOrder::Descending,
             true,
             String::new(),
         )
@@ -167,7 +206,7 @@ mod tests {
     fn api_dict_has_python_keys() {
         let dict = TagSort::static_get_text_asc_default().to_dict_for_api();
 
-        assert_eq!(dict["sort_type"], json!(SORT_BY_HUMAN_TAG));
-        assert_eq!(dict["sort_order"], json!(client_constants::SORT_ASC));
+        assert_eq!(dict["sort_type"], json!(0));
+        assert_eq!(dict["sort_order"], json!(0));
     }
 }

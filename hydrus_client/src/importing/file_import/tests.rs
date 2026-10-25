@@ -21,7 +21,7 @@ fn unknown_and_deleted_statuses_control_import() {
 
     assert!(FileImportStatus::unknown().should_import(&options));
 
-    let deleted = FileImportStatus::new(STATUS_DELETED, None, None, "");
+    let deleted = FileImportStatus::new(Status::Deleted, None, None, "");
     assert!(!deleted.should_import(&options));
 
     let mut allow_deleted = options.clone();
@@ -36,7 +36,7 @@ fn job_hashes_and_reads_file_info() {
 
     let status = job.do_work(|_| Ok(false)).unwrap();
 
-    assert_eq!(status.status, STATUS_UNKNOWN);
+    assert_eq!(status.status, Status::Unknown);
     assert_eq!(status.mime, Some(Mime::Png));
     assert!(job.get_hash().is_some());
     assert_eq!(job.get_file_info().unwrap().width, Some(8));
@@ -72,7 +72,7 @@ fn filters_reject_files_with_status_error() {
 
     let status = job.do_work(|_| Ok(false)).unwrap();
 
-    assert_eq!(status.status, STATUS_ERROR);
+    assert_eq!(status.status, Status::Error);
     assert!(status.note.contains("file filter"));
 
     let _ = std::fs::remove_file(path);

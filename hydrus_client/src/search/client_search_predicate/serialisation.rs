@@ -29,7 +29,7 @@ impl SerialisableObject for Predicate {
 
     fn get_serialisable_info(&self) -> Value {
         json!([
-            self.predicate_type,
+            self.predicate_type.as_int(),
             serialise_value(self.predicate_type, &self.value),
             self.inclusive
         ])
@@ -40,7 +40,9 @@ impl SerialisableObject for Predicate {
             .as_array()
             .ok_or_else(|| serialisation("Predicate info must be a list"))?;
 
-        self.predicate_type = values.first().and_then(Value::as_i64).unwrap_or(0) as i32;
+        self.predicate_type =
+            PredicateType::try_from_int(values.first().and_then(Value::as_i64).unwrap_or(0) as i32)
+                .unwrap_or(PredicateType::Tag);
         self.inclusive = values.get(2).and_then(Value::as_bool).unwrap_or(true);
         self.value = deserialise_value(self.predicate_type, values.get(1).unwrap_or(&Value::Null))?;
 
@@ -68,7 +70,7 @@ impl SerialisableObject for Predicate {
     }
 }
 
-fn serialise_value(_predicate_type: i32, value: &PredicateValue) -> Value {
+fn serialise_value(_predicate_type: PredicateType, value: &PredicateValue) -> Value {
     match value {
         PredicateValue::None => Value::Null,
         PredicateValue::Text(text) => json!(text),

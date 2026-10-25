@@ -1,6 +1,7 @@
 //! Search predicates from `hydrus/client/search/ClientSearchPredicate.py`.
 
 use crate::search::client_number_test::NumberTest;
+use crate::search::predicate_constants::PredicateType;
 
 mod deserialise;
 mod hex;
@@ -58,7 +59,7 @@ pub enum PredicateValue {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Predicate {
-    pub predicate_type: i32,
+    pub predicate_type: PredicateType,
     pub value: PredicateValue,
     pub inclusive: bool,
     pub count: PredicateCount,

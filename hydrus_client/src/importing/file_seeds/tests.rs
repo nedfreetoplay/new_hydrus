@@ -16,17 +16,11 @@ fn status_changes_are_tracked() {
 
     assert_eq!(cache.get_undone_seeds().len(), 1);
 
-    cache.set_status(
-        "https://example.com/a",
-        client_constants::STATUS_SUCCESSFUL_AND_NEW,
-        10,
-    );
+    cache.set_status("https://example.com/a", Status::SuccessfulAndNew, 10);
 
     assert_eq!(cache.get_num_done(), 1);
     assert_eq!(
-        cache
-            .get_seeds_with_status(client_constants::STATUS_SUCCESSFUL_AND_NEW)
-            .len(),
+        cache.get_seeds_with_status(Status::SuccessfulAndNew).len(),
         1
     );
 }

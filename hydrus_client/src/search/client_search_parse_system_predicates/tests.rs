@@ -6,7 +6,7 @@ use crate::search::predicate_constants::*;
 fn parses_simple_system_predicates() {
     let predicate = parse_system_predicate("system:inbox").unwrap();
 
-    assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_INBOX);
+    assert_eq!(predicate.predicate_type, PredicateType::SystemInbox);
 }
 
 #[test]
@@ -16,7 +16,7 @@ fn parses_width_with_operator() {
         panic!("expected a number test");
     };
 
-    assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_WIDTH);
+    assert_eq!(predicate.predicate_type, PredicateType::SystemWidth);
     assert_eq!(number.operator, NUMBER_TEST_OPERATOR_GREATER_THAN);
     assert_eq!(number.value, 1000.0);
 }
@@ -28,7 +28,7 @@ fn parses_filesize_units() {
         panic!("expected a number test");
     };
 
-    assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_SIZE);
+    assert_eq!(predicate.predicate_type, PredicateType::SystemSize);
     assert_eq!(number.value, 1024.0 * 1024.0);
 }
 
@@ -39,7 +39,7 @@ fn parses_filetype_lists() {
         panic!("expected mime numbers");
     };
 
-    assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_MIME);
+    assert_eq!(predicate.predicate_type, PredicateType::SystemMime);
     assert!(mimes.contains(&(hydrus_core::hydrus_constants::Mime::Png.as_int() as i32)));
 }
 
@@ -50,7 +50,7 @@ fn parses_limit() {
         panic!("expected a number test");
     };
 
-    assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_LIMIT);
+    assert_eq!(predicate.predicate_type, PredicateType::SystemLimit);
     assert_eq!(number.value, 10.0);
 }
 
@@ -100,7 +100,7 @@ fn file_service_predicates_resolve_service_names() {
     )
     .unwrap();
 
-    assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_FILE_SERVICE);
+    assert_eq!(predicate.predicate_type, PredicateType::SystemFileService);
     assert_eq!(
         predicate.value,
         PredicateValue::FileService {
@@ -121,7 +121,7 @@ fn rating_predicates_resolve_service_names() {
         parse_system_predicate_with_services("system:rating my favourites > 3/5", &services)
             .unwrap();
 
-    assert_eq!(predicate.predicate_type, PREDICATE_TYPE_SYSTEM_RATING);
+    assert_eq!(predicate.predicate_type, PredicateType::SystemRating);
 
     let PredicateValue::Service {
         service_key, value, ..
@@ -140,10 +140,7 @@ fn rating_predicates_resolve_service_names() {
 fn date_predicates_are_converted() {
     let predicate = parse_system_predicate("system:modified before 2020-01-02").unwrap();
 
-    assert_eq!(
-        predicate.predicate_type,
-        PREDICATE_TYPE_SYSTEM_MODIFIED_TIME
-    );
+    assert_eq!(predicate.predicate_type, PredicateType::SystemModifiedTime);
 
     let PredicateValue::Date {
         operator,

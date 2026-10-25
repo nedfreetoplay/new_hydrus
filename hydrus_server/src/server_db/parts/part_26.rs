@@ -104,7 +104,7 @@ impl DBHooks for ServerDBHooks {
 
         let now = hydrus_time::timestamp_to_datetime(
             hydrus_time::get_now() as f64,
-            TIMEZONE_LOCAL,
+            Timezone::Local,
         );
 
         db.execute(

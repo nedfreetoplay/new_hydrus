@@ -62,7 +62,7 @@ fn moving_a_page_updates_selection() {
 #[test]
 fn page_state_helpers_match_python() {
     let mut page = Page::new("search", PageType::Search);
-    page.set_page_state(client_constants::PAGE_STATE_SEARCHING);
+    page.set_page_state(PageState::Searching);
 
     assert!(page.is_searching());
 

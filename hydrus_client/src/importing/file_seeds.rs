@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::client_constants;
+use crate::client_constants::Status;
 
 pub const FILE_SEED_TYPE_URL: i32 = 0;
 pub const FILE_SEED_TYPE_HDD: i32 = 1;
@@ -13,7 +13,7 @@ pub const FILE_SEED_TYPE_IPFS: i32 = 2;
 pub struct FileSeed {
     pub file_seed_type: i32,
     pub file_seed_data: String,
-    pub status: i32,
+    pub status: Status,
     pub note: String,
     pub created: i64,
     pub modified: i64,
@@ -25,7 +25,7 @@ impl FileSeed {
         Self {
             file_seed_type: FILE_SEED_TYPE_URL,
             file_seed_data: url.into(),
-            status: client_constants::STATUS_UNKNOWN,
+            status: Status::Unknown,
             note: String::new(),
             created,
             modified: created,
@@ -41,11 +41,11 @@ impl FileSeed {
         }
     }
 
-    pub fn get_status(&self) -> i32 {
+    pub fn get_status(&self) -> Status {
         self.status
     }
 
-    pub fn set_status(&mut self, status: i32, modified: i64) {
+    pub fn set_status(&mut self, status: Status, modified: i64) {
         self.status = status;
         self.modified = modified;
     }
@@ -61,25 +61,11 @@ impl FileSeed {
     }
 
     pub fn is_done(&self) -> bool {
-        !matches!(
-            self.status,
-            client_constants::STATUS_UNKNOWN | client_constants::STATUS_NEW
-        )
+        !matches!(self.status, Status::Unknown | Status::New)
     }
 
     pub fn to_string(&self) -> String {
-        let status = match self.status {
-            client_constants::STATUS_UNKNOWN => "unknown",
-            client_constants::STATUS_SUCCESSFUL_AND_NEW => "successful and new",
-            client_constants::STATUS_SUCCESSFUL_BUT_REDUNDANT => "successful but redundant",
-            client_constants::STATUS_DELETED => "deleted",
-            client_constants::STATUS_ERROR => "error",
-            client_constants::STATUS_NEW => "new",
-            client_constants::STATUS_PAUSED => "paused",
-            _ => "unknown",
-        };
-
-        format!("{status}: {}", self.file_seed_data)
+        format!("{}: {}", self.status, self.file_seed_data)
     }
 }
 
@@ -121,7 +107,7 @@ impl FileSeedCache {
         self.seeds.remove(key)
     }
 
-    pub fn set_status(&mut self, key: &str, status: i32, modified: i64) -> bool {
+    pub fn set_status(&mut self, key: &str, status: Status, modified: i64) -> bool {
         if let Some(seed) = self.seeds.get_mut(key) {
             seed.set_status(status, modified);
             true
@@ -130,7 +116,7 @@ impl FileSeedCache {
         }
     }
 
-    pub fn get_seeds_with_status(&self, status: i32) -> Vec<&FileSeed> {
+    pub fn get_seeds_with_status(&self, status: Status) -> Vec<&FileSeed> {
         self.seeds
             .values()
             .filter(|seed| seed.status == status)

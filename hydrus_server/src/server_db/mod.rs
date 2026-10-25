@@ -18,8 +18,7 @@ use sha2::{Digest, Sha256};
 use hydrus_core::hydrus_constants::{
     DEFAULT_SERVER_ADMIN_PORT, FILE_REPOSITORY_SERVICE_INFO_TYPES, Mime, REPOSITORIES,
     SERVER_ADMIN_KEY, SOFTWARE_VERSION, ContentStatus, ContentType, ContentUpdate,
-    DefinitionsType, ServiceInfoType, ServiceType, TAG_REPOSITORY_SERVICE_INFO_TYPES,
-    TIMEZONE_LOCAL,
+    DefinitionsType, ServiceInfoType, ServiceType, TAG_REPOSITORY_SERVICE_INFO_TYPES, Timezone,
 };
 use hydrus_core::hydrus_data::generate_key;
 use hydrus_core::hydrus_db::{DBController, DBHooks, HydrusDB, HydrusDBConfig};

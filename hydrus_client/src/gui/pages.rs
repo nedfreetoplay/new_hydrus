@@ -3,7 +3,7 @@
 //! The Qt page widgets build on this model. It keeps the navigation and page
 //! lifecycle rules separate from rendering.
 
-use crate::client_constants;
+use crate::client_constants::PageState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PageType {
@@ -36,7 +36,7 @@ impl PageType {
 pub struct Page {
     pub name: String,
     pub page_type: PageType,
-    pub page_state: i32,
+    pub page_state: PageState,
     pub hashes: Vec<Vec<u8>>,
 }
 
@@ -45,7 +45,7 @@ impl Page {
         Self {
             name: name.into(),
             page_type,
-            page_state: client_constants::PAGE_STATE_NORMAL,
+            page_state: PageState::Normal,
             hashes: Vec::new(),
         }
     }
@@ -54,12 +54,12 @@ impl Page {
         self.name = name.into();
     }
 
-    pub fn set_page_state(&mut self, page_state: i32) {
+    pub fn set_page_state(&mut self, page_state: PageState) {
         self.page_state = page_state;
     }
 
     pub fn is_searching(&self) -> bool {
-        self.page_state == client_constants::PAGE_STATE_SEARCHING
+        self.page_state == PageState::Searching
     }
 
     pub fn set_hashes(&mut self, hashes: Vec<Vec<u8>>) {

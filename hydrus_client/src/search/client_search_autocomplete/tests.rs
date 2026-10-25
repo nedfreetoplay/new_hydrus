@@ -1,4 +1,5 @@
 use super::*;
+use crate::search::predicate_constants::PredicateType;
 
 fn parsed(text: &str) -> ParsedAutocompleteText {
     ParsedAutocompleteText::new(text, TagAutocompleteOptions::default())
@@ -34,13 +35,13 @@ fn immediate_predicate_converts_tags_and_wildcards() {
         .get_immediate_file_search_predicate(true)
         .unwrap();
 
-    assert_eq!(tag.predicate_type, PREDICATE_TYPE_TAG);
+    assert_eq!(tag.predicate_type, PredicateType::Tag);
 
     let wildcard = parsed("*eyes*")
         .get_immediate_file_search_predicate(true)
         .unwrap();
 
-    assert_eq!(wildcard.predicate_type, PREDICATE_TYPE_WILDCARD);
+    assert_eq!(wildcard.predicate_type, PredicateType::Wildcard);
 }
 
 #[test]

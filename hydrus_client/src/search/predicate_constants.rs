@@ -1,131 +1,291 @@
 //! Predicate type ids from `hydrus/client/search/ClientSearchPredicate.py`.
 
-pub const PREDICATE_TYPE_TAG: i32 = 0;
-pub const PREDICATE_TYPE_NAMESPACE: i32 = 1;
-pub const PREDICATE_TYPE_PARENT: i32 = 2;
-pub const PREDICATE_TYPE_WILDCARD: i32 = 3;
-pub const PREDICATE_TYPE_SYSTEM_EVERYTHING: i32 = 4;
-pub const PREDICATE_TYPE_SYSTEM_INBOX: i32 = 5;
-pub const PREDICATE_TYPE_SYSTEM_ARCHIVE: i32 = 6;
-pub const PREDICATE_TYPE_SYSTEM_UNTAGGED: i32 = 7;
-pub const PREDICATE_TYPE_SYSTEM_NUM_TAGS: i32 = 8;
-pub const PREDICATE_TYPE_SYSTEM_LIMIT: i32 = 9;
-pub const PREDICATE_TYPE_SYSTEM_SIZE: i32 = 10;
-pub const PREDICATE_TYPE_SYSTEM_IMPORT_TIME: i32 = 11;
-pub const PREDICATE_TYPE_SYSTEM_HASH: i32 = 12;
-pub const PREDICATE_TYPE_SYSTEM_WIDTH: i32 = 13;
-pub const PREDICATE_TYPE_SYSTEM_HEIGHT: i32 = 14;
-pub const PREDICATE_TYPE_SYSTEM_RATIO: i32 = 15;
-pub const PREDICATE_TYPE_SYSTEM_DURATION: i32 = 16;
-pub const PREDICATE_TYPE_SYSTEM_MIME: i32 = 17;
-pub const PREDICATE_TYPE_SYSTEM_RATING: i32 = 18;
-pub const PREDICATE_TYPE_SYSTEM_SIMILAR_TO_FILES: i32 = 19;
-pub const PREDICATE_TYPE_SYSTEM_LOCAL: i32 = 20;
-pub const PREDICATE_TYPE_SYSTEM_NOT_LOCAL: i32 = 21;
-pub const PREDICATE_TYPE_SYSTEM_NUM_WORDS: i32 = 22;
-pub const PREDICATE_TYPE_SYSTEM_FILE_SERVICE: i32 = 23;
-pub const PREDICATE_TYPE_SYSTEM_NUM_PIXELS: i32 = 24;
-pub const PREDICATE_TYPE_SYSTEM_DIMENSIONS: i32 = 25;
-pub const PREDICATE_TYPE_SYSTEM_FILE_RELATIONSHIPS_COUNT: i32 = 26;
-pub const PREDICATE_TYPE_SYSTEM_TAG_AS_NUMBER: i32 = 27;
-pub const PREDICATE_TYPE_SYSTEM_KNOWN_URLS: i32 = 28;
-pub const PREDICATE_TYPE_SYSTEM_FILE_VIEWING_STATS: i32 = 29;
-pub const PREDICATE_TYPE_OR_CONTAINER: i32 = 30;
-pub const PREDICATE_TYPE_LABEL: i32 = 31;
-pub const PREDICATE_TYPE_SYSTEM_FILE_RELATIONSHIPS_KING: i32 = 32;
-pub const PREDICATE_TYPE_SYSTEM_FILE_RELATIONSHIPS: i32 = 33;
-pub const PREDICATE_TYPE_SYSTEM_HAS_AUDIO: i32 = 34;
-pub const PREDICATE_TYPE_SYSTEM_MODIFIED_TIME: i32 = 35;
-pub const PREDICATE_TYPE_SYSTEM_FRAMERATE: i32 = 36;
-pub const PREDICATE_TYPE_SYSTEM_NUM_FRAMES: i32 = 37;
-pub const PREDICATE_TYPE_SYSTEM_NUM_NOTES: i32 = 38;
-pub const PREDICATE_TYPE_SYSTEM_NOTES: i32 = 39;
-pub const PREDICATE_TYPE_SYSTEM_HAS_NOTE_NAME: i32 = 40;
-pub const PREDICATE_TYPE_SYSTEM_HAS_ICC_PROFILE: i32 = 41;
-pub const PREDICATE_TYPE_SYSTEM_TIME: i32 = 42;
-pub const PREDICATE_TYPE_SYSTEM_LAST_VIEWED_TIME: i32 = 43;
-pub const PREDICATE_TYPE_SYSTEM_HAS_HUMAN_READABLE_EMBEDDED_METADATA: i32 = 44;
-pub const PREDICATE_TYPE_SYSTEM_FILE_PROPERTIES: i32 = 45;
-pub const PREDICATE_TYPE_SYSTEM_HAS_EXIF: i32 = 46;
-pub const PREDICATE_TYPE_SYSTEM_ARCHIVED_TIME: i32 = 47;
-pub const PREDICATE_TYPE_SYSTEM_SIMILAR_TO_DATA: i32 = 48;
-pub const PREDICATE_TYPE_SYSTEM_SIMILAR_TO: i32 = 49;
-pub const PREDICATE_TYPE_SYSTEM_HAS_TRANSPARENCY: i32 = 50;
-pub const PREDICATE_TYPE_SYSTEM_HAS_FORCED_FILETYPE: i32 = 51;
-pub const PREDICATE_TYPE_SYSTEM_NUM_URLS: i32 = 52;
-pub const PREDICATE_TYPE_SYSTEM_URLS: i32 = 53;
-pub const PREDICATE_TYPE_SYSTEM_TAG_ADVANCED: i32 = 54;
-pub const PREDICATE_TYPE_SYSTEM_RATING_ADVANCED_LEGACY: i32 = 55;
-pub const PREDICATE_TYPE_SYSTEM_RATING_ADVANCED: i32 = 66;
-pub const PREDICATE_TYPE_SYSTEM_HAS_XMP: i32 = 67;
-pub const PREDICATE_TYPE_SYSTEM_HAS_IPTC: i32 = 68;
-pub const PREDICATE_TYPE_SYSTEM_HAS_SOFTWARE_SOURCE: i32 = 69;
+use std::fmt;
 
-pub const NON_INCLUSIVE_CAPABLE_PREDICATE_TYPES: [i32; 3] = [
-    PREDICATE_TYPE_TAG,
-    PREDICATE_TYPE_NAMESPACE,
-    PREDICATE_TYPE_WILDCARD,
-];
-
-pub fn is_system_predicate(predicate_type: i32) -> bool {
-    (PREDICATE_TYPE_SYSTEM_EVERYTHING..=PREDICATE_TYPE_SYSTEM_HAS_SOFTWARE_SOURCE)
-        .contains(&predicate_type)
-        && !matches!(
-            predicate_type,
-            PREDICATE_TYPE_OR_CONTAINER | PREDICATE_TYPE_LABEL
-        )
+/// Predicate type, mirroring the `PREDICATE_TYPE_*` values from
+/// `ClientSearchPredicate.py`.
+#[repr(i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum PredicateType {
+    Tag = 0,
+    Namespace = 1,
+    Parent = 2,
+    Wildcard = 3,
+    SystemEverything = 4,
+    SystemInbox = 5,
+    SystemArchive = 6,
+    SystemUntagged = 7,
+    SystemNumTags = 8,
+    SystemLimit = 9,
+    SystemSize = 10,
+    SystemImportTime = 11,
+    SystemHash = 12,
+    SystemWidth = 13,
+    SystemHeight = 14,
+    SystemRatio = 15,
+    SystemDuration = 16,
+    SystemMime = 17,
+    SystemRating = 18,
+    SystemSimilarToFiles = 19,
+    SystemLocal = 20,
+    SystemNotLocal = 21,
+    SystemNumWords = 22,
+    SystemFileService = 23,
+    SystemNumPixels = 24,
+    SystemDimensions = 25,
+    SystemFileRelationshipsCount = 26,
+    SystemTagAsNumber = 27,
+    SystemKnownUrls = 28,
+    SystemFileViewingStats = 29,
+    OrContainer = 30,
+    Label = 31,
+    SystemFileRelationshipsKing = 32,
+    SystemFileRelationships = 33,
+    SystemHasAudio = 34,
+    SystemModifiedTime = 35,
+    SystemFramerate = 36,
+    SystemNumFrames = 37,
+    SystemNumNotes = 38,
+    SystemNotes = 39,
+    SystemHasNoteName = 40,
+    SystemHasIccProfile = 41,
+    SystemTime = 42,
+    SystemLastViewedTime = 43,
+    SystemHasHumanReadableEmbeddedMetadata = 44,
+    SystemFileProperties = 45,
+    SystemHasExif = 46,
+    SystemArchivedTime = 47,
+    SystemSimilarToData = 48,
+    SystemSimilarTo = 49,
+    SystemHasTransparency = 50,
+    SystemHasForcedFiletype = 51,
+    SystemNumUrls = 52,
+    SystemUrls = 53,
+    SystemTagAdvanced = 54,
+    SystemRatingAdvancedLegacy = 55,
+    SystemRatingAdvanced = 66,
+    SystemHasXmp = 67,
+    SystemHasIptc = 68,
+    SystemHasSoftwareSource = 69,
 }
 
-pub fn predicate_type_string(predicate_type: i32) -> &'static str {
-    match predicate_type {
-        PREDICATE_TYPE_TAG => "tag",
-        PREDICATE_TYPE_NAMESPACE => "namespace",
-        PREDICATE_TYPE_PARENT => "parent",
-        PREDICATE_TYPE_WILDCARD => "wildcard",
-        PREDICATE_TYPE_SYSTEM_EVERYTHING => "everything",
-        PREDICATE_TYPE_SYSTEM_INBOX => "inbox",
-        PREDICATE_TYPE_SYSTEM_ARCHIVE => "archive",
-        PREDICATE_TYPE_SYSTEM_UNTAGGED => "untagged",
-        PREDICATE_TYPE_SYSTEM_NUM_TAGS => "number of tags",
-        PREDICATE_TYPE_SYSTEM_LIMIT => "limit",
-        PREDICATE_TYPE_SYSTEM_SIZE => "filesize",
-        PREDICATE_TYPE_SYSTEM_IMPORT_TIME => "import time",
-        PREDICATE_TYPE_SYSTEM_HASH => "hash",
-        PREDICATE_TYPE_SYSTEM_WIDTH => "width",
-        PREDICATE_TYPE_SYSTEM_HEIGHT => "height",
-        PREDICATE_TYPE_SYSTEM_RATIO => "ratio",
-        PREDICATE_TYPE_SYSTEM_DURATION => "duration",
-        PREDICATE_TYPE_SYSTEM_MIME => "mime",
-        PREDICATE_TYPE_SYSTEM_RATING => "rating",
-        PREDICATE_TYPE_SYSTEM_LOCAL => "local",
-        PREDICATE_TYPE_SYSTEM_NOT_LOCAL => "not local",
-        PREDICATE_TYPE_SYSTEM_NUM_WORDS => "number of words",
-        PREDICATE_TYPE_SYSTEM_FILE_SERVICE => "file service",
-        PREDICATE_TYPE_SYSTEM_NUM_PIXELS => "number of pixels",
-        PREDICATE_TYPE_SYSTEM_DIMENSIONS => "dimensions",
-        PREDICATE_TYPE_SYSTEM_KNOWN_URLS => "known urls",
-        PREDICATE_TYPE_SYSTEM_FILE_VIEWING_STATS => "file viewing stats",
-        PREDICATE_TYPE_OR_CONTAINER => "or",
-        PREDICATE_TYPE_LABEL => "label",
-        PREDICATE_TYPE_SYSTEM_HAS_AUDIO => "has audio",
-        PREDICATE_TYPE_SYSTEM_MODIFIED_TIME => "modified time",
-        PREDICATE_TYPE_SYSTEM_FRAMERATE => "framerate",
-        PREDICATE_TYPE_SYSTEM_NUM_FRAMES => "number of frames",
-        PREDICATE_TYPE_SYSTEM_NUM_NOTES => "number of notes",
-        PREDICATE_TYPE_SYSTEM_NOTES => "notes",
-        PREDICATE_TYPE_SYSTEM_HAS_NOTE_NAME => "has note",
-        PREDICATE_TYPE_SYSTEM_HAS_ICC_PROFILE => "has icc profile",
-        PREDICATE_TYPE_SYSTEM_TIME => "time",
-        PREDICATE_TYPE_SYSTEM_LAST_VIEWED_TIME => "last viewed time",
-        PREDICATE_TYPE_SYSTEM_HAS_EXIF => "has exif",
-        PREDICATE_TYPE_SYSTEM_ARCHIVED_TIME => "archived time",
-        PREDICATE_TYPE_SYSTEM_SIMILAR_TO => "similar files",
-        PREDICATE_TYPE_SYSTEM_HAS_TRANSPARENCY => "has transparency",
-        PREDICATE_TYPE_SYSTEM_NUM_URLS => "number of urls",
-        PREDICATE_TYPE_SYSTEM_URLS => "urls",
-        PREDICATE_TYPE_SYSTEM_HAS_XMP => "has xmp",
-        PREDICATE_TYPE_SYSTEM_HAS_IPTC => "has iptc",
-        PREDICATE_TYPE_SYSTEM_HAS_SOFTWARE_SOURCE => "has software source",
-        _ => "unknown",
+impl PredicateType {
+    pub const ALL: &'static [PredicateType] = &[
+        PredicateType::Tag,
+        PredicateType::Namespace,
+        PredicateType::Parent,
+        PredicateType::Wildcard,
+        PredicateType::SystemEverything,
+        PredicateType::SystemInbox,
+        PredicateType::SystemArchive,
+        PredicateType::SystemUntagged,
+        PredicateType::SystemNumTags,
+        PredicateType::SystemLimit,
+        PredicateType::SystemSize,
+        PredicateType::SystemImportTime,
+        PredicateType::SystemHash,
+        PredicateType::SystemWidth,
+        PredicateType::SystemHeight,
+        PredicateType::SystemRatio,
+        PredicateType::SystemDuration,
+        PredicateType::SystemMime,
+        PredicateType::SystemRating,
+        PredicateType::SystemSimilarToFiles,
+        PredicateType::SystemLocal,
+        PredicateType::SystemNotLocal,
+        PredicateType::SystemNumWords,
+        PredicateType::SystemFileService,
+        PredicateType::SystemNumPixels,
+        PredicateType::SystemDimensions,
+        PredicateType::SystemFileRelationshipsCount,
+        PredicateType::SystemTagAsNumber,
+        PredicateType::SystemKnownUrls,
+        PredicateType::SystemFileViewingStats,
+        PredicateType::OrContainer,
+        PredicateType::Label,
+        PredicateType::SystemFileRelationshipsKing,
+        PredicateType::SystemFileRelationships,
+        PredicateType::SystemHasAudio,
+        PredicateType::SystemModifiedTime,
+        PredicateType::SystemFramerate,
+        PredicateType::SystemNumFrames,
+        PredicateType::SystemNumNotes,
+        PredicateType::SystemNotes,
+        PredicateType::SystemHasNoteName,
+        PredicateType::SystemHasIccProfile,
+        PredicateType::SystemTime,
+        PredicateType::SystemLastViewedTime,
+        PredicateType::SystemHasHumanReadableEmbeddedMetadata,
+        PredicateType::SystemFileProperties,
+        PredicateType::SystemHasExif,
+        PredicateType::SystemArchivedTime,
+        PredicateType::SystemSimilarToData,
+        PredicateType::SystemSimilarTo,
+        PredicateType::SystemHasTransparency,
+        PredicateType::SystemHasForcedFiletype,
+        PredicateType::SystemNumUrls,
+        PredicateType::SystemUrls,
+        PredicateType::SystemTagAdvanced,
+        PredicateType::SystemRatingAdvancedLegacy,
+        PredicateType::SystemRatingAdvanced,
+        PredicateType::SystemHasXmp,
+        PredicateType::SystemHasIptc,
+        PredicateType::SystemHasSoftwareSource,
+    ];
+
+    pub const fn as_int(self) -> i32 {
+        self as i32
     }
+
+    pub fn try_from_int(value: i32) -> Option<Self> {
+        match value {
+            0 => Some(PredicateType::Tag),
+            1 => Some(PredicateType::Namespace),
+            2 => Some(PredicateType::Parent),
+            3 => Some(PredicateType::Wildcard),
+            4 => Some(PredicateType::SystemEverything),
+            5 => Some(PredicateType::SystemInbox),
+            6 => Some(PredicateType::SystemArchive),
+            7 => Some(PredicateType::SystemUntagged),
+            8 => Some(PredicateType::SystemNumTags),
+            9 => Some(PredicateType::SystemLimit),
+            10 => Some(PredicateType::SystemSize),
+            11 => Some(PredicateType::SystemImportTime),
+            12 => Some(PredicateType::SystemHash),
+            13 => Some(PredicateType::SystemWidth),
+            14 => Some(PredicateType::SystemHeight),
+            15 => Some(PredicateType::SystemRatio),
+            16 => Some(PredicateType::SystemDuration),
+            17 => Some(PredicateType::SystemMime),
+            18 => Some(PredicateType::SystemRating),
+            19 => Some(PredicateType::SystemSimilarToFiles),
+            20 => Some(PredicateType::SystemLocal),
+            21 => Some(PredicateType::SystemNotLocal),
+            22 => Some(PredicateType::SystemNumWords),
+            23 => Some(PredicateType::SystemFileService),
+            24 => Some(PredicateType::SystemNumPixels),
+            25 => Some(PredicateType::SystemDimensions),
+            26 => Some(PredicateType::SystemFileRelationshipsCount),
+            27 => Some(PredicateType::SystemTagAsNumber),
+            28 => Some(PredicateType::SystemKnownUrls),
+            29 => Some(PredicateType::SystemFileViewingStats),
+            30 => Some(PredicateType::OrContainer),
+            31 => Some(PredicateType::Label),
+            32 => Some(PredicateType::SystemFileRelationshipsKing),
+            33 => Some(PredicateType::SystemFileRelationships),
+            34 => Some(PredicateType::SystemHasAudio),
+            35 => Some(PredicateType::SystemModifiedTime),
+            36 => Some(PredicateType::SystemFramerate),
+            37 => Some(PredicateType::SystemNumFrames),
+            38 => Some(PredicateType::SystemNumNotes),
+            39 => Some(PredicateType::SystemNotes),
+            40 => Some(PredicateType::SystemHasNoteName),
+            41 => Some(PredicateType::SystemHasIccProfile),
+            42 => Some(PredicateType::SystemTime),
+            43 => Some(PredicateType::SystemLastViewedTime),
+            44 => Some(PredicateType::SystemHasHumanReadableEmbeddedMetadata),
+            45 => Some(PredicateType::SystemFileProperties),
+            46 => Some(PredicateType::SystemHasExif),
+            47 => Some(PredicateType::SystemArchivedTime),
+            48 => Some(PredicateType::SystemSimilarToData),
+            49 => Some(PredicateType::SystemSimilarTo),
+            50 => Some(PredicateType::SystemHasTransparency),
+            51 => Some(PredicateType::SystemHasForcedFiletype),
+            52 => Some(PredicateType::SystemNumUrls),
+            53 => Some(PredicateType::SystemUrls),
+            54 => Some(PredicateType::SystemTagAdvanced),
+            55 => Some(PredicateType::SystemRatingAdvancedLegacy),
+            66 => Some(PredicateType::SystemRatingAdvanced),
+            67 => Some(PredicateType::SystemHasXmp),
+            68 => Some(PredicateType::SystemHasIptc),
+            69 => Some(PredicateType::SystemHasSoftwareSource),
+            _ => None,
+        }
+    }
+
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            PredicateType::Tag => "tag",
+            PredicateType::Namespace => "namespace",
+            PredicateType::Parent => "parent",
+            PredicateType::Wildcard => "wildcard",
+            PredicateType::SystemEverything => "everything",
+            PredicateType::SystemInbox => "inbox",
+            PredicateType::SystemArchive => "archive",
+            PredicateType::SystemUntagged => "untagged",
+            PredicateType::SystemNumTags => "number of tags",
+            PredicateType::SystemLimit => "limit",
+            PredicateType::SystemSize => "filesize",
+            PredicateType::SystemImportTime => "import time",
+            PredicateType::SystemHash => "hash",
+            PredicateType::SystemWidth => "width",
+            PredicateType::SystemHeight => "height",
+            PredicateType::SystemRatio => "ratio",
+            PredicateType::SystemDuration => "duration",
+            PredicateType::SystemMime => "mime",
+            PredicateType::SystemRating => "rating",
+            PredicateType::SystemLocal => "local",
+            PredicateType::SystemNotLocal => "not local",
+            PredicateType::SystemNumWords => "number of words",
+            PredicateType::SystemFileService => "file service",
+            PredicateType::SystemNumPixels => "number of pixels",
+            PredicateType::SystemDimensions => "dimensions",
+            PredicateType::SystemKnownUrls => "known urls",
+            PredicateType::SystemFileViewingStats => "file viewing stats",
+            PredicateType::OrContainer => "or",
+            PredicateType::Label => "label",
+            PredicateType::SystemHasAudio => "has audio",
+            PredicateType::SystemModifiedTime => "modified time",
+            PredicateType::SystemFramerate => "framerate",
+            PredicateType::SystemNumFrames => "number of frames",
+            PredicateType::SystemNumNotes => "number of notes",
+            PredicateType::SystemNotes => "notes",
+            PredicateType::SystemHasNoteName => "has note",
+            PredicateType::SystemHasIccProfile => "has icc profile",
+            PredicateType::SystemTime => "time",
+            PredicateType::SystemLastViewedTime => "last viewed time",
+            PredicateType::SystemHasExif => "has exif",
+            PredicateType::SystemArchivedTime => "archived time",
+            PredicateType::SystemSimilarTo => "similar files",
+            PredicateType::SystemHasTransparency => "has transparency",
+            PredicateType::SystemNumUrls => "number of urls",
+            PredicateType::SystemUrls => "urls",
+            PredicateType::SystemHasXmp => "has xmp",
+            PredicateType::SystemHasIptc => "has iptc",
+            PredicateType::SystemHasSoftwareSource => "has software source",
+            PredicateType::SystemSimilarToFiles
+            | PredicateType::SystemFileRelationshipsCount
+            | PredicateType::SystemTagAsNumber
+            | PredicateType::SystemFileRelationshipsKing
+            | PredicateType::SystemFileRelationships
+            | PredicateType::SystemHasHumanReadableEmbeddedMetadata
+            | PredicateType::SystemFileProperties
+            | PredicateType::SystemSimilarToData
+            | PredicateType::SystemHasForcedFiletype
+            | PredicateType::SystemTagAdvanced
+            | PredicateType::SystemRatingAdvancedLegacy
+            | PredicateType::SystemRatingAdvanced => "unknown",
+        }
+    }
+}
+
+impl fmt::Display for PredicateType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+pub const NON_INCLUSIVE_CAPABLE_PREDICATE_TYPES: [PredicateType; 3] = [
+    PredicateType::Tag,
+    PredicateType::Namespace,
+    PredicateType::Wildcard,
+];
+
+pub fn is_system_predicate(predicate_type: PredicateType) -> bool {
+    (PredicateType::SystemEverything.as_int()..=PredicateType::SystemHasSoftwareSource.as_int())
+        .contains(&predicate_type.as_int())
+        && !matches!(
+            predicate_type,
+            PredicateType::OrContainer | PredicateType::Label
+        )
 }

@@ -7,9 +7,7 @@ use hydrus_core::hydrus_db_base::DBBase;
 use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_core::hydrus_tags;
 
-use crate::search::predicate_constants::{
-    PREDICATE_TYPE_NAMESPACE, PREDICATE_TYPE_TAG, PREDICATE_TYPE_WILDCARD,
-};
+use crate::search::predicate_constants::PredicateType;
 use crate::search::{Predicate, PredicateValue};
 
 pub fn search_hash_ids(
@@ -27,9 +25,9 @@ pub fn search_hash_ids(
     }
 
     match predicate.predicate_type {
-        PREDICATE_TYPE_TAG => get_hash_ids_for_tag(db, service_id, status, text),
-        PREDICATE_TYPE_NAMESPACE => get_hash_ids_for_namespace(db, service_id, status, text),
-        PREDICATE_TYPE_WILDCARD => get_hash_ids_for_wildcard(db, service_id, status, text),
+        PredicateType::Tag => get_hash_ids_for_tag(db, service_id, status, text),
+        PredicateType::Namespace => get_hash_ids_for_namespace(db, service_id, status, text),
+        PredicateType::Wildcard => get_hash_ids_for_wildcard(db, service_id, status, text),
         _ => Ok(BTreeSet::new()),
     }
 }

@@ -18,17 +18,18 @@ pub mod string_panels;
 pub mod style;
 pub mod time;
 pub mod top_level_windows;
+pub mod view_model;
 
 mod qt;
 
 use cxx_qt_lib as _;
 
-/// Starts the Qt application with the initial client window.
+/// Starts the Qt application with the given view model.
 ///
-/// The controller provides the window title, status line and restored GUI
-/// session; the static shell content lives in [`frame_gui`].
-pub fn run(title: &str, status: &str, session: Option<&crate::gui::session::GuiSession>) {
-    qt::run_application(title, status, session);
+/// Application state is turned into [`view_model::MainViewModel`] before this
+/// call; the Qt layer only renders it.
+pub fn run(model: &view_model::MainViewModel) {
+    qt::run_application(model);
 }
 
 /// Asks Qt to leave the main event loop (used by the SIGINT handler).

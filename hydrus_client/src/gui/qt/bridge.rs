@@ -112,8 +112,8 @@ pub(crate) mod ffi {
     }
 }
 
-use crate::gui::frame_gui;
 use crate::gui::qt_init::QtInit;
+use crate::gui::view_model::MainViewModel;
 
 use super::panels;
 
@@ -135,82 +135,28 @@ pub(crate) fn quit_application() {
     ffi::qapp_quit();
 }
 
-pub fn run_application(
-    title: &str,
-    status: &str,
-    session: Option<&crate::gui::session::GuiSession>,
-) {
-    let model = frame_gui::default_frame_gui();
+pub fn run_application(model: &MainViewModel) {
     let mut app = ffi::new_application();
 
     QtInit::default().apply().ok();
 
     let mut window = ffi::new_hydrus_main_window();
 
-    ffi::hydrus_set_title(window.pin_mut(), title);
+    ffi::hydrus_set_title(window.pin_mut(), &model.title);
     ffi::hydrus_resize_window(window.pin_mut(), 1280, 800);
     ffi::build_hydrus_shell(window.pin_mut());
 
-    for item in model.sidebar {
+    for item in &model.sidebar {
         ffi::hydrus_add_sidebar_item(window.pin_mut(), item);
     }
 
-    if let Some(session) = session {
-        for page in &session.pages {
-            ffi::hydrus_add_sidebar_item(window.pin_mut(), &page.name);
-            ffi::hydrus_add_page(window.pin_mut(), &page.name);
-        }
-    } else {
-        for page in model.pages {
-            ffi::hydrus_add_page(window.pin_mut(), page);
-        }
+    for page in &model.pages {
+        ffi::hydrus_add_page(window.pin_mut(), page);
     }
 
-    let mut panel = ffi::new_hydrus_panel();
-    ffi::hydrus_panel_add_label(
-        panel.pin_mut(),
-        "Welcome to Hydrus Client — Rust/Qt 6 port.",
-    );
-    ffi::hydrus_panel_add_line_edit(panel.pin_mut(), "Search tags…");
-    ffi::hydrus_panel_add_button(panel.pin_mut(), "Search");
-    ffi::hydrus_panel_add_checkbox(panel.pin_mut(), "Darkmode", false);
-    ffi::hydrus_panel_add_stretch(panel.pin_mut());
-    ffi::hydrus_add_page_widget(
-        window.pin_mut(),
-        model.pages.first().copied().unwrap_or("Welcome"),
-        panel.pin_mut(),
-    );
+    panels::add_panels(window.pin_mut(), &model.panels);
 
-    let mut media_panel = ffi::new_hydrus_media_panel();
-    ffi::hydrus_media_panel_add_item(media_panel.pin_mut(), "No files loaded yet");
-    ffi::hydrus_media_panel_add_item(media_panel.pin_mut(), "Open a page to browse media");
-    ffi::hydrus_add_media_page(window.pin_mut(), "Files", media_panel.pin_mut());
-
-    let mut canvas = ffi::new_hydrus_canvas();
-    ffi::hydrus_add_canvas_page(window.pin_mut(), "Canvas", canvas.pin_mut());
-
-    let mut options_panel = ffi::new_hydrus_scrolled_panel();
-    ffi::hydrus_scrolled_add_label(options_panel.pin_mut(), "Client options");
-    ffi::hydrus_scrolled_add_line_edit(options_panel.pin_mut(), "Search options…");
-    ffi::hydrus_scrolled_add_checkbox(options_panel.pin_mut(), "Darkmode", false);
-    ffi::hydrus_scrolled_add_button(options_panel.pin_mut(), "Save");
-    ffi::hydrus_scrolled_add_stretch(options_panel.pin_mut());
-    ffi::hydrus_add_scrolled_page(window.pin_mut(), "Options", options_panel.pin_mut());
-
-    let mut list_panel = ffi::new_hydrus_list_panel();
-    ffi::hydrus_list_set_columns(list_panel.pin_mut(), "Name,Size");
-    ffi::hydrus_list_add_row(list_panel.pin_mut(), "example.png,1024");
-    ffi::hydrus_add_list_page(window.pin_mut(), "List", list_panel.pin_mut());
-
-    panels::add_networking_pages(window.pin_mut());
-    panels::add_duplicates_page(window.pin_mut());
-    panels::add_import_page(window.pin_mut());
-    panels::add_parsing_page(window.pin_mut());
-    panels::add_options_page(window.pin_mut());
-    panels::add_string_pages(window.pin_mut());
-    panels::add_popup_page(window.pin_mut());
-
-    for menu in model.menus {
+    for menu in &model.menus {
         for action in menu.actions {
             ffi::hydrus_add_menu_action(window.pin_mut(), menu.title, action);
         }
@@ -220,7 +166,7 @@ pub fn run_application(
         }
     }
 
-    ffi::hydrus_set_status(window.pin_mut(), status);
+    ffi::hydrus_set_status(window.pin_mut(), &model.status);
     ffi::show_hydrus_main_window(window.pin_mut());
 
     ffi::exec_application(app.pin_mut());

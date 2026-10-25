@@ -8,7 +8,6 @@ use serde_json::Value;
 
 use crate::media::MediaResult;
 use crate::search::FileSearchContext;
-use crate::search::predicate_constants::PredicateType;
 
 pub const SERIALISABLE_VERSION: u16 = 1;
 
@@ -96,7 +95,7 @@ pub fn register_serialisable_type() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::search::predicate_constants::PredicateType::SystemInbox;
+    use crate::search::predicate_constants::PredicateType;
     use crate::search::{Predicate, PredicateValue};
     use hydrus_core::files::hydrus_file_handling::FileInfo;
     use hydrus_core::hydrus_constants::Mime;

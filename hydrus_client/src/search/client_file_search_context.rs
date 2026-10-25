@@ -1,11 +1,5 @@
 //! `FileSearchContext` from `hydrus/client/search/ClientSearchFileSearchContext.py`.
 
-use std::any::Any;
-
-use hydrus_core::hydrus_exceptions::{HydrusResult, serialisation};
-use hydrus_core::hydrus_serialisable::{self, SerialisableObject};
-use serde_json::{Value, json};
-
 use crate::client_location::LocationContext;
 use crate::media::MediaResult;
 use crate::search::client_file_system_predicates::FileSystemPredicates;
@@ -206,7 +200,6 @@ impl FileSearchContext {
 }
 
 mod serialisation;
-pub use serialisation::*;
 
 #[cfg(test)]
 mod tests;

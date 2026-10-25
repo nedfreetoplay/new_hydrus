@@ -4,10 +4,6 @@
 //! unknown keys survive a load/save cycle. Typed accessors mirror the
 //! `get_boolean`/`get_integer`/... API.
 
-use std::any::Any;
-
-use hydrus_core::hydrus_exceptions::HydrusResult;
-use hydrus_core::hydrus_serialisable::SerialisableObject;
 use serde_json::{Map, Value, json};
 
 mod defaults;

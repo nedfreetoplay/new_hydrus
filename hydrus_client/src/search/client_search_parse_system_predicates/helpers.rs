@@ -11,7 +11,6 @@ use crate::search::client_number_test::{
     NUMBER_TEST_OPERATOR_LESS_THAN, NUMBER_TEST_OPERATOR_LESS_THAN_OR_EQUAL_TO,
     NUMBER_TEST_OPERATOR_NOT_EQUAL, NumberTest,
 };
-use crate::search::client_search_predicate::Predicate;
 use crate::services::ServicesManager;
 
 pub(super) fn make_number_test(parsed: &SystemPredicate) -> HydrusResult<NumberTest> {

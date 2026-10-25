@@ -1,7 +1,5 @@
 //! JSON parsing formula.
 
-use std::collections::BTreeMap;
-
 use serde_json::Value;
 
 use crate::parsing::string_match::StringMatch;

@@ -1,7 +1,5 @@
 //! Split out from the parent module.
 
-use crate::client_constants;
-use hydrus_core::hydrus_constants::{self, ContentStatus};
 use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_core::hydrus_serialisable::{self, SerialisableObject};
 use serde_json::{Value, json};

@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 
 use serde_json::Value;
 
-use crate::parsing::string_match::StringMatch;
 use crate::parsing::string_ops::StringProcessor;
 
 pub type ParsingContext = BTreeMap<String, String>;
@@ -146,8 +145,6 @@ impl ParseFormula for ZipperFormula {
             else {
                 continue;
             };
-
-            let marker = format!("\\{}", index + 1);
 
             while results.len() <= index {
                 results.push(String::new());

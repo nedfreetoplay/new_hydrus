@@ -1,5 +1,6 @@
 use super::*;
 use crate::search::client_number_test::{NUMBER_TEST_OPERATOR_EQUAL, NumberTest};
+use hydrus_core::hydrus_serialisable::SerialisableObject;
 
 #[test]
 fn empty_context_allows_everything() {

@@ -6,7 +6,7 @@
 
 use crate::client_constants;
 use crate::networking::client_networking_domain::DomainManager;
-use crate::networking::client_networking_url_class::{PathComponent, UrlClass};
+use crate::networking::client_networking_url_class::UrlClass;
 use crate::parsing::formula::ParseFormula;
 use crate::parsing::html_formula::{HtmlContent, HtmlFormula};
 use crate::search::client_file_search_context::FileSearchContext;
@@ -146,6 +146,7 @@ pub fn default_favourite_searches() -> Vec<FavouriteSearchRow> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::networking::client_networking_url_class::PathComponent;
 
     #[test]
     fn default_url_classes_cover_common_sites() {

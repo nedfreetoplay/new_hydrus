@@ -1,4 +1,5 @@
 use super::*;
+use crate::parsing::string_match::StringMatch;
 
 fn posts_json() -> String {
     serde_json::json!({

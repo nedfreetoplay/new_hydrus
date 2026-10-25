@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::search::client_number_test::NUMBER_TEST_OPERATOR_GREATER_THAN;
+use crate::search::client_search_predicate::PredicateValue;
 use crate::search::predicate_constants::*;
 
 #[test]

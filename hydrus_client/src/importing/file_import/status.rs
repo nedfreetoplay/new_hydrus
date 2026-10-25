@@ -1,5 +1,4 @@
 use hydrus_core::hydrus_constants::Mime;
-use hydrus_core::hydrus_exceptions::HydrusResult;
 
 use crate::client_constants::Status;
 use crate::importing::options::ImportOptionsContainer;

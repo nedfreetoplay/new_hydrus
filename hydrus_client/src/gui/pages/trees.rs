@@ -1,7 +1,5 @@
 //! Split out from the parent module.
 
-use crate::client_constants;
-
 use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

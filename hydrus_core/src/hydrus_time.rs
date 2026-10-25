@@ -17,7 +17,7 @@ use chrono::{
     Datelike, Duration as ChronoDuration, Local, LocalResult, NaiveDate, NaiveDateTime, TimeZone,
 };
 
-use crate::hydrus_constants::{TIMEZONE_LOCAL, TIMEZONE_UTC};
+use crate::hydrus_constants::Timezone;
 use crate::hydrus_numbers::to_human_int;
 
 /// `ALWAYS_SHOW_ISO_TIME_ON_DELTA_CALL`
@@ -354,10 +354,10 @@ pub fn time_delta_to_pretty_timedelta(
 }
 
 /// `Timestamp_ms_to_datetime( timestamp_ms, timezone = None )`
-pub fn timestamp_ms_to_datetime(timestamp_ms: i64, timezone: u8) -> NaiveDateTime {
+pub fn timestamp_ms_to_datetime(timestamp_ms: i64, timezone: Timezone) -> NaiveDateTime {
     let dt = epoch_naive() + ChronoDuration::milliseconds(timestamp_ms);
 
-    if timezone == TIMEZONE_LOCAL {
+    if timezone == Timezone::Local {
         dt + ChronoDuration::seconds(local_offset_seconds_now())
     } else {
         dt
@@ -365,10 +365,10 @@ pub fn timestamp_ms_to_datetime(timestamp_ms: i64, timezone: u8) -> NaiveDateTim
 }
 
 /// `timestamp_to_datetime( timestamp, timezone = None )`
-pub fn timestamp_to_datetime(timestamp: f64, timezone: u8) -> NaiveDateTime {
+pub fn timestamp_to_datetime(timestamp: f64, timezone: Timezone) -> NaiveDateTime {
     let dt = epoch_naive() + ChronoDuration::milliseconds((timestamp * 1000.0) as i64);
 
-    if timezone == TIMEZONE_LOCAL {
+    if timezone == Timezone::Local {
         dt + ChronoDuration::seconds(local_offset_seconds_now())
     } else {
         dt
@@ -475,7 +475,11 @@ pub fn timestamp_ms_to_pretty_time(
         return "unknown time".to_string();
     };
 
-    let timezone = if in_utc { TIMEZONE_UTC } else { TIMEZONE_LOCAL };
+    let timezone = if in_utc {
+        Timezone::Utc
+    } else {
+        Timezone::Local
+    };
 
     let dt = timestamp_ms_to_datetime(timestamp_ms, timezone);
 
@@ -492,7 +496,11 @@ pub fn timestamp_to_pretty_time(
         return "unknown time".to_string();
     };
 
-    let timezone = if in_utc { TIMEZONE_UTC } else { TIMEZONE_LOCAL };
+    let timezone = if in_utc {
+        Timezone::Utc
+    } else {
+        Timezone::Local
+    };
 
     let dt = timestamp_to_datetime(timestamp, timezone);
 
@@ -634,17 +642,17 @@ mod tests {
 
     #[test]
     fn epoch_conversions() {
-        let dt = timestamp_to_datetime(0.0, TIMEZONE_UTC);
+        let dt = timestamp_to_datetime(0.0, Timezone::Utc);
 
         assert_eq!(dt, epoch_naive());
-        assert_eq!(timestamp_ms_to_datetime(0, TIMEZONE_UTC), epoch_naive());
+        assert_eq!(timestamp_ms_to_datetime(0, Timezone::Utc), epoch_naive());
 
         let dt = naive(2020, 1, 2, 3, 4, 5);
 
         let timestamp = datetime_to_timestamp(dt);
 
         // Only assert the round-trip, since it depends on the local timezone.
-        assert_eq!(timestamp_to_datetime(timestamp as f64, TIMEZONE_LOCAL), dt);
+        assert_eq!(timestamp_to_datetime(timestamp as f64, Timezone::Local), dt);
     }
 
     #[test]

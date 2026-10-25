@@ -94,7 +94,7 @@ impl FileSearchContext {
 
     pub fn is_just_system_everything(&self) -> bool {
         self.predicates.len() == 1
-            && self.predicates[0].predicate_type == PREDICATE_TYPE_SYSTEM_EVERYTHING
+            && self.predicates[0].predicate_type == PredicateType::SystemEverything
     }
 
     pub fn get_system_predicates(&self) -> FileSystemPredicates {
@@ -102,37 +102,37 @@ impl FileSearchContext {
     }
 
     pub fn get_tags_to_include(&self) -> Vec<String> {
-        self.texts(PREDICATE_TYPE_TAG, true)
+        self.texts(PredicateType::Tag, true)
     }
 
     pub fn get_tags_to_exclude(&self) -> Vec<String> {
-        self.texts(PREDICATE_TYPE_TAG, false)
+        self.texts(PredicateType::Tag, false)
     }
 
     pub fn get_namespaces_to_include(&self) -> Vec<String> {
-        self.texts(PREDICATE_TYPE_NAMESPACE, true)
+        self.texts(PredicateType::Namespace, true)
     }
 
     pub fn get_namespaces_to_exclude(&self) -> Vec<String> {
-        self.texts(PREDICATE_TYPE_NAMESPACE, false)
+        self.texts(PredicateType::Namespace, false)
     }
 
     pub fn get_wildcards_to_include(&self) -> Vec<String> {
-        self.texts(PREDICATE_TYPE_WILDCARD, true)
+        self.texts(PredicateType::Wildcard, true)
     }
 
     pub fn get_wildcards_to_exclude(&self) -> Vec<String> {
-        self.texts(PREDICATE_TYPE_WILDCARD, false)
+        self.texts(PredicateType::Wildcard, false)
     }
 
     pub fn get_or_predicates(&self) -> Vec<&Predicate> {
         self.predicates
             .iter()
-            .filter(|predicate| predicate.predicate_type == PREDICATE_TYPE_OR_CONTAINER)
+            .filter(|predicate| predicate.predicate_type == PredicateType::OrContainer)
             .collect()
     }
 
-    fn texts(&self, predicate_type: i32, inclusive: bool) -> Vec<String> {
+    fn texts(&self, predicate_type: PredicateType, inclusive: bool) -> Vec<String> {
         self.predicates
             .iter()
             .filter(|predicate| {
@@ -181,7 +181,7 @@ impl FileSearchContext {
         }
 
         for predicate in &self.predicates {
-            if predicate.predicate_type == PREDICATE_TYPE_SYSTEM_SIZE {
+            if predicate.predicate_type == PredicateType::SystemSize {
                 if let PredicateValue::Number(number) = &predicate.value {
                     if !number.test(Some(media_result.get_size() as f64), None) {
                         return false;
@@ -201,7 +201,7 @@ impl FileSearchContext {
     pub fn has_system_limit(&self) -> bool {
         self.predicates
             .iter()
-            .any(|predicate| predicate.predicate_type == PREDICATE_TYPE_SYSTEM_LIMIT)
+            .any(|predicate| predicate.predicate_type == PredicateType::SystemLimit)
     }
 }
 

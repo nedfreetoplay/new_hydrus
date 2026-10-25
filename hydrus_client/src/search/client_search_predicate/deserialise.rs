@@ -12,7 +12,7 @@ use super::hex::hex_decode;
 use super::{Predicate, PredicateValue};
 
 pub(super) fn deserialise_value(
-    predicate_type: i32,
+    predicate_type: PredicateType,
     value: &Value,
 ) -> HydrusResult<PredicateValue> {
     if value.is_null() {
@@ -21,17 +21,17 @@ pub(super) fn deserialise_value(
 
     if matches!(
         predicate_type,
-        PREDICATE_TYPE_TAG
-            | PREDICATE_TYPE_NAMESPACE
-            | PREDICATE_TYPE_WILDCARD
-            | PREDICATE_TYPE_LABEL
+        PredicateType::Tag
+            | PredicateType::Namespace
+            | PredicateType::Wildcard
+            | PredicateType::Label
     ) {
         return Ok(PredicateValue::Text(
             value.as_str().unwrap_or_default().to_string(),
         ));
     }
 
-    if predicate_type == PREDICATE_TYPE_SYSTEM_FILE_SERVICE {
+    if predicate_type == PredicateType::SystemFileService {
         let values = value
             .as_array()
             .ok_or_else(|| serialisation("file service predicate value must be a list"))?;
@@ -49,11 +49,11 @@ pub(super) fn deserialise_value(
 
     if matches!(
         predicate_type,
-        PREDICATE_TYPE_SYSTEM_IMPORT_TIME
-            | PREDICATE_TYPE_SYSTEM_MODIFIED_TIME
-            | PREDICATE_TYPE_SYSTEM_ARCHIVED_TIME
-            | PREDICATE_TYPE_SYSTEM_LAST_VIEWED_TIME
-            | PREDICATE_TYPE_SYSTEM_TIME
+        PredicateType::SystemImportTime
+            | PredicateType::SystemModifiedTime
+            | PredicateType::SystemArchivedTime
+            | PredicateType::SystemLastViewedTime
+            | PredicateType::SystemTime
     ) {
         let values = value
             .as_array()
@@ -84,7 +84,7 @@ pub(super) fn deserialise_value(
         });
     }
 
-    if predicate_type == PREDICATE_TYPE_SYSTEM_RATING {
+    if predicate_type == PredicateType::SystemRating {
         let values = value
             .as_array()
             .ok_or_else(|| serialisation("service predicate value must be a list"))?;
@@ -99,7 +99,7 @@ pub(super) fn deserialise_value(
         });
     }
 
-    if predicate_type == PREDICATE_TYPE_SYSTEM_MIME {
+    if predicate_type == PredicateType::SystemMime {
         return Ok(PredicateValue::Numbers(
             value
                 .as_array()
@@ -114,7 +114,7 @@ pub(super) fn deserialise_value(
         ));
     }
 
-    if predicate_type == PREDICATE_TYPE_SYSTEM_HASH {
+    if predicate_type == PredicateType::SystemHash {
         return Ok(PredicateValue::Hashes(
             value
                 .as_array()
@@ -129,7 +129,7 @@ pub(super) fn deserialise_value(
         ));
     }
 
-    if predicate_type == PREDICATE_TYPE_OR_CONTAINER {
+    if predicate_type == PredicateType::OrContainer {
         let mut predicates = Vec::new();
 
         for tuple in value.as_array().cloned().unwrap_or_default() {

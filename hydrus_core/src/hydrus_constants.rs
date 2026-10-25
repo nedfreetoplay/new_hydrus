@@ -233,10 +233,6 @@ pub const DEFAULT_SERVER_ADMIN_PORT: u16 = 45870;
 pub const DEFAULT_SERVICE_PORT: u16 = 45871;
 pub const SERVER_ADMIN_KEY: &[u8] = b"server admin";
 
-pub const TIMEZONE_UTC: u8 = 0;
-pub const TIMEZONE_LOCAL: u8 = 1;
-pub const TIMEZONE_OFFSET: u8 = 2;
-
 // ============================================================================
 // 4. ENUM HELPERS
 // ============================================================================
@@ -892,6 +888,12 @@ int_enum_numbers!(PetitionType : u8 {
 int_enum_numbers!(BanType : u8 {
     Ban = 0,
     Superban = 1,
+});
+
+int_enum_numbers!(Timezone : u8 {
+    Utc = 0,
+    Local = 1,
+    Offset = 2,
 });
 
 pub const SCORE_PETITION: u8 = 0;

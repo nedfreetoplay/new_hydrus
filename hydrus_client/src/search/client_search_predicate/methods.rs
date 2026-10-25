@@ -9,7 +9,7 @@ use super::hex::hex_encode;
 use super::{Predicate, PredicateCount, PredicateValue};
 
 impl Predicate {
-    pub fn new(predicate_type: i32, value: PredicateValue) -> Self {
+    pub fn new(predicate_type: PredicateType, value: PredicateValue) -> Self {
         Self {
             predicate_type,
             value,
@@ -19,21 +19,21 @@ impl Predicate {
     }
 
     pub fn tag(tag: impl Into<String>) -> Self {
-        Self::new(PREDICATE_TYPE_TAG, PredicateValue::Text(tag.into()))
+        Self::new(PredicateType::Tag, PredicateValue::Text(tag.into()))
     }
 
     pub fn namespace(namespace: impl Into<String>) -> Self {
         Self::new(
-            PREDICATE_TYPE_NAMESPACE,
+            PredicateType::Namespace,
             PredicateValue::Text(namespace.into()),
         )
     }
 
-    pub fn system_number(predicate_type: i32, number_test: NumberTest) -> Self {
+    pub fn system_number(predicate_type: PredicateType, number_test: NumberTest) -> Self {
         Self::new(predicate_type, PredicateValue::Number(number_test))
     }
 
-    pub fn get_type(&self) -> i32 {
+    pub fn get_type(&self) -> PredicateType {
         self.predicate_type
     }
 
@@ -64,7 +64,7 @@ impl Predicate {
 
     pub fn get_texts_and_namespaces(&self) -> (Option<String>, Option<String>) {
         match (&self.value, self.predicate_type) {
-            (PredicateValue::Text(text), PREDICATE_TYPE_TAG | PREDICATE_TYPE_PARENT) => {
+            (PredicateValue::Text(text), PredicateType::Tag | PredicateType::Parent) => {
                 match text.split_once(':') {
                     Some((namespace, subtag)) => {
                         (Some(subtag.to_string()), Some(namespace.to_string()))
@@ -72,7 +72,7 @@ impl Predicate {
                     None => (Some(text.clone()), None),
                 }
             }
-            (PredicateValue::Text(text), PREDICATE_TYPE_NAMESPACE) => (None, Some(text.clone())),
+            (PredicateValue::Text(text), PredicateType::Namespace) => (None, Some(text.clone())),
             _ => (None, None),
         }
     }
@@ -125,25 +125,25 @@ impl Predicate {
 
     fn base_string(&self) -> String {
         match (self.predicate_type, &self.value) {
-            (PREDICATE_TYPE_TAG, PredicateValue::Text(text)) => text.clone(),
-            (PREDICATE_TYPE_NAMESPACE, PredicateValue::Text(text)) => format!("{text}:*"),
-            (PREDICATE_TYPE_WILDCARD, PredicateValue::Text(text)) => {
+            (PredicateType::Tag, PredicateValue::Text(text)) => text.clone(),
+            (PredicateType::Namespace, PredicateValue::Text(text)) => format!("{text}:*"),
+            (PredicateType::Wildcard, PredicateValue::Text(text)) => {
                 format!("*{}*", text.trim_matches('*'))
             }
-            (PREDICATE_TYPE_LABEL, PredicateValue::Text(text)) => text.clone(),
-            (PREDICATE_TYPE_SYSTEM_EVERYTHING, _) => "everything".to_string(),
-            (PREDICATE_TYPE_SYSTEM_INBOX, _) => "inbox".to_string(),
-            (PREDICATE_TYPE_SYSTEM_ARCHIVE, _) => "archive".to_string(),
-            (PREDICATE_TYPE_SYSTEM_UNTAGGED, _) => "untagged".to_string(),
-            (PREDICATE_TYPE_SYSTEM_LOCAL, _) => "local".to_string(),
-            (PREDICATE_TYPE_SYSTEM_NOT_LOCAL, _) => "not local".to_string(),
-            (PREDICATE_TYPE_SYSTEM_DIMENSIONS, _) => "dimensions".to_string(),
-            (PREDICATE_TYPE_SYSTEM_FILE_PROPERTIES, _) => "file properties".to_string(),
-            (PREDICATE_TYPE_SYSTEM_SIMILAR_TO, _) => "similar files".to_string(),
-            (PREDICATE_TYPE_SYSTEM_TIME, _) => "time".to_string(),
-            (PREDICATE_TYPE_SYSTEM_URLS, _) => "urls".to_string(),
-            (PREDICATE_TYPE_SYSTEM_NOTES, _) => "notes".to_string(),
-            (PREDICATE_TYPE_OR_CONTAINER, PredicateValue::Or(predicates)) => {
+            (PredicateType::Label, PredicateValue::Text(text)) => text.clone(),
+            (PredicateType::SystemEverything, _) => "everything".to_string(),
+            (PredicateType::SystemInbox, _) => "inbox".to_string(),
+            (PredicateType::SystemArchive, _) => "archive".to_string(),
+            (PredicateType::SystemUntagged, _) => "untagged".to_string(),
+            (PredicateType::SystemLocal, _) => "local".to_string(),
+            (PredicateType::SystemNotLocal, _) => "not local".to_string(),
+            (PredicateType::SystemDimensions, _) => "dimensions".to_string(),
+            (PredicateType::SystemFileProperties, _) => "file properties".to_string(),
+            (PredicateType::SystemSimilarTo, _) => "similar files".to_string(),
+            (PredicateType::SystemTime, _) => "time".to_string(),
+            (PredicateType::SystemUrls, _) => "urls".to_string(),
+            (PredicateType::SystemNotes, _) => "notes".to_string(),
+            (PredicateType::OrContainer, PredicateValue::Or(predicates)) => {
                 let inner = predicates
                     .iter()
                     .map(|predicate| predicate.to_string(false))
@@ -151,17 +151,13 @@ impl Predicate {
                     .join(" or ");
                 format!("OR: {inner}")
             }
-            (PREDICATE_TYPE_SYSTEM_LIMIT, PredicateValue::Number(number_test)) => {
+            (PredicateType::SystemLimit, PredicateValue::Number(number_test)) => {
                 format!("limit {}", number_test.value as i64)
             }
             (predicate_type, PredicateValue::Number(number_test)) => {
-                format!(
-                    "{} {}",
-                    predicate_type_string(predicate_type),
-                    number_test.to_string()
-                )
+                format!("{} {}", predicate_type, number_test.to_string())
             }
-            (PREDICATE_TYPE_SYSTEM_MIME, PredicateValue::Numbers(mimes)) => {
+            (PredicateType::SystemMime, PredicateValue::Numbers(mimes)) => {
                 let names = mimes
                     .iter()
                     .filter_map(|mime| Mime::try_from_int(*mime as u16))
@@ -170,7 +166,7 @@ impl Predicate {
                     .join(", ");
                 format!("mime: {names}")
             }
-            (PREDICATE_TYPE_SYSTEM_HASH, PredicateValue::Hashes(hashes)) => {
+            (PredicateType::SystemHash, PredicateValue::Hashes(hashes)) => {
                 let hashes = hashes
                     .iter()
                     .map(|hash| hex_encode(hash))
@@ -178,10 +174,8 @@ impl Predicate {
                     .join(", ");
                 format!("hash: {hashes}")
             }
-            (predicate_type, PredicateValue::Service { .. }) => {
-                predicate_type_string(predicate_type).to_string()
-            }
-            (predicate_type, _) => predicate_type_string(predicate_type).to_string(),
+            (predicate_type, PredicateValue::Service { .. }) => predicate_type.to_string(),
+            (predicate_type, _) => predicate_type.to_string(),
         }
     }
 }

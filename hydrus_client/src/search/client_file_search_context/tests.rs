@@ -32,7 +32,7 @@ fn serialisation_round_trips_nested_contexts() {
     let mut context = FileSearchContext::new();
     context.set_tag_service_key(b"local tags".to_vec());
     context.set_predicates(vec![Predicate::system_number(
-        PREDICATE_TYPE_SYSTEM_SIZE,
+        PredicateType::SystemSize,
         NumberTest::new(NUMBER_TEST_OPERATOR_EQUAL, 1024.0, None),
     )]);
     context.set_complete(true);
@@ -68,9 +68,9 @@ fn media_result_test_checks_inbox_and_mime() {
 
     let mut context = FileSearchContext::new();
     context.set_predicates(vec![
-        Predicate::new(PREDICATE_TYPE_SYSTEM_INBOX, PredicateValue::None),
+        Predicate::new(PredicateType::SystemInbox, PredicateValue::None),
         Predicate::new(
-            PREDICATE_TYPE_SYSTEM_MIME,
+            PredicateType::SystemMime,
             PredicateValue::Numbers(vec![Mime::Png.as_int() as i32]),
         ),
     ]);

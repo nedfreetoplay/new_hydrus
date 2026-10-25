@@ -6,7 +6,7 @@ use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_core::hydrus_serialisable::{self, SerialisableObject};
 use serde_json::{Value, json};
 
-use crate::client_constants;
+use crate::client_constants::NetworkContextType;
 
 pub const SERIALISABLE_VERSION: u16 = 2;
 
@@ -18,7 +18,7 @@ pub enum ContextData {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct NetworkContext {
-    pub context_type: i32,
+    pub context_type: NetworkContextType,
     pub context_data: Option<ContextData>,
 }
 
@@ -29,7 +29,7 @@ impl Default for NetworkContext {
 }
 
 impl NetworkContext {
-    pub fn new(context_type: i32, context_data: Option<ContextData>) -> Self {
+    pub fn new(context_type: NetworkContextType, context_data: Option<ContextData>) -> Self {
         Self {
             context_type,
             context_data,
@@ -37,37 +37,36 @@ impl NetworkContext {
     }
 
     pub fn default_context() -> Self {
-        Self::new(client_constants::NETWORK_CONTEXT_GLOBAL, None)
+        Self::new(NetworkContextType::Global, None)
     }
 
     pub fn hydrus() -> Self {
-        Self::new(client_constants::NETWORK_CONTEXT_HYDRUS, None)
+        Self::new(NetworkContextType::Hydrus, None)
     }
 
     pub fn for_domain(domain: impl Into<String>) -> Self {
         Self::new(
-            client_constants::NETWORK_CONTEXT_DOMAIN,
+            NetworkContextType::Domain,
             Some(ContextData::Text(domain.into())),
         )
     }
 
-    pub fn for_key(context_type: i32, key: Vec<u8>) -> Self {
+    pub fn for_key(context_type: NetworkContextType, key: Vec<u8>) -> Self {
         Self::new(context_type, Some(ContextData::Key(key)))
     }
 
     pub fn is_default(&self) -> bool {
-        self.context_type == client_constants::NETWORK_CONTEXT_GLOBAL
+        self.context_type == NetworkContextType::Global
     }
 
     pub fn is_hydrus(&self) -> bool {
-        self.context_type == client_constants::NETWORK_CONTEXT_HYDRUS
+        self.context_type == NetworkContextType::Hydrus
     }
 
     pub fn is_ephemeral(&self) -> bool {
         matches!(
             self.context_type,
-            client_constants::NETWORK_CONTEXT_DOWNLOADER_PAGE
-                | client_constants::NETWORK_CONTEXT_WATCHER_PAGE
+            NetworkContextType::DownloaderPage | NetworkContextType::WatcherPage
         )
     }
 
@@ -75,7 +74,7 @@ impl NetworkContext {
         Self::default_context()
     }
 
-    pub fn get_sortable(&self) -> (i32, String) {
+    pub fn get_sortable(&self) -> (NetworkContextType, String) {
         (self.context_type, self.to_string())
     }
 
@@ -84,7 +83,7 @@ impl NetworkContext {
     }
 
     pub fn to_string(&self) -> String {
-        let base = client_constants::network_context_type_string(self.context_type);
+        let base = self.context_type;
 
         match (&self.context_data, self.context_type) {
             (None, _) => base.to_string(),
@@ -95,9 +94,7 @@ impl NetworkContext {
 
     pub fn to_human_string(&self) -> String {
         match (&self.context_data, self.context_type) {
-            (Some(ContextData::Text(text)), client_constants::NETWORK_CONTEXT_DOMAIN) => {
-                text.clone()
-            }
+            (Some(ContextData::Text(text)), NetworkContextType::Domain) => text.clone(),
             _ => self.to_string(),
         }
     }
@@ -138,7 +135,7 @@ impl SerialisableObject for NetworkContext {
             Some(ContextData::Key(key)) => json!(hex_encode(key)),
         };
 
-        json!([self.context_type, data])
+        json!([self.context_type.as_int(), data])
     }
 
     fn initialise_from_serialisable_info(&mut self, info: &Value) -> HydrusResult<()> {
@@ -146,12 +143,14 @@ impl SerialisableObject for NetworkContext {
             hydrus_core::hydrus_exceptions::serialisation("NetworkContext info must be a list")
         })?;
 
-        self.context_type = values.first().and_then(Value::as_i64).unwrap_or(0) as i32;
+        self.context_type = NetworkContextType::try_from_int(
+            values.first().and_then(Value::as_i64).unwrap_or(0) as i32,
+        )
+        .unwrap_or(NetworkContextType::Global);
         self.context_data = values.get(1).and_then(Value::as_str).map(|text| {
             if matches!(
                 self.context_type,
-                client_constants::NETWORK_CONTEXT_DOMAIN
-                    | client_constants::NETWORK_CONTEXT_SUBSCRIPTION
+                NetworkContextType::Domain | NetworkContextType::Subscription
             ) {
                 ContextData::Text(text.to_string())
             } else {

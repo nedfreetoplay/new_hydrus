@@ -31,7 +31,7 @@ fn negative_tag_predicates_get_a_prefix() {
 #[test]
 fn number_predicates_render_operator() {
     let predicate = Predicate::system_number(
-        PREDICATE_TYPE_SYSTEM_WIDTH,
+        PredicateType::SystemWidth,
         NumberTest::new(
             crate::search::client_number_test::NUMBER_TEST_OPERATOR_GREATER_THAN,
             1000.0,
@@ -46,7 +46,7 @@ fn number_predicates_render_operator() {
 fn serialisation_round_trips_tag_and_number() {
     for predicate in [
         Predicate::tag("blue eyes"),
-        Predicate::system_number(PREDICATE_TYPE_SYSTEM_SIZE, NumberTest::new(2, 1024.0, None)),
+        Predicate::system_number(PredicateType::SystemSize, NumberTest::new(2, 1024.0, None)),
     ] {
         let info = predicate.get_serialisable_info();
         let mut loaded = Predicate::tag("");

@@ -10,46 +10,46 @@ use crate::search::predicate_constants::*;
 
 use super::helpers::*;
 
-pub(super) fn simple_type(parsed: &SystemPredicate) -> Option<i32> {
+pub(super) fn simple_type(parsed: &SystemPredicate) -> Option<PredicateType> {
     let simple_type = match parsed.predicate {
-        ExternalPredicate::Everything => Some(PREDICATE_TYPE_SYSTEM_EVERYTHING),
-        ExternalPredicate::Inbox => Some(PREDICATE_TYPE_SYSTEM_INBOX),
-        ExternalPredicate::Archive => Some(PREDICATE_TYPE_SYSTEM_ARCHIVE),
-        ExternalPredicate::Untagged => Some(PREDICATE_TYPE_SYSTEM_UNTAGGED),
-        ExternalPredicate::HasAudio => Some(PREDICATE_TYPE_SYSTEM_HAS_AUDIO),
-        ExternalPredicate::HasTransparency => Some(PREDICATE_TYPE_SYSTEM_HAS_TRANSPARENCY),
-        ExternalPredicate::HasExif => Some(PREDICATE_TYPE_SYSTEM_HAS_EXIF),
-        ExternalPredicate::HasXmp => Some(PREDICATE_TYPE_SYSTEM_HAS_XMP),
-        ExternalPredicate::HasIptc => Some(PREDICATE_TYPE_SYSTEM_HAS_IPTC),
-        ExternalPredicate::HasIccProfile => Some(PREDICATE_TYPE_SYSTEM_HAS_ICC_PROFILE),
+        ExternalPredicate::Everything => Some(PredicateType::SystemEverything),
+        ExternalPredicate::Inbox => Some(PredicateType::SystemInbox),
+        ExternalPredicate::Archive => Some(PredicateType::SystemArchive),
+        ExternalPredicate::Untagged => Some(PredicateType::SystemUntagged),
+        ExternalPredicate::HasAudio => Some(PredicateType::SystemHasAudio),
+        ExternalPredicate::HasTransparency => Some(PredicateType::SystemHasTransparency),
+        ExternalPredicate::HasExif => Some(PredicateType::SystemHasExif),
+        ExternalPredicate::HasXmp => Some(PredicateType::SystemHasXmp),
+        ExternalPredicate::HasIptc => Some(PredicateType::SystemHasIptc),
+        ExternalPredicate::HasIccProfile => Some(PredicateType::SystemHasIccProfile),
         ExternalPredicate::HasHumanReadableEmbeddedMetadata => {
-            Some(PREDICATE_TYPE_SYSTEM_HAS_HUMAN_READABLE_EMBEDDED_METADATA)
+            Some(PredicateType::SystemHasHumanReadableEmbeddedMetadata)
         }
-        ExternalPredicate::HasSoftwareSource => Some(PREDICATE_TYPE_SYSTEM_HAS_SOFTWARE_SOURCE),
+        ExternalPredicate::HasSoftwareSource => Some(PredicateType::SystemHasSoftwareSource),
         _ => None,
     };
 
     simple_type
 }
 
-pub(super) fn numeric_type(parsed: &SystemPredicate) -> Option<i32> {
+pub(super) fn numeric_type(parsed: &SystemPredicate) -> Option<PredicateType> {
     let numeric_type = match parsed.predicate {
-        ExternalPredicate::Width => Some(PREDICATE_TYPE_SYSTEM_WIDTH),
-        ExternalPredicate::Height => Some(PREDICATE_TYPE_SYSTEM_HEIGHT),
-        ExternalPredicate::Filesize => Some(PREDICATE_TYPE_SYSTEM_SIZE),
-        ExternalPredicate::Duration => Some(PREDICATE_TYPE_SYSTEM_DURATION),
-        ExternalPredicate::Framerate => Some(PREDICATE_TYPE_SYSTEM_FRAMERATE),
-        ExternalPredicate::NumOfFrames => Some(PREDICATE_TYPE_SYSTEM_NUM_FRAMES),
+        ExternalPredicate::Width => Some(PredicateType::SystemWidth),
+        ExternalPredicate::Height => Some(PredicateType::SystemHeight),
+        ExternalPredicate::Filesize => Some(PredicateType::SystemSize),
+        ExternalPredicate::Duration => Some(PredicateType::SystemDuration),
+        ExternalPredicate::Framerate => Some(PredicateType::SystemFramerate),
+        ExternalPredicate::NumOfFrames => Some(PredicateType::SystemNumFrames),
         ExternalPredicate::NumOfTags | ExternalPredicate::NumOfTagsWithNamespace => {
-            Some(PREDICATE_TYPE_SYSTEM_NUM_TAGS)
+            Some(PredicateType::SystemNumTags)
         }
-        ExternalPredicate::NumOfWords => Some(PREDICATE_TYPE_SYSTEM_NUM_WORDS),
-        ExternalPredicate::NumOfUrls => Some(PREDICATE_TYPE_SYSTEM_NUM_URLS),
-        ExternalPredicate::NumNotes => Some(PREDICATE_TYPE_SYSTEM_NUM_NOTES),
-        ExternalPredicate::NumPixels => Some(PREDICATE_TYPE_SYSTEM_NUM_PIXELS),
-        ExternalPredicate::NumFileRels => Some(PREDICATE_TYPE_SYSTEM_FILE_RELATIONSHIPS_COUNT),
+        ExternalPredicate::NumOfWords => Some(PredicateType::SystemNumWords),
+        ExternalPredicate::NumOfUrls => Some(PredicateType::SystemNumUrls),
+        ExternalPredicate::NumNotes => Some(PredicateType::SystemNumNotes),
+        ExternalPredicate::NumPixels => Some(PredicateType::SystemNumPixels),
+        ExternalPredicate::NumFileRels => Some(PredicateType::SystemFileRelationshipsCount),
         ExternalPredicate::Ratio | ExternalPredicate::RatioSpecial => {
-            Some(PREDICATE_TYPE_SYSTEM_RATIO)
+            Some(PredicateType::SystemRatio)
         }
         ExternalPredicate::MediaViews
         | ExternalPredicate::PreviewViews
@@ -58,8 +58,8 @@ pub(super) fn numeric_type(parsed: &SystemPredicate) -> Option<i32> {
         | ExternalPredicate::MediaViewtime
         | ExternalPredicate::PreviewViewtime
         | ExternalPredicate::AllViewtime
-        | ExternalPredicate::NewViewtime => Some(PREDICATE_TYPE_SYSTEM_FILE_VIEWING_STATS),
-        ExternalPredicate::Limit => Some(PREDICATE_TYPE_SYSTEM_LIMIT),
+        | ExternalPredicate::NewViewtime => Some(PredicateType::SystemFileViewingStats),
+        ExternalPredicate::Limit => Some(PredicateType::SystemLimit),
         _ => None,
     };
 
@@ -70,7 +70,7 @@ pub(super) fn value_predicate(parsed: &SystemPredicate) -> HydrusResult<Option<P
     if parsed.predicate == ExternalPredicate::Filetype {
         if let Some(ValueData::FiletypeList(mimes)) = &parsed.value {
             return Ok(Some(Predicate::new(
-                PREDICATE_TYPE_SYSTEM_MIME,
+                PredicateType::SystemMime,
                 PredicateValue::Numbers(mimes.iter().map(|mime| i32::from(*mime)).collect()),
             )));
         }
@@ -79,7 +79,7 @@ pub(super) fn value_predicate(parsed: &SystemPredicate) -> HydrusResult<Option<P
     if parsed.predicate == ExternalPredicate::Hash {
         if let Some(ValueData::HashListWithAlgorithm { hashes, .. }) = &parsed.value {
             return Ok(Some(Predicate::new(
-                PREDICATE_TYPE_SYSTEM_HASH,
+                PredicateType::SystemHash,
                 PredicateValue::Hashes(hashes.iter().filter_map(|hash| hex_decode(hash)).collect()),
             )));
         }
@@ -103,7 +103,7 @@ pub(super) fn value_predicate(parsed: &SystemPredicate) -> HydrusResult<Option<P
         };
 
         return Ok(Some(Predicate::new(
-            PREDICATE_TYPE_SYSTEM_SIMILAR_TO,
+            PredicateType::SystemSimilarTo,
             PredicateValue::Hashes(hashes),
         )));
     }
@@ -121,7 +121,7 @@ pub(super) fn value_predicate(parsed: &SystemPredicate) -> HydrusResult<Option<P
     ) {
         if let Some(ValueData::AnyString(text)) = &parsed.value {
             return Ok(Some(Predicate::new(
-                PREDICATE_TYPE_SYSTEM_KNOWN_URLS,
+                PredicateType::SystemKnownUrls,
                 PredicateValue::Text(text.clone()),
             )));
         }

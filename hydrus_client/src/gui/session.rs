@@ -4,6 +4,7 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::client_constants::PageState;
 use crate::gui::pages::{Page, PageType, PagesNotebook};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -19,7 +20,7 @@ impl SessionPage {
         Self {
             name: page.name.clone(),
             page_type: page.page_type.as_str().to_string(),
-            page_state: page.page_state,
+            page_state: page.page_state.as_int(),
             hashes: page.hashes.iter().map(|hash| hex_encode(hash)).collect(),
         }
     }
@@ -37,7 +38,7 @@ impl SessionPage {
         };
 
         let mut page = Page::new(self.name.clone(), page_type);
-        page.set_page_state(self.page_state);
+        page.set_page_state(PageState::try_from_int(self.page_state).unwrap_or(PageState::Normal));
         page.set_hashes(
             self.hashes
                 .iter()

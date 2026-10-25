@@ -2,7 +2,7 @@ use super::*;
 use crate::search::client_number_test::NUMBER_TEST_OPERATOR_EQUAL;
 use crate::search::client_search_predicate::Predicate;
 
-fn number(predicate_type: i32, value: f64) -> Predicate {
+fn number(predicate_type: PredicateType, value: f64) -> Predicate {
     Predicate::system_number(
         predicate_type,
         NumberTest::new(NUMBER_TEST_OPERATOR_EQUAL, value, None),
@@ -12,8 +12,8 @@ fn number(predicate_type: i32, value: f64) -> Predicate {
 #[test]
 fn simple_booleans_are_extracted() {
     let predicates = [
-        Predicate::new(PREDICATE_TYPE_SYSTEM_INBOX, PredicateValue::None),
-        Predicate::new(PREDICATE_TYPE_SYSTEM_LOCAL, PredicateValue::None),
+        Predicate::new(PredicateType::SystemInbox, PredicateValue::None),
+        Predicate::new(PredicateType::SystemLocal, PredicateValue::None),
         Predicate::tag("blue eyes"),
         {
             let mut predicate = Predicate::tag("bad tag");
@@ -34,10 +34,10 @@ fn simple_booleans_are_extracted() {
 fn mime_and_limit_are_extracted() {
     let predicates = [
         Predicate::new(
-            PREDICATE_TYPE_SYSTEM_MIME,
+            PredicateType::SystemMime,
             PredicateValue::Numbers(vec![Mime::Png.as_int() as i32, Mime::Jpeg.as_int() as i32]),
         ),
-        number(PREDICATE_TYPE_SYSTEM_LIMIT, 100.0),
+        number(PredicateType::SystemLimit, 100.0),
     ];
 
     let system = FileSystemPredicates::new(&predicates);
@@ -48,7 +48,7 @@ fn mime_and_limit_are_extracted() {
 
 #[test]
 fn number_tags_are_grouped_by_namespace() {
-    let predicate = number(PREDICATE_TYPE_SYSTEM_NUM_TAGS, 2.0);
+    let predicate = number(PredicateType::SystemNumTags, 2.0);
     let system = FileSystemPredicates::new(&[predicate]);
 
     assert!(system.get_num_tags_number_tests().contains_key(""));
@@ -56,7 +56,7 @@ fn number_tags_are_grouped_by_namespace() {
 
 #[test]
 fn size_predicates_are_kept_as_system() {
-    let system = FileSystemPredicates::new(&[number(PREDICATE_TYPE_SYSTEM_SIZE, 1024.0)]);
+    let system = FileSystemPredicates::new(&[number(PredicateType::SystemSize, 1024.0)]);
 
     assert_eq!(system.other_system.len(), 1);
 }

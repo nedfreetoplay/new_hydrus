@@ -3,26 +3,26 @@
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use crate::client_constants;
+use crate::client_constants::{self, SortOrder, SortType};
 use crate::media::client_media::MediaSingle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MediaSort {
-    pub sort_type: i32,
-    pub sort_order: i32,
+    pub sort_type: SortType,
+    pub sort_order: SortOrder,
 }
 
 impl Default for MediaSort {
     fn default() -> Self {
         Self {
-            sort_type: client_constants::SORT_FILES_BY_FILESIZE,
-            sort_order: client_constants::SORT_ASC,
+            sort_type: SortType::FileSize,
+            sort_order: client_constants::SortOrder::Ascending,
         }
     }
 }
 
 impl MediaSort {
-    pub fn new(sort_type: i32, sort_order: i32) -> Self {
+    pub fn new(sort_type: SortType, sort_order: SortOrder) -> Self {
         Self {
             sort_type,
             sort_order,
@@ -30,26 +30,20 @@ impl MediaSort {
     }
 
     pub fn to_string(&self) -> String {
-        format!(
-            "{}, {}",
-            client_constants::sort_type_string(self.sort_type),
-            client_constants::sort_order_string(self.sort_order)
-        )
+        format!("{}, {}", self.sort_type, self.sort_order)
     }
 
     pub fn sort_media(&self, media: &mut [Arc<MediaSingle>]) {
         media.sort_by(|a, b| {
             let ordering = match self.sort_type {
-                client_constants::SORT_FILES_BY_FILESIZE => a.get_size().cmp(&b.get_size()),
-                client_constants::SORT_FILES_BY_MIME => {
-                    (a.get_mime().as_int()).cmp(&b.get_mime().as_int())
-                }
-                client_constants::SORT_FILES_BY_HASH => a.get_hash().cmp(b.get_hash()),
+                SortType::FileSize => a.get_size().cmp(&b.get_size()),
+                SortType::Mime => (a.get_mime().as_int()).cmp(&b.get_mime().as_int()),
+                SortType::Hash => a.get_hash().cmp(b.get_hash()),
                 _ => Ordering::Equal,
             };
 
             match self.sort_order {
-                client_constants::SORT_DESC => ordering.reverse(),
+                SortOrder::Descending => ordering.reverse(),
                 _ => ordering,
             }
         });
@@ -95,11 +89,8 @@ mod tests {
     fn filesize_sort_ascending() {
         let mut values = vec![media(30, 1), media(10, 2), media(20, 3)];
 
-        MediaSort::new(
-            client_constants::SORT_FILES_BY_FILESIZE,
-            client_constants::SORT_ASC,
-        )
-        .sort_media(&mut values);
+        MediaSort::new(SortType::FileSize, client_constants::SortOrder::Ascending)
+            .sort_media(&mut values);
 
         assert_eq!(
             values
@@ -114,11 +105,8 @@ mod tests {
     fn filesize_sort_descending() {
         let mut values = vec![media(30, 1), media(10, 2), media(20, 3)];
 
-        MediaSort::new(
-            client_constants::SORT_FILES_BY_FILESIZE,
-            client_constants::SORT_DESC,
-        )
-        .sort_media(&mut values);
+        MediaSort::new(SortType::FileSize, client_constants::SortOrder::Descending)
+            .sort_media(&mut values);
 
         assert_eq!(
             values

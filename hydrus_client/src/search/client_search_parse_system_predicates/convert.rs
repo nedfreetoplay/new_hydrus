@@ -58,7 +58,7 @@ fn convert_complex(
 
         if let Some(ValueData::AnyString(service_name)) = &parsed.value {
             return Ok(Predicate::new(
-                PREDICATE_TYPE_SYSTEM_FILE_SERVICE,
+                PredicateType::SystemFileService,
                 PredicateValue::FileService {
                     is_in,
                     status: status.as_int() as i32,
@@ -96,7 +96,7 @@ fn convert_complex(
         };
 
         return Ok(Predicate::new(
-            PREDICATE_TYPE_SYSTEM_RATING,
+            PredicateType::SystemRating,
             PredicateValue::Service {
                 operator,
                 value,
@@ -106,10 +106,10 @@ fn convert_complex(
     }
 
     let date_type = match parsed.predicate {
-        ExternalPredicate::TimeImported => Some(PREDICATE_TYPE_SYSTEM_IMPORT_TIME),
-        ExternalPredicate::ModDate => Some(PREDICATE_TYPE_SYSTEM_MODIFIED_TIME),
-        ExternalPredicate::ArchivedDate => Some(PREDICATE_TYPE_SYSTEM_ARCHIVED_TIME),
-        ExternalPredicate::LastViewedTime => Some(PREDICATE_TYPE_SYSTEM_LAST_VIEWED_TIME),
+        ExternalPredicate::TimeImported => Some(PredicateType::SystemImportTime),
+        ExternalPredicate::ModDate => Some(PredicateType::SystemModifiedTime),
+        ExternalPredicate::ArchivedDate => Some(PredicateType::SystemArchivedTime),
+        ExternalPredicate::LastViewedTime => Some(PredicateType::SystemLastViewedTime),
         _ => None,
     };
 

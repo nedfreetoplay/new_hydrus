@@ -35,17 +35,17 @@ impl FileSystemPredicates {
 
         for predicate in predicates {
             match predicate.predicate_type {
-                PREDICATE_TYPE_SYSTEM_INBOX => system.inbox = true,
-                PREDICATE_TYPE_SYSTEM_ARCHIVE => system.archive = true,
-                PREDICATE_TYPE_SYSTEM_LOCAL => system.local = true,
-                PREDICATE_TYPE_SYSTEM_NOT_LOCAL => system.not_local = true,
-                PREDICATE_TYPE_SYSTEM_EVERYTHING => system.system_everything = true,
-                PREDICATE_TYPE_SYSTEM_LIMIT => {
+                PredicateType::SystemInbox => system.inbox = true,
+                PredicateType::SystemArchive => system.archive = true,
+                PredicateType::SystemLocal => system.local = true,
+                PredicateType::SystemNotLocal => system.not_local = true,
+                PredicateType::SystemEverything => system.system_everything = true,
+                PredicateType::SystemLimit => {
                     if let PredicateValue::Number(number) = &predicate.value {
                         system.limit = Some(number.value as i64);
                     }
                 }
-                PREDICATE_TYPE_SYSTEM_MIME => {
+                PredicateType::SystemMime => {
                     if let PredicateValue::Numbers(mimes) = &predicate.value {
                         system.mimes = mimes
                             .iter()
@@ -53,12 +53,12 @@ impl FileSystemPredicates {
                             .collect();
                     }
                 }
-                PREDICATE_TYPE_SYSTEM_HASH => {
+                PredicateType::SystemHash => {
                     if let PredicateValue::Hashes(hashes) = &predicate.value {
                         system.hashes.extend(hashes.iter().cloned());
                     }
                 }
-                PREDICATE_TYPE_SYSTEM_NUM_TAGS => {
+                PredicateType::SystemNumTags => {
                     if let PredicateValue::Number(number) = &predicate.value {
                         let namespace = predicate.get_namespace().unwrap_or("").to_string();
                         system
@@ -68,11 +68,11 @@ impl FileSystemPredicates {
                             .push(number.clone());
                     }
                 }
-                PREDICATE_TYPE_SYSTEM_SIZE => system.other_system.push(predicate.clone()),
-                PREDICATE_TYPE_TAG | PREDICATE_TYPE_NAMESPACE | PREDICATE_TYPE_WILDCARD => {
+                PredicateType::SystemSize => system.other_system.push(predicate.clone()),
+                PredicateType::Tag | PredicateType::Namespace | PredicateType::Wildcard => {
                     classify_tag_predicate(&mut system, predicate)
                 }
-                PREDICATE_TYPE_OR_CONTAINER => system.or_predicates.push(predicate.clone()),
+                PredicateType::OrContainer => system.or_predicates.push(predicate.clone()),
                 _ => system.other_system.push(predicate.clone()),
             }
         }
@@ -167,21 +167,21 @@ fn classify_tag_predicate(system: &mut FileSystemPredicates, predicate: &Predica
     };
 
     let target = match predicate.predicate_type {
-        PREDICATE_TYPE_TAG => {
+        PredicateType::Tag => {
             if predicate.inclusive {
                 &mut system.tags_include
             } else {
                 &mut system.tags_exclude
             }
         }
-        PREDICATE_TYPE_NAMESPACE => {
+        PredicateType::Namespace => {
             if predicate.inclusive {
                 &mut system.namespaces_include
             } else {
                 &mut system.namespaces_exclude
             }
         }
-        PREDICATE_TYPE_WILDCARD => {
+        PredicateType::Wildcard => {
             if predicate.inclusive {
                 &mut system.wildcards_include
             } else {

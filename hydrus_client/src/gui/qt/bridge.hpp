@@ -84,6 +84,7 @@ private:
     QString id;
     QLineEdit *search = nullptr;
     QCompleter *completer = nullptr;
+    QString text_before_completion;
     QPushButton *search_button = nullptr;
     QLabel *status_label = nullptr;
     QLabel *empty_label = nullptr;

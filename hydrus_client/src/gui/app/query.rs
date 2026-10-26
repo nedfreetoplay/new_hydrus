@@ -305,6 +305,18 @@ pub fn file_path(controller: &Controller, hash: &[u8]) -> Option<PathBuf> {
     if path.exists() { Some(path) } else { None }
 }
 
+/// Path used by the preview canvas and viewer. Non-image formats have no Qt
+/// renderer yet, so they show their generated thumbnail instead.
+pub fn preview_path(controller: &Controller, hash: &[u8]) -> Option<PathBuf> {
+    let info = file_info_for(controller, hash)?;
+
+    if hydrus_core::hydrus_constants::IMAGES.contains(&info.mime) {
+        file_path(controller, hash)
+    } else {
+        thumbnail_path(controller, hash)
+    }
+}
+
 pub fn selection_tags(controller: &Controller, hash: &[u8]) -> Vec<String> {
     let Some(hash_id) = hash_id_for(controller, hash) else {
         return Vec::new();

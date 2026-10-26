@@ -437,6 +437,37 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
     completer->setCompletionMode(QCompleter::PopupCompletion);
     search->setCompleter(completer);
 
+    connect(search, &QLineEdit::textEdited, this, [this](const QString &text) {
+        text_before_completion = text;
+    });
+
+    connect(completer, QOverload<const QString &>::of(&QCompleter::activated), this, [this](const QString &completion) {
+        const QString before = text_before_completion.trimmed();
+        int keep = 0;
+
+        // Find the longest suffix of what was typed that the completion starts
+        // with. This replaces a partially typed multi-word tag while keeping
+        // earlier predicates such as `series:foo blue ey`.
+        for (int index = 0; index < before.size(); ++index) {
+            if (completion.startsWith(before.mid(index), Qt::CaseInsensitive)) {
+                keep = index;
+                break;
+            }
+        }
+
+        QString prefix = before.left(keep);
+
+        if (!prefix.isEmpty() && !prefix.endsWith(QLatin1Char(' '))) {
+            prefix += QLatin1Char(' ');
+        }
+
+        const QString text = prefix + completion + QStringLiteral(" ");
+
+        search->setText(text);
+        text_before_completion = text;
+        search->setFocus();
+    });
+
     search_button = new QPushButton(QStringLiteral("search"), sidebar);
     sidebar_layout->addWidget(search_button);
 

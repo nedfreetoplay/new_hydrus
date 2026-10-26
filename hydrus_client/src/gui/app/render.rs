@@ -215,7 +215,7 @@ pub fn viewer_json(
 ) -> String {
     let position = query::viewer_position(page, hash);
     let total = page.hashes.len();
-    let path = query::file_path(controller, hash)
+    let path = query::preview_path(controller, hash)
         .map(|path| path.display().to_string())
         .unwrap_or_default();
 

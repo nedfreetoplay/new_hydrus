@@ -34,6 +34,7 @@ class QTabBar;
 class QCompleter;
 class QDragEnterEvent;
 class QDropEvent;
+class QEvent;
 
 // A zoomable, pannable view for one image. Used both by the small preview in a
 // page sidebar and by the media viewer window.
@@ -149,6 +150,9 @@ public:
     void clear_pages();
 
     QString current_page_id() const;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     void install_plus_tab();

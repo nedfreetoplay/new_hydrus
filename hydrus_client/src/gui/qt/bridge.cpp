@@ -27,6 +27,7 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPixmap>
@@ -804,16 +805,6 @@ HydrusNotebook::HydrusNotebook(HydrusMainWindow *main_window, const QString &not
 
     connect(this, &QTabWidget::tabCloseRequested, this, [this](int index) { request_close(index); });
 
-    connect(tabBar(), &QTabBar::tabBarClicked, this, [this](int index) {
-        if (index == plus_index) {
-            if (last_normal_index >= 0 && last_normal_index < count()) {
-                setCurrentIndex(last_normal_index);
-            }
-
-            main->show_page_chooser(id);
-        }
-    });
-
     connect(tabBar(), &QTabBar::tabBarDoubleClicked, this, [this](int index) {
         if (index < 0 || index == plus_index) {
             return;
@@ -875,6 +866,21 @@ HydrusNotebook::HydrusNotebook(HydrusMainWindow *main_window, const QString &not
     connect(tabBar(), &QTabBar::customContextMenuRequested, this, [this](const QPoint &position) {
         show_tab_menu(position);
     });
+
+    tabBar()->installEventFilter(this);
+}
+
+bool HydrusNotebook::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == tabBar() && event->type() == QEvent::MouseButtonRelease) {
+        auto *mouse = static_cast<QMouseEvent *>(event);
+
+        if (mouse->button() == Qt::MiddleButton) {
+            request_close(tabBar()->tabAt(mouse->pos()));
+            return true;
+        }
+    }
+
+    return QTabWidget::eventFilter(watched, event);
 }
 
 const QString &HydrusNotebook::notebook_id() const {

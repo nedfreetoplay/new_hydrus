@@ -13,7 +13,12 @@ use hydrus_core::hydrus_constants::{ContentStatus, Mime, TimestampType};
 use hydrus_core::hydrus_time;
 
 use crate::controller::Controller;
-use crate::db::{files_metadata, files_storage, files_timestamps, master};
+use crate::db::{
+    duplicates, files_metadata, files_storage, files_timestamps, master, similar_files,
+};
+use crate::files::images::{
+    decode_image_path, discard_blank_perceptual_hashes, generate_shape_perceptual_hash,
+};
 
 #[derive(Debug, Default)]
 pub struct ImportSummary {
@@ -121,8 +126,70 @@ fn import_one(
     }
 
     write_thumbnail(controller, &hash, path, &info);
+    index_similar_files(db, hash_id, path, info.mime);
 
     Ok(hash)
+}
+
+/// Stores the perceptual/pixel hashes used by the duplicate filter and queues
+/// potential duplicate pairs, as Python does during import.
+fn index_similar_files(
+    db: &hydrus_core::hydrus_db_base::DBBase,
+    hash_id: i64,
+    path: &Path,
+    mime: Mime,
+) {
+    if hydrus_core::hydrus_constants::files_that_have_perceptual_hash().contains(&mime) {
+        if let Ok(image) = decode_image_path(path) {
+            let perceptual_hashes =
+                discard_blank_perceptual_hashes([generate_shape_perceptual_hash(&image)]);
+
+            if similar_files::set_perceptual_hashes(db, hash_id, &perceptual_hashes).is_ok() {
+                for perceptual_hash in &perceptual_hashes {
+                    let Ok(matches) =
+                        similar_files::search_similar(db, perceptual_hash, 10, Some(hash_id))
+                    else {
+                        continue;
+                    };
+
+                    for similar in matches {
+                        let (smaller, larger) = if similar.hash_id < hash_id {
+                            (similar.hash_id, hash_id)
+                        } else {
+                            (hash_id, similar.hash_id)
+                        };
+
+                        let _ = duplicates::add_potential_pair(
+                            db,
+                            smaller,
+                            larger,
+                            similar.distance as i64,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    if let Ok(pixel_hash) =
+        hydrus_core::files::images::hydrus_image_handling::get_image_pixel_hash(path, mime)
+    {
+        if similar_files::set_pixel_hash(db, hash_id, &pixel_hash).is_ok() {
+            if let Ok(identical) = similar_files::get_hash_ids_for_pixel_hash(db, &pixel_hash) {
+                for other in identical {
+                    if other != hash_id {
+                        let (smaller, larger) = if other < hash_id {
+                            (other, hash_id)
+                        } else {
+                            (hash_id, other)
+                        };
+
+                        let _ = duplicates::add_potential_pair(db, smaller, larger, 0);
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn fallback_info(path: &Path, mime: Mime) -> hydrus_core::files::hydrus_file_handling::FileInfo {

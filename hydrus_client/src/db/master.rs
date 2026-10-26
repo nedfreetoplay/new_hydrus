@@ -22,6 +22,15 @@ pub fn get_hash_id(db: &DBBase, hash: &[u8]) -> HydrusResult<i64> {
     .ok_or_else(|| hydrus_core::hydrus_exceptions::data_missing("hash_id disappeared"))
 }
 
+/// Looks a hash up without inserting a new row (unlike [`get_hash_id`]).
+pub fn find_hash_id(db: &DBBase, hash: &[u8]) -> HydrusResult<Option<i64>> {
+    db.query_one(
+        "SELECT hash_id FROM hashes WHERE hash = ?",
+        &[&hash],
+        |row| row.get(0),
+    )
+}
+
 pub fn get_hash(db: &DBBase, hash_id: i64) -> HydrusResult<Option<Vec<u8>>> {
     db.query_one(
         "SELECT hash FROM hashes WHERE hash_id = ?",

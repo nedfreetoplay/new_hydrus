@@ -50,15 +50,9 @@ fn main() {
 
     controller.install_global();
 
-    let view_model = hydrus_client::gui::view_model::MainViewModel::new(
-        controller.window_title(),
-        controller.status_line(),
-        Some(&controller.session()),
-    );
+    hydrus_client::gui::run(controller.clone());
 
-    hydrus_client::gui::run(&view_model);
-
-    if let Err(error) = controller.save() {
+    if let Err(error) = controller.save_options() {
         eprintln!("Could not save client options: {error}");
     }
 }

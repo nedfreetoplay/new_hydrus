@@ -128,11 +128,17 @@ impl Controller {
         &self.style
     }
 
-    pub fn save(&self) -> HydrusResult<()> {
+    pub fn save_options(&self) -> HydrusResult<()> {
         let options = self.options.read().unwrap();
 
         self.db
             .set_serialisable(OPTIONS_NAME, &*options as &dyn SerialisableObject)?;
+
+        Ok(())
+    }
+
+    pub fn save(&self) -> HydrusResult<()> {
+        self.save_options()?;
 
         let session = self.session.read().unwrap();
 

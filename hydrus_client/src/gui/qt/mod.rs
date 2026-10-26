@@ -1,5 +1,5 @@
-mod bridge;
-mod panels;
+pub(crate) mod bridge;
+pub(crate) mod panels;
 
 pub use bridge::run_application;
 

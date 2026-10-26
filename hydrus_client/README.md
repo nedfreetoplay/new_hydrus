@@ -35,26 +35,56 @@ cargo run -p hydrus_client
 
 ## Статус портирования
 
-Готовы: инфраструктура клиента, настройки (включая все миграции 1→8), метаданные,
-поиск, медиа-модель, файлы, БД-слой, сеть (engine на reqwest), импорт/парсинг/дубликаты,
-GUI-модели и Qt-каркас с canvas, PNG-сериализация и восстановление сессии.
-
+Фундамент готов: константы, настройки (миграции 1→8), метаданные, поиск, медиа-модель,
+файлы, БД-слой, сеть, импорт/парсинг/дубликаты, PNG-сериализация и восстановление сессии.
 Поведение файлового хранилища, URL-кодирования и системных предикатов сверено с
-`hydrus_python/hydrus/test`; интеграционный тест `python_db_compat` проверяет открытие
-Python-shaped `client.db`. Сейчас проходит 480 unit-тестов и 2 integration-теста.
+`hydrus_python/hydrus/test`; интеграционный тест `python_db_compat` открывает
+Python-shaped `client.db`.
 
-Все пункты `PORTING_TODO.md` закрыты: фундамент, сеть, БД, импорт/парсинг,
-дубликаты, Qt-панели и DCT-перцептивные хэши портированы. Каждый файл
-`hydrus_client/src` укладывается в 200 строк.
+### Что уже работает в GUI
 
-БД: схема, сервисы, хэши, master-теги, mappings, files_info/storage/timestamps/inbox,
-viewing stats, storage configuration, notes/ratings/urls/service paths, definitions cache,
-сборка `MediaResult`, content updates, tag search/siblings/parents, duplicates/similar files
-и maintenance.
+Qt-интерфейс больше не заглушка: `hydrus_client/src/gui/app` — это настоящее состояние
+клиента, а `hydrus_client/src/gui/qt` только рисует его.
 
-Также начаты: networking (contexts/functions/bandwidth/sessions/jobs/engine на reqwest,
-URL classes), importing (options, import folders, file seeds), parsing results, duplicates
-UI-модели, list/pages/canvas панели, PNG-сериализация и восстановление GUI-сессии.
+- вкладки страниц как в Hydrus: закрытие, переименование, контекстное меню,
+  вложенные «page of pages» и вкладка `+` с выбором типа страницы;
+- файловые страницы: реальный поиск по локальной БД (теги, `-tag`, wildcard,
+  namespace, `system:inbox`, `system:archive`, `system:limit=N`), автодополнение тегов;
+- сетка миниатюр, предпросмотр выбранного файла, статус страницы;
+- медиа-вьюер: зум, панорамирование, поворот, следующая/предыдущая, теги,
+  управление тегами, archive/inbox/delete, F11;
+- импорт локальных файлов через меню и drag-and-drop: хэширование, копирование в
+  файловое хранилище, `files_info`, сервис файлов, inbox и генерация миниатюр;
+- импорт одного файла по URL через `File → import url…`;
+- редактирование тегов (локальный сервис), archive/inbox/перемещение в trash;
+- меню Hydrus (`file`, `undo`, `pages`, `database`, `network`, `services`, `tags`,
+  `pending`, `help`), сегментированный статус-бар и сохранение дерева страниц в
+  `gui session.json`.
 
-Актуальный план и флаги: [PORTING_TODO.md](PORTING_TODO.md).
-Архитектура: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+### Что ещё не портировано
+
+- страницы загрузчиков: gallery / watcher / subscriptions / simple downloader / urls
+  (сейчас это честные страницы-заглушки);
+- duplicates processing (пары и merge UI);
+- окна Options и менеджеры сервисов/сети;
+- асинхронные очереди импорта и загрузки, Client API сервер;
+- полный набор tag-панелей и горячих клавиш Hydrus.
+
+Сейчас проходит 465 unit-тестов и 2 integration-теста. Архитектура:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Проверка GUI без ручного клика
+
+Для скриншот-проверок окно можно запустить в отдельной БД. Переменные окружения только
+для разработки:
+
+```powershell
+$env:HYDRUS_QT_SCREENSHOT = 'C:\Temp\gui.png'
+$env:HYDRUS_QT_IMPORT = 'C:\images\a.png;C:\images\b.jpg'
+$env:HYDRUS_QT_QUERY = 'blue eyes'
+$env:HYDRUS_QT_FOCUS_FIRST = '1'
+.\target\debug\hydrus_client.exe --db_dir C:\Temp\hydrus-test
+```
+
+Также доступны `HYDRUS_QT_OPEN_FIRST`, `HYDRUS_QT_ADD_TAG` и `HYDRUS_QT_SCRIPT`
+(`action|target|payload;...`).

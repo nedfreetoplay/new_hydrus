@@ -1,93 +1,60 @@
-//! Renders [`MainViewModel`] panels into the Qt widgets from `bridge.hpp`.
-//!
-//! This module is deliberately dumb: it turns view-model values into widgets
-//! and never builds application state.
+//! Executes [`UiCommand`]s against the Qt widgets. The only place where the
+//! application layer talks to concrete widgets.
 
 use std::pin::Pin;
 
-use cxx_qt_lib as _;
-
 use super::bridge::ffi;
-use crate::gui::view_model::{
-    CanvasViewModel, FormViewModel, ListViewModel, MediaViewModel, PanelViewModel, WidgetViewModel,
-};
+use crate::gui::app::UiCommand;
 
 type Window<'a> = Pin<&'a mut ffi::HydrusMainWindow>;
 
-pub(crate) fn add_panels(mut window: Window<'_>, panels: &[PanelViewModel]) {
-    for panel in panels {
-        match panel {
-            PanelViewModel::Form(form) => add_form(window.as_mut(), form),
-            PanelViewModel::ScrolledForm(form) => add_scrolled_form(window.as_mut(), form),
-            PanelViewModel::List(list) => add_list(window.as_mut(), list),
-            PanelViewModel::Media(media) => add_media(window.as_mut(), media),
-            PanelViewModel::Canvas(canvas) => add_canvas(window.as_mut(), canvas),
+pub(crate) fn execute_commands(mut window: Window<'_>, commands: Vec<UiCommand>) {
+    for command in commands {
+        execute(window.as_mut(), command);
+    }
+}
+
+pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
+    match command {
+        UiCommand::Menus(json) => ffi::hydrus_set_menus(window.as_mut(), &json),
+        UiCommand::TagSuggestions(json) => {
+            ffi::hydrus_set_tag_suggestions(window.as_mut(), &json);
         }
-    }
-}
-
-fn add_form(mut window: Window<'_>, form: &FormViewModel) {
-    let mut panel = ffi::new_hydrus_panel();
-
-    for widget in &form.widgets {
-        match widget {
-            WidgetViewModel::Label(text) => ffi::hydrus_panel_add_label(panel.pin_mut(), text),
-            WidgetViewModel::LineEdit(text) => {
-                ffi::hydrus_panel_add_line_edit(panel.pin_mut(), text)
-            }
-            WidgetViewModel::Button(text) => ffi::hydrus_panel_add_button(panel.pin_mut(), text),
-            WidgetViewModel::Checkbox { text, checked } => {
-                ffi::hydrus_panel_add_checkbox(panel.pin_mut(), text, *checked);
-            }
-            WidgetViewModel::Stretch => ffi::hydrus_panel_add_stretch(panel.pin_mut()),
+        UiCommand::BuildPages(json) => ffi::hydrus_build_pages(window.as_mut(), &json),
+        UiCommand::UpdatePage(page_id, json) => {
+            ffi::hydrus_update_page(window.as_mut(), &page_id, &json);
         }
-    }
-
-    ffi::hydrus_add_page_widget(window.as_mut(), &form.title, panel.pin_mut());
-}
-
-fn add_scrolled_form(mut window: Window<'_>, form: &FormViewModel) {
-    let mut panel = ffi::new_hydrus_scrolled_panel();
-
-    for widget in &form.widgets {
-        match widget {
-            WidgetViewModel::Label(text) => ffi::hydrus_scrolled_add_label(panel.pin_mut(), text),
-            WidgetViewModel::LineEdit(text) => {
-                ffi::hydrus_scrolled_add_line_edit(panel.pin_mut(), text);
-            }
-            WidgetViewModel::Button(text) => ffi::hydrus_scrolled_add_button(panel.pin_mut(), text),
-            WidgetViewModel::Checkbox { text, checked } => {
-                ffi::hydrus_scrolled_add_checkbox(panel.pin_mut(), text, *checked);
-            }
-            WidgetViewModel::Stretch => ffi::hydrus_scrolled_add_stretch(panel.pin_mut()),
+        UiCommand::SetSelection {
+            page_id,
+            hash,
+            tags_json,
+            preview_path,
+        } => {
+            ffi::hydrus_set_selection(window.as_mut(), &page_id, &hash, &tags_json, &preview_path);
         }
+        UiCommand::Status(json) => ffi::hydrus_set_status(window.as_mut(), &json),
+        UiCommand::ShowPageChooser(notebook_id) => {
+            ffi::hydrus_show_page_chooser(window.as_mut(), &notebook_id);
+        }
+        UiCommand::PickFiles => ffi::hydrus_pick_files(window.as_mut()),
+        UiCommand::PromptUrl => ffi::hydrus_prompt_url(window.as_mut()),
+        UiCommand::OpenViewer(json) => ffi::hydrus_open_viewer(window.as_mut(), &json),
+        UiCommand::UpdateViewer(viewer_id, json) => {
+            ffi::hydrus_update_viewer(window.as_mut(), &viewer_id, &json);
+        }
+        UiCommand::CloseViewer(viewer_id) => {
+            ffi::hydrus_close_viewer(window.as_mut(), &viewer_id);
+        }
+        UiCommand::TagDialog(json) => ffi::hydrus_show_tag_dialog(window.as_mut(), &json),
+        UiCommand::NotifyMessage(message) => {
+            ffi::hydrus_notify_message(window.as_mut(), &message);
+        }
+        UiCommand::Message(title, text) => {
+            ffi::hydrus_show_message(window.as_mut(), &title, &text);
+        }
+        UiCommand::OpenPath(path) => ffi::hydrus_open_path(&path),
+        UiCommand::OpenUrl(url) => ffi::hydrus_open_url(&url),
+        UiCommand::Screenshot(path) => ffi::hydrus_schedule_screenshot(window.as_mut(), &path),
+        UiCommand::Quit => ffi::qapp_quit(),
     }
-
-    ffi::hydrus_add_scrolled_page(window.as_mut(), &form.title, panel.pin_mut());
-}
-
-fn add_list(mut window: Window<'_>, list: &ListViewModel) {
-    let mut panel = ffi::new_hydrus_list_panel();
-    ffi::hydrus_list_set_columns(panel.pin_mut(), &list.columns);
-
-    for row in &list.rows {
-        ffi::hydrus_list_add_row(panel.pin_mut(), row);
-    }
-
-    ffi::hydrus_add_list_page(window.as_mut(), &list.title, panel.pin_mut());
-}
-
-fn add_media(mut window: Window<'_>, media: &MediaViewModel) {
-    let mut panel = ffi::new_hydrus_media_panel();
-
-    for item in &media.items {
-        ffi::hydrus_media_panel_add_item(panel.pin_mut(), item);
-    }
-
-    ffi::hydrus_add_media_page(window.as_mut(), &media.title, panel.pin_mut());
-}
-
-fn add_canvas(mut window: Window<'_>, canvas: &CanvasViewModel) {
-    let mut canvas_widget = ffi::new_hydrus_canvas();
-    ffi::hydrus_add_canvas_page(window.as_mut(), &canvas.title, canvas_widget.pin_mut());
 }

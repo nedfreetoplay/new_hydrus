@@ -4,104 +4,44 @@
 pub(crate) mod ffi {
     unsafe extern "C++" {
         include!("bridge.hpp");
+
         type QApplication;
         type HydrusMainWindow;
-        type HydrusPanel;
-        type HydrusMediaPanel;
-        type HydrusCanvas;
-        type HydrusScrolledPanel;
-        type HydrusDialog;
-        type HydrusListPanel;
 
         fn new_application() -> UniquePtr<QApplication>;
         fn exec_application(application: Pin<&mut QApplication>) -> i32;
         fn quit_application(application: Pin<&mut QApplication>);
 
         fn new_hydrus_main_window() -> UniquePtr<HydrusMainWindow>;
-        fn show_hydrus_main_window(window: Pin<&mut HydrusMainWindow>);
         fn build_hydrus_shell(window: Pin<&mut HydrusMainWindow>);
-        fn hydrus_add_page(window: Pin<&mut HydrusMainWindow>, title: &str) -> i32;
-        fn hydrus_add_sidebar_item(window: Pin<&mut HydrusMainWindow>, title: &str);
-        fn hydrus_add_menu_action(window: Pin<&mut HydrusMainWindow>, menu: &str, action: &str);
-        fn hydrus_add_exit_action(window: Pin<&mut HydrusMainWindow>, menu: &str, action: &str);
-        fn hydrus_set_status(window: Pin<&mut HydrusMainWindow>, message: &str);
+        fn show_hydrus_main_window(window: Pin<&mut HydrusMainWindow>);
+
         fn hydrus_set_title(window: Pin<&mut HydrusMainWindow>, title: &str);
         fn hydrus_resize_window(window: Pin<&mut HydrusMainWindow>, width: i32, height: i32);
-
-        fn new_hydrus_panel() -> UniquePtr<HydrusPanel>;
-        fn hydrus_panel_add_label(panel: Pin<&mut HydrusPanel>, text: &str);
-        fn hydrus_panel_add_button(panel: Pin<&mut HydrusPanel>, text: &str);
-        fn hydrus_panel_add_checkbox(panel: Pin<&mut HydrusPanel>, text: &str, checked: bool);
-        fn hydrus_panel_add_line_edit(panel: Pin<&mut HydrusPanel>, placeholder: &str);
-        fn hydrus_panel_add_stretch(panel: Pin<&mut HydrusPanel>);
-        fn hydrus_add_page_widget(
+        fn hydrus_set_menus(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_set_tag_suggestions(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_set_status(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_build_pages(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_update_page(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
+        fn hydrus_set_selection(
             window: Pin<&mut HydrusMainWindow>,
-            title: &str,
-            panel: Pin<&mut HydrusPanel>,
-        ) -> i32;
-
-        fn new_hydrus_media_panel() -> UniquePtr<HydrusMediaPanel>;
-        fn hydrus_media_panel_add_item(panel: Pin<&mut HydrusMediaPanel>, label: &str);
-        fn hydrus_media_panel_add_item_with_icon(
-            panel: Pin<&mut HydrusMediaPanel>,
-            path: &str,
-            label: &str,
+            page_id: &str,
+            hash: &str,
+            tags_json: &str,
+            preview_path: &str,
         );
-        fn hydrus_media_panel_clear(panel: Pin<&mut HydrusMediaPanel>);
-        fn hydrus_media_panel_count(panel: &HydrusMediaPanel) -> i32;
-        fn hydrus_add_media_page(
-            window: Pin<&mut HydrusMainWindow>,
-            title: &str,
-            panel: Pin<&mut HydrusMediaPanel>,
-        ) -> i32;
-
-        fn new_hydrus_canvas() -> UniquePtr<HydrusCanvas>;
-        fn hydrus_canvas_load_image(canvas: Pin<&mut HydrusCanvas>, path: &str) -> bool;
-        fn hydrus_canvas_clear(canvas: Pin<&mut HydrusCanvas>);
-        fn hydrus_canvas_fit(canvas: Pin<&mut HydrusCanvas>);
-        fn hydrus_canvas_zoom(canvas: Pin<&mut HydrusCanvas>, factor: f64);
-        fn hydrus_canvas_rotate(canvas: Pin<&mut HydrusCanvas>, degrees: i32);
-        fn hydrus_canvas_reset(canvas: Pin<&mut HydrusCanvas>);
-        fn hydrus_add_canvas_page(
-            window: Pin<&mut HydrusMainWindow>,
-            title: &str,
-            canvas: Pin<&mut HydrusCanvas>,
-        ) -> i32;
-
-        fn new_hydrus_scrolled_panel() -> UniquePtr<HydrusScrolledPanel>;
-        fn hydrus_scrolled_add_label(panel: Pin<&mut HydrusScrolledPanel>, text: &str);
-        fn hydrus_scrolled_add_button(panel: Pin<&mut HydrusScrolledPanel>, text: &str);
-        fn hydrus_scrolled_add_checkbox(
-            panel: Pin<&mut HydrusScrolledPanel>,
-            text: &str,
-            checked: bool,
-        );
-        fn hydrus_scrolled_add_line_edit(panel: Pin<&mut HydrusScrolledPanel>, placeholder: &str);
-        fn hydrus_scrolled_add_stretch(panel: Pin<&mut HydrusScrolledPanel>);
-        fn hydrus_add_scrolled_page(
-            window: Pin<&mut HydrusMainWindow>,
-            title: &str,
-            panel: Pin<&mut HydrusScrolledPanel>,
-        ) -> i32;
-
-        fn new_hydrus_dialog(
-            content: Pin<&mut HydrusPanel>,
-            title: &str,
-            width: i32,
-            height: i32,
-        ) -> UniquePtr<HydrusDialog>;
-        fn hydrus_dialog_exec(dialog: Pin<&mut HydrusDialog>) -> i32;
-
-        fn new_hydrus_list_panel() -> UniquePtr<HydrusListPanel>;
-        fn hydrus_list_set_columns(panel: Pin<&mut HydrusListPanel>, csv: &str);
-        fn hydrus_list_add_row(panel: Pin<&mut HydrusListPanel>, csv: &str);
-        fn hydrus_list_clear(panel: Pin<&mut HydrusListPanel>);
-        fn hydrus_list_row_count(panel: &HydrusListPanel) -> i32;
-        fn hydrus_add_list_page(
-            window: Pin<&mut HydrusMainWindow>,
-            title: &str,
-            panel: Pin<&mut HydrusListPanel>,
-        ) -> i32;
+        fn hydrus_show_page_chooser(window: Pin<&mut HydrusMainWindow>, notebook_id: &str);
+        fn hydrus_pick_files(window: Pin<&mut HydrusMainWindow>);
+        fn hydrus_prompt_url(window: Pin<&mut HydrusMainWindow>);
+        fn hydrus_open_viewer(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_update_viewer(window: Pin<&mut HydrusMainWindow>, viewer_id: &str, json: &str);
+        fn hydrus_close_viewer(window: Pin<&mut HydrusMainWindow>, viewer_id: &str);
+        fn hydrus_show_tag_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_message(window: Pin<&mut HydrusMainWindow>, title: &str, text: &str);
+        fn hydrus_notify_message(window: Pin<&mut HydrusMainWindow>, message: &str);
+        fn hydrus_open_path(path: &str);
+        fn hydrus_open_url(url: &str);
+        fn hydrus_schedule_screenshot(window: Pin<&mut HydrusMainWindow>, path: &str);
 
         fn qapp_set_application_name(name: &str);
         fn qapp_set_application_display_name(name: &str);
@@ -110,12 +50,34 @@ pub(crate) mod ffi {
         fn qapp_set_stylesheet(stylesheet: &str);
         fn qapp_quit();
     }
+
+    extern "Rust" {
+        fn app_action(
+            window: Pin<&mut HydrusMainWindow>,
+            action: &str,
+            target: &str,
+            payload: &str,
+        );
+    }
 }
 
+use std::pin::Pin;
+use std::sync::Arc;
+
+use crate::controller::Controller;
+use crate::gui::app;
 use crate::gui::qt_init::QtInit;
-use crate::gui::view_model::MainViewModel;
 
 use super::panels;
+
+fn app_action(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    action: &str,
+    target: &str,
+    payload: &str,
+) {
+    app::handle_action(window.as_mut(), action, target, payload);
+}
 
 pub(crate) fn apply_application_settings(
     app_name: &str,
@@ -135,39 +97,70 @@ pub(crate) fn quit_application() {
     ffi::qapp_quit();
 }
 
-pub fn run_application(model: &MainViewModel) {
+/// Starts the real client GUI.
+///
+/// The app state owns the controller and the page tree; the Qt layer is only a
+/// renderer. Every widget event comes back through [`app_action`] and every
+/// state change is rendered with an explicit [`app::UiCommand`].
+pub fn run_application(controller: Arc<Controller>) {
     let mut app = ffi::new_application();
 
-    QtInit::default().apply().ok();
+    let _ = QtInit::default().apply();
 
     let mut window = ffi::new_hydrus_main_window();
-
-    ffi::hydrus_set_title(window.pin_mut(), &model.title);
-    ffi::hydrus_resize_window(window.pin_mut(), 1280, 800);
     ffi::build_hydrus_shell(window.pin_mut());
 
-    for item in &model.sidebar {
-        ffi::hydrus_add_sidebar_item(window.pin_mut(), item);
+    app::install(controller);
+
+    if let Ok(paths) = std::env::var("HYDRUS_QT_IMPORT") {
+        let paths: Vec<String> = paths
+            .split(';')
+            .filter(|path| !path.is_empty())
+            .map(str::to_string)
+            .collect();
+
+        app::import_for_testing(&paths);
     }
 
-    for page in &model.pages {
-        ffi::hydrus_add_page(window.pin_mut(), page);
+    if let Ok(tag) = std::env::var("HYDRUS_QT_ADD_TAG") {
+        app::add_tag_for_testing(&tag);
     }
 
-    panels::add_panels(window.pin_mut(), &model.panels);
-
-    for menu in &model.menus {
-        for action in menu.actions {
-            ffi::hydrus_add_menu_action(window.pin_mut(), menu.title, action);
-        }
-
-        if menu.has_exit {
-            ffi::hydrus_add_exit_action(window.pin_mut(), menu.title, "Exit");
-        }
+    if let Ok(query) = std::env::var("HYDRUS_QT_QUERY") {
+        app::set_query_for_testing(&query);
     }
 
-    ffi::hydrus_set_status(window.pin_mut(), &model.status);
+    let mut commands = app::initial_commands();
+
+    if std::env::var_os("HYDRUS_QT_FOCUS_FIRST").is_some() {
+        commands.extend(app::focus_first_for_testing());
+    }
+
+    if std::env::var_os("HYDRUS_QT_OPEN_FIRST").is_some() {
+        commands.extend(app::open_first_for_testing());
+    }
+
+    if let Ok(script) = std::env::var("HYDRUS_QT_SCRIPT") {
+        commands.extend(app::run_script_for_testing(&script));
+    }
+
+    panels::execute_commands(window.pin_mut(), commands);
+
+    ffi::hydrus_set_title(window.pin_mut(), "Hydrus Client");
+    ffi::hydrus_resize_window(window.pin_mut(), 1280, 800);
     ffi::show_hydrus_main_window(window.pin_mut());
 
+    if let Ok(path) = std::env::var("HYDRUS_QT_SCREENSHOT") {
+        if !path.is_empty() {
+            ffi::hydrus_schedule_screenshot(window.pin_mut(), &path);
+        }
+    }
+
     ffi::exec_application(app.pin_mut());
+
+    app::save_session();
+}
+
+pub(crate) fn open_path(path: &str) {
+    ffi::hydrus_open_path(path);
 }

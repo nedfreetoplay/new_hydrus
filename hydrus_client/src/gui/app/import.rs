@@ -1,0 +1,276 @@
+//! The local "file import" pipeline.
+//!
+//! The Python client imports files through `ClientImportFiles`; the Rust port
+//! already had the hashing/metadata/thumbnail helpers but nothing that wrote a
+//! file into the client database. This module performs that end-to-end step:
+//! hash, inspect, copy into file storage, register metadata/service membership
+//! and generate a thumbnail.
+
+use std::path::{Path, PathBuf};
+
+use hydrus_core::files::hydrus_file_handling as core_files;
+use hydrus_core::hydrus_constants::{ContentStatus, Mime, TimestampType};
+use hydrus_core::hydrus_time;
+
+use crate::controller::Controller;
+use crate::db::{files_metadata, files_storage, files_timestamps, master};
+
+#[derive(Debug, Default)]
+pub struct ImportSummary {
+    pub hashes: Vec<Vec<u8>>,
+    pub imported: usize,
+    pub skipped: usize,
+    pub errors: Vec<String>,
+}
+
+impl ImportSummary {
+    pub fn message(&self) -> String {
+        let mut message = format!("imported {} files", self.imported);
+
+        if self.skipped > 0 {
+            message.push_str(&format!(", skipped {}", self.skipped));
+        }
+
+        if !self.errors.is_empty() {
+            message.push_str(&format!(", {} errors", self.errors.len()));
+        }
+
+        message
+    }
+}
+
+pub fn import_paths(controller: &Controller, paths: &[PathBuf]) -> ImportSummary {
+    let mut summary = ImportSummary::default();
+
+    let Some(file_service_id) =
+        crate::gui::app::query::local_file_service_id(controller, "my files")
+    else {
+        summary.errors.push("no local file domain".to_string());
+        return summary;
+    };
+
+    for path in paths {
+        match import_one(controller, file_service_id, path) {
+            Ok(hash) => {
+                summary.imported += 1;
+                summary.hashes.push(hash);
+            }
+            Err(error) => {
+                summary.skipped += 1;
+                summary.errors.push(format!("{}: {error}", path.display()));
+            }
+        }
+    }
+
+    summary
+}
+
+fn import_one(
+    controller: &Controller,
+    file_service_id: i64,
+    path: &Path,
+) -> Result<Vec<u8>, String> {
+    if !path.is_file() {
+        return Err("not a file".to_string());
+    }
+
+    let hash = core_files::get_hash_from_path(path).map_err(|error| error.to_string())?;
+    let mime = core_files::get_mime(path, false).map_err(|error| error.to_string())?;
+
+    if mime == Mime::Unknown {
+        return Err("unknown file type".to_string());
+    }
+
+    let info = core_files::get_file_info(path, Some(mime), false)
+        .unwrap_or_else(|_| fallback_info(path, mime));
+
+    let files_manager = controller.files_manager();
+    let destination = files_manager
+        .get_file_path(&hash, mime, false)
+        .map_err(|error| error.to_string())?;
+
+    if !destination.exists() {
+        if let Some(parent) = destination.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        }
+
+        std::fs::copy(path, &destination).map_err(|error| error.to_string())?;
+    }
+
+    let db = controller.db().db();
+    let hash_id = master::get_hash_id(db, &hash).map_err(|error| error.to_string())?;
+
+    files_metadata::set_file_info(db, hash_id, &info).map_err(|error| error.to_string())?;
+    files_storage::add_files(
+        db,
+        file_service_id,
+        ContentStatus::Current,
+        &[hash_id],
+        Some(hydrus_time::get_now()),
+    )
+    .map_err(|error| error.to_string())?;
+    files_storage::set_inbox(db, &[hash_id], true).map_err(|error| error.to_string())?;
+
+    if let Ok(timestamp) = core_files::get_file_modified_timestamp_ms(path) {
+        let _ = files_timestamps::set_file_timestamp(
+            db,
+            hash_id,
+            TimestampType::ModifiedFile,
+            Some(timestamp),
+        );
+    }
+
+    write_thumbnail(controller, &hash, path, &info);
+
+    Ok(hash)
+}
+
+fn fallback_info(path: &Path, mime: Mime) -> hydrus_core::files::hydrus_file_handling::FileInfo {
+    hydrus_core::files::hydrus_file_handling::FileInfo {
+        size: std::fs::metadata(path)
+            .map(|metadata| metadata.len())
+            .unwrap_or(0),
+        mime,
+        width: None,
+        height: None,
+        duration_ms: None,
+        num_frames: None,
+        has_audio: false,
+        num_words: None,
+    }
+}
+
+fn write_thumbnail(
+    controller: &Controller,
+    hash: &[u8],
+    path: &Path,
+    info: &hydrus_core::files::hydrus_file_handling::FileInfo,
+) {
+    let Ok(thumbnail_path) = controller.files_manager().get_thumbnail_path(hash) else {
+        return;
+    };
+
+    if let Some(parent) = thumbnail_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+
+    let generated = core_files::generate_thumbnail_bytes(
+        path,
+        (200, 200),
+        info.mime,
+        info.duration_ms,
+        info.num_frames,
+        35.0,
+    )
+    .or_else(|_| {
+        let image = core_files::generate_default_thumbnail(info.mime, (200, 200))?;
+        hydrus_core::files::images::hydrus_image_handling::generate_thumbnail_bytes_from_numpy(
+            &image,
+        )
+    });
+
+    if let Ok(bytes) = generated {
+        let _ = std::fs::write(thumbnail_path, bytes);
+    }
+}
+
+/// Downloads one file URL and imports it. This is the small synchronous core
+/// of the URL downloader; a queue/thread port will replace it later.
+pub fn import_url(controller: &Controller, url: &str) -> ImportSummary {
+    let mut summary = ImportSummary::default();
+
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        summary
+            .errors
+            .push("url must start with http:// or https://".to_string());
+        summary.skipped = 1;
+        return summary;
+    }
+
+    let client = match reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .user_agent("Hydrus Client (Rust port)")
+        .build()
+    {
+        Ok(client) => client,
+        Err(error) => {
+            summary.errors.push(error.to_string());
+            summary.skipped = 1;
+            return summary;
+        }
+    };
+
+    let bytes = match client
+        .get(url)
+        .send()
+        .and_then(|response| response.error_for_status())
+    {
+        Ok(response) => match response.bytes() {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                summary.errors.push(error.to_string());
+                summary.skipped = 1;
+                return summary;
+            }
+        },
+        Err(error) => {
+            summary.errors.push(error.to_string());
+            summary.skipped = 1;
+            return summary;
+        }
+    };
+
+    let (mut file, path) = match hydrus_core::hydrus_temp::get_temp_path("url_import", ".bin", None)
+    {
+        Ok(value) => value,
+        Err(error) => {
+            summary.errors.push(error.to_string());
+            summary.skipped = 1;
+            return summary;
+        }
+    };
+
+    use std::io::Write;
+
+    if let Err(error) = file.write_all(&bytes) {
+        summary.errors.push(error.to_string());
+        summary.skipped = 1;
+        return summary;
+    }
+
+    drop(file);
+
+    summary = import_paths(controller, &[path.clone()]);
+    let _ = std::fs::remove_file(path);
+
+    summary
+}
+
+/// Collects every file under a directory. Used by import folders later.
+pub fn walk_files(root: &Path, recursive: bool) -> Vec<PathBuf> {
+    let mut result = Vec::new();
+    let mut stack = vec![root.to_path_buf()];
+
+    while let Some(directory) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&directory) else {
+            continue;
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+
+            if path.is_dir() {
+                if recursive {
+                    stack.push(path);
+                }
+            } else if path.is_file() {
+                result.push(path);
+            }
+        }
+    }
+
+    result
+}
+
+#[cfg(test)]
+mod tests;

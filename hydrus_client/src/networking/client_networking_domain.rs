@@ -24,6 +24,20 @@ impl DomainManager {
         &self.url_classes
     }
 
+    pub fn set_url_classes(&mut self, url_classes: Vec<UrlClass>) {
+        self.url_classes = url_classes;
+    }
+
+    pub fn set_custom_headers(&mut self, headers: BTreeMap<String, CustomHeader>) {
+        self.custom_headers = headers;
+    }
+
+    pub fn remove_url_class(&mut self, name: &str) -> bool {
+        let before = self.url_classes.len();
+        self.url_classes.retain(|url_class| url_class.name != name);
+        self.url_classes.len() != before
+    }
+
     pub fn get_url_class_for_url(&self, url: &str) -> Option<&UrlClass> {
         self.url_classes
             .iter()

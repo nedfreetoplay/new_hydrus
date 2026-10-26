@@ -94,7 +94,9 @@ impl Controller {
     pub(super) fn load_options(&self) -> HydrusResult<()> {
         if let Some(object) = self.db.get_serialisable(OPTIONS_NAME)? {
             if let Some(options) = object.as_any().downcast_ref::<ClientOptions>() {
-                *self.options.write().unwrap() = options.clone();
+                let mut options = options.clone();
+                options.merge_missing(&ClientOptions::new());
+                *self.options.write().unwrap() = options;
                 return Ok(());
             }
         }

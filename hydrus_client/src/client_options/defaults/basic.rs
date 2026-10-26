@@ -48,6 +48,7 @@ pub(super) fn booleans() -> Map<String, Value> {
         ("global_audio_mute", false),
         ("media_viewer_audio_mute", false),
         ("use_advanced_file_deletion_dialog", false),
+        ("api_enabled", false),
     ];
 
     entries
@@ -123,6 +124,9 @@ pub(super) fn integers() -> Map<String, Value> {
             client_constants::MEDIA_VIEWER_TAGS_SCROLLING_BEHAVIOUR_ONLY_PROPAGATE_AFTER_DELAY
                 as i64,
         ),
+        ("api_port", 45869),
+        ("watcher_check_period", 3_600),
+        ("subscription_check_period", 86_400),
     ];
 
     entries
@@ -158,6 +162,8 @@ pub(super) fn strings() -> Map<String, Value> {
         ("last_incremental_tagging_suffix", ""),
         ("last_options_window_panel", "gui"),
         ("page_of_pages_decorator", " \u{2193}"),
+        ("api_access_key", ""),
+        ("api_host", "127.0.0.1"),
     ];
 
     entries

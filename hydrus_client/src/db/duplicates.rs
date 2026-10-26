@@ -53,6 +53,48 @@ pub fn get_potential_pairs(
     }
 }
 
+/// Candidate duplicate pairs that still need a decision. False positives and
+/// pairs without metadata on both sides are skipped.
+pub fn get_candidate_pairs(
+    db: &DBBase,
+    max_distance: Option<i64>,
+) -> HydrusResult<Vec<(i64, i64, i64)>> {
+    let sql = match max_distance {
+        Some(_) => {
+            "SELECT p.smaller_hash_id, p.larger_hash_id, p.distance
+             FROM potential_duplicate_pairs p
+             WHERE p.distance <= ?
+               AND NOT EXISTS (
+                   SELECT 1 FROM duplicate_false_positives f
+                   WHERE f.smaller_hash_id = p.smaller_hash_id
+                     AND f.larger_hash_id = p.larger_hash_id
+               )
+               AND EXISTS ( SELECT 1 FROM files_info a WHERE a.hash_id = p.smaller_hash_id )
+               AND EXISTS ( SELECT 1 FROM files_info b WHERE b.hash_id = p.larger_hash_id )
+             ORDER BY p.distance, p.smaller_hash_id"
+        }
+        None => {
+            "SELECT p.smaller_hash_id, p.larger_hash_id, p.distance
+             FROM potential_duplicate_pairs p
+             WHERE NOT EXISTS (
+                   SELECT 1 FROM duplicate_false_positives f
+                   WHERE f.smaller_hash_id = p.smaller_hash_id
+                     AND f.larger_hash_id = p.larger_hash_id
+               )
+               AND EXISTS ( SELECT 1 FROM files_info a WHERE a.hash_id = p.smaller_hash_id )
+               AND EXISTS ( SELECT 1 FROM files_info b WHERE b.hash_id = p.larger_hash_id )
+             ORDER BY p.distance, p.smaller_hash_id"
+        }
+    };
+
+    match max_distance {
+        Some(max_distance) => db.query_all(sql, &[&max_distance], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        }),
+        None => db.query_all(sql, &[], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?))),
+    }
+}
+
 pub fn add_false_positive(
     db: &DBBase,
     first_hash_id: i64,

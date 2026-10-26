@@ -15,14 +15,21 @@ use crate::gui::qt::bridge::ffi;
 use crate::gui::qt::panels;
 
 pub mod commands;
+pub mod download;
+pub mod duplicates;
 pub mod import;
 pub mod model;
+pub mod options;
 pub mod query;
 pub mod render;
 pub mod session;
+pub mod worker;
 
 pub use commands::UiCommand;
-use model::{AppState, Notebook, PageNode, PlaceholderPage, QueryPage, ViewerContext};
+use model::{
+    AppState, DownloaderKind, DownloaderPage, DuplicatesPage, Notebook, PageNode, PlaceholderPage,
+    QueryPage, SubscriptionsPage, ViewerContext,
+};
 
 thread_local! {
     static STATE: RefCell<Option<AppState>> = const { RefCell::new(None) };
@@ -32,7 +39,15 @@ pub fn install(controller: Arc<Controller>) {
     let state = AppState::new(controller);
     STATE.with(|slot| *slot.borrow_mut() = Some(state));
 
-    with_state_mut(|state| state.refresh_all());
+    with_state_mut(|state| {
+        state.refresh_all();
+
+        match state.controller.refresh_api() {
+            Ok(status) if status != "api disabled" => state.message = status,
+            Ok(_) => {}
+            Err(error) => state.message = format!("api failed: {error}"),
+        }
+    });
 }
 
 pub fn initial_commands() -> Vec<UiCommand> {
@@ -169,6 +184,25 @@ pub fn handle_action(
     }
 }
 
+/// Qt timer tick: drains background download/import events and runs due
+/// watcher/subscription checks.
+pub fn handle_tick(mut window: Pin<&mut ffi::HydrusMainWindow>) {
+    let commands = with_state_mut(download::tick);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+/// Stops the API server and saves the page tree when the application exits.
+pub fn shutdown() {
+    save_session();
+
+    with_state(|state| {
+        state.controller.stop_api();
+    });
+}
+
 fn with_state_mut<R>(call: impl FnOnce(&mut AppState) -> R) -> R {
     STATE.with(|slot| {
         let mut borrow = slot.borrow_mut();
@@ -196,12 +230,12 @@ impl AppState {
         UiCommand::Status(render::status_json(self))
     }
 
-    fn refresh_all(&mut self) {
+    pub(crate) fn refresh_all(&mut self) {
         let controller = self.controller.clone();
         refresh_notebook(&mut self.root, &controller);
     }
 
-    fn query_ids(&self) -> Vec<String> {
+    pub(crate) fn query_ids(&self) -> Vec<String> {
         let mut ids = Vec::new();
         collect_query_ids(&self.root, &mut ids);
         ids
@@ -231,6 +265,26 @@ impl AppState {
                 let notebook = self.active_notebook_id();
                 self.create_page(&notebook, "duplicates")
             }
+            "new_urls" => {
+                let notebook = self.active_notebook_id();
+                self.create_page(&notebook, "urls")
+            }
+            "new_gallery" => {
+                let notebook = self.active_notebook_id();
+                self.create_page(&notebook, "gallery")
+            }
+            "new_watcher" => {
+                let notebook = self.active_notebook_id();
+                self.create_page(&notebook, "watcher")
+            }
+            "new_simple" => {
+                let notebook = self.active_notebook_id();
+                self.create_page(&notebook, "simple")
+            }
+            "new_subscriptions" => {
+                let notebook = self.active_notebook_id();
+                self.create_page(&notebook, "subscriptions")
+            }
             "create_page" => self.create_page(target, payload),
             "close_page" => self.close_page(target),
             "close_other_pages" => self.close_other_pages(target),
@@ -244,6 +298,7 @@ impl AppState {
 
                 if let Some(page) = self.find_query_mut(target) {
                     page.query = payload.to_string();
+                    page.fixed_hashes = None;
                 }
 
                 self.replace_query_and_refresh(&controller, target)
@@ -265,12 +320,45 @@ impl AppState {
             "delete_files" => self.delete_files(target, payload),
             "import_files" => vec![UiCommand::PickFiles],
             "import_url" => vec![UiCommand::PromptUrl],
-            "download_url" => {
-                let summary = import::import_url(&self.controller, payload);
-                self.message = summary.message();
-                self.refresh_commands()
-            }
+            "download_url" => self.download_one_url(payload),
             "import_paths" => self.import_paths(payload),
+            "downloader_start" => download::start(self, target, payload),
+            "downloader_pause" => download::pause(self, target),
+            "downloader_clear" => download::clear(self, target),
+            "downloader_retry" => download::retry(self, target, payload),
+            "downloader_open_results" => download::open_results(self, target),
+            "watcher_check" => download::start(self, target, payload),
+            "watcher_auto" => {
+                if let Some(page) = self.find_downloader_mut(target) {
+                    page.auto_watch = !page.auto_watch;
+                    page.status = if page.auto_watch {
+                        "watching".to_string()
+                    } else {
+                        "automatic checks off".to_string()
+                    };
+                }
+                self.downloader_update(target)
+            }
+            "subscription_check" => download::start_subscription(self, target, payload),
+            "subscription_toggle" => download::toggle_subscription(self, target, payload),
+            "subscription_delete" => download::delete_subscription(self, target, payload),
+            "subscription_add" => download::add_subscription(self, target, payload),
+            "subscription_open_results" => {
+                download::open_subscription_results(self, target, payload)
+            }
+            action if action.starts_with("duplicates_") => {
+                duplicates::action(self, target, action, payload)
+            }
+            "options" => vec![UiCommand::OptionsDialog(options::options_json(self))],
+            "options_apply" => options::apply_options(self, payload),
+            "manage_services" => vec![UiCommand::ServicesDialog(options::services_json(self))],
+            "service_add" | "service_rename" | "service_delete" => {
+                options::service_action(self, action, payload)
+            }
+            "options_network" => vec![UiCommand::NetworkDialog(options::network_json(self))],
+            action if action.starts_with("network_") => {
+                options::network_action(self, action, payload)
+            }
             "exit" => vec![UiCommand::Quit],
             "open_db_dir" => vec![UiCommand::OpenPath(
                 self.controller.db_dir().display().to_string(),
@@ -282,7 +370,7 @@ impl AppState {
             "about" => vec![UiCommand::Message(
                 "about hydrus".to_string(),
                 format!(
-                    "Hydrus Client (Rust port)\n\nhydrus version {SOFTWARE_VERSION}\nRust + Qt 6\n\nThis is an in-progress port of the Python client; the query pages, local file import, thumbnails, media viewer and tag editing are wired to the real client database."
+                    "Hydrus Client (Rust port)\n\nhydrus version {SOFTWARE_VERSION}\nRust + Qt 6\n\nQuery pages, local and URL import, gallery/watcher/subscriptions downloaders, duplicates processing, thumbnails, the media viewer, tag editing, options, service/network managers and the local Client API are wired to the real client database."
                 ),
             )],
             "db_info" => {
@@ -322,16 +410,7 @@ impl AppState {
                     ))],
                 }
             }
-            "manage_services" => vec![UiCommand::NotifyMessage(
-                "service management is not ported yet; the local file/tag services are active"
-                    .to_string(),
-            )],
-            "options" => vec![UiCommand::NotifyMessage(
-                "the options dialog is not ported yet".to_string(),
-            )],
-            "options_network" => vec![UiCommand::NotifyMessage(
-                "the network settings dialog is not ported yet".to_string(),
-            )],
+            "pause_network" => options::network_action(self, "network_pause", ""),
             "tag_siblings" | "tag_parents" => vec![UiCommand::NotifyMessage(
                 "tag relation editing is not ported yet".to_string(),
             )],
@@ -340,9 +419,6 @@ impl AppState {
             )],
             "pending" => vec![UiCommand::NotifyMessage(
                 "there is no pending upload in this local-only build".to_string(),
-            )],
-            "pause_network" => vec![UiCommand::NotifyMessage(
-                "network pause is not ported yet".to_string(),
             )],
             "undo" => vec![UiCommand::NotifyMessage("nothing to undo".to_string())],
             unknown => vec![UiCommand::NotifyMessage(format!(
@@ -359,24 +435,57 @@ impl AppState {
         }
     }
 
-    fn refresh_page_commands(&mut self, page_id: &str) -> Vec<UiCommand> {
+    pub(crate) fn refresh_page_commands(&mut self, page_id: &str) -> Vec<UiCommand> {
         let controller = self.controller.clone();
 
-        let json = {
-            let Some(page) = self.find_query_mut(page_id) else {
-                return vec![UiCommand::NotifyMessage(
-                    "page is not a file page".to_string(),
-                )];
-            };
-
+        if let Some(page) = self.find_query_mut(page_id) {
             query::refresh_page(&controller, page);
-            render::query_state(&controller, page).to_string()
-        };
+            let json = render::query_state(&controller, page).to_string();
 
-        vec![
-            UiCommand::UpdatePage(page_id.to_string(), json),
-            self.status_command(),
-        ]
+            return vec![
+                UiCommand::UpdatePage(page_id.to_string(), json),
+                self.status_command(),
+            ];
+        }
+
+        if self.find_downloader(page_id).is_some() {
+            return self.downloader_update(page_id);
+        }
+
+        if let Some(page) = self.find_duplicates_mut(page_id) {
+            let value = render::duplicates_json(&controller, page);
+            return vec![
+                UiCommand::UpdateDuplicates(page_id.to_string(), value),
+                self.status_command(),
+            ];
+        }
+
+        if self.find_subscriptions(page_id).is_some() {
+            return vec![
+                UiCommand::UpdateSubscriptions(
+                    page_id.to_string(),
+                    render::subscriptions_json(self, page_id),
+                ),
+                self.status_command(),
+            ];
+        }
+
+        vec![UiCommand::NotifyMessage(
+            "this page cannot be refreshed".to_string(),
+        )]
+    }
+
+    pub(crate) fn downloader_update(&self, page_id: &str) -> Vec<UiCommand> {
+        match self.find_downloader(page_id) {
+            Some(page) => vec![
+                UiCommand::UpdateDownloader(
+                    page_id.to_string(),
+                    render::downloader_json(&self.controller, page),
+                ),
+                self.status_command(),
+            ],
+            None => vec![],
+        }
     }
 
     fn replace_query_and_refresh(
@@ -401,7 +510,7 @@ impl AppState {
         ]
     }
 
-    fn refresh_commands(&mut self) -> Vec<UiCommand> {
+    pub(crate) fn refresh_commands(&mut self) -> Vec<UiCommand> {
         let controller = self.controller.clone();
         let ids = self.query_ids();
         let mut commands = Vec::new();
@@ -458,6 +567,43 @@ impl AppState {
                 return vec![UiCommand::NotifyMessage("notebook is missing".to_string())];
             };
             parent.add(node);
+        } else if kind == "subscriptions" {
+            let id = self.new_id("p");
+            page_id = id.clone();
+
+            let Some(parent) = self.find_notebook_mut(notebook_id) else {
+                return vec![UiCommand::NotifyMessage("notebook is missing".to_string())];
+            };
+            parent.add(PageNode::Subscriptions(SubscriptionsPage::new(id)));
+        } else if kind == "duplicates" {
+            let id = self.new_id("p");
+            page_id = id.clone();
+            let mut page = DuplicatesPage::new(id);
+            duplicates::refresh_for(&controller, &mut page);
+
+            let Some(parent) = self.find_notebook_mut(notebook_id) else {
+                return vec![UiCommand::NotifyMessage("notebook is missing".to_string())];
+            };
+            parent.add(PageNode::Duplicates(page));
+        } else if let Some(kind) = DownloaderKind::parse(kind) {
+            let id = self.new_id("p");
+            page_id = id.clone();
+            let mut page = DownloaderPage::new(id, kind);
+
+            if kind == DownloaderKind::Watcher {
+                let period = controller.options().get_integer("watcher_check_period");
+
+                page.check_period = if period >= 60 {
+                    period.clamp(60, 30 * 86_400)
+                } else {
+                    3600
+                };
+            }
+
+            let Some(parent) = self.find_notebook_mut(notebook_id) else {
+                return vec![UiCommand::NotifyMessage("notebook is missing".to_string())];
+            };
+            parent.add(PageNode::Downloader(page));
         } else {
             let id = self.new_id("p");
             let (title, message) = placeholder_for(kind);
@@ -571,6 +717,9 @@ impl AppState {
         match node {
             PageNode::Query(page) => page.title = name.to_string(),
             PageNode::Notebook(notebook) => notebook.title = name.to_string(),
+            PageNode::Downloader(page) => page.title = name.to_string(),
+            PageNode::Subscriptions(page) => page.title = name.to_string(),
+            PageNode::Duplicates(page) => page.title = name.to_string(),
             PageNode::Placeholder(page) => page.title = name.to_string(),
         }
 
@@ -895,8 +1044,25 @@ impl AppState {
             return vec![UiCommand::NotifyMessage("no files selected".to_string())];
         }
 
-        let summary = import::import_paths(&self.controller, &paths);
-        self.message = summary.message();
+        let job = worker::AsyncJob::ImportPaths {
+            paths: paths.clone(),
+        };
+
+        if let Err(error) = self.runtime.submit(job) {
+            return vec![UiCommand::NotifyMessage(error)];
+        }
+
+        self.import_queue = model::ImportQueueState {
+            running: true,
+            done: 0,
+            total: paths.len(),
+            imported: 0,
+            failed: 0,
+            message: format!("queued {} files", paths.len()),
+        };
+        self.message = self.import_queue.message.clone();
+
+        let mut commands = Vec::new();
 
         if self.query_ids().is_empty() {
             let id = self.new_id("p");
@@ -907,14 +1073,38 @@ impl AppState {
             )));
             self.active = Some(id);
             self.refresh_all();
-
-            return vec![
-                UiCommand::BuildPages(render::pages_json(self)),
-                self.status_command(),
-            ];
+            commands.push(UiCommand::BuildPages(render::pages_json(self)));
         }
 
-        self.refresh_commands()
+        commands.push(self.status_command());
+        commands
+    }
+
+    fn download_one_url(&mut self, url: &str) -> Vec<UiCommand> {
+        let url = url.trim();
+
+        if !(url.starts_with("http://") || url.starts_with("https://")) {
+            return vec![UiCommand::NotifyMessage(
+                "the url must start with http:// or https://".to_string(),
+            )];
+        }
+
+        let notebook = self.active_notebook_id();
+        let id = self.new_id("p");
+        let mut page = DownloaderPage::new(id.clone(), DownloaderKind::Urls);
+        page.title = "url import".to_string();
+        page.input = url.to_string();
+
+        let Some(parent) = self.find_notebook_mut(&notebook) else {
+            return vec![UiCommand::NotifyMessage("notebook is missing".to_string())];
+        };
+        parent.add(PageNode::Downloader(page));
+        self.active = Some(id.clone());
+
+        let payload = serde_json::json!({"input": url}).to_string();
+        let mut commands = vec![UiCommand::BuildPages(render::pages_json(self))];
+        commands.extend(download::start(self, &id, &payload));
+        commands
     }
 }
 
@@ -923,7 +1113,8 @@ fn refresh_notebook(notebook: &mut Notebook, controller: &Controller) {
         match child {
             PageNode::Query(page) => query::refresh_page(controller, page),
             PageNode::Notebook(inner) => refresh_notebook(inner, controller),
-            PageNode::Placeholder(_) => {}
+            PageNode::Duplicates(page) => duplicates::refresh_for(controller, page),
+            PageNode::Downloader(_) | PageNode::Subscriptions(_) | PageNode::Placeholder(_) => {}
         }
     }
 }
@@ -933,7 +1124,10 @@ fn collect_query_ids(notebook: &Notebook, ids: &mut Vec<String>) {
         match child {
             PageNode::Query(page) => ids.push(page.id.clone()),
             PageNode::Notebook(inner) => collect_query_ids(inner, ids),
-            PageNode::Placeholder(_) => {}
+            PageNode::Downloader(_)
+            | PageNode::Subscriptions(_)
+            | PageNode::Duplicates(_)
+            | PageNode::Placeholder(_) => {}
         }
     }
 }
@@ -949,30 +1143,8 @@ fn collect_page_ids(node: &PageNode, ids: &mut Vec<String>) {
 }
 
 fn placeholder_for(kind: &str) -> (String, String) {
-    match kind {
-        "duplicates" => (
-            "duplicates processing".to_string(),
-            "Duplicates processing\n\nThe duplicate-pair queue and merge UI are not ported yet. File pages, import, thumbnails, the media viewer and tag editing are functional in this build.".to_string(),
-        ),
-        "urls" => (
-            "urls".to_string(),
-            "URL downloader\n\nThe network downloader page is not ported yet. Use File > Import files for local files.".to_string(),
-        ),
-        "watcher" => (
-            "watcher".to_string(),
-            "Thread watcher\n\nThe watcher/downloader page is not ported yet. Use File > Import files for local files.".to_string(),
-        ),
-        "gallery" => (
-            "gallery".to_string(),
-            "Gallery downloader\n\nThe gallery downloader page is not ported yet. Use File > Import files for local files.".to_string(),
-        ),
-        "simple" => (
-            "simple downloader".to_string(),
-            "Simple downloader\n\nThe simple downloader page is not ported yet. Use File > Import files for local files.".to_string(),
-        ),
-        _ => (
-            "page".to_string(),
-            "This page type is not ported yet.".to_string(),
-        ),
-    }
+    (
+        kind.to_string(),
+        format!("Unknown page type '{kind}'.\n\nThe page was kept so it can be renamed or closed."),
+    )
 }

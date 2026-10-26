@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 use hydrus_core::hydrus_constants::BandwidthType;
 use hydrus_core::networking::hydrus_networking::BandwidthRules;
+use serde::{Deserialize, Serialize};
 
 use crate::client_constants::NetworkContextType;
 use crate::networking::NetworkContext;
@@ -11,7 +12,7 @@ use crate::networking::client_networking_bandwidth::NetworkBandwidthManager;
 
 pub const DEFAULT_USER_AGENT: &str = "Mozilla/5.0 (compatible; Hydrus Client)";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CustomHeader {
     pub value: String,
     pub approved: bool,

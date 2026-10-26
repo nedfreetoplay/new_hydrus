@@ -23,6 +23,13 @@ pub(crate) mod ffi {
         fn hydrus_set_status(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_build_pages(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_page(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
+        fn hydrus_update_downloader(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
+        fn hydrus_update_subscriptions(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            json: &str,
+        );
+        fn hydrus_update_duplicates(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
         fn hydrus_set_selection(
             window: Pin<&mut HydrusMainWindow>,
             page_id: &str,
@@ -37,6 +44,19 @@ pub(crate) mod ffi {
         fn hydrus_update_viewer(window: Pin<&mut HydrusMainWindow>, viewer_id: &str, json: &str);
         fn hydrus_close_viewer(window: Pin<&mut HydrusMainWindow>, viewer_id: &str);
         fn hydrus_show_tag_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_options(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_services(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_update_services(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_network(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_update_network(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_start_tick(window: Pin<&mut HydrusMainWindow>);
+        fn hydrus_defer_action(
+            window: Pin<&mut HydrusMainWindow>,
+            action: &str,
+            target: &str,
+            payload: &str,
+            delay_ms: i32,
+        );
         fn hydrus_show_message(window: Pin<&mut HydrusMainWindow>, title: &str, text: &str);
         fn hydrus_notify_message(window: Pin<&mut HydrusMainWindow>, message: &str);
         fn hydrus_open_path(path: &str);
@@ -58,6 +78,7 @@ pub(crate) mod ffi {
             target: &str,
             payload: &str,
         );
+        fn app_tick(window: Pin<&mut HydrusMainWindow>);
     }
 }
 
@@ -77,6 +98,10 @@ fn app_action(
     payload: &str,
 ) {
     app::handle_action(window.as_mut(), action, target, payload);
+}
+
+fn app_tick(mut window: Pin<&mut ffi::HydrusMainWindow>) {
+    app::handle_tick(window.as_mut());
 }
 
 pub(crate) fn apply_application_settings(
@@ -149,6 +174,7 @@ pub fn run_application(controller: Arc<Controller>) {
     ffi::hydrus_set_title(window.pin_mut(), "Hydrus Client");
     ffi::hydrus_resize_window(window.pin_mut(), 1280, 800);
     ffi::show_hydrus_main_window(window.pin_mut());
+    ffi::hydrus_start_tick(window.pin_mut());
 
     if let Ok(path) = std::env::var("HYDRUS_QT_SCREENSHOT") {
         if !path.is_empty() {
@@ -156,9 +182,20 @@ pub fn run_application(controller: Arc<Controller>) {
         }
     }
 
+    if let Ok(script) = std::env::var("HYDRUS_QT_DEFER") {
+        let mut parts = script.split('|');
+        let action = parts.next().unwrap_or_default();
+        let target = parts.next().unwrap_or_default();
+        let payload = parts.next().unwrap_or_default();
+
+        if !action.is_empty() {
+            ffi::hydrus_defer_action(window.pin_mut(), action, target, payload, 400);
+        }
+    }
+
     ffi::exec_application(app.pin_mut());
 
-    app::save_session();
+    app::shutdown();
 }
 
 pub(crate) fn open_path(path: &str) {

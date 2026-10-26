@@ -2,15 +2,17 @@
 
 use std::collections::BTreeMap;
 
+use serde::{Deserialize, Serialize};
+
 use crate::networking::client_networking_functions::{ParsedUrl, parse_url};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PathComponent {
     Fixed(String),
     Variable { name: String, default: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UrlClass {
     pub name: String,
     pub url_type: i32,

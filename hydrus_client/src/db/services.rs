@@ -74,6 +74,20 @@ pub fn update_service(
     Ok(())
 }
 
+pub fn delete_service(db: &DBBase, service_key: &[u8]) -> HydrusResult<()> {
+    db.execute(
+        "DELETE FROM service_info WHERE service_id IN
+                ( SELECT service_id FROM services WHERE service_key = ? )",
+        &[&service_key],
+    )?;
+    db.execute(
+        "DELETE FROM services WHERE service_key = ?",
+        &[&service_key],
+    )?;
+
+    Ok(())
+}
+
 pub fn get_service_info(
     db: &DBBase,
     service_id: i64,

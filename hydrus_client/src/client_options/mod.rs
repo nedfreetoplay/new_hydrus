@@ -38,6 +38,27 @@ impl ClientOptions {
         &self.dictionary
     }
 
+    /// Adds keys that are present in `defaults` but missing from this dictionary.
+    /// Used after loading an options blob written by an older build.
+    pub fn merge_missing(&mut self, defaults: &ClientOptions) {
+        for (group_name, default_value) in &defaults.dictionary {
+            let Some(default_group) = default_value.as_object() else {
+                continue;
+            };
+
+            let target = self
+                .dictionary
+                .entry(group_name.clone())
+                .or_insert_with(|| Value::Object(Map::new()));
+
+            if let Some(target) = target.as_object_mut() {
+                for (key, value) in default_group {
+                    target.entry(key.clone()).or_insert_with(|| value.clone());
+                }
+            }
+        }
+    }
+
     fn group(&self, group: &str) -> Option<&Map<String, Value>> {
         self.dictionary.get(group).and_then(Value::as_object)
     }

@@ -2,7 +2,7 @@
 
 use serde_json::{Value, json};
 
-use super::model::{AppState, PageNode, QueryPage};
+use super::model::{AppState, DownloaderPage, DuplicatesPage, PageNode, QueryPage};
 use super::query;
 
 pub fn menus_json(state: &AppState) -> String {
@@ -75,10 +75,20 @@ pub fn menus_json(state: &AppState) -> String {
             ]
         },
         {
+            "title": "&download",
+            "items": [
+                {"label": "urls", "action": "new_urls", "description": "Download direct file URLs."},
+                {"label": "gallery", "action": "new_gallery", "description": "Parse a gallery page and download its files."},
+                {"label": "watcher", "action": "new_watcher", "description": "Watch a page for new files."},
+                {"label": "subscriptions", "action": "new_subscriptions", "description": "Manage periodic gallery subscriptions."},
+                {"label": "simple downloader", "action": "new_simple", "description": "Parse page links and download the files they point to."}
+            ]
+        },
+        {
             "title": "&network",
             "items": [
                 {"label": "manage network...", "action": "options_network"},
-                {"label": "pause all new network traffic", "action": "pause_network", "checkable": true, "checked": false}
+                {"label": "pause all new network traffic", "action": "pause_network", "checkable": true, "checked": state.controller.network_paused()}
             ]
         },
         {
@@ -145,6 +155,27 @@ fn node_json(state: &AppState, node: &PageNode) -> Value {
             "state": query_state(&state.controller, page),
         }),
         PageNode::Notebook(notebook) => notebook_node(state, notebook),
+        PageNode::Downloader(page) => json!({
+            "id": page.id,
+            "kind": "downloader",
+            "title": page.title,
+            "state": serde_json::from_str::<Value>(&downloader_json(&state.controller, page))
+                .unwrap_or(Value::Null),
+        }),
+        PageNode::Subscriptions(page) => json!({
+            "id": page.id,
+            "kind": "subscriptions",
+            "title": page.title,
+            "state": serde_json::from_str::<Value>(&subscriptions_json(state, &page.id))
+                .unwrap_or(Value::Null),
+        }),
+        PageNode::Duplicates(page) => json!({
+            "id": page.id,
+            "kind": "duplicates",
+            "title": page.title,
+            "state": serde_json::from_str::<Value>(&duplicates_json(&state.controller, page))
+                .unwrap_or(Value::Null),
+        }),
         PageNode::Placeholder(page) => json!({
             "id": page.id,
             "kind": "placeholder",
@@ -198,13 +229,67 @@ pub fn status_json(state: &AppState) -> String {
     let services = state.controller.services().get_num_services();
     let dir = state.controller.db_dir().display();
 
+    let mut idle = "idle".to_string();
+
+    if state.import_queue.running {
+        idle = format!(
+            "importing {}/{}",
+            state.import_queue.done, state.import_queue.total
+        );
+    } else if let Some((title, done, total)) = running_downloader(state) {
+        idle = format!("{title}: {done}/{total}");
+    }
+
+    if state.controller.network_paused() {
+        idle.push_str(" - network paused");
+    }
+
+    if let Some(address) = state.controller.api_status() {
+        idle.push_str(&format!(" - api {address}"));
+    }
+
     json!({
         "message": state.message,
         "media": media,
-        "idle": "idle",
+        "idle": idle,
         "db": format!("db {version} - {services} services - {dir}"),
     })
     .to_string()
+}
+
+fn running_downloader(state: &AppState) -> Option<(String, usize, usize)> {
+    fn visit(notebook: &super::model::Notebook, best: &mut Option<(String, usize, usize)>) {
+        for child in &notebook.children {
+            match child {
+                PageNode::Downloader(page) if page.running => {
+                    *best = Some((
+                        page.title.clone(),
+                        page.imported + page.failed,
+                        page.queue.len(),
+                    ));
+                }
+                PageNode::Notebook(inner) => visit(inner, best),
+                _ => {}
+            }
+        }
+    }
+
+    let mut best = None;
+    visit(&state.root, &mut best);
+
+    best.or_else(|| {
+        state
+            .subscriptions
+            .iter()
+            .find(|subscription| subscription.running)
+            .map(|subscription| {
+                (
+                    subscription.name.clone(),
+                    subscription.imported + subscription.failed,
+                    0,
+                )
+            })
+    })
 }
 
 pub fn viewer_json(
@@ -245,6 +330,148 @@ pub fn viewer_json(
         "info": format!("{info} - file {}/{}", position + 1, total),
     })
     .to_string()
+}
+
+pub fn downloader_json(
+    controller: &crate::controller::Controller,
+    page: &DownloaderPage,
+) -> String {
+    let _ = controller;
+
+    let queue: Vec<Value> = page
+        .queue
+        .iter()
+        .rev()
+        .take(400)
+        .rev()
+        .map(|item| {
+            json!({
+                "url": item.url,
+                "status": item.status.as_str(),
+                "note": item.note,
+            })
+        })
+        .collect();
+
+    json!({
+        "page_id": page.id,
+        "kind": page.kind,
+        "title": page.title,
+        "input": page.input,
+        "url": page.url,
+        "query": page.query,
+        "filter": page.filter,
+        "subject": page.subject,
+        "paused": page.paused,
+        "running": page.running,
+        "auto_watch": page.auto_watch,
+        "check_period": page.check_period,
+        "status": page.status,
+        "imported": page.imported,
+        "failed": page.failed,
+        "result_count": page.results.len(),
+        "queue": queue,
+        "log": page.log.iter().rev().take(200).cloned().collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n"),
+    })
+    .to_string()
+}
+
+pub fn subscriptions_json(state: &AppState, page_id: &str) -> String {
+    let now = hydrus_core::hydrus_time::get_now();
+    let page = state.find_subscriptions(page_id);
+
+    let subscriptions: Vec<Value> = state
+        .subscriptions
+        .iter()
+        .map(|subscription| {
+            let next = subscription.last_check + subscription.period.max(60);
+            json!({
+                "name": subscription.name,
+                "url": subscription.url,
+                "query": subscription.query,
+                "filter": subscription.filter,
+                "period": subscription.period,
+                "paused": subscription.paused,
+                "running": subscription.running,
+                "last_check": subscription.last_check,
+                "next_check": next,
+                "due_in": (next - now).max(0),
+                "imported": subscription.imported,
+                "failed": subscription.failed,
+                "status": subscription.status,
+                "result_count": subscription.results.len(),
+            })
+        })
+        .collect();
+
+    json!({
+        "page_id": page_id,
+        "title": page.map(|page| page.title.as_str()).unwrap_or("subscriptions"),
+        "status": page.map(|page| page.status.as_str()).unwrap_or(""),
+        "subscriptions": subscriptions,
+    })
+    .to_string()
+}
+
+pub fn duplicates_json(
+    controller: &crate::controller::Controller,
+    page: &DuplicatesPage,
+) -> String {
+    let pair = page.current().map(|pair| {
+        json!({
+            "distance": pair.distance,
+            "a": duplicate_media_json(controller, &pair.a),
+            "b": duplicate_media_json(controller, &pair.b),
+        })
+    });
+
+    json!({
+        "page_id": page.id,
+        "title": page.title,
+        "status": page.status,
+        "index": if page.pairs.is_empty() { 0 } else { page.index + 1 },
+        "total": page.pairs.len(),
+        "searched": page.searched,
+        "pair": pair,
+    })
+    .to_string()
+}
+
+fn duplicate_media_json(controller: &crate::controller::Controller, hash: &[u8]) -> Value {
+    let info = query::file_info_for(controller, hash);
+    let info_text = info
+        .as_ref()
+        .map(|info| {
+            let resolution = match (info.width, info.height) {
+                (Some(width), Some(height)) => format!("{width} x {height}"),
+                _ => "unknown resolution".to_string(),
+            };
+
+            format!(
+                "{resolution} - {} - {}",
+                human_size(info.size),
+                info.mime.as_str()
+            )
+        })
+        .unwrap_or_else(|| "no metadata".to_string());
+
+    json!({
+        "hash": query::hex(hash),
+        "thumb": query::thumbnail_path(controller, hash)
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
+        "preview": query::preview_path(controller, hash)
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
+        "info": info_text,
+        "tags": query::selection_tags(controller, hash),
+        "urls": query::hash_id_for(controller, hash)
+            .and_then(|hash_id| crate::db::url_map::get_urls(controller.db().db(), hash_id).ok())
+            .unwrap_or_default(),
+        "inbox": query::hash_id_for(controller, hash)
+            .and_then(|hash_id| crate::db::files_inbox::is_inbox(controller.db().db(), hash_id).ok())
+            .unwrap_or(false),
+    })
 }
 
 pub fn human_size(size: u64) -> String {

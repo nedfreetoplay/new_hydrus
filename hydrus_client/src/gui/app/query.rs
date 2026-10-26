@@ -27,6 +27,22 @@ pub fn refresh_page(controller: &Controller, page: &mut QueryPage) {
 fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String> {
     let db = controller.db().db();
 
+    if let Some(fixed) = &page.fixed_hashes {
+        page.hashes = fixed.clone();
+        page.empty_text = if fixed.is_empty() {
+            "no files were imported".to_string()
+        } else {
+            String::new()
+        };
+        page.status = match fixed.len() {
+            0 => "0 files".to_string(),
+            1 => "1 file".to_string(),
+            count => format!("{count} files"),
+        };
+
+        return Ok(());
+    }
+
     let service_ids = file_service_ids(controller, &page.location);
     let tag_service_id =
         tag_service_id(controller).ok_or_else(|| "no local tag service".to_string())?;
@@ -218,7 +234,6 @@ pub fn local_file_service_id(controller: &Controller, location: &str) -> Option<
         "trash" => "trash",
         _ => "my files",
     };
-
     manager
         .get_service(wanted.as_bytes())
         .map(|service| service.service_id)
@@ -270,10 +285,17 @@ pub fn tag_service_id(controller: &Controller) -> Option<i64> {
 }
 
 pub fn trash_service_id(controller: &Controller) -> Option<i64> {
-    controller
-        .services()
+    let manager = controller.services();
+
+    manager
         .get_service(b"trash")
         .map(|service| service.service_id)
+        .or_else(|| {
+            manager
+                .get_services(Some(&[ServiceType::LocalFileTrashDomain]))
+                .first()
+                .map(|service| service.service_id)
+        })
 }
 
 pub fn hash_id_for(controller: &Controller, hash: &[u8]) -> Option<i64> {

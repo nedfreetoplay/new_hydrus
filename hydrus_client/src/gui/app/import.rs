@@ -9,13 +9,15 @@
 use std::path::{Path, PathBuf};
 
 use hydrus_core::files::hydrus_file_handling as core_files;
-use hydrus_core::hydrus_constants::{ContentStatus, Mime, TimestampType};
+use hydrus_core::hydrus_constants::{ContentStatus, Mime, ServiceType, TimestampType};
+use hydrus_core::hydrus_db_base::DBBase;
 use hydrus_core::hydrus_time;
 
 use crate::controller::Controller;
 use crate::db::{
-    duplicates, files_metadata, files_storage, files_timestamps, master, similar_files,
+    duplicates, files_metadata, files_storage, files_timestamps, master, similar_files, url_map,
 };
+use crate::files::ClientFilesManager;
 use crate::files::images::{
     decode_image_path, discard_blank_perceptual_hashes, generate_shape_perceptual_hash,
 };
@@ -44,18 +46,92 @@ impl ImportSummary {
     }
 }
 
+/// The database and file-storage handles an import needs.
+///
+/// Keeping this separate from [`Controller`] lets background worker threads run
+/// the same import path without sharing the whole controller.
+#[derive(Clone)]
+pub struct ImportContext {
+    db: DBBase,
+    files_manager: ClientFilesManager,
+    file_service_id: i64,
+}
+
+impl ImportContext {
+    pub fn from_controller(controller: &Controller) -> Result<Self, String> {
+        Self::new(controller.db().db().clone(), controller.files_manager())
+    }
+
+    pub fn new(db: DBBase, files_manager: ClientFilesManager) -> Result<Self, String> {
+        let file_service_id = crate::db::services::get_services(&db)
+            .ok()
+            .and_then(|services| {
+                services
+                    .iter()
+                    .find(|service| service.name == "my files")
+                    .or_else(|| {
+                        services
+                            .iter()
+                            .find(|service| service.service_type == ServiceType::LocalFileDomain)
+                    })
+                    .map(|service| service.service_id)
+            })
+            .ok_or_else(|| "no local file domain".to_string())?;
+
+        Ok(Self {
+            db,
+            files_manager,
+            file_service_id,
+        })
+    }
+
+    pub fn db(&self) -> &DBBase {
+        &self.db
+    }
+
+    pub fn files_manager(&self) -> &ClientFilesManager {
+        &self.files_manager
+    }
+
+    pub fn import_file(&self, path: &Path) -> Result<Vec<u8>, String> {
+        self.import_file_from(path, None)
+    }
+
+    pub fn import_file_from(
+        &self,
+        path: &Path,
+        source_url: Option<&str>,
+    ) -> Result<Vec<u8>, String> {
+        let hash = import_one(
+            &self.db,
+            &self.files_manager,
+            self.file_service_id,
+            path,
+            source_url,
+        )?;
+
+        Ok(hash)
+    }
+}
+
 pub fn import_paths(controller: &Controller, paths: &[PathBuf]) -> ImportSummary {
+    match ImportContext::from_controller(controller) {
+        Ok(context) => import_paths_with(&context, paths),
+        Err(error) => ImportSummary {
+            errors: vec![error],
+            skipped: paths.len(),
+            ..ImportSummary::default()
+        },
+    }
+}
+
+/// Imports files with an explicit context. Used by the synchronous test helper
+/// and by the background import queue.
+pub fn import_paths_with(context: &ImportContext, paths: &[PathBuf]) -> ImportSummary {
     let mut summary = ImportSummary::default();
 
-    let Some(file_service_id) =
-        crate::gui::app::query::local_file_service_id(controller, "my files")
-    else {
-        summary.errors.push("no local file domain".to_string());
-        return summary;
-    };
-
     for path in paths {
-        match import_one(controller, file_service_id, path) {
+        match context.import_file(path) {
             Ok(hash) => {
                 summary.imported += 1;
                 summary.hashes.push(hash);
@@ -71,9 +147,11 @@ pub fn import_paths(controller: &Controller, paths: &[PathBuf]) -> ImportSummary
 }
 
 fn import_one(
-    controller: &Controller,
+    db: &DBBase,
+    files_manager: &ClientFilesManager,
     file_service_id: i64,
     path: &Path,
+    source_url: Option<&str>,
 ) -> Result<Vec<u8>, String> {
     if !path.is_file() {
         return Err("not a file".to_string());
@@ -89,7 +167,6 @@ fn import_one(
     let info = core_files::get_file_info(path, Some(mime), false)
         .unwrap_or_else(|_| fallback_info(path, mime));
 
-    let files_manager = controller.files_manager();
     let destination = files_manager
         .get_file_path(&hash, mime, false)
         .map_err(|error| error.to_string())?;
@@ -102,7 +179,6 @@ fn import_one(
         std::fs::copy(path, &destination).map_err(|error| error.to_string())?;
     }
 
-    let db = controller.db().db();
     let hash_id = master::get_hash_id(db, &hash).map_err(|error| error.to_string())?;
 
     files_metadata::set_file_info(db, hash_id, &info).map_err(|error| error.to_string())?;
@@ -116,6 +192,10 @@ fn import_one(
     .map_err(|error| error.to_string())?;
     files_storage::set_inbox(db, &[hash_id], true).map_err(|error| error.to_string())?;
 
+    if let Some(source_url) = source_url {
+        let _ = url_map::add_url(db, hash_id, source_url);
+    }
+
     if let Ok(timestamp) = core_files::get_file_modified_timestamp_ms(path) {
         let _ = files_timestamps::set_file_timestamp(
             db,
@@ -125,7 +205,7 @@ fn import_one(
         );
     }
 
-    write_thumbnail(controller, &hash, path, &info);
+    write_thumbnail(files_manager, &hash, path, &info);
     index_similar_files(db, hash_id, path, info.mime);
 
     Ok(hash)
@@ -208,12 +288,12 @@ fn fallback_info(path: &Path, mime: Mime) -> hydrus_core::files::hydrus_file_han
 }
 
 fn write_thumbnail(
-    controller: &Controller,
+    files_manager: &ClientFilesManager,
     hash: &[u8],
     path: &Path,
     info: &hydrus_core::files::hydrus_file_handling::FileInfo,
 ) {
-    let Ok(thumbnail_path) = controller.files_manager().get_thumbnail_path(hash) else {
+    let Ok(thumbnail_path) = files_manager.get_thumbnail_path(hash) else {
         return;
     };
 

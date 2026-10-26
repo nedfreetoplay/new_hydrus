@@ -6,7 +6,10 @@
 
 use std::sync::Arc;
 
+use serde::{Deserialize, Serialize};
+
 use crate::controller::Controller;
+use crate::gui::app::worker::AsyncRuntime;
 
 #[derive(Debug, Clone)]
 pub struct QueryPage {
@@ -19,6 +22,8 @@ pub struct QueryPage {
     pub focused: Option<Vec<u8>>,
     pub status: String,
     pub empty_text: String,
+    /// Set for file pages opened from a downloader result set.
+    pub fixed_hashes: Option<Vec<Vec<u8>>>,
 }
 
 impl QueryPage {
@@ -36,8 +41,288 @@ impl QueryPage {
             focused: None,
             status: String::new(),
             empty_text: String::new(),
+            fixed_hashes: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DownloaderKind {
+    Urls,
+    Gallery,
+    Watcher,
+    Simple,
+}
+
+impl DownloaderKind {
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::Urls => "urls",
+            Self::Gallery => "gallery",
+            Self::Watcher => "watcher",
+            Self::Simple => "simple downloader",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "urls" => Some(Self::Urls),
+            "gallery" => Some(Self::Gallery),
+            "watcher" => Some(Self::Watcher),
+            "simple" | "simple downloader" => Some(Self::Simple),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DownloadItemStatus {
+    Pending,
+    Working,
+    Done,
+    Error,
+}
+
+impl DownloadItemStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Working => "downloading",
+            Self::Done => "done",
+            Self::Error => "error",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadItem {
+    pub url: String,
+    pub status: DownloadItemStatus,
+    #[serde(default)]
+    pub note: String,
+}
+
+impl DownloadItem {
+    pub fn new(url: impl Into<String>) -> Self {
+        Self {
+            url: url.into(),
+            status: DownloadItemStatus::Pending,
+            note: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloaderPage {
+    pub id: String,
+    pub title: String,
+    pub kind: DownloaderKind,
+    /// One URL per line for the urls and simple downloader pages.
+    pub input: String,
+    /// The page or gallery URL used by gallery and watcher pages.
+    pub url: String,
+    /// Gallery search terms, substituted into `{query}` in the URL.
+    pub query: String,
+    /// Optional case-insensitive link filter for gallery/watcher parsing.
+    pub filter: String,
+    pub subject: String,
+    pub paused: bool,
+    pub running: bool,
+    pub auto_watch: bool,
+    pub last_check: i64,
+    pub check_period: i64,
+    pub queue: Vec<DownloadItem>,
+    pub imported: usize,
+    pub failed: usize,
+    pub status: String,
+    pub log: Vec<String>,
+    pub results: Vec<Vec<u8>>,
+}
+
+impl DownloaderPage {
+    pub fn new(id: impl Into<String>, kind: DownloaderKind) -> Self {
+        let title = kind.title().to_string();
+
+        Self {
+            id: id.into(),
+            title,
+            kind,
+            input: String::new(),
+            url: String::new(),
+            query: String::new(),
+            filter: String::new(),
+            subject: String::new(),
+            paused: false,
+            running: false,
+            auto_watch: false,
+            last_check: 0,
+            check_period: 3600,
+            queue: Vec::new(),
+            imported: 0,
+            failed: 0,
+            status: "ready".to_string(),
+            log: Vec::new(),
+            results: Vec::new(),
+        }
+    }
+
+    pub fn note(&mut self, message: impl Into<String>) {
+        let message = message.into();
+        self.status = message.clone();
+        self.log.push(message);
+
+        if self.log.len() > 500 {
+            self.log.drain(0..self.log.len() - 500);
+        }
+    }
+
+    pub fn pending_or_working(&self) -> usize {
+        self.queue
+            .iter()
+            .filter(|item| {
+                matches!(
+                    item.status,
+                    DownloadItemStatus::Pending | DownloadItemStatus::Working
+                )
+            })
+            .count()
+    }
+
+    pub fn clear_finished(&mut self) {
+        self.queue.retain(|item| {
+            !matches!(
+                item.status,
+                DownloadItemStatus::Done | DownloadItemStatus::Error
+            )
+        });
+    }
+
+    pub fn item_mut(&mut self, url: &str) -> Option<&mut DownloadItem> {
+        self.queue.iter_mut().find(|item| item.url == url)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscriptionEntry {
+    pub name: String,
+    pub url: String,
+    pub query: String,
+    pub filter: String,
+    #[serde(default = "default_subscription_period")]
+    pub period: i64,
+    pub paused: bool,
+    #[serde(default)]
+    pub running: bool,
+    #[serde(default)]
+    pub last_check: i64,
+    #[serde(default)]
+    pub imported: usize,
+    #[serde(default)]
+    pub failed: usize,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub results: Vec<Vec<u8>>,
+}
+
+fn default_subscription_period() -> i64 {
+    86_400
+}
+
+impl SubscriptionEntry {
+    pub fn new(name: impl Into<String>, url: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            url: url.into(),
+            query: String::new(),
+            filter: String::new(),
+            period: default_subscription_period(),
+            paused: false,
+            running: false,
+            last_check: 0,
+            imported: 0,
+            failed: 0,
+            status: "ready".to_string(),
+            results: Vec::new(),
+        }
+    }
+
+    pub fn is_due(&self, now: i64) -> bool {
+        !self.paused && !self.running && now >= self.last_check + self.period.max(60)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SubscriptionsPage {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+}
+
+impl SubscriptionsPage {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            title: "subscriptions".to_string(),
+            status: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DuplicatePairView {
+    pub a: Vec<u8>,
+    pub b: Vec<u8>,
+    pub distance: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct DuplicatesPage {
+    pub id: String,
+    pub title: String,
+    pub pairs: Vec<DuplicatePairView>,
+    pub index: usize,
+    pub status: String,
+    pub searched: i64,
+}
+
+impl DuplicatesPage {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            title: "duplicates processing".to_string(),
+            pairs: Vec::new(),
+            index: 0,
+            status: String::new(),
+            searched: 0,
+        }
+    }
+
+    pub fn current(&self) -> Option<&DuplicatePairView> {
+        self.pairs.get(self.index)
+    }
+
+    pub fn remove_current(&mut self) {
+        if self.index < self.pairs.len() {
+            self.pairs.remove(self.index);
+        }
+
+        if self.index >= self.pairs.len() {
+            self.index = 0;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ImportQueueState {
+    pub running: bool,
+    pub done: usize,
+    pub total: usize,
+    pub imported: usize,
+    pub failed: usize,
+    pub message: String,
 }
 
 #[derive(Debug, Clone)]
@@ -77,6 +362,9 @@ pub struct PlaceholderPage {
 pub enum PageNode {
     Query(QueryPage),
     Notebook(Notebook),
+    Downloader(DownloaderPage),
+    Subscriptions(SubscriptionsPage),
+    Duplicates(DuplicatesPage),
     Placeholder(PlaceholderPage),
 }
 
@@ -85,6 +373,9 @@ impl PageNode {
         match self {
             Self::Query(page) => &page.id,
             Self::Notebook(notebook) => &notebook.id,
+            Self::Downloader(page) => &page.id,
+            Self::Subscriptions(page) => &page.id,
+            Self::Duplicates(page) => &page.id,
             Self::Placeholder(page) => &page.id,
         }
     }
@@ -93,6 +384,9 @@ impl PageNode {
         match self {
             Self::Query(page) => &page.title,
             Self::Notebook(notebook) => &notebook.title,
+            Self::Downloader(page) => &page.title,
+            Self::Subscriptions(page) => &page.title,
+            Self::Duplicates(page) => &page.title,
             Self::Placeholder(page) => &page.title,
         }
     }
@@ -110,12 +404,16 @@ pub struct AppState {
     pub active: Option<String>,
     pub message: String,
     pub viewers: std::collections::BTreeMap<String, ViewerContext>,
+    pub subscriptions: Vec<SubscriptionEntry>,
+    pub import_queue: ImportQueueState,
+    pub(crate) runtime: AsyncRuntime,
     next_id: u64,
 }
 
 impl AppState {
     pub fn new(controller: Arc<Controller>) -> Self {
         let session_path = controller.db_dir().join("gui session.json");
+        let runtime = AsyncRuntime::new(controller.clone());
 
         let mut state = Self {
             controller,
@@ -123,16 +421,20 @@ impl AppState {
             active: None,
             message: "ready".to_string(),
             viewers: Default::default(),
+            subscriptions: Vec::new(),
+            import_queue: ImportQueueState::default(),
+            runtime,
             next_id: 1,
         };
 
-        if let Some(root) = crate::gui::app::session::load(&session_path) {
-            state.root = root;
-            state.reindex();
+        if let Some(loaded) = crate::gui::app::session::load_session(&session_path) {
+            state.root = loaded.root;
+            state.subscriptions = loaded.subscriptions;
         } else {
             state.root = default_root();
         }
 
+        state.reindex();
         state.active = current_leaf(&state.root).or_else(|| first_page_id(&state.root));
 
         state
@@ -144,9 +446,47 @@ impl AppState {
         id
     }
 
-    /// Makes the internal counter larger than every id in the loaded session.
+    /// Makes the internal counter larger than every id in the loaded session
+    /// and repairs duplicate ids written by early builds that started their
+    /// counter at 1 while the default page was already `p1`.
     fn reindex(&mut self) {
-        fn visit(node: &PageNode, max: &mut u64) {
+        fn visit(
+            node: &mut PageNode,
+            seen: &mut std::collections::BTreeSet<String>,
+            next: &mut u64,
+        ) {
+            let id = node.id().to_string();
+
+            if !seen.insert(id.clone()) {
+                let replacement = format!("p{next}");
+                *next += 1;
+                seen.insert(replacement.clone());
+
+                match node {
+                    PageNode::Query(page) => page.id = replacement,
+                    PageNode::Notebook(notebook) => notebook.id = replacement,
+                    PageNode::Downloader(page) => page.id = replacement,
+                    PageNode::Subscriptions(page) => page.id = replacement,
+                    PageNode::Duplicates(page) => page.id = replacement,
+                    PageNode::Placeholder(page) => page.id = replacement,
+                }
+            }
+
+            if let PageNode::Notebook(notebook) = node {
+                for child in &mut notebook.children {
+                    visit(child, seen, next);
+                }
+            }
+        }
+
+        let mut seen = std::collections::BTreeSet::new();
+        let mut next = self.next_id.max(2);
+
+        for child in &mut self.root.children {
+            visit(child, &mut seen, &mut next);
+        }
+
+        fn max_id(node: &PageNode, max: &mut u64) {
             let digits = node
                 .id()
                 .trim_start_matches(|character: char| !character.is_ascii_digit());
@@ -157,15 +497,15 @@ impl AppState {
 
             if let PageNode::Notebook(notebook) = node {
                 for child in &notebook.children {
-                    visit(child, max);
+                    max_id(child, max);
                 }
             }
         }
 
-        let mut max = 1;
+        let mut max = next.saturating_sub(1);
 
         for child in &self.root.children {
-            visit(child, &mut max);
+            max_id(child, &mut max);
         }
 
         self.next_id = max + 1;
@@ -181,6 +521,48 @@ impl AppState {
     pub fn find_query_mut(&mut self, id: &str) -> Option<&mut QueryPage> {
         find_node_mut(&mut self.root, id).and_then(|node| match node {
             PageNode::Query(page) => Some(page),
+            _ => None,
+        })
+    }
+
+    pub fn find_downloader(&self, id: &str) -> Option<&DownloaderPage> {
+        find_node(&self.root, id).and_then(|node| match node {
+            PageNode::Downloader(page) => Some(page),
+            _ => None,
+        })
+    }
+
+    pub fn find_downloader_mut(&mut self, id: &str) -> Option<&mut DownloaderPage> {
+        find_node_mut(&mut self.root, id).and_then(|node| match node {
+            PageNode::Downloader(page) => Some(page),
+            _ => None,
+        })
+    }
+
+    pub fn find_duplicates(&self, id: &str) -> Option<&DuplicatesPage> {
+        find_node(&self.root, id).and_then(|node| match node {
+            PageNode::Duplicates(page) => Some(page),
+            _ => None,
+        })
+    }
+
+    pub fn find_duplicates_mut(&mut self, id: &str) -> Option<&mut DuplicatesPage> {
+        find_node_mut(&mut self.root, id).and_then(|node| match node {
+            PageNode::Duplicates(page) => Some(page),
+            _ => None,
+        })
+    }
+
+    pub fn find_subscriptions(&self, id: &str) -> Option<&SubscriptionsPage> {
+        find_node(&self.root, id).and_then(|node| match node {
+            PageNode::Subscriptions(page) => Some(page),
+            _ => None,
+        })
+    }
+
+    pub fn find_subscriptions_mut(&mut self, id: &str) -> Option<&mut SubscriptionsPage> {
+        find_node_mut(&mut self.root, id).and_then(|node| match node {
+            PageNode::Subscriptions(page) => Some(page),
             _ => None,
         })
     }

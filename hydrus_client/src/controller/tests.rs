@@ -38,6 +38,81 @@ fn init_model_creates_local_services_and_loads_options() {
 }
 
 #[test]
+fn services_can_be_added_renamed_and_deleted() {
+    let (controller, directory) = temporary_controller();
+
+    let service_id = controller
+        .add_service("test tags", ServiceType::LocalTag)
+        .unwrap();
+    let service = controller
+        .services()
+        .get_services(None)
+        .into_iter()
+        .find(|service| service.service_id == service_id)
+        .cloned()
+        .unwrap();
+    let key: String = service
+        .service_key
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+
+    assert_eq!(service.name, "test tags");
+    assert_eq!(controller.services().get_num_services(), 4);
+
+    controller.rename_service(&key, "renamed tags").unwrap();
+    assert!(
+        controller
+            .services()
+            .names()
+            .iter()
+            .any(|name| *name == "renamed tags")
+    );
+
+    controller.delete_service(&key).unwrap();
+    assert_eq!(controller.services().get_num_services(), 3);
+
+    drop(controller);
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn network_settings_are_saved_and_reloaded() {
+    let (controller, directory) = temporary_controller();
+
+    controller
+        .domain_manager()
+        .write()
+        .unwrap()
+        .set_custom_header(
+            "X-Test",
+            CustomHeader {
+                value: "yes".to_string(),
+                approved: true,
+                note: String::new(),
+            },
+        );
+    controller.save_network_settings().unwrap();
+
+    let reloaded = Controller::new(&directory).unwrap();
+    reloaded.init_model().unwrap();
+
+    let header = reloaded
+        .domain_manager()
+        .read()
+        .unwrap()
+        .get_custom_header("X-Test")
+        .cloned()
+        .unwrap();
+
+    assert_eq!(header.value, "yes");
+
+    drop(reloaded);
+    drop(controller);
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn options_are_saved_and_reloaded() {
     let (controller, directory) = temporary_controller();
 

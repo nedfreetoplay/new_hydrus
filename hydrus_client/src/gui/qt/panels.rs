@@ -24,6 +24,15 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdatePage(page_id, json) => {
             ffi::hydrus_update_page(window.as_mut(), &page_id, &json);
         }
+        UiCommand::UpdateDownloader(page_id, json) => {
+            ffi::hydrus_update_downloader(window.as_mut(), &page_id, &json);
+        }
+        UiCommand::UpdateSubscriptions(page_id, json) => {
+            ffi::hydrus_update_subscriptions(window.as_mut(), &page_id, &json);
+        }
+        UiCommand::UpdateDuplicates(page_id, json) => {
+            ffi::hydrus_update_duplicates(window.as_mut(), &page_id, &json);
+        }
         UiCommand::SetSelection {
             page_id,
             hash,
@@ -46,6 +55,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
             ffi::hydrus_close_viewer(window.as_mut(), &viewer_id);
         }
         UiCommand::TagDialog(json) => ffi::hydrus_show_tag_dialog(window.as_mut(), &json),
+        UiCommand::OptionsDialog(json) => ffi::hydrus_show_options(window.as_mut(), &json),
+        UiCommand::ServicesDialog(json) => ffi::hydrus_show_services(window.as_mut(), &json),
+        UiCommand::NetworkDialog(json) => ffi::hydrus_show_network(window.as_mut(), &json),
         UiCommand::NotifyMessage(message) => {
             ffi::hydrus_notify_message(window.as_mut(), &message);
         }

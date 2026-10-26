@@ -41,6 +41,23 @@ fn serialisable_tuple_matches_python_layout() {
 }
 
 #[test]
+fn missing_defaults_are_filled_after_an_old_load() {
+    let mut options = ClientOptions::new();
+    let info = json!({
+        "booleans": { "advanced_mode": true },
+        "integers": { "human_bytes_sig_figs": 5 }
+    });
+
+    options.initialise_from_serialisable_info(&info).unwrap();
+    options.merge_missing(&ClientOptions::new());
+
+    assert!(options.get_boolean("advanced_mode"));
+    assert_eq!(options.get_integer("human_bytes_sig_figs"), 5);
+    assert_eq!(options.get_integer("api_port"), 45869);
+    assert_eq!(options.get_string("api_access_key"), "");
+}
+
+#[test]
 fn unknown_keys_survive_initialisation() {
     let mut options = ClientOptions::new();
     let info = json!({

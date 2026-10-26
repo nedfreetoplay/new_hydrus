@@ -55,22 +55,35 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
   управление тегами, archive/inbox/delete, F11;
 - импорт локальных файлов через меню и drag-and-drop: хэширование, копирование в
   файловое хранилище, `files_info`, сервис файлов, inbox и генерация миниатюр;
+- импорт локальных файлов и загрузка URL идут через фоновую очередь: прогресс виден
+  в статус-баре, интерфейс не блокируется;
+- страницы загрузчиков: полноценная `urls`-очередь с повтором/очисткой, `gallery`
+  (разбор страницы и постов по ссылкам, подстановка `{query}` в URL), `watcher`
+  с автоматическими проверками по периоду, `subscriptions` с менеджером подписок и
+  `simple downloader` для страниц со ссылками на файлы;
+- duplicates processing: пары из `potential_duplicate_pairs`, две стороны с превью,
+  тегами и URL, «this is better», «they are the same», «not duplicates», skip,
+  удаление обоих файлов; при merge переносятся теги и URL, худший файл уходит в trash;
+- Options с вкладками general/files/downloaders/network/client API, менеджер сервисов
+  (добавление, переименование и удаление пустых локальных сервисов) и менеджер сети
+  (прокси, таймауты, пользовательские заголовки, URL classes, пауза сети, запуск API);
+- Client API сервер на `127.0.0.1`: `/api_version`, `/get_services`,
+  `/get_files/search_files`, `/get_files/file_metadata`, `/get_files/file`,
+  `/add_tags/add_tags`, `/add_tags/delete_tags`, проверка access key;
 - импорт одного файла по URL через `File → import url…`;
 - редактирование тегов (локальный сервис), archive/inbox/перемещение в trash;
-- меню Hydrus (`file`, `undo`, `pages`, `database`, `network`, `services`, `tags`,
-  `pending`, `help`), сегментированный статус-бар и сохранение дерева страниц в
-  `gui session.json`.
+- меню Hydrus (`file`, `undo`, `pages`, `database`, `download`, `network`, `services`, `tags`,
+  `pending`, `help`), сегментированный статус-бар и сохранение дерева страниц,
+  загрузчиков и подписок в `gui session.json`.
 
 ### Что ещё не портировано
 
-- страницы загрузчиков: gallery / watcher / subscriptions / simple downloader / urls
-  (сейчас это честные страницы-заглушки);
-- duplicates processing (пары и merge UI);
-- окна Options и менеджеры сервисов/сети;
-- асинхронные очереди импорта и загрузки, Client API сервер;
-- полный набор tag-панелей и горячих клавиш Hydrus.
+- полноценные site-specific gallery parsers и редактор URL classes (сейчас работает
+  универсальный разбор `href`/`src`/`data-src` для страниц и постов);
+- полный набор tag-панелей, рейтингов, notes и горячих клавиш Hydrus;
+- импорт-папки, дедупликация по всем типам медиа и расширенные auto-resolution rules.
 
-Сейчас проходит 465 unit-тестов и 2 integration-теста. Архитектура:
+Сейчас проходит 478 unit-тестов и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Проверка GUI без ручного клика
@@ -86,5 +99,7 @@ $env:HYDRUS_QT_FOCUS_FIRST = '1'
 .\target\debug\hydrus_client.exe --db_dir C:\Temp\hydrus-test
 ```
 
-Также доступны `HYDRUS_QT_OPEN_FIRST`, `HYDRUS_QT_ADD_TAG` и `HYDRUS_QT_SCRIPT`
-(`action|target|payload;...`).
+Также доступны `HYDRUS_QT_OPEN_FIRST`, `HYDRUS_QT_ADD_TAG`, `HYDRUS_QT_SCRIPT`
+(`action|target|payload;...`), `HYDRUS_QT_DEFER` (одно отложенное действие после
+показа окна) и `HYDRUS_QT_SCREENSHOT_DELAY_MS`. Для проверки сети можно поднять
+локальный `python -m http.server` и запускать `urls`/`gallery` против `127.0.0.1`.

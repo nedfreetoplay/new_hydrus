@@ -18,7 +18,7 @@ fn manager() -> Arc<ApiManager<MockBackend>> {
 #[test]
 fn parses_get_request_target() {
     let request =
-        parse_request("GET /api_version?access_key=abc HTTP/1.1\r\nHost: x\r\n\r\n").unwrap();
+        parse_request(b"GET /api_version?access_key=abc HTTP/1.1\r\nHost: x\r\n\r\n").unwrap();
 
     assert_eq!(request.method, "GET");
     assert_eq!(request.path, "/api_version");

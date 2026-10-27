@@ -141,6 +141,7 @@ pub fn menus_json(state: &AppState) -> String {
             "title": "&help",
             "items": [
                 {"label": "documentation", "action": "docs"},
+                {"label": "command palette...", "action": "command_palette", "description": "Ctrl+K"},
                 {"label": "about", "action": "about"},
                 {"separator": true},
                 {"label": "debug", "items": [

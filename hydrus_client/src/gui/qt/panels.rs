@@ -69,6 +69,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::PageManagerDialog(json) => {
             ffi::hydrus_show_page_manager(window.as_mut(), &json);
         }
+        UiCommand::CommandPalette => {
+            ffi::hydrus_show_command_palette(window.as_mut());
+        }
         UiCommand::PromptText {
             action,
             title,

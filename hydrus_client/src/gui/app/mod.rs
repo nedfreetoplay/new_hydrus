@@ -352,6 +352,7 @@ impl AppState {
             "page_manager" => vec![UiCommand::PageManagerDialog(render::page_manager_json(
                 self,
             ))],
+            "command_palette" => vec![UiCommand::CommandPalette],
             "page_manager_activate" => {
                 if self.select_page(target) {
                     vec![

@@ -426,7 +426,7 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
 - [ ] 13.8 Exception handling window.
 - [ ] 13.9 Charts (file history, statistics).
 - [ ] 13.10 Полноценный About window.
-- [ ] 13.11 Command palette/locator.
+- [~] 13.11 Command palette/locator.
 - [ ] 13.12 Application commands и настраиваемые shortcut sets.
 - [ ] 13.13 Mouse shortcuts и press/release/double-click/drag.
 - [ ] 13.14 Drag & drop страниц/вкладок/файлов между окнами.

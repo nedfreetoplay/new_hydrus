@@ -556,6 +556,7 @@ void hydrus_set_selection(
     rust::Str metadata_json);
 void hydrus_show_page_chooser(HydrusMainWindow &window, rust::Str notebook_id);
 void hydrus_show_page_manager(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_command_palette(HydrusMainWindow &window);
 void hydrus_prompt_text(
     HydrusMainWindow &window,
     rust::Str action,

@@ -49,6 +49,7 @@ pub(crate) mod ffi {
         );
         fn hydrus_show_page_chooser(window: Pin<&mut HydrusMainWindow>, notebook_id: &str);
         fn hydrus_show_page_manager(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_command_palette(window: Pin<&mut HydrusMainWindow>);
         fn hydrus_prompt_text(
             window: Pin<&mut HydrusMainWindow>,
             action: &str,

@@ -26,6 +26,7 @@ pub enum UiCommand {
     Status(String),
     ShowPageChooser(String),
     PageManagerDialog(String),
+    CommandPalette,
     PromptText {
         action: String,
         title: String,

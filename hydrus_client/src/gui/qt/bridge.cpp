@@ -4288,6 +4288,8 @@ void HydrusMainWindow::build_shell() {
     }
 }
 
+void show_command_palette(HydrusMainWindow *main);
+
 void HydrusMainWindow::build_shortcuts() {
     auto *new_page = new QShortcut(QKeySequence(QStringLiteral("Ctrl+T")), this);
     connect(new_page, &QShortcut::activated, this, [this]() {
@@ -4319,6 +4321,11 @@ void HydrusMainWindow::build_shortcuts() {
 
     auto *page_manager = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+P")), this);
     connect(page_manager, &QShortcut::activated, this, [this]() { notify(QStringLiteral("page_manager")); });
+
+    auto *palette = new QShortcut(QKeySequence(QStringLiteral("Ctrl+K")), this);
+    connect(palette, &QShortcut::activated, this, [this]() {
+        show_command_palette(this);
+    });
 
     auto *duplicate = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+T")), this);
     connect(duplicate, &QShortcut::activated, this, [this]() {
@@ -4579,6 +4586,117 @@ void HydrusMainWindow::set_selection(
 }
 
 // ---------------------------------------------------------------------------
+// Command palette
+// ---------------------------------------------------------------------------
+
+class HydrusCommandPalette : public QDialog {
+public:
+    explicit HydrusCommandPalette(HydrusMainWindow *main_window, QWidget *parent = nullptr)
+        : QDialog(parent), main(main_window) {
+        setWindowTitle(QStringLiteral("command palette"));
+        resize(520, 420);
+
+        auto *layout = new QVBoxLayout(this);
+        filter = new QLineEdit(this);
+        filter->setPlaceholderText(QStringLiteral("type a command..."));
+        layout->addWidget(filter);
+
+        list = new QListWidget(this);
+        list->setSelectionMode(QAbstractItemView::SingleSelection);
+        layout->addWidget(list, 1);
+
+        const QList<QPair<QString, QString>> commands = {
+            {QStringLiteral("new page..."), QStringLiteral("new_page")},
+            {QStringLiteral("manage pages..."), QStringLiteral("page_manager")},
+            {QStringLiteral("duplicate current page"), QStringLiteral("duplicate_page")},
+            {QStringLiteral("back"), QStringLiteral("history_back")},
+            {QStringLiteral("forward"), QStringLiteral("history_forward")},
+            {QStringLiteral("refresh current page"), QStringLiteral("refresh_page")},
+            {QStringLiteral("options..."), QStringLiteral("options")},
+            {QStringLiteral("manage tags..."), QStringLiteral("manage_tags_active")},
+            {QStringLiteral("import files..."), QStringLiteral("import_files")},
+            {QStringLiteral("import url..."), QStringLiteral("import_url")},
+            {QStringLiteral("import folders..."), QStringLiteral("new_import_folders")},
+            {QStringLiteral("check all import folders"), QStringLiteral("import_folder_check_all")},
+            {QStringLiteral("manage services..."), QStringLiteral("manage_services")},
+            {QStringLiteral("manage network..."), QStringLiteral("options_network")},
+            {QStringLiteral("save session as..."), QStringLiteral("session_save_as")},
+            {QStringLiteral("backup session"), QStringLiteral("session_backup")},
+            {QStringLiteral("check database"), QStringLiteral("db_check")},
+            {QStringLiteral("analyze database"), QStringLiteral("db_analyze")},
+            {QStringLiteral("vacuum database"), QStringLiteral("db_vacuum")},
+            {QStringLiteral("database statistics"), QStringLiteral("db_stats")},
+            {QStringLiteral("undo closed page"), QStringLiteral("undo")},
+            {QStringLiteral("documentation"), QStringLiteral("docs")},
+            {QStringLiteral("about"), QStringLiteral("about")},
+            {QStringLiteral("exit"), QStringLiteral("exit")},
+        };
+
+        for (const auto &[label, action] : commands) {
+            auto *item = new QListWidgetItem(label, list);
+            item->setData(Qt::UserRole, action);
+        }
+
+        connect(filter, &QLineEdit::textChanged, this, [this](const QString &text) {
+            for (int index = 0; index < list->count(); ++index) {
+                QListWidgetItem *item = list->item(index);
+                item->setHidden(!text.isEmpty()
+                    && !item->text().contains(text, Qt::CaseInsensitive));
+            }
+
+            if (list->count() > 0) {
+                for (int index = 0; index < list->count(); ++index) {
+                    if (!list->item(index)->isHidden()) {
+                        list->setCurrentRow(index);
+                        break;
+                    }
+                }
+            }
+        });
+        connect(filter, &QLineEdit::returnPressed, this, [this]() { run_current(); });
+        connect(list, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *) {
+            run_current();
+        });
+
+        if (list->count() > 0) {
+            list->setCurrentRow(0);
+        }
+
+        filter->setFocus();
+    }
+
+private:
+    void run_current() {
+        QListWidgetItem *item = list->currentItem();
+
+        if (item == nullptr) {
+            return;
+        }
+
+        const QString action = item->data(Qt::UserRole).toString();
+        accept();
+
+        if (!action.isEmpty()) {
+            if (action == QStringLiteral("duplicate_page")
+                || action == QStringLiteral("refresh_page")) {
+                main->notify(action, main->active_page);
+            } else {
+                main->notify(action);
+            }
+        }
+    }
+
+    HydrusMainWindow *main = nullptr;
+    QLineEdit *filter = nullptr;
+    QListWidget *list = nullptr;
+};
+
+void show_command_palette(HydrusMainWindow *main) {
+    HydrusCommandPalette palette(main);
+    palette.exec();
+}
+
+// ---------------------------------------------------------------------------
 // Page manager
 // ---------------------------------------------------------------------------
 
@@ -4802,6 +4920,10 @@ void HydrusMainWindow::show_page_chooser(const QString &notebook_id) {
 void hydrus_show_page_manager(HydrusMainWindow &window, rust::Str json) {
     HydrusPageManager manager(&window, parse_object(json), &window);
     manager.exec();
+}
+
+void hydrus_show_command_palette(HydrusMainWindow &window) {
+    show_command_palette(&window);
 }
 
 void hydrus_prompt_text(

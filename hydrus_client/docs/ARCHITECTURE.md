@@ -156,6 +156,11 @@ namespace’ы с числом файлов; Qt рисует вкладки tags
 selected-файлам; префикс `-` удаляет тег. Обе операции идут через те же
 `mappings`, что и одиночное редактирование, и обновляют все страницы.
 
+`metadata::sort_display_tags` сортирует display-теги по lexicographic, namespace
+или subtag, а `display_tag_text` убирает namespace’ы и заменяет `_` на пробелы по
+опциям `show_namespaces`/`replace_tag_underscores_with_spaces`; выбор хранится в
+`tag_display_sort`.
+
 Избранные поиски хранятся в `favourite searches.json` рядом с сессией: имя,
 запрос, file domain и tag service. Меню `Pages → favourite searches` умеет
 сохранить текущий контекст, применить его к активной странице и удалить запись.

@@ -159,3 +159,32 @@ fn apply_tags_to_hashes_adds_and_removes_for_every_file() {
 
     let _ = std::fs::remove_dir_all(directory);
 }
+
+#[test]
+fn display_tag_options_control_sorting_and_namespaces() {
+    let mut tags = vec![
+        "series:thing".to_string(),
+        "creator:someone".to_string(),
+        "blue_eyes".to_string(),
+        "alpha:zulu".to_string(),
+    ];
+
+    sort_display_tags(&mut tags, "namespace");
+    assert_eq!(
+        tags,
+        vec!["blue_eyes", "alpha:zulu", "creator:someone", "series:thing"]
+    );
+
+    sort_display_tags(&mut tags, "subtag");
+    assert_eq!(
+        tags,
+        vec!["blue_eyes", "creator:someone", "series:thing", "alpha:zulu"]
+    );
+
+    assert_eq!(display_tag_text("blue_eyes", true, true), "blue eyes");
+    assert_eq!(display_tag_text("creator:someone", false, false), "someone");
+    assert_eq!(
+        display_tag_text("series:thing", true, false),
+        "series:thing"
+    );
+}

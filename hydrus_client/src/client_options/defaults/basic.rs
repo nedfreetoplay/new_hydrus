@@ -183,6 +183,7 @@ pub(super) fn strings() -> Map<String, Value> {
         ("api_access_key", ""),
         ("api_host", "127.0.0.1"),
         ("media_viewer_zoom_center", "mouse"),
+        ("tag_display_sort", "lexicographic"),
     ];
 
     entries

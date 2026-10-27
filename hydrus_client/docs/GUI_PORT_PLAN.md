@@ -183,7 +183,8 @@ Rust-цели: `gui/app/metadata.rs`, `gui/app/tag_relations.rs`,
 - [ ] 05.12 Suggested tags: recent, related, most used, favourites.
 - [ ] 05.13 File lookup script tags.
 - [ ] 05.14 Incremental tagging.
-- [ ] 05.15 Tag sorting options.
+- [x] 05.15 Tag sorting options: lexicographic/namespace/subtag, а также
+  показ namespace’ов и замена `_` на пробелы в options → tag presentation.
 - [x] 05.16 Tag actions: copy/paste/apply к выделению.
 - [x] 05.17 Редактор timestamps.
 - [ ] 05.18 Metadata conditional.
@@ -397,8 +398,9 @@ Rust-цели: `gui/app/options.rs`, `client_options`, `gui/qt/bridge.*`.
 - [ ] 12.36 system.
 - [ ] 12.37 system tray.
 - [ ] 12.38 tag editing.
-- [ ] 12.39 tag presentation.
-- [ ] 12.40 tag sort.
+- [~] 12.39 tag presentation (namespaces, underscores и decorators;
+  colours/subtag order ещё нет).
+- [x] 12.40 tag sort.
 - [ ] 12.41 tag suggestions.
 - [ ] 12.42 tag autocomplete tabs.
 - [~] 12.43 thumbnails (масштаб, masonry, scroll direction; остальные поля

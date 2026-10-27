@@ -158,6 +158,29 @@ pub fn add_viewing_stats_for_testing(views: i64) {
     });
 }
 
+/// Development helper: applies several tags to the first file on the active page.
+pub fn add_tags_for_testing(tags: &[String]) {
+    for tag in tags {
+        add_tag_for_testing(tag);
+    }
+}
+
+/// Development helper: changes tag presentation options before the first page
+/// is rendered.
+pub fn set_tag_display_options_for_testing(
+    sort: &str,
+    show_namespaces: bool,
+    replace_underscores: bool,
+) {
+    with_state_mut(|state| {
+        let mut options = state.controller.options();
+        options.set_string("tag_display_sort", sort);
+        options.set_boolean("show_namespaces", show_namespaces);
+        options.set_boolean("replace_tag_underscores_with_spaces", replace_underscores);
+        state.controller.replace_options(options);
+    });
+}
+
 /// Development helper: applies a tag to the first file on the active page.
 pub fn add_tag_for_testing(tag: &str) {
     with_state_mut(|state| {

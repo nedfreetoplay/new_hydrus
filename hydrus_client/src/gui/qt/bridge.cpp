@@ -940,6 +940,7 @@ HydrusMetadataPanel::HydrusMetadataPanel(HydrusMainWindow *main_window, QWidget 
     tag_layout->addWidget(tag_filter);
 
     display_tags = new QCheckBox(QStringLiteral("show display tags (siblings applied)"), tag_page);
+    display_tags->setChecked(true);
     tag_layout->addWidget(display_tags);
 
     tags = new QListWidget(tag_page);

@@ -220,6 +220,25 @@ pub fn run_application(controller: Arc<Controller>) {
         app::add_tag_for_testing(&tag);
     }
 
+    if let Ok(tags) = std::env::var("HYDRUS_QT_ADD_TAGS") {
+        let tags: Vec<String> = tags
+            .split(';')
+            .filter(|tag| !tag.is_empty())
+            .map(str::to_string)
+            .collect();
+
+        app::add_tags_for_testing(&tags);
+    }
+
+    if let Ok(value) = std::env::var("HYDRUS_QT_TAG_DISPLAY") {
+        let parts: Vec<&str> = value.split(',').collect();
+        let sort = parts.first().copied().unwrap_or("lexicographic");
+        let show_namespaces = !parts.iter().any(|part| *part == "no-namespaces");
+        let replace_underscores = parts.iter().any(|part| *part == "spaces");
+
+        app::set_tag_display_options_for_testing(sort, show_namespaces, replace_underscores);
+    }
+
     if let Ok(views) = std::env::var("HYDRUS_QT_VIEWS") {
         if let Ok(views) = views.parse::<i64>() {
             app::add_viewing_stats_for_testing(views);

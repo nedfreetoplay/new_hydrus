@@ -66,7 +66,10 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
   времени импорта, размеру, mime, разрешению, ratio, пикселям, duration, frames и
   словам (по возрастанию/убыванию) с сохранением в сессии; поверх миниатюр
   рисуются маркеры inbox, dup и рейтинг; context menu умеет copy tags,
-  paste tags из клипборда и apply tags to selection (строки с `-` удаляют тег); масштаб миниатюр, masonry-раскладка и
+  paste tags из клипборда и apply tags to selection (строки с `-` удаляют тег);
+  metadata-панель по умолчанию показывает display-теги, а options → tag presentation
+  управляют сортировкой (lexicographic/namespace/subtag), показом namespace’ов и
+  заменой `_` на пробелы; масштаб миниатюр, masonry-раскладка и
   горизонтальный скролл настраиваются в options → thumbnails; в шапке результатов
   видны число файлов и прогресс импорта, а во время поиска показывается loading
   panel; миниатюры можно перетаскивать в другие страницы или наружу как файлы, а
@@ -140,7 +143,7 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - расширенные file maintenance jobs (regenerate thumbnails, re-scan file metadata) и
   оставшиеся горячие клавиши Hydrus.
 
-Сейчас проходит 538 unit-тестов и 2 integration-теста. Архитектура:
+Сейчас проходит 539 unit-тестов и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). План портирования GUI с
 чек-листами и флагами: [docs/GUI_PORT_PLAN.md](docs/GUI_PORT_PLAN.md).
 

@@ -74,6 +74,29 @@ pub fn options_json(state: &AppState) -> String {
     ));
 
     tabs.push(tab(
+        "tags",
+        "tag presentation",
+        vec![
+            boolean(&options, "show_namespaces", "show namespaces"),
+            boolean(
+                &options,
+                "replace_tag_underscores_with_spaces",
+                "show underscores as spaces",
+            ),
+            boolean(
+                &options,
+                "expand_parents_on_storage_taglists",
+                "expand parent tags on storage lists",
+            ),
+            string(
+                &options,
+                "tag_display_sort",
+                "display sort (lexicographic/namespace/subtag)",
+            ),
+        ],
+    ));
+
+    tabs.push(tab(
         "thumbnails",
         "thumbnails",
         vec![

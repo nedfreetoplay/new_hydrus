@@ -131,9 +131,52 @@ pub fn metadata_json(controller: &Controller, hash: &[u8]) -> Value {
     })
 }
 
+pub fn sort_display_tags(tags: &mut [String], mode: &str) {
+    match mode {
+        "namespace" => tags.sort_by(|a, b| {
+            let (namespace_a, subtag_a) = split_display_tag(a);
+            let (namespace_b, subtag_b) = split_display_tag(b);
+
+            (namespace_a, subtag_a).cmp(&(namespace_b, subtag_b))
+        }),
+        "subtag" => tags.sort_by(|a, b| {
+            let (namespace_a, subtag_a) = split_display_tag(a);
+            let (namespace_b, subtag_b) = split_display_tag(b);
+
+            (subtag_a, namespace_a).cmp(&(subtag_b, namespace_b))
+        }),
+        _ => tags.sort(),
+    }
+}
+
+fn split_display_tag(tag: &str) -> (&str, &str) {
+    match tag.split_once(':') {
+        Some((namespace, subtag)) => (namespace, subtag),
+        None => ("", tag),
+    }
+}
+
+pub fn display_tag_text(tag: &str, show_namespaces: bool, replace_underscores: bool) -> String {
+    let mut text = if show_namespaces {
+        tag.to_string()
+    } else {
+        split_display_tag(tag).1.to_string()
+    };
+
+    if replace_underscores {
+        text = text.replace('_', " ");
+    }
+
+    text
+}
+
 pub fn tag_services(controller: &Controller, hash_id: i64) -> Vec<TagServiceView> {
     let manager = controller.services();
     let db = controller.db().db();
+    let options = controller.options();
+    let show_namespaces = options.get_boolean("show_namespaces");
+    let replace_underscores = options.get_boolean("replace_tag_underscores_with_spaces");
+    let sort_mode = options.get_string("tag_display_sort");
     let mut services: Vec<TagServiceView> = manager
         .get_services(Some(&[ServiceType::LocalTag]))
         .into_iter()
@@ -142,17 +185,23 @@ pub fn tag_services(controller: &Controller, hash_id: i64) -> Vec<TagServiceView
                 mappings::get_tags(db, service.service_id, ContentStatus::Current, hash_id)
                     .unwrap_or_default();
             tags.sort();
-            let display_tags = crate::db::tag_display::get_display_tags(
+            let mut display_tags = crate::db::tag_display::get_display_tags(
                 db,
                 service.service_id,
                 tags.iter().cloned(),
             )
             .unwrap_or_else(|_| tags.clone());
+            sort_display_tags(&mut display_tags, &sort_mode);
+            let display_tags: Vec<String> = display_tags
+                .into_iter()
+                .map(|tag| display_tag_text(&tag, show_namespaces, replace_underscores))
+                .collect();
             let mut display_tag_sources = BTreeMap::new();
 
             for tag in &tags {
                 let display = crate::db::tag_display::get_display_tag(db, service.service_id, tag)
                     .unwrap_or_else(|_| tag.clone());
+                let display = display_tag_text(&display, show_namespaces, replace_underscores);
                 display_tag_sources
                     .entry(display)
                     .or_insert_with(Vec::new)

@@ -249,11 +249,17 @@ void HydrusCanvas::rotate_by(int degrees) {
     centerOn(scene->sceneRect().center());
 }
 
+void HydrusCanvas::set_recenter_on_resize(bool value) {
+    recenter_on_resize = value;
+}
+
 void HydrusCanvas::resizeEvent(QResizeEvent *event) {
     QGraphicsView::resizeEvent(event);
 
     if (fit_mode) {
         fit_image();
+    } else if (recenter_on_resize && pixmap_item != nullptr) {
+        centerOn(scene->sceneRect().center());
     }
 }
 
@@ -466,6 +472,9 @@ HydrusMetadataPanel::HydrusMetadataPanel(HydrusMainWindow *main_window, QWidget 
     tag_filter->setPlaceholderText(QStringLiteral("filter tags"));
     tag_layout->addWidget(tag_filter);
 
+    display_tags = new QCheckBox(QStringLiteral("show display tags (siblings applied)"), tag_page);
+    tag_layout->addWidget(display_tags);
+
     tags = new QListWidget(tag_page);
     tags->setSelectionMode(QAbstractItemView::ExtendedSelection);
     tag_layout->addWidget(tags, 1);
@@ -508,6 +517,7 @@ HydrusMetadataPanel::HydrusMetadataPanel(HydrusMainWindow *main_window, QWidget 
         rebuild_tags();
     });
     connect(tag_filter, &QLineEdit::textChanged, this, [this](const QString &) { rebuild_tags(); });
+    connect(display_tags, &QCheckBox::clicked, this, [this](bool) { rebuild_tags(); });
     connect(add_button, &QPushButton::clicked, this, [this]() { add_tag(); });
     connect(remove_button, &QPushButton::clicked, this, [this]() { remove_selected_tags(); });
     connect(tag_input, &QLineEdit::returnPressed, this, [this]() { add_tag(); });
@@ -586,11 +596,26 @@ void HydrusMetadataPanel::rebuild_tags() {
             continue;
         }
 
-        for (const QJsonValue &tag : service.value(QStringLiteral("tags")).toArray()) {
+        const bool show_display = display_tags->isChecked();
+        const QJsonArray names = service.value(
+            show_display ? QStringLiteral("display_tags") : QStringLiteral("tags")).toArray();
+        const QJsonObject sources = service.value(QStringLiteral("display_tag_sources")).toObject();
+
+        for (const QJsonValue &tag : names) {
             const QString text = tag.toString();
 
             if (filter.isEmpty() || text.contains(filter, Qt::CaseInsensitive)) {
-                tags->addItem(text);
+                auto *item = new QListWidgetItem(text, tags);
+
+                if (show_display) {
+                    const QStringList storage = json_to_strings(
+                        sources.value(text).toArray());
+
+                    if (!storage.isEmpty()) {
+                        item->setToolTip(QStringLiteral("storage tags: %1").arg(
+                            storage.join(QStringLiteral(", "))));
+                    }
+                }
             }
         }
 
@@ -1700,8 +1725,8 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     connect(previous, &QPushButton::clicked, this, [this]() { navigate(QStringLiteral("prev")); });
     connect(next, &QPushButton::clicked, this, [this]() { navigate(QStringLiteral("next")); });
     connect(fit, &QPushButton::clicked, this, [this]() { canvas->fit_image(); });
-    connect(zoom_in, &QPushButton::clicked, this, [this]() { canvas->zoom_by(1.2); });
-    connect(zoom_out, &QPushButton::clicked, this, [this]() { canvas->zoom_by(1.0 / 1.2); });
+    connect(zoom_in, &QPushButton::clicked, this, [this]() { canvas->zoom_by(zoom_step); });
+    connect(zoom_out, &QPushButton::clicked, this, [this]() { canvas->zoom_by(1.0 / zoom_step); });
     connect(manage, &QPushButton::clicked, this, [this]() {
         const QByteArray page_bytes = page_id.toUtf8();
         const QByteArray hash_bytes = hash.toUtf8();
@@ -1721,10 +1746,12 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     bind_shortcut(QStringLiteral("Backspace"), [this]() { navigate(QStringLiteral("prev")); });
     bind_shortcut(QStringLiteral("Escape"), [this]() { QWidget::close(); });
     bind_shortcut(QStringLiteral("F"), [this]() { canvas->fit_image(); });
-    bind_shortcut(QStringLiteral("+"), [this]() { canvas->zoom_by(1.2); });
-    bind_shortcut(QStringLiteral("="), [this]() { canvas->zoom_by(1.2); });
-    bind_shortcut(QStringLiteral("-"), [this]() { canvas->zoom_by(1.0 / 1.2); });
+    bind_shortcut(QStringLiteral("+"), [this]() { canvas->zoom_by(zoom_step); });
+    bind_shortcut(QStringLiteral("="), [this]() { canvas->zoom_by(zoom_step); });
+    bind_shortcut(QStringLiteral("-"), [this]() { canvas->zoom_by(1.0 / zoom_step); });
     bind_shortcut(QStringLiteral("0"), [this]() { canvas->reset_zoom(); });
+    bind_shortcut(QStringLiteral("R"), [this]() { canvas->rotate_by(90); });
+    bind_shortcut(QStringLiteral("Shift+R"), [this]() { canvas->rotate_by(-90); });
     bind_shortcut(QStringLiteral("F11"), [this]() {
         if (isFullScreen()) {
             showNormal();
@@ -1771,6 +1798,41 @@ void HydrusViewerWindow::update_state(const QJsonObject &state) {
 
     const QString path = state.value(QStringLiteral("path")).toString();
     const QString title = state.value(QStringLiteral("title")).toString();
+    const bool on_top = state.value(QStringLiteral("always_on_top")).toBool(false);
+    const bool borderless = state.value(QStringLiteral("frameless")).toBool(false);
+
+    if (on_top != always_on_top || borderless != frameless) {
+        always_on_top = on_top;
+        frameless = borderless;
+
+        Qt::WindowFlags flags = Qt::Window;
+        const Qt::WindowFlags old_flags = windowFlags();
+
+        if (always_on_top) {
+            flags |= Qt::WindowStaysOnTopHint;
+        }
+
+        if (frameless) {
+            flags |= Qt::FramelessWindowHint;
+        }
+
+        if (flags != old_flags) {
+            const bool was_visible = isVisible();
+            setWindowFlags(flags);
+
+            if (was_visible) {
+                show();
+            }
+        }
+    }
+
+    const double step = state.value(QStringLiteral("zoom_step_percent")).toDouble(25.0);
+
+    if (step >= 5.0) {
+        zoom_step = 1.0 + step / 100.0;
+    }
+
+    canvas->set_recenter_on_resize(state.value(QStringLiteral("recenter")).toBool(true));
 
     setWindowTitle(title.isEmpty() ? QStringLiteral("media viewer") : title);
 
@@ -3136,6 +3198,205 @@ void HydrusNetworkDialog::remove_bandwidth_rule() {
 }
 
 // ---------------------------------------------------------------------------
+// HydrusTagRelationsDialog
+// ---------------------------------------------------------------------------
+
+HydrusTagRelationsDialog::HydrusTagRelationsDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    : QDialog(parent), main(main_window) {
+    setWindowTitle(QStringLiteral("tag siblings and parents"));
+    setAttribute(Qt::WA_DeleteOnClose, true);
+    resize(720, 520);
+
+    auto *layout = new QVBoxLayout(this);
+
+    auto *service_row = new QHBoxLayout();
+    service_row->addWidget(new QLabel(QStringLiteral("service"), this));
+    services = new QComboBox(this);
+    service_row->addWidget(services, 1);
+    layout->addLayout(service_row);
+
+    auto *help = new QLabel(
+        QStringLiteral("Siblings redirect a bad tag onto its preferred spelling. Parents describe a "
+                       "child -> parent hierarchy. The left column is the tag being changed; the right "
+                       "column is what it points to."),
+        this);
+    help->setWordWrap(true);
+    layout->addWidget(help);
+
+    tabs = new QTabWidget(this);
+
+    auto make_table = [this]() {
+        auto *table = new QTableWidget(this);
+        table->setColumnCount(2);
+        table->setHorizontalHeaderLabels({QStringLiteral("tag"), QStringLiteral("points to")});
+        table->horizontalHeader()->setStretchLastSection(true);
+        table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+        table->setSelectionBehavior(QAbstractItemView::SelectRows);
+        table->setSelectionMode(QAbstractItemView::SingleSelection);
+        table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        table->verticalHeader()->setVisible(false);
+        return table;
+    };
+
+    siblings = make_table();
+    parents = make_table();
+    tabs->addTab(siblings, QStringLiteral("siblings"));
+    tabs->addTab(parents, QStringLiteral("parents"));
+    layout->addWidget(tabs, 1);
+
+    auto *buttons = new QHBoxLayout();
+    auto *add = new QPushButton(QStringLiteral("add pair..."), this);
+    auto *remove = new QPushButton(QStringLiteral("remove"), this);
+    auto *close_button = new QPushButton(QStringLiteral("close"), this);
+    buttons->addWidget(add);
+    buttons->addWidget(remove);
+    buttons->addStretch(1);
+    buttons->addWidget(close_button);
+    layout->addLayout(buttons);
+
+    connect(services, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        rebuild();
+    });
+    connect(add, &QPushButton::clicked, this, [this]() { add_relation(); });
+    connect(remove, &QPushButton::clicked, this, [this]() { remove_selected(); });
+    connect(close_button, &QPushButton::clicked, this, &QDialog::close);
+
+    set_state(state);
+}
+
+void HydrusTagRelationsDialog::set_state(const QJsonObject &state) {
+    const bool first_load = data.isEmpty();
+    data = state;
+
+    const QString previous = services->currentData().toString();
+    QSignalBlocker blocker(services);
+    services->clear();
+
+    for (const QJsonValue &value : state.value(QStringLiteral("services")).toArray()) {
+        const QJsonObject service = value.toObject();
+        services->addItem(service.value(QStringLiteral("name")).toString(),
+                          service.value(QStringLiteral("key")).toString());
+    }
+
+    if (services->count() == 0) {
+        services->addItem(QStringLiteral("no local tag service"), QString());
+    }
+
+    if (!previous.isEmpty()) {
+        const int index = services->findData(previous);
+
+        if (index >= 0) {
+            services->setCurrentIndex(index);
+        }
+    }
+
+    blocker.unblock();
+
+    if (first_load) {
+        const QString tab = state.value(QStringLiteral("tab")).toString();
+        tabs->setCurrentIndex(tab == QStringLiteral("parents") ? 1 : 0);
+    }
+
+    rebuild();
+}
+
+void HydrusTagRelationsDialog::rebuild() {
+    siblings->setRowCount(0);
+    parents->setRowCount(0);
+
+    const QString key = services->currentData().toString();
+
+    for (const QJsonValue &value : data.value(QStringLiteral("relations")).toArray()) {
+        const QJsonObject relation = value.toObject();
+
+        if (relation.value(QStringLiteral("service")).toString() != key) {
+            continue;
+        }
+
+        const bool is_parent = relation.value(QStringLiteral("relation")).toString() == QStringLiteral("parents");
+        QTableWidget *table = is_parent ? parents : siblings;
+        const int row = table->rowCount();
+        table->setRowCount(row + 1);
+
+        auto *first = new QTableWidgetItem(relation.value(QStringLiteral("first")).toString());
+        first->setData(Qt::UserRole, relation.value(QStringLiteral("first")).toString());
+        auto *second = new QTableWidgetItem(relation.value(QStringLiteral("second")).toString());
+        second->setData(Qt::UserRole, relation.value(QStringLiteral("second")).toString());
+
+        table->setItem(row, 0, first);
+        table->setItem(row, 1, second);
+    }
+
+    for (QTableWidget *table : {siblings, parents}) {
+        table->resizeRowsToContents();
+    }
+}
+
+QTableWidget *HydrusTagRelationsDialog::current_table() const {
+    return tabs->currentIndex() == 1 ? parents : siblings;
+}
+
+QString HydrusTagRelationsDialog::current_relation() const {
+    return tabs->currentIndex() == 1 ? QStringLiteral("parents") : QStringLiteral("siblings");
+}
+
+void HydrusTagRelationsDialog::add_relation() {
+    const QString relation = current_relation();
+    const bool is_parent = relation == QStringLiteral("parents");
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(is_parent ? QStringLiteral("add tag parent") : QStringLiteral("add tag sibling"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+
+    auto *first = new QLineEdit(&dialog);
+    auto *second = new QLineEdit(&dialog);
+    first->setPlaceholderText(is_parent ? QStringLiteral("child tag") : QStringLiteral("bad tag"));
+    second->setPlaceholderText(is_parent ? QStringLiteral("parent tag") : QStringLiteral("good tag"));
+    form->addRow(is_parent ? QStringLiteral("child") : QStringLiteral("bad tag"), first);
+    form->addRow(is_parent ? QStringLiteral("parent") : QStringLiteral("good tag"), second);
+    layout->addLayout(form);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    if (first->text().trimmed().isEmpty() || second->text().trimmed().isEmpty()) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("relation"), relation);
+    payload.insert(QStringLiteral("service"), services->currentData().toString());
+    payload.insert(QStringLiteral("first"), first->text().trimmed());
+    payload.insert(QStringLiteral("second"), second->text().trimmed());
+
+    main->notify(QStringLiteral("tag_relations_add"), QString(), json_payload(payload));
+}
+
+void HydrusTagRelationsDialog::remove_selected() {
+    QTableWidget *table = current_table();
+    const int row = table->currentRow();
+
+    if (row < 0 || table->item(row, 0) == nullptr || table->item(row, 1) == nullptr) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("relation"), current_relation());
+    payload.insert(QStringLiteral("service"), services->currentData().toString());
+    payload.insert(QStringLiteral("first"), table->item(row, 0)->data(Qt::UserRole).toString());
+    payload.insert(QStringLiteral("second"), table->item(row, 1)->data(Qt::UserRole).toString());
+
+    main->notify(QStringLiteral("tag_relations_remove"), QString(), json_payload(payload));
+}
+
+// ---------------------------------------------------------------------------
 // HydrusImportFoldersPage
 // ---------------------------------------------------------------------------
 
@@ -3149,16 +3410,19 @@ HydrusImportFoldersPage::HydrusImportFoldersPage(HydrusMainWindow *main_window, 
     layout->addWidget(status);
 
     table = new QTableWidget(this);
-    table->setColumnCount(5);
+    table->setColumnCount(7);
     table->setHorizontalHeaderLabels({
         QStringLiteral("name"),
         QStringLiteral("path"),
         QStringLiteral("check every"),
+        QStringLiteral("after import"),
+        QStringLiteral("filters"),
         QStringLiteral("status"),
         QStringLiteral("last queued")
     });
     table->horizontalHeader()->setStretchLastSection(true);
     table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setSelectionMode(QAbstractItemView::SingleSelection);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -3167,17 +3431,22 @@ HydrusImportFoldersPage::HydrusImportFoldersPage(HydrusMainWindow *main_window, 
 
     auto *buttons = new QHBoxLayout();
     auto *add = new QPushButton(QStringLiteral("add folder..."), this);
+    auto *edit = new QPushButton(QStringLiteral("edit..."), this);
     auto *check = new QPushButton(QStringLiteral("check now"), this);
     auto *toggle = new QPushButton(QStringLiteral("pause/resume"), this);
     auto *remove = new QPushButton(QStringLiteral("remove"), this);
     buttons->addWidget(add);
+    buttons->addWidget(edit);
     buttons->addWidget(check);
     buttons->addWidget(toggle);
     buttons->addWidget(remove);
     buttons->addStretch(1);
     layout->addLayout(buttons);
 
-    connect(add, &QPushButton::clicked, this, [this]() { add_folder(); });
+    connect(add, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("import_folder_edit"), id);
+    });
+    connect(edit, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("import_folder_edit")); });
     connect(check, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("import_folder_check")); });
     connect(toggle, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("import_folder_toggle")); });
     connect(remove, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("import_folder_remove")); });
@@ -3187,43 +3456,6 @@ HydrusImportFoldersPage::HydrusImportFoldersPage(HydrusMainWindow *main_window, 
 
 const QString &HydrusImportFoldersPage::page_id() const {
     return id;
-}
-
-void HydrusImportFoldersPage::add_folder() {
-    const QString path = QFileDialog::getExistingDirectory(this, QStringLiteral("choose an import folder"));
-
-    if (path.isEmpty()) {
-        return;
-    }
-
-    bool ok = false;
-    const QString name = QInputDialog::getText(
-        this,
-        QStringLiteral("import folder"),
-        QStringLiteral("name"),
-        QLineEdit::Normal,
-        QFileInfo(path).fileName(),
-        &ok);
-
-    if (!ok || name.trimmed().isEmpty()) {
-        return;
-    }
-
-    const int period = QInputDialog::getInt(
-        this,
-        QStringLiteral("import folder"),
-        QStringLiteral("check every (seconds)"),
-        300,
-        60,
-        30 * 86400,
-        60);
-
-    QJsonObject payload;
-    payload.insert(QStringLiteral("name"), name.trimmed());
-    payload.insert(QStringLiteral("path"), path);
-    payload.insert(QStringLiteral("period"), period);
-
-    main->notify(QStringLiteral("import_folder_add"), id, json_payload(payload));
 }
 
 void HydrusImportFoldersPage::with_selected(const QString &action) {
@@ -3245,7 +3477,7 @@ void HydrusImportFoldersPage::update_state(const QJsonObject &state) {
     for (int index = 0; index < folders.size(); ++index) {
         const QJsonObject folder = folders.at(index).toObject();
 
-        for (int column = 0; column < 5; ++column) {
+        for (int column = 0; column < 7; ++column) {
             if (table->item(index, column) == nullptr) {
                 table->setItem(index, column, new QTableWidgetItem());
             }
@@ -3261,11 +3493,40 @@ void HydrusImportFoldersPage::update_state(const QJsonObject &state) {
             name->setForeground(QBrush());
         }
 
+        const QString action = folder.value(QStringLiteral("action")).toString();
+        QString action_text = action;
+
+        if (action == QStringLiteral("move")) {
+            action_text = QStringLiteral("move -> %1").arg(
+                folder.value(QStringLiteral("action_path")).toString());
+        }
+
+        QStringList filters;
+        const QString extensions = folder.value(QStringLiteral("extensions")).toString().trimmed();
+        const qint64 min_size = folder.value(QStringLiteral("min_size")).toVariant().toLongLong();
+        const qint64 max_size = folder.value(QStringLiteral("max_size")).toVariant().toLongLong();
+        const qint64 skip = folder.value(QStringLiteral("last_modified_skip")).toVariant().toLongLong();
+
+        if (!extensions.isEmpty()) {
+            filters.append(QStringLiteral("ext: %1").arg(extensions));
+        }
+
+        if (min_size > 0 || max_size > 0) {
+            filters.append(QStringLiteral("%1 - %2 bytes").arg(min_size).arg(
+                max_size > 0 ? QString::number(max_size) : QStringLiteral("any")));
+        }
+
+        if (skip > 0) {
+            filters.append(QStringLiteral("skip files newer than %1 s").arg(skip));
+        }
+
         table->item(index, 1)->setText(folder.value(QStringLiteral("path")).toString());
         table->item(index, 2)->setText(
             QStringLiteral("%1 s").arg(folder.value(QStringLiteral("period")).toInt()));
-        table->item(index, 3)->setText(folder.value(QStringLiteral("status")).toString());
-        table->item(index, 4)->setText(QString::number(folder.value(QStringLiteral("last_imported")).toInt()));
+        table->item(index, 3)->setText(action_text);
+        table->item(index, 4)->setText(filters.isEmpty() ? QStringLiteral("any") : filters.join(QStringLiteral("; ")));
+        table->item(index, 5)->setText(folder.value(QStringLiteral("status")).toString());
+        table->item(index, 6)->setText(QString::number(folder.value(QStringLiteral("last_imported")).toInt()));
     }
 
     table->resizeRowsToContents();
@@ -3527,6 +3788,39 @@ void HydrusMainWindow::build_shortcuts() {
 
     auto *import = new QShortcut(QKeySequence(QStringLiteral("Ctrl+I")), this);
     connect(import, &QShortcut::activated, this, [this]() { notify(QStringLiteral("import_files")); });
+
+    auto *import_url = new QShortcut(QKeySequence(QStringLiteral("Ctrl+U")), this);
+    connect(import_url, &QShortcut::activated, this, [this]() { notify(QStringLiteral("import_url")); });
+
+    auto *import_folders = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+I")), this);
+    connect(import_folders, &QShortcut::activated, this, [this]() {
+        notify(QStringLiteral("new_import_folders"));
+    });
+
+    auto *options = new QShortcut(QKeySequence(QStringLiteral("Ctrl+P")), this);
+    connect(options, &QShortcut::activated, this, [this]() { notify(QStringLiteral("options")); });
+
+    auto *manage_tags = new QShortcut(QKeySequence(QStringLiteral("Ctrl+M")), this);
+    manage_tags->setContext(Qt::ApplicationShortcut);
+    connect(manage_tags, &QShortcut::activated, this, [this]() {
+        notify(QStringLiteral("manage_tags_active"));
+    });
+
+    auto *archive = new QShortcut(QKeySequence(QStringLiteral("F7")), this);
+    connect(archive, &QShortcut::activated, this, [this]() { notify(QStringLiteral("archive_active")); });
+
+    auto *inbox = new QShortcut(QKeySequence(QStringLiteral("F8")), this);
+    connect(inbox, &QShortcut::activated, this, [this]() { notify(QStringLiteral("inbox_active")); });
+
+    auto *refresh_f5 = new QShortcut(QKeySequence(QStringLiteral("F5")), this);
+    connect(refresh_f5, &QShortcut::activated, this, [this]() {
+        if (!active_page.isEmpty()) {
+            notify(QStringLiteral("refresh_page"), active_page);
+        }
+    });
+
+    auto *quit = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Q")), this);
+    connect(quit, &QShortcut::activated, this, [this]() { notify(QStringLiteral("exit")); });
 }
 
 void HydrusMainWindow::set_status(const QJsonObject &status) {
@@ -3921,6 +4215,171 @@ void HydrusMainWindow::show_duplicates_rules(const QJsonObject &state) {
     duplicates_rules_dialog->activateWindow();
 }
 
+void HydrusMainWindow::show_tag_relations(const QJsonObject &state) {
+    if (tag_relations_dialog == nullptr) {
+        tag_relations_dialog = new HydrusTagRelationsDialog(this, state, this);
+        connect(tag_relations_dialog, &QObject::destroyed, this, [this]() {
+            tag_relations_dialog = nullptr;
+        });
+        tag_relations_dialog->show();
+    } else {
+        tag_relations_dialog->set_state(state);
+    }
+
+    tag_relations_dialog->raise();
+    tag_relations_dialog->activateWindow();
+}
+
+void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
+    const QJsonObject folder = state.value(QStringLiteral("folder")).toObject();
+    const QString original = folder.value(QStringLiteral("name")).toString();
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(original.isEmpty() ? QStringLiteral("add import folder")
+                                             : QStringLiteral("edit import folder '%1'").arg(original));
+    dialog.resize(620, 480);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+
+    auto *name = new QLineEdit(folder.value(QStringLiteral("name")).toString(), &dialog);
+    auto *path_row = new QWidget(&dialog);
+    auto *path_layout = new QHBoxLayout(path_row);
+    path_layout->setContentsMargins(0, 0, 0, 0);
+    auto *path = new QLineEdit(folder.value(QStringLiteral("path")).toString(), path_row);
+    auto *browse = new QPushButton(QStringLiteral("browse..."), path_row);
+    path_layout->addWidget(path, 1);
+    path_layout->addWidget(browse);
+
+    auto *period = new QSpinBox(&dialog);
+    period->setRange(60, 30 * 86400);
+    period->setSingleStep(60);
+    period->setValue(folder.value(QStringLiteral("period")).toInt(300));
+    period->setSuffix(QStringLiteral(" s"));
+
+    auto *regular = new QCheckBox(QStringLiteral("check this folder regularly"), &dialog);
+    regular->setChecked(folder.value(QStringLiteral("check_regularly")).toBool(true));
+    auto *subdirectories = new QCheckBox(QStringLiteral("search subdirectories"), &dialog);
+    subdirectories->setChecked(folder.value(QStringLiteral("search_subdirectories")).toBool(true));
+
+    auto *skip = new QSpinBox(&dialog);
+    skip->setRange(0, 30 * 86400);
+    skip->setValue(folder.value(QStringLiteral("last_modified_skip")).toVariant().toInt());
+    skip->setSuffix(QStringLiteral(" s"));
+    skip->setToolTip(QStringLiteral("ignore files modified more recently than this"));
+
+    auto *action = new QComboBox(&dialog);
+    action->addItem(QStringLiteral("leave the file alone"), QStringLiteral("ignore"));
+    action->addItem(QStringLiteral("move it to a folder"), QStringLiteral("move"));
+    action->addItem(QStringLiteral("delete it"), QStringLiteral("delete"));
+    const QString action_value = folder.value(QStringLiteral("action")).toString();
+    const int action_index = action->findData(action_value);
+    action->setCurrentIndex(action_index >= 0 ? action_index : 0);
+
+    auto *action_row = new QWidget(&dialog);
+    auto *action_layout = new QHBoxLayout(action_row);
+    action_layout->setContentsMargins(0, 0, 0, 0);
+    auto *action_path = new QLineEdit(folder.value(QStringLiteral("action_path")).toString(), action_row);
+    auto *action_browse = new QPushButton(QStringLiteral("browse..."), action_row);
+    action_layout->addWidget(action_path, 1);
+    action_layout->addWidget(action_browse);
+
+    auto *min_size = new QSpinBox(&dialog);
+    min_size->setRange(0, 2'000'000'000);
+    min_size->setValue(folder.value(QStringLiteral("min_size")).toVariant().toInt());
+    min_size->setSuffix(QStringLiteral(" bytes"));
+    auto *max_size = new QSpinBox(&dialog);
+    max_size->setRange(0, 2'000'000'000);
+    max_size->setValue(folder.value(QStringLiteral("max_size")).toVariant().toInt());
+    max_size->setSuffix(QStringLiteral(" bytes"));
+    auto *extensions = new QLineEdit(folder.value(QStringLiteral("extensions")).toString(), &dialog);
+    extensions->setPlaceholderText(QStringLiteral("jpg, png, webp (empty accepts everything)"));
+
+    form->addRow(QStringLiteral("name"), name);
+    form->addRow(QStringLiteral("folder"), path_row);
+    form->addRow(QStringLiteral("check every"), period);
+    form->addRow(regular);
+    form->addRow(subdirectories);
+    form->addRow(QStringLiteral("skip recent files"), skip);
+    form->addRow(QStringLiteral("after import"), action);
+    form->addRow(QStringLiteral("move to"), action_row);
+    form->addRow(QStringLiteral("minimum size"), min_size);
+    form->addRow(QStringLiteral("maximum size"), max_size);
+    form->addRow(QStringLiteral("extensions"), extensions);
+    layout->addLayout(form);
+
+    auto *note = new QLabel(
+        QStringLiteral("Filters are applied before a file is queued. Move/delete runs only for "
+                       "files that imported successfully."),
+        &dialog);
+    note->setWordWrap(true);
+    layout->addWidget(note);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, [&dialog, path, action, action_path]() {
+        if (path->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("import folder"), QStringLiteral("Choose a folder to import from."));
+            return;
+        }
+
+        if (action->currentData().toString() == QStringLiteral("move")
+            && action_path->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("import folder"), QStringLiteral("Choose a destination folder for moved files."));
+            return;
+        }
+
+        dialog.accept();
+    });
+
+    auto sync_action = [form, action, action_path, action_browse, action_row](int) {
+        const bool move = action->currentData().toString() == QStringLiteral("move");
+        action_path->setEnabled(move);
+        action_browse->setEnabled(move);
+        form->setRowVisible(action_row, move);
+    };
+
+    connect(action, QOverload<int>::of(&QComboBox::currentIndexChanged), &dialog, sync_action);
+    sync_action(0);
+
+    connect(browse, &QPushButton::clicked, &dialog, [this, &dialog, path]() {
+        const QString chosen = QFileDialog::getExistingDirectory(&dialog, QStringLiteral("choose an import folder"), path->text());
+
+        if (!chosen.isEmpty()) {
+            path->setText(chosen);
+        }
+    });
+
+    connect(action_browse, &QPushButton::clicked, &dialog, [this, &dialog, action_path]() {
+        const QString chosen = QFileDialog::getExistingDirectory(&dialog, QStringLiteral("choose the destination folder"), action_path->text());
+
+        if (!chosen.isEmpty()) {
+            action_path->setText(chosen);
+        }
+    });
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("original"), original);
+    payload.insert(QStringLiteral("name"), name->text().trimmed());
+    payload.insert(QStringLiteral("path"), path->text().trimmed());
+    payload.insert(QStringLiteral("period"), period->value());
+    payload.insert(QStringLiteral("check_regularly"), regular->isChecked());
+    payload.insert(QStringLiteral("search_subdirectories"), subdirectories->isChecked());
+    payload.insert(QStringLiteral("last_modified_skip"), skip->value());
+    payload.insert(QStringLiteral("action"), action->currentData().toString());
+    payload.insert(QStringLiteral("action_path"), action_path->text().trimmed());
+    payload.insert(QStringLiteral("min_size"), min_size->value());
+    payload.insert(QStringLiteral("max_size"), max_size->value());
+    payload.insert(QStringLiteral("extensions"), extensions->text().trimmed());
+
+    notify(QStringLiteral("import_folder_save"), active_page, json_payload(payload));
+}
+
 void HydrusMainWindow::show_options(const QJsonObject &state) {
     HydrusOptionsDialog dialog(this, state, this);
     dialog.exec();
@@ -4094,6 +4553,14 @@ void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, r
 
 void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json) {
     window.show_duplicates_rules(parse_object(json));
+}
+
+void hydrus_show_tag_relations(HydrusMainWindow &window, rust::Str json) {
+    window.show_tag_relations(parse_object(json));
+}
+
+void hydrus_show_import_folder(HydrusMainWindow &window, rust::Str json) {
+    window.show_import_folder(parse_object(json));
 }
 
 void hydrus_show_notes(HydrusMainWindow &window, rust::Str json) {

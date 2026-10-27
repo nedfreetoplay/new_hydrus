@@ -74,6 +74,127 @@ pub fn options_json(state: &AppState) -> String {
     ));
 
     tabs.push(tab(
+        "media",
+        "media viewer",
+        vec![
+            boolean(
+                &options,
+                "media_viewer_window_always_on_top",
+                "keep media viewers always on top",
+            ),
+            boolean(
+                &options,
+                "always_start_media_viewers_always_on_top",
+                "start every viewer always on top",
+            ),
+            boolean(
+                &options,
+                "always_start_media_viewers_frameless",
+                "start every viewer frameless",
+            ),
+            boolean(
+                &options,
+                "media_viewer_recenter_media_on_window_resize",
+                "re-center media when the viewer is resized",
+            ),
+            boolean(
+                &options,
+                "media_viewer_lock_current_zoom_type",
+                "lock the current zoom type",
+            ),
+            boolean(
+                &options,
+                "save_media_viewer_window_size_and_position_on_close",
+                "remember viewer size and position",
+            ),
+            boolean(&options, "media_viewer_audio_mute", "mute viewer audio"),
+            integer(
+                &options,
+                "media_viewer_zoom_step_percent",
+                "zoom step (percent)",
+            ),
+            integer(
+                &options,
+                "media_viewer_prefetch_num_previous",
+                "prefetch previous files",
+            ),
+            integer(
+                &options,
+                "media_viewer_prefetch_num_next",
+                "prefetch next files",
+            ),
+            integer(
+                &options,
+                "media_viewer_audio_volume",
+                "viewer audio volume (0-100)",
+            ),
+            str_field(
+                "media_viewer_zoom_center",
+                "zoom center",
+                options.get_string("media_viewer_zoom_center"),
+                "mouse or canvas; used by the viewer zoom shortcut",
+            ),
+        ],
+    ));
+
+    tabs.push(tab(
+        "maintenance",
+        "file maintenance",
+        vec![
+            boolean(
+                &options,
+                "file_maintenance_during_idle",
+                "run file maintenance while idle",
+            ),
+            boolean(
+                &options,
+                "file_maintenance_during_active",
+                "run file maintenance during normal use",
+            ),
+            boolean(
+                &options,
+                "database_deferred_delete_maintenance_during_idle",
+                "drop deferred database tables while idle",
+            ),
+            boolean(
+                &options,
+                "database_deferred_delete_maintenance_during_active",
+                "drop deferred database tables during normal use",
+            ),
+            boolean(
+                &options,
+                "maintain_trash_in_normal_time",
+                "maintain the trash in normal time",
+            ),
+            boolean(
+                &options,
+                "deferred_file_deletes_in_normal_time",
+                "defer file deletes in normal time",
+            ),
+            boolean(
+                &options,
+                "use_advanced_file_deletion_dialog",
+                "use the advanced file deletion dialog",
+            ),
+            integer(
+                &options,
+                "thumbnail_cache_timeout",
+                "thumbnail cache timeout (seconds)",
+            ),
+            integer(
+                &options,
+                "image_cache_timeout",
+                "image cache timeout (seconds)",
+            ),
+            integer(
+                &options,
+                "shutdown_work_period",
+                "shutdown work period (seconds)",
+            ),
+        ],
+    ));
+
+    tabs.push(tab(
         "downloads",
         "downloaders",
         vec![

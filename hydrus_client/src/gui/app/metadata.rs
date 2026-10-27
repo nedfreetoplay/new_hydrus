@@ -27,6 +27,12 @@ pub struct TagServiceView {
     pub key: String,
     pub name: String,
     pub tags: Vec<String>,
+    /// Tags after sibling resolution. Two storage tags that are siblings
+    /// collapse onto one display tag, which is what Hydrus shows in most
+    /// panels by default.
+    pub display_tags: Vec<String>,
+    /// Display tag -> storage tags that resolve to it (for tooltips).
+    pub display_tag_sources: BTreeMap<String, Vec<String>>,
 }
 
 pub struct RatingServiceView {
@@ -53,6 +59,8 @@ pub fn metadata_json(controller: &Controller, hash: &[u8]) -> Value {
                 "key": service.key,
                 "name": service.name,
                 "tags": service.tags,
+                "display_tags": service.display_tags,
+                "display_tag_sources": service.display_tag_sources,
             })
         })
         .collect();
@@ -94,11 +102,29 @@ pub fn tag_services(controller: &Controller, hash_id: i64) -> Vec<TagServiceView
                 mappings::get_tags(db, service.service_id, ContentStatus::Current, hash_id)
                     .unwrap_or_default();
             tags.sort();
+            let display_tags = crate::db::tag_display::get_display_tags(
+                db,
+                service.service_id,
+                tags.iter().cloned(),
+            )
+            .unwrap_or_else(|_| tags.clone());
+            let mut display_tag_sources = BTreeMap::new();
+
+            for tag in &tags {
+                let display = crate::db::tag_display::get_display_tag(db, service.service_id, tag)
+                    .unwrap_or_else(|_| tag.clone());
+                display_tag_sources
+                    .entry(display)
+                    .or_insert_with(Vec::new)
+                    .push(tag.clone());
+            }
 
             TagServiceView {
                 key: query::hex(&service.service_key),
                 name: service.name.clone(),
                 tags,
+                display_tags,
+                display_tag_sources,
             }
         })
         .collect();

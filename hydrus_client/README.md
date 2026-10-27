@@ -68,8 +68,14 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
   удаление обоих файлов; при merge переносятся теги и URL, худший файл уходит в trash;
   auto-resolution rules (higher resolution/larger/more tags/older) выполняются при
   включённом флаге;
-- import folders: сканирование папок по периоду, ручная проверка, пауза и удаление;
-- Options с вкладками general/files/downloaders/network/client API, менеджер сервисов
+- import folders: сканирование папок по периоду, ручная проверка, пауза и удаление,
+  фильтры (расширения, min/max размер, пропуск недавно изменённых), а после успешного
+  импорта файл можно оставить, переместить в указанную папку или удалить;
+- редактор tag siblings/parents по локальным tag-сервисам: пары добавляются и
+  удаляются с проверкой циклов, а metadata-панели показывают display tags с учётом
+  siblings и tooltip'ом исходных storage-тегов;
+- Options с вкладками general/files/media viewer/file maintenance/downloaders/network/
+  client API, менеджер сервисов
   (добавление, переименование и удаление пустых локальных сервисов) и менеджер сети
   (прокси, таймауты, заголовки, полноценный редактор URL classes с проверкой URL,
   per-domain пулы, bandwidth rules, пауза сети, запуск API);
@@ -82,14 +88,18 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - меню Hydrus (`file`, `undo`, `pages`, `database`, `download`, `network`, `services`, `tags`,
   `pending`, `help`), сегментированный статус-бар и единый `gui session.json`
   (legacy `GuiSession` + дерево страниц, загрузчики и подписки) с миграциями старых форматов.
+- media viewer следует настройкам zoom step/recenter/always-on-top/frameless, поддерживает
+  поворот и полный набор основных горячих клавиш; database check/vacuum выполняют
+  реальные `PRAGMA quick_check` и `VACUUM`.
 
 ### Что ещё не портировано
 
-- полноценный редактор tag siblings/parents и tag display;
-- импорт-папки с move/delete-действиями после импорта и расширенные фильтры импорта;
-- отдельные GUI-настройки media view, file maintenance и полный набор горячих клавиш Hydrus.
+- полноценный tag display manager (порядок namespace/subtag, decorators) за пределами
+  редактора relations;
+- расширенные file maintenance jobs (regenerate thumbnails, re-scan file metadata) и
+  оставшиеся горячие клавиши Hydrus.
 
-Сейчас проходит 500 unit-тестов и 2 integration-теста. Архитектура:
+Сейчас проходит 504 unit-теста и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Проверка GUI без ручного клика

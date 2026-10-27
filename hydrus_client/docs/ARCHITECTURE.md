@@ -105,8 +105,26 @@ worker ждёт `NetworkBandwidthManager` (requests/data rules), после от
 query или заголовке `Hydrus-Client-API-Access-Key`. Сервер запускается/останавливается
 из Options/Network manager и хранит ключ в `ClientOptions`.
 
+## Теги и relations
+
+`gui::app::tag_relations` — редактор tag siblings/parents поверх
+`db::tag_relations`: пары хранятся по локальному tag-сервису, `current`-статус,
+добавление отклоняет self-пары и циклы (sibling resolution и parent ancestors).
+`metadata::metadata_json` отдаёт и storage-теги, и `display_tags` с учётом siblings
+плюс карту `display_tag_sources`, поэтому metadata-панель умеет переключаться на
+Hydrus-подобное отображение display tags без второй реализации.
+
+## Import folders
+
+`gui::app::import_folders` хранит entry в `import folders.json`: период, paused,
+check regularly, subdirectories, skip recent, расширения, min/max размер и
+пост-импортное действие. Сканирование применяет фильтры до постановки в очередь;
+`AsyncJob::ImportPaths` несёт имя папки, а `ImportFinished` — результаты по каждому
+файлу, поэтому move/delete выполняется только для успешно импортированных файлов.
+Move не перезаписывает существующие имена.
+
 ## Что дальше
 
-1. Редактор tag siblings/parents и tag display.
-2. Действия import folders после импорта (move/delete) и фильтры импорта.
-3. Остальные GUI-настройки media view/file maintenance и полный набор горячих клавиш.
+1. Полный tag display manager (namespace/subtag ordering/decorators).
+2. File maintenance jobs (thumbnails/metadata regeneration) и оставшиеся hotkeys.
+3. Синхронизация с tag repositories и pending content.

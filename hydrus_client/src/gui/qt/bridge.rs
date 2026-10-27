@@ -36,6 +36,8 @@ pub(crate) mod ffi {
             json: &str,
         );
         fn hydrus_show_duplicates_rules(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_tag_relations(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_import_folder(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_notes(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_set_selection(
             window: Pin<&mut HydrusMainWindow>,

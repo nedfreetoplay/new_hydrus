@@ -48,6 +48,17 @@ pub(super) fn booleans() -> Map<String, Value> {
         ("global_audio_mute", false),
         ("media_viewer_audio_mute", false),
         ("use_advanced_file_deletion_dialog", false),
+        ("media_viewer_window_always_on_top", false),
+        ("media_viewer_recenter_media_on_window_resize", true),
+        ("media_viewer_lock_current_zoom_type", false),
+        ("media_viewer_uses_its_own_audio_volume", false),
+        ("save_media_viewer_window_size_and_position_on_close", false),
+        ("always_start_media_viewers_always_on_top", false),
+        ("always_start_media_viewers_frameless", false),
+        ("file_maintenance_during_idle", true),
+        ("file_maintenance_during_active", true),
+        ("database_deferred_delete_maintenance_during_idle", true),
+        ("database_deferred_delete_maintenance_during_active", true),
         ("api_enabled", false),
         ("duplicates_auto_resolution_enabled", false),
     ];
@@ -108,6 +119,9 @@ pub(super) fn integers() -> Map<String, Value> {
         ("number_of_gui_session_backups", 10),
         ("animated_scanbar_height", 20),
         ("animated_scanbar_nub_width", 10),
+        ("media_viewer_prefetch_num_previous", 2),
+        ("media_viewer_prefetch_num_next", 2),
+        ("media_viewer_zoom_step_percent", 25),
         ("ac_read_list_height_num_chars", 22),
         ("ac_write_list_height_num_chars", 11),
         ("human_bytes_sig_figs", 3),
@@ -165,6 +179,7 @@ pub(super) fn strings() -> Map<String, Value> {
         ("page_of_pages_decorator", " \u{2193}"),
         ("api_access_key", ""),
         ("api_host", "127.0.0.1"),
+        ("media_viewer_zoom_center", "mouse"),
     ];
 
     entries

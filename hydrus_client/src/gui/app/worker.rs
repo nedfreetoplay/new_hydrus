@@ -35,6 +35,9 @@ const MAX_GALLERY_FILES: usize = 2000;
 pub(crate) enum AsyncJob {
     ImportPaths {
         paths: Vec<PathBuf>,
+        /// Set when the batch came from an import folder, so post-import
+        /// move/delete actions can be applied to that folder.
+        folder: Option<String>,
     },
     DownloadUrls {
         job_id: String,
@@ -95,6 +98,8 @@ pub(crate) enum AsyncEvent {
         skipped: usize,
         errors: Vec<String>,
         hashes: Vec<Vec<u8>>,
+        folder: Option<String>,
+        results: Vec<(PathBuf, bool)>,
     },
 }
 
@@ -219,7 +224,7 @@ impl WorkerContext {
 fn worker_loop(mut context: WorkerContext, jobs: Receiver<AsyncJob>, events: Sender<AsyncEvent>) {
     while let Ok(job) = jobs.recv() {
         match job {
-            AsyncJob::ImportPaths { paths } => run_import(&context, &events, paths),
+            AsyncJob::ImportPaths { paths, folder } => run_import(&context, &events, paths, folder),
             AsyncJob::DownloadUrls { job_id, urls } => {
                 run_download_urls(&context, &events, &job_id, urls)
             }
@@ -242,12 +247,18 @@ fn worker_loop(mut context: WorkerContext, jobs: Receiver<AsyncJob>, events: Sen
     }
 }
 
-fn run_import(context: &WorkerContext, events: &Sender<AsyncEvent>, paths: Vec<PathBuf>) {
+fn run_import(
+    context: &WorkerContext,
+    events: &Sender<AsyncEvent>,
+    paths: Vec<PathBuf>,
+    folder: Option<String>,
+) {
     let total = paths.len();
     let mut imported = 0;
     let mut skipped = 0;
     let mut errors = Vec::new();
     let mut hashes = Vec::new();
+    let mut results = Vec::with_capacity(total);
 
     let importer = match context.importer() {
         Ok(importer) => importer,
@@ -257,6 +268,8 @@ fn run_import(context: &WorkerContext, events: &Sender<AsyncEvent>, paths: Vec<P
                 skipped: total,
                 errors: vec![error],
                 hashes: Vec::new(),
+                folder,
+                results: paths.into_iter().map(|path| (path, false)).collect(),
             });
             return;
         }
@@ -272,10 +285,12 @@ fn run_import(context: &WorkerContext, events: &Sender<AsyncEvent>, paths: Vec<P
             Ok(hash) => {
                 imported += 1;
                 hashes.push(hash);
+                results.push((path.clone(), true));
             }
             Err(error) => {
                 skipped += 1;
                 errors.push(format!("{}: {error}", path.display()));
+                results.push((path.clone(), false));
             }
         }
 
@@ -293,6 +308,8 @@ fn run_import(context: &WorkerContext, events: &Sender<AsyncEvent>, paths: Vec<P
         skipped,
         errors,
         hashes,
+        folder,
+        results,
     });
 }
 

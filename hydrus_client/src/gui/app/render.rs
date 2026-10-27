@@ -338,6 +338,11 @@ pub fn viewer_json(
         None => "no metadata".to_string(),
     };
 
+    let options = controller.options();
+    let always_on_top = options.get_boolean("media_viewer_window_always_on_top")
+        || options.get_boolean("always_start_media_viewers_always_on_top");
+    let frameless = options.get_boolean("always_start_media_viewers_frameless");
+
     json!({
         "viewer_id": viewer_id,
         "page_id": page.id,
@@ -347,6 +352,13 @@ pub fn viewer_json(
         "tags": query::selection_tags(controller, hash),
         "metadata": super::metadata::metadata_json(controller, hash),
         "info": format!("{info} - file {}/{}", position + 1, total),
+        "always_on_top": always_on_top,
+        "frameless": frameless,
+        "muted": options.get_boolean("media_viewer_audio_mute"),
+        "recenter": options.get_boolean("media_viewer_recenter_media_on_window_resize"),
+        "zoom_step_percent": options.get_integer("media_viewer_zoom_step_percent").clamp(5, 200),
+        "prefetch_previous": options.get_integer("media_viewer_prefetch_num_previous").clamp(0, 25),
+        "prefetch_next": options.get_integer("media_viewer_prefetch_num_next").clamp(0, 25),
     })
     .to_string()
 }

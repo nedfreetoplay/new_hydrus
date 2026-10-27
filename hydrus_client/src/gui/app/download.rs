@@ -563,6 +563,8 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
             skipped,
             errors,
             hashes,
+            folder,
+            results,
         } => {
             state.import_queue.running = false;
             state.import_queue.done = state.import_queue.total;
@@ -594,6 +596,12 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
                 commands.push(UiCommand::BuildPages(render::pages_json(state)));
             } else if !hashes.is_empty() {
                 commands.extend(state.refresh_commands());
+            }
+
+            if let Some(folder) = folder {
+                commands.extend(super::import_folders::apply_post_import(
+                    state, &folder, &results,
+                ));
             }
 
             commands.push(UiCommand::Status(render::status_json(state)));

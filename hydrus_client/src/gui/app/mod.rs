@@ -26,6 +26,7 @@ pub mod options;
 pub mod query;
 pub mod render;
 pub mod session;
+pub mod tag_relations;
 pub mod worker;
 
 pub use commands::UiCommand;
@@ -294,6 +295,8 @@ impl AppState {
                 import_folders::create_page(self, &notebook)
             }
             "import_folder_add" => import_folders::add(self, payload),
+            "import_folder_edit" => import_folders::edit(self, payload),
+            "import_folder_save" => import_folders::save_action(self, payload),
             "import_folder_remove" => import_folders::remove(self, payload),
             "import_folder_toggle" => import_folders::toggle(self, payload),
             "import_folder_check" => import_folders::check_now(self, payload),
@@ -458,12 +461,45 @@ impl AppState {
                 }
             }
             "pause_network" => options::network_action(self, "network_pause", ""),
-            "tag_siblings" | "tag_parents" => vec![UiCommand::NotifyMessage(
-                "tag relation editing is not ported yet".to_string(),
-            )],
-            "db_check" | "db_vacuum" => vec![UiCommand::NotifyMessage(
-                "database maintenance UI is not ported yet".to_string(),
-            )],
+            "tag_siblings" => tag_relations::show(self, tag_relations::SIBLINGS),
+            "tag_parents" => tag_relations::show(self, tag_relations::PARENTS),
+            "tag_relations_add" => tag_relations::action(self, payload, true),
+            "tag_relations_remove" => tag_relations::action(self, payload, false),
+            "db_check" => {
+                let result =
+                    self.controller
+                        .db()
+                        .db()
+                        .query_one("PRAGMA quick_check", &[], |row| row.get::<_, String>(0));
+
+                match result {
+                    Ok(status) => vec![UiCommand::Message(
+                        "database check".to_string(),
+                        format!(
+                            "sqlite quick_check: {}",
+                            status.unwrap_or_else(|| "no result".to_string())
+                        ),
+                    )],
+                    Err(error) => vec![UiCommand::Message(
+                        "database check".to_string(),
+                        format!("database check failed: {error}"),
+                    )],
+                }
+            }
+            "db_vacuum" => {
+                let result = self.controller.db().db().execute_batch("VACUUM;");
+
+                match result {
+                    Ok(()) => vec![UiCommand::Message(
+                        "database vacuum".to_string(),
+                        "the database was vacuumed successfully".to_string(),
+                    )],
+                    Err(error) => vec![UiCommand::Message(
+                        "database vacuum".to_string(),
+                        format!("vacuum failed: {error}"),
+                    )],
+                }
+            }
             "pending" => vec![UiCommand::NotifyMessage(
                 "there is no pending upload in this local-only build".to_string(),
             )],
@@ -1086,6 +1122,7 @@ impl AppState {
 
         let job = worker::AsyncJob::ImportPaths {
             paths: paths.clone(),
+            folder: None,
         };
 
         if let Err(error) = self.runtime.submit(job) {

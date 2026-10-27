@@ -14,6 +14,8 @@ pub enum UiCommand {
     UpdateDuplicates(String, String),
     UpdateImportFolders(String, String),
     DuplicatesRulesDialog(String),
+    TagRelationsDialog(String),
+    ImportFolderDialog(String),
     SetSelection {
         page_id: String,
         hash: String,

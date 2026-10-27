@@ -39,6 +39,12 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::DuplicatesRulesDialog(json) => {
             ffi::hydrus_show_duplicates_rules(window.as_mut(), &json);
         }
+        UiCommand::TagRelationsDialog(json) => {
+            ffi::hydrus_show_tag_relations(window.as_mut(), &json);
+        }
+        UiCommand::ImportFolderDialog(json) => {
+            ffi::hydrus_show_import_folder(window.as_mut(), &json);
+        }
         UiCommand::NotesDialog(json) => ffi::hydrus_show_notes(window.as_mut(), &json),
         UiCommand::SetSelection {
             page_id,

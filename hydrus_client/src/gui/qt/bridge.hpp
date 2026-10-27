@@ -44,6 +44,7 @@ class HydrusNetworkDialog;
 class HydrusMetadataPanel;
 class HydrusImportFoldersPage;
 class HydrusDuplicatesRulesDialog;
+class HydrusTagRelationsDialog;
 class QTabBar;
 class QCompleter;
 class QVBoxLayout;
@@ -63,6 +64,7 @@ public:
     void reset_zoom();
     void zoom_by(double factor);
     void rotate_by(int degrees);
+    void set_recenter_on_resize(bool value);
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -72,6 +74,7 @@ private:
     QGraphicsScene *scene = nullptr;
     QGraphicsPixmapItem *pixmap_item = nullptr;
     bool fit_mode = true;
+    bool recenter_on_resize = true;
     int rotation = 0;
 };
 
@@ -154,6 +157,9 @@ private:
     HydrusCanvas *canvas = nullptr;
     HydrusMetadataPanel *metadata = nullptr;
     QLabel *status = nullptr;
+    double zoom_step = 1.25;
+    bool always_on_top = false;
+    bool frameless = false;
 };
 
 // Full Hydrus-style metadata sidebar: tag services, ratings and notes for the
@@ -180,11 +186,34 @@ private:
     QComboBox *services = nullptr;
     QLineEdit *tag_filter = nullptr;
     QListWidget *tags = nullptr;
+    QCheckBox *display_tags = nullptr;
     QLineEdit *tag_input = nullptr;
     QCompleter *completer = nullptr;
     QWidget *ratings = nullptr;
     QVBoxLayout *ratings_layout = nullptr;
     QListWidget *notes = nullptr;
+};
+
+// Tag sibling/parent editor. One service at a time, like Hydrus' dialog.
+class HydrusTagRelationsDialog : public QDialog {
+public:
+    HydrusTagRelationsDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void rebuild();
+    void add_relation();
+    void remove_selected();
+    QTableWidget *current_table() const;
+    QString current_relation() const;
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    QComboBox *services = nullptr;
+    QTabWidget *tabs = nullptr;
+    QTableWidget *siblings = nullptr;
+    QTableWidget *parents = nullptr;
 };
 
 // Import folders manager page.
@@ -196,7 +225,6 @@ public:
     void update_state(const QJsonObject &state);
 
 private:
-    void add_folder();
     void with_selected(const QString &action);
 
     HydrusMainWindow *main = nullptr;
@@ -428,6 +456,8 @@ public:
     void show_tag_dialog(const QJsonObject &state);
     void show_notes(const QJsonObject &state);
     void show_duplicates_rules(const QJsonObject &state);
+    void show_tag_relations(const QJsonObject &state);
+    void show_import_folder(const QJsonObject &state);
     void show_options(const QJsonObject &state);
     void show_services(const QJsonObject &state);
     void update_services(const QJsonObject &state);
@@ -474,6 +504,7 @@ private:
     HydrusServicesDialog *services_dialog = nullptr;
     HydrusNetworkDialog *network_dialog = nullptr;
     HydrusDuplicatesRulesDialog *duplicates_rules_dialog = nullptr;
+    HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
     QTimer *tick_timer = nullptr;
     QStringList tag_suggestions;
 };
@@ -498,6 +529,8 @@ void hydrus_update_subscriptions(HydrusMainWindow &window, rust::Str page_id, ru
 void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_tag_relations(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_import_folder(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_notes(HydrusMainWindow &window, rust::Str json);
 void hydrus_set_selection(
     HydrusMainWindow &window,

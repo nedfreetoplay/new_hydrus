@@ -826,6 +826,20 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
     search_title->setStyleSheet(QStringLiteral("font-weight: bold;"));
     sidebar_layout->addWidget(search_title);
 
+    location = new QComboBox(sidebar);
+    location->addItem(QStringLiteral("my files"));
+    location->addItem(QStringLiteral("all local files"));
+    location->addItem(QStringLiteral("trash"));
+    sidebar_layout->addWidget(location);
+
+    connect(location, &QComboBox::currentTextChanged, this, [this](const QString &value) {
+        if (main->building || value.isEmpty()) {
+            return;
+        }
+
+        main->notify(QStringLiteral("set_location"), id, value);
+    });
+
     search = new QLineEdit(sidebar);
     search->setPlaceholderText(QStringLiteral("tags: blue eyes, -sky, system:inbox"));
     sidebar_layout->addWidget(search);
@@ -925,6 +939,17 @@ void HydrusQueryPage::update_state(const QJsonObject &state) {
 
     if (search->text() != query) {
         search->setText(query);
+    }
+
+    const QString location_value = state.value(QStringLiteral("location")).toString();
+
+    if (!location_value.isEmpty() && location->currentText() != location_value) {
+        const QSignalBlocker blocker(location);
+        const int index = location->findText(location_value);
+
+        if (index >= 0) {
+            location->setCurrentIndex(index);
+        }
     }
 
     QString status = state.value(QStringLiteral("status")).toString();

@@ -25,6 +25,7 @@ pub mod model;
 pub mod options;
 pub mod query;
 pub mod render;
+pub mod search;
 pub mod session;
 pub mod sessions;
 pub mod tag_relations;
@@ -406,6 +407,21 @@ impl AppState {
                     page.fixed_hashes = None;
                 }
 
+                self.replace_query_and_refresh(&controller, target)
+            }
+            "set_location" => {
+                if let Some(page) = self.find_query_mut(target) {
+                    if page.location != payload {
+                        page.location = payload.to_string();
+                        page.fixed_hashes = None;
+                    }
+                } else {
+                    return vec![UiCommand::NotifyMessage(
+                        "page is not a file page".to_string(),
+                    )];
+                }
+
+                let controller = self.controller.clone();
                 self.replace_query_and_refresh(&controller, target)
             }
             "focus_hash" => self.focus(target, payload),

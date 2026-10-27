@@ -1,5 +1,5 @@
 use super::*;
-use crate::db::ClientDB;
+use crate::db::{ClientDB, master_tags};
 
 fn database() -> (ClientDB, std::path::PathBuf) {
     let directory = std::env::temp_dir().join(format!(
@@ -18,9 +18,12 @@ fn multi_word_tags_stay_one_predicate() {
     master_tags::get_tag_id(db.db(), "blue eyes").unwrap();
     master_tags::get_tag_id(db.db(), "sky").unwrap();
 
-    let terms = terms_for_query(db.db(), "blue eyes -sky system:inbox");
+    let plan = search::plan(db.db(), "blue eyes -sky system:inbox").unwrap();
+    let terms: Vec<&str> = plan.tags.iter().map(|term| term.text.as_str()).collect();
 
-    assert_eq!(terms, vec!["blue eyes", "-sky", "system:inbox"]);
+    assert_eq!(terms, vec!["blue eyes", "sky"]);
+    assert!(!plan.tags[1].inclusive);
+    assert_eq!(plan.predicates.len(), 1);
 
     drop(db);
     let _ = std::fs::remove_dir_all(directory);
@@ -32,7 +35,8 @@ fn unknown_phrases_fall_back_to_separate_words() {
 
     master_tags::get_tag_id(db.db(), "blue eyes").unwrap();
 
-    let terms = terms_for_query(db.db(), "blue eyes mystery");
+    let plan = search::plan(db.db(), "blue eyes mystery").unwrap();
+    let terms: Vec<&str> = plan.tags.iter().map(|term| term.text.as_str()).collect();
 
     assert_eq!(terms, vec!["blue eyes", "mystery"]);
 

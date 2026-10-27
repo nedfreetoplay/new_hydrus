@@ -7,9 +7,10 @@ use hydrus_core::files::hydrus_file_handling::FileInfo;
 use hydrus_core::hydrus_constants::{ContentStatus, ServiceType};
 
 use crate::controller::Controller;
-use crate::db::{files_metadata, files_storage, mappings, master, master_tags, tag_search};
+use crate::db::{files_metadata, files_storage, mappings, master};
 
 use super::model::QueryPage;
+use super::search;
 
 pub const MAX_DISPLAYED_FILES: usize = 1000;
 
@@ -46,12 +47,13 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
     let service_ids = file_service_ids(controller, &page.location);
     let tag_service_id =
         tag_service_id(controller).ok_or_else(|| "no local tag service".to_string())?;
+    let plan = search::plan(db, &page.query)?;
 
     let mut all: BTreeSet<i64> = BTreeSet::new();
 
-    for service_id in service_ids {
+    for service_id in &service_ids {
         all.extend(
-            files_storage::get_hash_ids(db, service_id, ContentStatus::Current)
+            files_storage::get_hash_ids(db, *service_id, ContentStatus::Current)
                 .map_err(|error| error.to_string())?,
         );
     }
@@ -62,65 +64,23 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
         .collect();
 
     let mut result = all.clone();
-    let mut limit: Option<usize> = None;
 
-    for term in terms_for_query(db, page.query.as_str()) {
-        let term = term.as_str();
-        let negative = term.starts_with('-') && term.len() > 1;
-        let clean = if negative { &term[1..] } else { term };
+    if plan.system.must_be_inbox() {
+        result.retain(|hash_id| inbox.contains(hash_id));
+    }
 
-        if clean.is_empty() {
-            continue;
-        }
+    if plan.system.must_be_archive() {
+        result.retain(|hash_id| !inbox.contains(hash_id));
+    }
 
-        let lower = clean.to_ascii_lowercase();
+    for term in &plan.tags {
+        let term_set = search::hash_ids_for_tag_term(db, tag_service_id, term)
+            .map_err(|error| error.to_string())?;
 
-        let term_set: Option<BTreeSet<i64>> = if lower == "system:inbox" {
-            Some(inbox.clone())
-        } else if lower == "system:archive" {
-            Some(all.difference(&inbox).copied().collect())
-        } else if lower == "system:everything" || lower == "system:all" {
-            Some(all.clone())
-        } else if let Some(value) = lower.strip_prefix("system:limit=") {
-            limit = value.parse::<usize>().ok();
-            None
-        } else if lower.starts_with("system:") {
-            None
-        } else if clean.ends_with(':') {
-            Some(
-                tag_search::get_hash_ids_for_namespace(
-                    db,
-                    tag_service_id,
-                    ContentStatus::Current,
-                    clean.trim_end_matches(':'),
-                )
-                .map_err(|error| error.to_string())?,
-            )
-        } else if clean.contains('*') {
-            Some(
-                tag_search::get_hash_ids_for_wildcard(
-                    db,
-                    tag_service_id,
-                    ContentStatus::Current,
-                    clean,
-                )
-                .map_err(|error| error.to_string())?,
-            )
-        } else {
-            Some(
-                tag_search::get_hash_ids_for_tag(db, tag_service_id, ContentStatus::Current, clean)
-                    .map_err(|error| error.to_string())?,
-            )
-        };
-
-        let Some(term_set) = term_set else {
-            continue;
-        };
-
-        if negative {
-            result.retain(|hash_id| !term_set.contains(hash_id));
-        } else {
+        if term.inclusive {
             result.retain(|hash_id| term_set.contains(hash_id));
+        } else {
+            result.retain(|hash_id| !term_set.contains(hash_id));
         }
 
         if result.is_empty() {
@@ -128,9 +88,71 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
         }
     }
 
+    for (namespace, tests) in &plan.system.num_tags {
+        result.retain(|hash_id| {
+            let count = search::tag_count(db, tag_service_id, *hash_id, namespace).unwrap_or(0);
+            tests.iter().all(|test| test.test(Some(count as f64), None))
+        });
+    }
+
+    if !plan.system.other_system.is_empty()
+        || !plan.system.mimes.is_empty()
+        || !plan.system.hashes.is_empty()
+    {
+        let file_service_id = service_ids.first().copied();
+        let mut filtered = BTreeSet::new();
+
+        for hash_id in result {
+            let Some(info) =
+                files_metadata::get_file_info(db, hash_id).map_err(|error| error.to_string())?
+            else {
+                continue;
+            };
+
+            let Some(hash) = master::get_hash(db, hash_id).map_err(|error| error.to_string())?
+            else {
+                continue;
+            };
+
+            if !search::matches_mime_or_hash(&hash, &info, &plan.system)
+                .map_err(|error| error.to_string())?
+            {
+                continue;
+            }
+
+            let mut keep = true;
+
+            for predicate in &plan.system.other_system {
+                match search::matches_system(
+                    controller,
+                    db,
+                    hash_id,
+                    &info,
+                    tag_service_id,
+                    file_service_id,
+                    predicate,
+                )
+                .map_err(|error| error.to_string())?
+                {
+                    Some(false) => {
+                        keep = false;
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+
+            if keep {
+                filtered.insert(hash_id);
+            }
+        }
+
+        result = filtered;
+    }
+
     let total = result.len();
 
-    if let Some(limit) = limit {
+    if let Some(limit) = plan.limit() {
         result = result.into_iter().take(limit).collect();
     }
 
@@ -138,12 +160,7 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
 
     for hash_id in result {
         if let Some(hash) = master::get_hash(db, hash_id).map_err(|error| error.to_string())? {
-            if files_metadata::get_file_info(db, hash_id)
-                .map_err(|error| error.to_string())?
-                .is_some()
-            {
-                hashes.push(hash);
-            }
+            hashes.push(hash);
         }
     }
 
@@ -172,60 +189,6 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
     };
 
     Ok(())
-}
-
-/// Splits the search text into Hydrus-style predicates.
-///
-/// Hydrus gets one predicate per autocomplete entry, so a tag such as
-/// `blue eyes` is a single predicate even though it contains a space. Here the
-/// plain line edit is parsed greedily: adjacent words are joined for as long as
-/// the joined text is a known tag in the database.
-fn terms_for_query(db: &hydrus_core::hydrus_db_base::DBBase, query: &str) -> Vec<String> {
-    let tokens: Vec<&str> = query.split_whitespace().collect();
-    let mut terms = Vec::new();
-    let mut index = 0;
-
-    while index < tokens.len() {
-        let token = tokens[index];
-        let negative = token.starts_with('-') && token.len() > 1;
-        let mut phrase = if negative {
-            token[1..].to_string()
-        } else {
-            token.to_string()
-        };
-        index += 1;
-
-        let mergeable = !phrase.to_ascii_lowercase().starts_with("system:")
-            && !phrase.ends_with(':')
-            && !phrase.contains('*');
-
-        if mergeable {
-            while index < tokens.len() {
-                let next = tokens[index];
-
-                if next.starts_with('-') || next.to_ascii_lowercase().starts_with("system:") {
-                    break;
-                }
-
-                let candidate = format!("{phrase} {next}");
-
-                if master_tags::has_tag(db, &candidate).unwrap_or(false) {
-                    phrase = candidate;
-                    index += 1;
-                } else {
-                    break;
-                }
-            }
-        }
-
-        terms.push(if negative {
-            format!("-{phrase}")
-        } else {
-            phrase
-        });
-    }
-
-    terms
 }
 
 pub fn local_file_service_id(controller: &Controller, location: &str) -> Option<i64> {

@@ -106,6 +106,7 @@ public:
 private:
     HydrusMainWindow *main = nullptr;
     QString id;
+    QComboBox *location = nullptr;
     QLineEdit *search = nullptr;
     QCompleter *completer = nullptr;
     QString text_before_completion;

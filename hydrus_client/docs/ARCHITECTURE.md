@@ -85,6 +85,14 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
 `system:inbox`, `system:archive`, `system:everything`, `system:limit=N`.
 Результат пересекается с текущими файлами выбранного file domain.
 
+`gui::app::search` строит `SearchPlan`: теги/namespace/wildcard и системные
+предикаты через `search::parse_system_predicate`. Теги фильтруются индексами
+`db::tag_search`, а свойства файлов (размер, ширина/высота, ratio, mime, hash,
+duration, fps, frames, пиксели, слова, число тегов/URL/заметок, рейтинги и даты
+импорта/архивации/изменения/просмотра) проверяются по `files_info` и таблицам
+времени. Неподдерживаемые системные предикаты пропускаются, а неизвестный
+`system:*` возвращает ошибку разбора в статус страницы.
+
 ## Импорт и загрузка
 
 `gui::app::import::ImportContext` выполняет полный путь: SHA-256, sniffing MIME,

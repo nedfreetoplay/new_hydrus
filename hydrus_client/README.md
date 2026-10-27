@@ -47,9 +47,13 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 клиента, а `hydrus_client/src/gui/qt` только рисует его.
 
 - вкладки страниц как в Hydrus: закрытие, переименование, контекстное меню,
-  вложенные «page of pages» и вкладка `+` с выбором типа страницы;
+  вложенные «page of pages» и вкладка `+` с выбором типа страницы; drag & drop
+  вкладок, история, менеджер страниц и именованные сессии;
 - файловые страницы: реальный поиск по локальной БД (теги, `-tag`, wildcard,
-  namespace, `system:inbox`, `system:archive`, `system:limit=N`), автодополнение тегов;
+  namespace, `system:inbox`, `system:archive`, `system:limit=N`) и системные
+  предикаты размера, разрешения, ratio, mime, hash, duration, fps, frames,
+  пикселей, слов, числа тегов/URL/заметок, рейтингов и дат; селектор file domain
+  (my files / all local files / trash), автодополнение тегов;
 - сетка миниатюр, предпросмотр выбранного файла, статус страницы;
 - медиа-вьюер: зум, панорамирование, поворот, следующая/предыдущая, полная
   metadata-панель (теги по сервисам, рейтинги, заметки), archive/inbox/delete, F11;
@@ -103,7 +107,7 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - расширенные file maintenance jobs (regenerate thumbnails, re-scan file metadata) и
   оставшиеся горячие клавиши Hydrus.
 
-Сейчас проходит 513 unit-тестов и 2 integration-теста. Архитектура:
+Сейчас проходит 517 unit-тестов и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). План портирования GUI с
 чек-листами и флагами: [docs/GUI_PORT_PLAN.md](docs/GUI_PORT_PLAN.md).
 

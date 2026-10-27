@@ -84,14 +84,14 @@ Rust-цели: `gui/app/query.rs`, новый `gui/app/search.rs`,
 - [x] 02.1 Текстовый поиск: теги, `-tag`, wildcard, namespace, `system:inbox`,
   `system:archive`, `system:everything`, `system:limit`.
 - [x] 02.2 Простой autocomplete по тегам.
-- [ ] 02.3 Модель списка предикатов вместо разбора строки.
-- [ ] 02.4 File domain и tag service selector’ы.
+- [x] 02.3 Модель списка предикатов вместо разбора строки.
+- [~] 02.4 File domain и tag service selector’ы.
 - [ ] 02.5 Autocomplete dropdown с вкладками и счётчиками.
 - [ ] 02.6 OR-предикаты и advanced OR editor.
-- [ ] 02.7 Системные предикаты: размер, разрешение, ratio, mime, hash.
-- [ ] 02.8 Системные предикаты: duration, fps, frames, num pixels, num words.
-- [ ] 02.9 Системные предикаты: рейтинги, число тегов/URL/заметок.
-- [ ] 02.10 Системные предикаты: даты импорта/архивации/просмотра/изменения.
+- [x] 02.7 Системные предикаты: размер, разрешение, ratio, mime, hash.
+- [x] 02.8 Системные предикаты: duration, fps, frames, num pixels, num words.
+- [x] 02.9 Системные предикаты: рейтинги, число тегов/URL/заметок.
+- [x] 02.10 Системные предикаты: даты импорта/архивации/просмотра/изменения.
 - [ ] 02.11 Системные предикаты: known URL/domain/regex/URL class.
 - [ ] 02.12 Системные предикаты: duplicate relationships, similar files.
 - [ ] 02.13 Системные предикаты: file viewing stats, file service.

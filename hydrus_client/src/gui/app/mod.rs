@@ -18,6 +18,7 @@ pub mod auto_resolution;
 pub mod commands;
 pub mod download;
 pub mod duplicates;
+pub mod favourites;
 pub mod import;
 pub mod import_folders;
 pub mod metadata;
@@ -471,6 +472,91 @@ impl AppState {
 
                 let controller = self.controller.clone();
                 self.replace_query_and_refresh(&controller, target)
+            }
+            "favourite_save" => {
+                let initial = self
+                    .active_query()
+                    .map(|page| {
+                        if page.query.trim().is_empty() {
+                            page.title.clone()
+                        } else {
+                            page.query.clone()
+                        }
+                    })
+                    .unwrap_or_default();
+
+                vec![UiCommand::PromptText {
+                    action: "favourite_save_confirmed".to_string(),
+                    title: "save favourite search".to_string(),
+                    label: "name".to_string(),
+                    initial,
+                }]
+            }
+            "favourite_save_confirmed" => {
+                let Some(page) = self.active_query() else {
+                    return vec![UiCommand::NotifyMessage("no page selected".to_string())];
+                };
+
+                let favourite = favourites::FavouriteSearch {
+                    name: payload.to_string(),
+                    query: page.query.clone(),
+                    location: page.location.clone(),
+                    tag_service: page.tag_service.clone(),
+                };
+                let name = favourite.name.clone();
+                favourites::add_or_replace(&mut self.favourites, favourite);
+                let _ = favourites::persist(self);
+                self.message = format!("saved favourite search '{name}'");
+
+                vec![
+                    UiCommand::Menus(render::menus_json(self)),
+                    self.status_command(),
+                ]
+            }
+            "favourite_apply" => {
+                let Some(favourite) = self
+                    .favourites
+                    .iter()
+                    .find(|favourite| favourite.name == target)
+                    .cloned()
+                else {
+                    return vec![UiCommand::NotifyMessage(
+                        "favourite search is missing".to_string(),
+                    )];
+                };
+
+                let Some(page) = self.active_query() else {
+                    return vec![UiCommand::NotifyMessage("no page selected".to_string())];
+                };
+
+                let page_id = page.id.clone();
+                let controller = self.controller.clone();
+
+                if let Some(page) = self.find_query_mut(&page_id) {
+                    page.query = favourite.query;
+                    page.location = favourite.location;
+                    page.tag_service = favourite.tag_service;
+                    page.fixed_hashes = None;
+                }
+
+                self.replace_query_and_refresh(&controller, &page_id)
+            }
+            "favourite_delete" => vec![UiCommand::ConfirmAction {
+                action: "favourite_delete_confirmed".to_string(),
+                target: target.to_string(),
+                title: "delete favourite search".to_string(),
+                text: format!("Delete the favourite search '{target}'?"),
+            }],
+            "favourite_delete_confirmed" => {
+                if favourites::remove(&mut self.favourites, target) {
+                    let _ = favourites::persist(self);
+                    self.message = format!("deleted favourite search '{target}'");
+                }
+
+                vec![
+                    UiCommand::Menus(render::menus_json(self)),
+                    self.status_command(),
+                ]
             }
             "focus_hash" => self.focus(target, payload),
             "open_viewer" => self.open_viewer(target, payload),

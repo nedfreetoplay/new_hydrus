@@ -69,6 +69,8 @@ pub fn menus_json(state: &AppState) -> String {
                 {"label": "close page", "action": "close_page"},
                 {"label": "close other pages", "action": "close_other_pages"},
                 {"separator": true},
+                {"label": "favourite searches", "items": favourite_menu_items(state)},
+                {"separator": true},
                 {"label": "sessions", "items": session_menu_items(state)}
             ]
         },
@@ -137,6 +139,47 @@ pub fn menus_json(state: &AppState) -> String {
     ]);
 
     menus.to_string()
+}
+
+fn favourite_menu_items(state: &AppState) -> Vec<Value> {
+    let mut items = Vec::new();
+
+    for favourite in &state.favourites {
+        items.push(json!({
+            "label": format!("{} — {}", favourite.name, favourite.query),
+            "action": "favourite_apply",
+            "target": favourite.name,
+        }));
+    }
+
+    if items.is_empty() {
+        items.push(json!({"label": "no favourite searches", "action": "", "enabled": false}));
+    }
+
+    items.push(json!({"separator": true}));
+    items.push(json!({
+        "label": "save current search...",
+        "action": "favourite_save",
+        "description": "Store the current query, file domain and tag service."
+    }));
+
+    let mut delete = Vec::new();
+
+    for favourite in &state.favourites {
+        delete.push(json!({
+            "label": favourite.name,
+            "action": "favourite_delete",
+            "target": favourite.name,
+        }));
+    }
+
+    if delete.is_empty() {
+        delete.push(json!({"label": "no favourite searches", "action": "", "enabled": false}));
+    }
+
+    items.push(json!({"label": "delete", "items": delete}));
+
+    items
 }
 
 fn session_menu_items(state: &AppState) -> Vec<Value> {

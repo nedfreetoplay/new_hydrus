@@ -95,7 +95,7 @@ Rust-цели: `gui/app/query.rs`, новый `gui/app/search.rs`,
 - [ ] 02.11 Системные предикаты: known URL/domain/regex/URL class.
 - [ ] 02.12 Системные предикаты: duplicate relationships, similar files.
 - [ ] 02.13 Системные предикаты: file viewing stats, file service.
-- [ ] 02.14 Favourite searches и их менеджер.
+- [x] 02.14 Favourite searches и их менеджер.
 - [ ] 02.15 История поиска и undo добавления/удаления предикатов.
 - [x] 02.16 Сохранение поискового контекста в странице/сессии.
 

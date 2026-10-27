@@ -533,6 +533,7 @@ pub struct AppState {
     pub subscriptions: Vec<SubscriptionEntry>,
     pub import_folders: Vec<super::import_folders::ImportFolderEntry>,
     pub auto_rules: Vec<super::auto_resolution::AutoResolutionRule>,
+    pub favourites: Vec<super::favourites::FavouriteSearch>,
     pub import_queue: ImportQueueState,
     pub history: PageHistory,
     pub closed_pages: Vec<ClosedPage>,
@@ -556,6 +557,7 @@ impl AppState {
             subscriptions: Vec::new(),
             import_folders: Vec::new(),
             auto_rules: Vec::new(),
+            favourites: Vec::new(),
             import_queue: ImportQueueState::default(),
             history: PageHistory::default(),
             closed_pages: Vec::new(),
@@ -583,6 +585,7 @@ impl AppState {
         state.auto_rules = super::auto_resolution::load_rules(
             &db_dir.join("duplicate auto-resolution rules.json"),
         );
+        state.favourites = super::favourites::load(&db_dir.join("favourite searches.json"));
 
         state.reindex();
         state.active = restored_active

@@ -122,10 +122,16 @@ variable-height masonry (QListWidget с неоднородными size hint), �
 индексами `db::tag_search`, а свойства файлов (размер, ширина/высота, ratio, mime,
 hash, duration, fps, frames, пиксели, слова, число тегов/URL/заметок, рейтинги,
 даты импорта/архивации/изменения/просмотра, known URL/domain/regex/URL class,
-file viewing stats и file service) проверяются по `files_info`, таблицам времени,
-`url_map`, `file_viewing_stats` и `db::files_storage`. Неподдерживаемые системные
-предикаты пропускаются, а неизвестный `system:*` возвращает ошибку разбора в
-статус страницы.
+file viewing stats, file service, duplicate relationships и similar files)
+проверяются по `files_info`, таблицам времени, `url_map`, `file_viewing_stats`,
+`db::files_storage`, `db::duplicates` и `db::similar_files`. Неподдерживаемые
+системные предикаты пропускаются, а неизвестный `system:*` возвращает ошибку
+разбора в статус страницы.
+
+`system:best quality of group` сравнивает hash с king группы, `system:num file
+relationships` считает duplicates/alternates/potential duplicates/false positives,
+а `system:similar to files|data ... distance N` ищет по perceptual/pixel-хэшам
+через `similar_files::search_similar`.
 
 OR-группы записываются как `{predicate | predicate}` (вложенные группы
 поддерживаются, `-{...}` исключает объединение). `FileSystemPredicates.or_predicates`

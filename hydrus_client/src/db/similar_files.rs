@@ -68,6 +68,17 @@ pub fn get_hash_ids_for_pixel_hash(db: &DBBase, pixel_hash: &[u8]) -> HydrusResu
     )
 }
 
+pub fn get_hash_ids_for_perceptual_hash(
+    db: &DBBase,
+    perceptual_hash: &[u8],
+) -> HydrusResult<Vec<i64>> {
+    db.query_all(
+        "SELECT hash_id FROM shape_perceptual_hash_map WHERE perceptual_hash = ?",
+        &[&perceptual_hash],
+        |row| row.get(0),
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SimilarFile {
     pub hash_id: i64,

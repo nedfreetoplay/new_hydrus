@@ -16,8 +16,8 @@ use serde_json::{Value, json};
 
 use crate::controller::Controller;
 use crate::db::{
-    files_storage, files_timestamps, files_viewing_stats, mappings, master_tags, notes, ratings,
-    tag_search, url_map,
+    duplicates, files_storage, files_timestamps, files_viewing_stats, mappings, master,
+    master_tags, notes, ratings, similar_files, tag_search, url_map,
 };
 use crate::metadata::Rating;
 use crate::search::client_file_system_predicates::FileSystemPredicates;
@@ -312,6 +312,12 @@ const SYSTEM_PREDICATE_SUGGESTIONS: &[&str] = &[
     "system:has url matching regex ",
     "system:has url with domain ",
     "system:has url with class ",
+    "system:best quality of group",
+    "system:not the best quality of group",
+    "system:similar to files ",
+    "system:num file relationships > 0 duplicates",
+    "system:num file relationships > 0 alternates",
+    "system:num file relationships > 0 potential duplicates",
     "system:media views > 0",
     "system:preview views > 0",
     "system:all views > 0",
@@ -760,6 +766,13 @@ pub fn matches_system(
         PredicateType::SystemFileService => {
             Some(file_service_matches(controller, db, hash_id, predicate)?)
         }
+        PredicateType::SystemSimilarTo => Some(similar_matches(db, hash_id, predicate)?),
+        PredicateType::SystemFileRelationshipsKing => {
+            Some(duplicates::is_king(db, hash_id)? == predicate.inclusive)
+        }
+        PredicateType::SystemFileRelationshipsCount => {
+            Some(relationships_matches(db, hash_id, predicate)?)
+        }
         PredicateType::SystemRating => Some(rating_matches(controller, db, hash_id, predicate)?),
         _ => None,
     };
@@ -885,6 +898,78 @@ fn file_service_matches(
     let hash_ids = files_storage::get_hash_ids(db, service.service_id, status)?;
 
     Ok(hash_ids.contains(&hash_id) == *is_in)
+}
+
+fn similar_matches(db: &DBBase, hash_id: i64, predicate: &Predicate) -> HydrusResult<bool> {
+    let PredicateValue::Similar {
+        hashes,
+        distance,
+        files,
+    } = &predicate.value
+    else {
+        return Ok(false);
+    };
+
+    let mut matched = false;
+
+    for hash in hashes {
+        let mut target_ids = if *files {
+            master::find_hash_id(db, hash)?.into_iter().collect()
+        } else {
+            similar_files::get_hash_ids_for_perceptual_hash(db, hash)?
+        };
+
+        if !*files {
+            target_ids.extend(similar_files::get_hash_ids_for_pixel_hash(db, hash)?);
+        }
+
+        target_ids.sort_unstable();
+        target_ids.dedup();
+
+        for target_id in target_ids {
+            let mut query_hashes = similar_files::get_perceptual_hashes(db, target_id)?;
+
+            if let Some(pixel_hash) = similar_files::get_pixel_hash(db, target_id)? {
+                query_hashes.push(pixel_hash);
+            }
+
+            for query in query_hashes {
+                if similar_files::search_similar(db, &query, *distance, Some(target_id))?
+                    .iter()
+                    .any(|candidate| candidate.hash_id == hash_id)
+                {
+                    matched = true;
+                    break;
+                }
+
+                if similar_files::get_hash_ids_for_pixel_hash(db, &query)?.contains(&hash_id) {
+                    matched = true;
+                    break;
+                }
+            }
+
+            if matched {
+                break;
+            }
+        }
+
+        if matched {
+            break;
+        }
+    }
+
+    Ok(predicate.inclusive == matched)
+}
+
+fn relationships_matches(db: &DBBase, hash_id: i64, predicate: &Predicate) -> HydrusResult<bool> {
+    let PredicateValue::Relationships { number, kind } = &predicate.value else {
+        return Ok(false);
+    };
+
+    let actual = duplicates::get_relationship_count(db, hash_id, kind)?;
+    let matched = number.test(Some(actual as f64), None);
+
+    Ok(predicate.inclusive == matched)
 }
 
 pub fn tag_count(

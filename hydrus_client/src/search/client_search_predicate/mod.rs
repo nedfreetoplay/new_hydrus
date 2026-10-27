@@ -58,6 +58,17 @@ pub enum PredicateValue {
         rule_type: String,
         rule: String,
     },
+    Similar {
+        hashes: Vec<Vec<u8>>,
+        distance: u32,
+        /// True for `similar to files` (values are file hashes); false for
+        /// `similar to data` (values are perceptual/pixel hashes).
+        files: bool,
+    },
+    Relationships {
+        number: NumberTest,
+        kind: String,
+    },
     ViewingStats {
         canvas_types: Vec<String>,
         operator: i32,

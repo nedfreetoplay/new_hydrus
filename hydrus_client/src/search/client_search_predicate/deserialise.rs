@@ -147,6 +147,45 @@ pub(super) fn deserialise_value(
         });
     }
 
+    if predicate_type == PredicateType::SystemSimilarTo {
+        let values = value
+            .as_array()
+            .ok_or_else(|| serialisation("similar files predicate value must be a list"))?;
+        let hashes = values
+            .first()
+            .and_then(Value::as_array)
+            .map(|hashes| {
+                hashes
+                    .iter()
+                    .filter_map(|hash| hash.as_str().and_then(hex_decode))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        return Ok(PredicateValue::Similar {
+            hashes,
+            distance: values.get(1).and_then(Value::as_u64).unwrap_or(8) as u32,
+            files: values.get(2).and_then(Value::as_bool).unwrap_or(false),
+        });
+    }
+
+    if predicate_type == PredicateType::SystemFileRelationshipsCount {
+        let values = value
+            .as_array()
+            .ok_or_else(|| serialisation("relationship count predicate value must be a list"))?;
+        let mut number = NumberTest::default();
+        number.initialise_from_serialisable_info(values.first().unwrap_or(&Value::Null))?;
+
+        return Ok(PredicateValue::Relationships {
+            number,
+            kind: values
+                .get(1)
+                .and_then(Value::as_str)
+                .unwrap_or("duplicates")
+                .to_string(),
+        });
+    }
+
     if predicate_type == PredicateType::SystemFileViewingStats {
         let values = value
             .as_array()

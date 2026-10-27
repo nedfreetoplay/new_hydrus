@@ -1,6 +1,6 @@
 use super::*;
 use crate::controller::Controller;
-use crate::db::{files_storage, mappings, master, master_tags};
+use crate::db::{duplicates, files_storage, mappings, master, master_tags, similar_files};
 use hydrus_core::hydrus_constants::{Mime, ServiceType};
 
 fn test_controller() -> (Controller, std::path::PathBuf) {
@@ -220,6 +220,135 @@ fn url_and_viewing_stats_predicates_are_parsed_and_evaluated() {
         )
         .unwrap(),
         Some(true)
+    );
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn duplicate_and_similar_predicates_are_evaluated() {
+    let (controller, directory) = test_controller();
+    let db = controller.db().db();
+    let tag_service = tag_service_id(&controller);
+    let file_service = controller
+        .services()
+        .get_service(b"my files")
+        .unwrap()
+        .service_id;
+
+    let king = master::get_hash_id(db, &[0x81; 32]).unwrap();
+    let other = master::get_hash_id(db, &[0x82; 32]).unwrap();
+    let outsider = master::get_hash_id(db, &[0x83; 32]).unwrap();
+
+    for hash_id in [king, other, outsider] {
+        files_storage::add_files(
+            db,
+            file_service,
+            ContentStatus::Current,
+            &[hash_id],
+            Some(hydrus_core::hydrus_time::get_now()),
+        )
+        .unwrap();
+    }
+
+    duplicates::set_duplicate_group(db, 1, king, &[king, other]).unwrap();
+    duplicates::add_potential_pair(db, king, outsider, 2).unwrap();
+    duplicates::add_false_positive(db, other, outsider).unwrap();
+
+    similar_files::set_perceptual_hashes(
+        db,
+        king,
+        &[vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88]],
+    )
+    .unwrap();
+    similar_files::set_perceptual_hashes(
+        db,
+        other,
+        &[vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x89]],
+    )
+    .unwrap();
+    similar_files::set_perceptual_hashes(db, outsider, &[vec![0xff; 8]]).unwrap();
+    similar_files::set_pixel_hash(db, king, &[0x91; 32]).unwrap();
+    similar_files::set_pixel_hash(db, other, &[0x91; 32]).unwrap();
+
+    let info = FileInfo {
+        size: 1,
+        mime: Mime::Png,
+        width: Some(10),
+        height: Some(10),
+        duration_ms: None,
+        num_frames: None,
+        has_audio: false,
+        num_words: None,
+    };
+
+    let matches = |query: &str, hash_id: i64| {
+        let plan = super::plan(db, &controller.services(), query).unwrap();
+
+        matches_system(
+            &controller,
+            db,
+            hash_id,
+            &info,
+            tag_service,
+            Some(file_service),
+            &plan.system.other_system[0],
+        )
+        .unwrap()
+    };
+
+    assert_eq!(matches("system:best quality of group", king), Some(true));
+    assert_eq!(matches("system:best quality of group", other), Some(false));
+    assert_eq!(
+        matches("system:not the best quality of group", other),
+        Some(true)
+    );
+
+    assert_eq!(
+        matches("system:num file relationships > 0 duplicates", king),
+        Some(true)
+    );
+    assert_eq!(
+        matches("system:num file relationships > 0 duplicates", outsider),
+        Some(false)
+    );
+    assert_eq!(
+        matches(
+            "system:num file relationships = 1 potential duplicates",
+            king
+        ),
+        Some(true)
+    );
+    assert_eq!(
+        matches(
+            "system:num file relationships = 1 not related/false positive",
+            other
+        ),
+        Some(true)
+    );
+
+    let king_hex = "81".repeat(32);
+    assert_eq!(
+        matches(
+            &format!("system:similar to files {king_hex} distance 0"),
+            other
+        ),
+        Some(true)
+    );
+    assert_eq!(
+        matches("system:similar to data 1122334455667788 distance 0", other),
+        Some(true)
+    );
+    assert_eq!(
+        matches(
+            "system:similar to data 9191919191919191919191919191919191919191919191919191919191919191 distance 0",
+            other
+        ),
+        Some(true)
+    );
+    assert_eq!(
+        matches("system:similar to data ffffffffffffffff distance 0", other),
+        Some(false)
     );
 
     let _ = std::fs::remove_dir_all(directory);

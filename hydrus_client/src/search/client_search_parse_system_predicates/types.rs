@@ -2,7 +2,7 @@
 
 use hydrus_core::hydrus_exceptions::HydrusResult;
 use hydrus_external::system_predicate_parser::{
-    Predicate as ExternalPredicate, SystemPredicate, ValueData,
+    Predicate as ExternalPredicate, SystemPredicate, Unit, ValueData,
 };
 
 use crate::search::client_search_predicate::{Predicate, PredicateValue};
@@ -47,7 +47,6 @@ pub(super) fn numeric_type(parsed: &SystemPredicate) -> Option<PredicateType> {
         ExternalPredicate::NumOfUrls => Some(PredicateType::SystemNumUrls),
         ExternalPredicate::NumNotes => Some(PredicateType::SystemNumNotes),
         ExternalPredicate::NumPixels => Some(PredicateType::SystemNumPixels),
-        ExternalPredicate::NumFileRels => Some(PredicateType::SystemFileRelationshipsCount),
         ExternalPredicate::Ratio | ExternalPredicate::RatioSpecial => {
             Some(PredicateType::SystemRatio)
         }
@@ -79,24 +78,71 @@ pub(super) fn value_predicate(parsed: &SystemPredicate) -> HydrusResult<Option<P
 
     if matches!(
         parsed.predicate,
+        ExternalPredicate::BestQualityOfGroup | ExternalPredicate::NotBestQualityOfGroup
+    ) {
+        let mut predicate = Predicate::new(
+            PredicateType::SystemFileRelationshipsKing,
+            PredicateValue::None,
+        );
+        predicate.inclusive = parsed.predicate == ExternalPredicate::BestQualityOfGroup;
+
+        return Ok(Some(predicate));
+    }
+
+    if matches!(
+        parsed.predicate,
         ExternalPredicate::SimilarToFiles | ExternalPredicate::SimilarToData
     ) {
-        let hashes = match &parsed.value {
+        let (hashes, distance, files) = match &parsed.value {
             Some(ValueData::SimilarToHashListWithDistance {
                 pixel_hashes,
                 perceptual_hashes,
-                ..
-            }) => pixel_hashes
-                .iter()
-                .chain(perceptual_hashes.iter())
-                .filter_map(|hash| hex_decode(hash))
-                .collect(),
-            _ => Vec::new(),
+                distance,
+            }) => (
+                pixel_hashes
+                    .iter()
+                    .chain(perceptual_hashes.iter())
+                    .filter_map(|hash| hex_decode(hash))
+                    .collect(),
+                *distance as u32,
+                false,
+            ),
+            Some(ValueData::HashListWithDistance { hashes, distance }) => (
+                hashes.iter().filter_map(|hash| hex_decode(hash)).collect(),
+                *distance as u32,
+                true,
+            ),
+            _ => (
+                Vec::new(),
+                8,
+                parsed.predicate == ExternalPredicate::SimilarToFiles,
+            ),
         };
 
         return Ok(Some(Predicate::new(
             PredicateType::SystemSimilarTo,
-            PredicateValue::Hashes(hashes),
+            PredicateValue::Similar {
+                hashes,
+                distance,
+                files,
+            },
+        )));
+    }
+
+    if parsed.predicate == ExternalPredicate::NumFileRels {
+        let kind = match parsed.unit {
+            Some(Unit::Alternates) => "alternates",
+            Some(Unit::PotentialDuplicates) => "potential duplicates",
+            Some(Unit::NotRelatedOrFalsePositive) => "not related/false positive",
+            _ => "duplicates",
+        };
+
+        return Ok(Some(Predicate::new(
+            PredicateType::SystemFileRelationshipsCount,
+            PredicateValue::Relationships {
+                number: make_number_test(parsed)?,
+                kind: kind.to_string(),
+            },
         )));
     }
 

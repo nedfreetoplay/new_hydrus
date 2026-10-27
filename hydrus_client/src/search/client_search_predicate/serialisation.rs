@@ -98,6 +98,21 @@ fn serialise_value(_predicate_type: PredicateType, value: &PredicateValue) -> Va
             values,
         } => json!([operator, date_type, values]),
         PredicateValue::KnownUrl { rule_type, rule } => json!([rule_type, rule]),
+        PredicateValue::Similar {
+            hashes,
+            distance,
+            files,
+        } => json!([
+            hashes
+                .iter()
+                .map(|hash| hex_encode(hash))
+                .collect::<Vec<_>>(),
+            distance,
+            files
+        ]),
+        PredicateValue::Relationships { number, kind } => {
+            json!([number.to_json_value(), kind])
+        }
         PredicateValue::ViewingStats {
             canvas_types,
             operator,

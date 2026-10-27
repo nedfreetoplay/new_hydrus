@@ -139,6 +139,20 @@ impl Predicate {
             (PredicateType::SystemNotLocal, _) => "not local".to_string(),
             (PredicateType::SystemDimensions, _) => "dimensions".to_string(),
             (PredicateType::SystemFileProperties, _) => "file properties".to_string(),
+            (
+                PredicateType::SystemSimilarTo,
+                PredicateValue::Similar {
+                    hashes, distance, ..
+                },
+            ) => {
+                format!("similar to {} files (distance {distance})", hashes.len())
+            }
+            (
+                PredicateType::SystemFileRelationshipsCount,
+                PredicateValue::Relationships { number, kind },
+            ) => {
+                format!("{kind} relationships {}", number.to_string())
+            }
             (PredicateType::SystemSimilarTo, _) => "similar files".to_string(),
             (PredicateType::SystemTime, _) => "time".to_string(),
             (PredicateType::SystemUrls, _) => "urls".to_string(),

@@ -21,6 +21,7 @@ pub struct QueryPage {
     /// Local tag service name; empty means the first local tag service.
     pub tag_service: String,
     pub hashes: Vec<Vec<u8>>,
+    pub selected: Vec<Vec<u8>>,
     pub focused: Option<Vec<u8>>,
     pub status: String,
     pub empty_text: String,
@@ -41,6 +42,7 @@ impl QueryPage {
             location: location.into(),
             tag_service: String::new(),
             hashes: Vec::new(),
+            selected: Vec::new(),
             focused: None,
             status: String::new(),
             empty_text: String::new(),

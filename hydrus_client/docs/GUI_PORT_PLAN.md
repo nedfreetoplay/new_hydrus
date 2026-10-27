@@ -115,15 +115,15 @@ Rust-цели: `gui/app/query.rs`, `gui/app/render.rs`, `gui/qt/bridge.*`,
 - [x] 03.2 Ctrl+wheel zoom миниатюр.
 - [x] 03.3 Базовое контекстное меню (open, tags, archive, inbox, delete).
 - [ ] 03.4 Sort/collect controls и сохранение режима.
-- [ ] 03.5 Множественное выделение: действия над всеми выбранными файлами.
-- [ ] 03.6 Correct focused vs selected file semantics.
+- [x] 03.5 Множественное выделение: действия над всеми выбранными файлами.
+- [x] 03.6 Correct focused vs selected file semantics.
 - [ ] 03.7 Masonry layout, scroll direction, thumbnail sizing options.
 - [ ] 03.8 Loading panel/progress и file count.
 - [ ] 03.9 Rating overlays, duplicate indicators, archive/inbox markers.
 - [ ] 03.10 Drag & drop файлов, miniatures между страницами.
 - [ ] 03.11 Полные media menus: copy hash/URL, open externally, file services,
   timestamps, notes, ratings.
-- [ ] 03.12 Selection-aware статус-бар и счётчики.
+- [x] 03.12 Selection-aware статус-бар и счётчики.
 
 Выход фазы: results panel ведёт себя как Hydrus при сортировке, выделении,
 загрузке и действиях над группой файлов.

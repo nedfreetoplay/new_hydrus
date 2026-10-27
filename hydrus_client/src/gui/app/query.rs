@@ -165,6 +165,7 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
     }
 
     page.hashes = hashes;
+    page.selected.clear();
 
     let shown = page.hashes.len();
 

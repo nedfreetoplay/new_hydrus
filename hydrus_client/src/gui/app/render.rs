@@ -375,7 +375,11 @@ pub fn status_json(state: &AppState) -> String {
                 })
                 .unwrap_or_default();
 
-            format!("{position}{}", page.status)
+            if page.selected.len() > 1 {
+                format!("{} selected - {}", page.selected.len(), page.status)
+            } else {
+                format!("{position}{}", page.status)
+            }
         }
         None => String::new(),
     };

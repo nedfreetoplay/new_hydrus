@@ -1,5 +1,8 @@
 use super::*;
-use crate::db::{ClientDB, master_tags};
+use crate::controller::Controller;
+use crate::db::{ClientDB, files_metadata, files_storage, mappings, master, master_tags};
+use hydrus_core::files::hydrus_file_handling::FileInfo;
+use hydrus_core::hydrus_constants::Mime;
 
 fn database() -> (ClientDB, std::path::PathBuf) {
     let directory = std::env::temp_dir().join(format!(
@@ -50,4 +53,85 @@ fn hex_round_trips_hashes() {
 
     assert_eq!(unhex(&hex(&hash)), Some(hash));
     assert_eq!(unhex("xyz"), None);
+}
+
+#[test]
+fn system_predicates_filter_real_files() {
+    let directory = std::env::temp_dir().join(format!(
+        "hydrus_client_query_system_{}_{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    let controller = Controller::new(&directory).unwrap();
+    controller.init_model().unwrap();
+    let db = controller.db().db();
+
+    let file_service = controller
+        .services()
+        .get_service(b"my files")
+        .unwrap()
+        .service_id;
+    let tag_service = controller
+        .services()
+        .get_service(b"local tags")
+        .unwrap()
+        .service_id;
+
+    let wide = master::get_hash_id(db, &[0x11; 32]).unwrap();
+    let narrow = master::get_hash_id(db, &[0x22; 32]).unwrap();
+
+    for hash_id in [wide, narrow] {
+        files_storage::add_files(
+            db,
+            file_service,
+            ContentStatus::Current,
+            &[hash_id],
+            Some(hydrus_core::hydrus_time::get_now()),
+        )
+        .unwrap();
+    }
+
+    files_metadata::set_file_info(
+        db,
+        wide,
+        &FileInfo {
+            size: 2048,
+            mime: Mime::Png,
+            width: Some(200),
+            height: Some(100),
+            duration_ms: None,
+            num_frames: None,
+            has_audio: false,
+            num_words: None,
+        },
+    )
+    .unwrap();
+
+    files_metadata::set_file_info(
+        db,
+        narrow,
+        &FileInfo {
+            size: 1024,
+            mime: Mime::Png,
+            width: Some(20),
+            height: Some(10),
+            duration_ms: None,
+            num_frames: None,
+            has_audio: false,
+            num_words: None,
+        },
+    )
+    .unwrap();
+
+    let tag = master_tags::get_tag_id(db, "blue eyes").unwrap();
+    mappings::add_mappings(db, tag_service, ContentStatus::Current, wide, &[tag]).unwrap();
+
+    let mut page = QueryPage::new("p1", "files", "my files");
+    page.query = "blue eyes system:width > 100".to_string();
+    run_query(&controller, &mut page).unwrap();
+
+    assert_eq!(page.hashes.len(), 1);
+    assert_eq!(page.hashes[0], vec![0x11; 32]);
+
+    let _ = std::fs::remove_dir_all(directory);
 }

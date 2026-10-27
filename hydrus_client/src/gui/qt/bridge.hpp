@@ -128,6 +128,7 @@ public:
     void set_media(const QJsonArray &media);
     void set_focused(const QString &hash);
     QString focused_hash() const;
+    QStringList selected_hashes() const;
 
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;

@@ -315,6 +315,24 @@ HydrusThumbnailGrid::HydrusThumbnailGrid(HydrusMainWindow *main_window, HydrusQu
         }
     });
 
+    connect(this, &QListWidget::itemSelectionChanged, this, [this]() {
+        if (main->building) {
+            return;
+        }
+
+        QJsonArray hashes;
+
+        for (const QString &hash : selected_hashes()) {
+            hashes.append(hash);
+        }
+
+        const QByteArray payload = QJsonDocument(hashes).toJson(QJsonDocument::Compact);
+        main->notify(
+            QStringLiteral("selection_changed"),
+            page->page_id(),
+            QString::fromUtf8(payload));
+    });
+
     connect(this, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
         if (main->building || item == nullptr) {
             return;
@@ -326,8 +344,7 @@ HydrusThumbnailGrid::HydrusThumbnailGrid(HydrusMainWindow *main_window, HydrusQu
             QByteArray hash_bytes = hash.toUtf8();
             QByteArray page_bytes = page->page_id().toUtf8();
             app_action(*main, rust::Str("open_viewer", 11), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
-        }
-    });
+        }    });
 }
 
 void HydrusThumbnailGrid::set_media(const QJsonArray &media) {
@@ -382,6 +399,20 @@ QString HydrusThumbnailGrid::focused_hash() const {
     return page_hash_from_item(currentItem());
 }
 
+QStringList HydrusThumbnailGrid::selected_hashes() const {
+    QStringList hashes;
+
+    for (QListWidgetItem *item : selectedItems()) {
+        const QString hash = page_hash_from_item(item);
+
+        if (!hash.isEmpty()) {
+            hashes.append(hash);
+        }
+    }
+
+    return hashes;
+}
+
 void HydrusThumbnailGrid::wheelEvent(QWheelEvent *event) {
     if (!(event->modifiers() & Qt::ControlModifier)) {
         QListWidget::wheelEvent(event);
@@ -412,6 +443,14 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
     }
 
     const QString hash = page_hash_from_item(item);
+
+    if (!item->isSelected()) {
+        clearSelection();
+        item->setSelected(true);
+    }
+
+    setCurrentItem(item);
+
     QMenu menu(this);
 
     QAction *open = menu.addAction(QStringLiteral("open in media viewer"));
@@ -434,21 +473,38 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
     } else if (chosen == tags) {
         action = QStringLiteral("manage_tags");
     } else if (chosen == archive) {
-        action = QStringLiteral("archive_files");
+        action = QStringLiteral("archive_hashes");
     } else if (chosen == inbox) {
-        action = QStringLiteral("inbox_files");
+        action = QStringLiteral("inbox_hashes");
     } else if (chosen == remove) {
-        action = QStringLiteral("delete_files");
+        action = QStringLiteral("delete_hashes");
     }
 
     if (action.isEmpty()) {
         return;
     }
 
-    QByteArray action_bytes = action.toUtf8();
-    QByteArray page_bytes = page->page_id().toUtf8();
-    QByteArray hash_bytes = hash.toUtf8();
-    app_action(*main, rust::Str(action_bytes.constData(), action_bytes.size()), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
+    QString payload = hash;
+
+    if (action.endsWith(QStringLiteral("_hashes"))) {
+        QJsonArray hashes;
+        const QStringList selected = selected_hashes();
+
+        if (selected.isEmpty()) {
+            hashes.append(hash);
+        } else {
+            for (const QString &selected_hash : selected) {
+                hashes.append(selected_hash);
+            }
+        }
+
+        payload = QString::fromUtf8(QJsonDocument(hashes).toJson(QJsonDocument::Compact));
+    }
+
+    const QByteArray action_bytes = action.toUtf8();
+    const QByteArray page_bytes = page->page_id().toUtf8();
+    const QByteArray payload_bytes = payload.toUtf8();
+    app_action(*main, rust::Str(action_bytes.constData(), action_bytes.size()), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(payload_bytes.constData(), payload_bytes.size()));
 }
 
 // ---------------------------------------------------------------------------

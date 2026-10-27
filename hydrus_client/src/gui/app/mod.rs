@@ -261,6 +261,17 @@ impl AppState {
 
                 commands
             }
+            "selection_changed" => {
+                if let Some(page) = self.find_query_mut(target) {
+                    let hashes: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
+                    page.selected = hashes
+                        .iter()
+                        .filter_map(|hash| query::unhex(hash))
+                        .collect();
+                }
+
+                vec![self.status_command()]
+            }
             "new_page_menu" => {
                 let notebook = if target.is_empty() {
                     self.active_notebook_id()
@@ -462,6 +473,9 @@ impl AppState {
             "apply_tags" => self.apply_tags(payload),
             "archive_files" => self.set_inbox(target, payload, false),
             "inbox_files" => self.set_inbox(target, payload, true),
+            "archive_hashes" => self.set_inbox_many(target, payload, false),
+            "inbox_hashes" => self.set_inbox_many(target, payload, true),
+            "delete_hashes" => self.delete_files_many(target, payload),
             "archive_active" => self.set_inbox_active(false),
             "inbox_active" => self.set_inbox_active(true),
             "delete_files" => self.delete_files(target, payload),
@@ -1347,16 +1361,91 @@ impl AppState {
         self.refresh_commands()
     }
 
+    fn set_inbox_many(&mut self, page_id: &str, payload: &str, inbox: bool) -> Vec<UiCommand> {
+        let hashes: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
+        let mut hash_ids = Vec::new();
+
+        for hash_hex in hashes {
+            if let Some(hash) = query::unhex(&hash_hex) {
+                if let Some(hash_id) = query::hash_id_for(&self.controller, &hash) {
+                    hash_ids.push(hash_id);
+                }
+            }
+        }
+
+        if hash_ids.is_empty() {
+            return vec![UiCommand::NotifyMessage("no files selected".to_string())];
+        }
+
+        let _ = files_storage::set_inbox(self.controller.db().db(), &hash_ids, inbox);
+        let count = hash_ids.len();
+
+        self.message = if inbox {
+            format!("{count} files moved to inbox")
+        } else {
+            format!("{count} files archived")
+        };
+
+        let _ = page_id;
+        self.refresh_commands()
+    }
+
+    fn delete_files_many(&mut self, page_id: &str, payload: &str) -> Vec<UiCommand> {
+        let hashes: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
+        let mut hash_ids = Vec::new();
+
+        for hash_hex in hashes {
+            if let Some(hash) = query::unhex(&hash_hex) {
+                if let Some(hash_id) = query::hash_id_for(&self.controller, &hash) {
+                    hash_ids.push(hash_id);
+                }
+            }
+        }
+
+        if hash_ids.is_empty() {
+            return vec![UiCommand::NotifyMessage("no files selected".to_string())];
+        }
+
+        let db = self.controller.db().db();
+        let my_files = query::local_file_service_id(&self.controller, "my files");
+        let now = hydrus_time::get_now();
+
+        if let Some(trash) = query::trash_service_id(&self.controller) {
+            let _ =
+                files_storage::add_files(db, trash, ContentStatus::Current, &hash_ids, Some(now));
+        }
+
+        if let Some(service) = my_files {
+            let _ = files_storage::remove_files(db, service, ContentStatus::Current, &hash_ids);
+        }
+
+        for hash_id in &hash_ids {
+            let _ = files_storage::set_inbox(db, &[*hash_id], false);
+        }
+
+        self.message = format!("{} files moved to trash", hash_ids.len());
+        let _ = page_id;
+        self.refresh_commands()
+    }
+
     fn set_inbox_active(&mut self, inbox: bool) -> Vec<UiCommand> {
         let Some(page) = self.active_query() else {
             return vec![UiCommand::NotifyMessage("no page selected".to_string())];
         };
 
+        let page_id = page.id.clone();
+
+        if page.selected.len() > 1 {
+            let hashes: Vec<String> = page.selected.iter().map(|hash| query::hex(hash)).collect();
+            let payload = serde_json::to_string(&hashes).unwrap_or_else(|_| "[]".to_string());
+
+            return self.set_inbox_many(&page_id, &payload, inbox);
+        }
+
         let Some(hash) = page.focused.clone() else {
             return vec![UiCommand::NotifyMessage("no file selected".to_string())];
         };
 
-        let page_id = page.id.clone();
         self.set_inbox(&page_id, &query::hex(&hash), inbox)
     }
 

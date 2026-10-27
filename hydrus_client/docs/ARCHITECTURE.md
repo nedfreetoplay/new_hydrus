@@ -99,6 +99,8 @@ variable-height masonry (QListWidget с неоднородными size hint), �
 Help → about собирает `about_json` (SOFTWARE_VERSION, NETWORK_VERSION,
 CLIENT_API_VERSION, db version, SQLite/Qt/Rust, пути и счётчики сервисов) и
 показывает вкладки overview/license/credits с кнопкой открытия сайта.
+`run_application` показывает `SplashModel` через QSplashScreen: версии, статусы
+«loading pages…», «ready», и закрывает его через QTimer после старта.
 
 Меню Database вызывает реальные SQLite-операции: `PRAGMA quick_check`, `VACUUM`,
 `PRAGMA optimize` + `ANALYZE`, обзор `page_count`/`freelist_count` и подсчёт

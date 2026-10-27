@@ -6,11 +6,20 @@ pub(crate) mod ffi {
         include!("bridge.hpp");
 
         type QApplication;
+        type QSplashScreen;
         type HydrusMainWindow;
 
         fn new_application() -> UniquePtr<QApplication>;
         fn exec_application(application: Pin<&mut QApplication>) -> i32;
         fn quit_application(application: Pin<&mut QApplication>);
+        fn qapp_process_events();
+
+        fn new_hydrus_splash() -> UniquePtr<QSplashScreen>;
+        fn hydrus_splash_show(splash: Pin<&mut QSplashScreen>);
+        fn hydrus_splash_message(splash: Pin<&mut QSplashScreen>, message: &str);
+        fn hydrus_splash_finish(splash: Pin<&mut QSplashScreen>);
+        fn hydrus_splash_finish_later(splash: Pin<&mut QSplashScreen>, delay_ms: i32);
+        fn hydrus_splash_screenshot(splash: Pin<&mut QSplashScreen>, path: &str, delay_ms: i32);
 
         fn new_hydrus_main_window() -> UniquePtr<HydrusMainWindow>;
         fn build_hydrus_shell(window: Pin<&mut HydrusMainWindow>);
@@ -172,10 +181,29 @@ pub fn run_application(controller: Arc<Controller>) {
 
     let _ = QtInit::default().apply();
 
+    let mut splash = ffi::new_hydrus_splash();
+    let mut splash_model = crate::gui::splash::SplashModel::new("Hydrus Client");
+    splash_model.set_status(format!(
+        "software v{} · network v{}",
+        hydrus_core::hydrus_constants::SOFTWARE_VERSION,
+        hydrus_core::hydrus_constants::NETWORK_VERSION
+    ));
+    ffi::hydrus_splash_show(splash.pin_mut());
+    ffi::hydrus_splash_message(
+        splash.pin_mut(),
+        splash_model.get_status().unwrap_or_default(),
+    );
+
     let mut window = ffi::new_hydrus_main_window();
     ffi::build_hydrus_shell(window.pin_mut());
 
     app::install(controller);
+
+    splash_model.set_status("loading pages...");
+    ffi::hydrus_splash_message(
+        splash.pin_mut(),
+        splash_model.get_status().unwrap_or_default(),
+    );
 
     if let Ok(paths) = std::env::var("HYDRUS_QT_IMPORT") {
         let paths: Vec<String> = paths
@@ -241,6 +269,23 @@ pub fn run_application(controller: Arc<Controller>) {
     ffi::hydrus_resize_window(window.pin_mut(), 1280, 800);
     ffi::show_hydrus_main_window(window.pin_mut());
     ffi::hydrus_start_tick(window.pin_mut());
+
+    splash_model.set_status("ready");
+    ffi::hydrus_splash_message(
+        splash.pin_mut(),
+        splash_model.get_status().unwrap_or_default(),
+    );
+
+    if let Ok(path) = std::env::var("HYDRUS_QT_SPLASH_SCREENSHOT") {
+        if !path.is_empty() {
+            ffi::hydrus_splash_screenshot(splash.pin_mut(), &path, 500);
+            ffi::hydrus_splash_finish_later(splash.pin_mut(), 1500);
+        }
+    } else if std::env::var_os("HYDRUS_QT_HOLD_SPLASH").is_some() {
+        ffi::hydrus_splash_finish_later(splash.pin_mut(), 2000);
+    } else {
+        ffi::hydrus_splash_finish_later(splash.pin_mut(), 600);
+    }
 
     if let Ok(path) = std::env::var("HYDRUS_QT_SCREENSHOT") {
         if !path.is_empty() {

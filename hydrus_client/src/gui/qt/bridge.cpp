@@ -6751,6 +6751,80 @@ void quit_application(QApplication &application) {
     application.quit();
 }
 
+void qapp_process_events() {
+    QApplication::processEvents();
+}
+
+std::unique_ptr<QSplashScreen> new_hydrus_splash() {
+    QPixmap pixmap(620, 340);
+    pixmap.fill(QColor(36, 36, 36));
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    QFont title_font = painter.font();
+    title_font.setPointSize(30);
+    title_font.setBold(true);
+    painter.setFont(title_font);
+    painter.setPen(QColor(238, 238, 238));
+    painter.drawText(QRect(36, 48, 548, 64), Qt::AlignLeft | Qt::AlignVCenter, QStringLiteral("Hydrus Network"));
+
+    QFont subtitle_font = painter.font();
+    subtitle_font.setPointSize(13);
+    subtitle_font.setBold(false);
+    painter.setFont(subtitle_font);
+    painter.setPen(QColor(170, 170, 170));
+    painter.drawText(
+        QRect(38, 118, 548, 30),
+        Qt::AlignLeft | Qt::AlignVCenter,
+        QStringLiteral("Rust + Qt 6 client"));
+
+    painter.setPen(QColor(120, 120, 120));
+    painter.drawLine(38, 168, 582, 168);
+
+    painter.setPen(QColor(150, 150, 150));
+    painter.drawText(
+        QRect(38, 186, 548, 80),
+        Qt::AlignLeft | Qt::AlignTop,
+        QStringLiteral("A media management application for the hydrus network.\n"
+                       "Opening the client database and preparing the session..."));
+    painter.end();
+
+    auto *splash = new QSplashScreen(pixmap);
+    splash->setWindowFlag(Qt::WindowStaysOnTopHint, true);
+    splash->setWindowFlag(Qt::FramelessWindowHint, true);
+    return std::unique_ptr<QSplashScreen>(splash);
+}
+
+void hydrus_splash_show(QSplashScreen &splash) {
+    splash.show();
+    QApplication::processEvents();
+}
+
+void hydrus_splash_message(QSplashScreen &splash, rust::Str message) {
+    splash.showMessage(
+        to_qstring(message),
+        Qt::AlignLeft | Qt::AlignBottom,
+        QColor(225, 225, 225));
+    QApplication::processEvents();
+}
+
+void hydrus_splash_finish_later(QSplashScreen &splash, int delay_ms) {
+    QTimer::singleShot(delay_ms, &splash, [&splash]() { splash.close(); });
+}
+
+void hydrus_splash_screenshot(QSplashScreen &splash, rust::Str path, int delay_ms) {
+    const QString target = to_qstring(path);
+
+    QTimer::singleShot(delay_ms, &splash, [&splash, target]() {
+        splash.grab().save(target);
+    });
+}
+
+void hydrus_splash_finish(QSplashScreen &splash) {
+    splash.close();
+}
+
 std::unique_ptr<HydrusMainWindow> new_hydrus_main_window() {
     return std::make_unique<HydrusMainWindow>();
 }

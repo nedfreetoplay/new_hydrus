@@ -23,6 +23,7 @@
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QSpinBox>
+#include <QSplashScreen>
 #include <QString>
 #include <QStringList>
 #include <QTabWidget>
@@ -567,6 +568,14 @@ private:
 std::unique_ptr<QApplication> new_application();
 int exec_application(QApplication &application);
 void quit_application(QApplication &application);
+void qapp_process_events();
+
+std::unique_ptr<QSplashScreen> new_hydrus_splash();
+void hydrus_splash_show(QSplashScreen &splash);
+void hydrus_splash_message(QSplashScreen &splash, rust::Str message);
+void hydrus_splash_finish(QSplashScreen &splash);
+void hydrus_splash_finish_later(QSplashScreen &splash, int delay_ms);
+void hydrus_splash_screenshot(QSplashScreen &splash, rust::Str path, int delay_ms);
 
 std::unique_ptr<HydrusMainWindow> new_hydrus_main_window();
 void build_hydrus_shell(HydrusMainWindow &window);

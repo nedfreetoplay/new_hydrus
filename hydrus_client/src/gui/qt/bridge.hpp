@@ -52,6 +52,7 @@ class QDragEnterEvent;
 class QDropEvent;
 class QEvent;
 class HydrusTabBar;
+class QMovie;
 
 // A zoomable, pannable view for one image. Used both by the small preview in a
 // page sidebar and by the media viewer window.
@@ -66,6 +67,8 @@ public:
     void zoom_by(double factor);
     void rotate_by(int degrees);
     void set_recenter_on_resize(bool value);
+    void toggle_animation();
+    bool is_animated() const;
 
 protected:
     void resizeEvent(QResizeEvent *event) override;
@@ -74,6 +77,7 @@ protected:
 private:
     QGraphicsScene *scene = nullptr;
     QGraphicsPixmapItem *pixmap_item = nullptr;
+    QMovie *movie = nullptr;
     bool fit_mode = true;
     bool recenter_on_resize = true;
     int rotation = 0;
@@ -163,6 +167,7 @@ private:
     HydrusCanvas *canvas = nullptr;
     HydrusMetadataPanel *metadata = nullptr;
     QLabel *status = nullptr;
+    QPushButton *animation_button = nullptr;
     double zoom_step = 1.25;
     bool always_on_top = false;
     bool frameless = false;

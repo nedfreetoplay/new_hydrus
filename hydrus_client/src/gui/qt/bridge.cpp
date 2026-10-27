@@ -34,6 +34,7 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QMovie>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPlainTextEdit>
@@ -192,6 +193,37 @@ HydrusCanvas::HydrusCanvas(QWidget *parent) : QGraphicsView(parent) {
 }
 
 bool HydrusCanvas::load_image(const QString &path) {
+    clear_image();
+
+    auto *loaded_movie = new QMovie(path, QByteArray(), this);
+
+    if (loaded_movie->isValid()) {
+        movie = loaded_movie;
+        pixmap_item = scene->addPixmap(movie->currentPixmap());
+        scene->setSceneRect(movie->currentPixmap().rect());
+
+        connect(movie, &QMovie::frameChanged, this, [this](int) {
+            if (movie == nullptr || pixmap_item == nullptr) {
+                return;
+            }
+
+            const QPixmap frame = movie->currentPixmap();
+            pixmap_item->setPixmap(frame);
+            scene->setSceneRect(frame.rect());
+
+            if (fit_mode) {
+                fitInView(scene->sceneRect(), Qt::KeepAspectRatio);
+            }
+        });
+
+        movie->start();
+        reset_zoom();
+
+        return true;
+    }
+
+    delete loaded_movie;
+
     QPixmap pixmap(path);
 
     if (pixmap.isNull()) {
@@ -208,11 +240,33 @@ bool HydrusCanvas::load_image(const QString &path) {
 }
 
 void HydrusCanvas::clear_image() {
+    if (movie != nullptr) {
+        movie->stop();
+        movie->deleteLater();
+        movie = nullptr;
+    }
+
     scene->clear();
     pixmap_item = nullptr;
     resetTransform();
     fit_mode = true;
     rotation = 0;
+}
+
+void HydrusCanvas::toggle_animation() {
+    if (movie == nullptr) {
+        return;
+    }
+
+    if (movie->state() == QMovie::Running) {
+        movie->setPaused(true);
+    } else {
+        movie->setPaused(false);
+    }
+}
+
+bool HydrusCanvas::is_animated() const {
+    return movie != nullptr;
 }
 
 void HydrusCanvas::fit_image() {
@@ -1909,6 +1963,8 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     auto *zoom_in = new QPushButton(QStringLiteral("+"), toolbar);
     auto *zoom_out = new QPushButton(QStringLiteral("-"), toolbar);
     auto *manage = new QPushButton(QStringLiteral("manage tags..."), toolbar);
+    animation_button = new QPushButton(QStringLiteral("pause"), toolbar);
+    animation_button->setEnabled(false);
     auto *close_button = new QPushButton(QStringLiteral("close"), toolbar);
 
     toolbar_layout->addWidget(previous);
@@ -1917,6 +1973,7 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     toolbar_layout->addWidget(fit);
     toolbar_layout->addWidget(zoom_out);
     toolbar_layout->addWidget(zoom_in);
+    toolbar_layout->addWidget(animation_button);
     toolbar_layout->addStretch(1);
     toolbar_layout->addWidget(manage);
     toolbar_layout->addWidget(close_button);
@@ -1946,6 +2003,15 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     connect(fit, &QPushButton::clicked, this, [this]() { canvas->fit_image(); });
     connect(zoom_in, &QPushButton::clicked, this, [this]() { canvas->zoom_by(zoom_step); });
     connect(zoom_out, &QPushButton::clicked, this, [this]() { canvas->zoom_by(1.0 / zoom_step); });
+    connect(animation_button, &QPushButton::clicked, this, [this]() {
+        canvas->toggle_animation();
+
+        if (animation_button->text() == QStringLiteral("pause")) {
+            animation_button->setText(QStringLiteral("play"));
+        } else {
+            animation_button->setText(QStringLiteral("pause"));
+        }
+    });
     connect(manage, &QPushButton::clicked, this, [this]() {
         const QByteArray page_bytes = page_id.toUtf8();
         const QByteArray hash_bytes = hash.toUtf8();
@@ -1971,6 +2037,7 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     bind_shortcut(QStringLiteral("0"), [this]() { canvas->reset_zoom(); });
     bind_shortcut(QStringLiteral("R"), [this]() { canvas->rotate_by(90); });
     bind_shortcut(QStringLiteral("Shift+R"), [this]() { canvas->rotate_by(-90); });
+    bind_shortcut(QStringLiteral("P"), [this]() { animation_button->click(); });
     bind_shortcut(QStringLiteral("F11"), [this]() {
         if (isFullScreen()) {
             showNormal();
@@ -2060,6 +2127,9 @@ void HydrusViewerWindow::update_state(const QJsonObject &state) {
     } else {
         canvas->clear_image();
     }
+
+    animation_button->setEnabled(canvas->is_animated());
+    animation_button->setText(QStringLiteral("pause"));
 
     metadata->set_state(state.value(QStringLiteral("metadata")).toObject());
     metadata->set_suggestions(main->suggestions());
@@ -4141,7 +4211,8 @@ void HydrusMainWindow::build_shortcuts() {
     auto *undo = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Z")), this);
     connect(undo, &QShortcut::activated, this, [this]() { notify(QStringLiteral("undo")); });
 
-    auto *back = new QShortcut(QKeySequence(QStringLiteral("Alt+Left")), this);    connect(back, &QShortcut::activated, this, [this]() { notify(QStringLiteral("history_back")); });
+    auto *back = new QShortcut(QKeySequence(QStringLiteral("Alt+Left")), this);
+    connect(back, &QShortcut::activated, this, [this]() { notify(QStringLiteral("history_back")); });
 
     auto *forward = new QShortcut(QKeySequence(QStringLiteral("Alt+Right")), this);
     connect(forward, &QShortcut::activated, this, [this]() { notify(QStringLiteral("history_forward")); });

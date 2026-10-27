@@ -43,6 +43,7 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QSettings>
 #include <QShortcut>
 #include <QSignalBlocker>
 #include <QSlider>
@@ -3831,6 +3832,11 @@ void HydrusMainWindow::closeEvent(QCloseEvent *event) {
         tick_timer->stop();
     }
 
+    QSettings settings;
+    settings.setValue(QStringLiteral("main/geometry"), saveGeometry());
+    settings.setValue(QStringLiteral("main/state"), saveState());
+    settings.sync();
+
     if (services_dialog != nullptr) {
         services_dialog->close();
     }
@@ -3882,6 +3888,18 @@ void HydrusMainWindow::build_shell() {
 
     resize(1280, 800);
     setWindowTitle(QStringLiteral("Hydrus Client"));
+
+    QSettings settings;
+    const QByteArray geometry = settings.value(QStringLiteral("main/geometry")).toByteArray();
+    const QByteArray state = settings.value(QStringLiteral("main/state")).toByteArray();
+
+    if (!geometry.isEmpty()) {
+        restoreGeometry(geometry);
+    }
+
+    if (!state.isEmpty()) {
+        restoreState(state);
+    }
 }
 
 void HydrusMainWindow::build_shortcuts() {

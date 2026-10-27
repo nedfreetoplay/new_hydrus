@@ -143,7 +143,7 @@ Rust-цели: `gui/qt/bridge.*`, `gui/app/render.rs`, `gui/app/metadata.rs`,
 - [ ] 04.4 MPV backend для видео.
 - [ ] 04.5 QtMediaPlayer fallback и audio playback.
 - [~] 04.6 GIF/WebP/animation bar и pause/play.
-- [ ] 04.7 Hover frames: top archive/delete/filter, top-right, tags, notes,
+- [x] 04.7 Hover frames: top archive/delete/filter, top-right, tags, notes,
   ratings.
 - [ ] 04.8 Duplicate filter canvas.
 - [x] 04.9 Zoom modes menu, pan modes, background colour/checkerboard.

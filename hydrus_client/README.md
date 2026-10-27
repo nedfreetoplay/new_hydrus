@@ -68,7 +68,8 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - медиа-вьюер: зум (fit/100%), панорамирование (pan), поворот, следующая/предыдущая,
   выбор фона (dark/black/mid/light/checkerboard), полная metadata-панель (теги по
   сервисам, рейтинги, заметки), archive/inbox/delete, F11; GIF/WebP-анимации с
-  pause/play (кнопка и P); open externally, copy hash/url;
+  pause/play (кнопка и P); open externally, copy hash/url; hover-панель с
+  archive/inbox/delete/tags/notes появляется при наведении на верх вьюера;
   prefetch соседних файлов и восстановление геометрии окна;
 - импорт локальных файлов через меню и drag-and-drop: хэширование, копирование в
   файловое хранилище, `files_info`, сервис файлов, inbox и генерация миниатюр;

@@ -173,16 +173,19 @@ public:
     void update_state(const QJsonObject &state);
 
 protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
 
 private:
     void navigate(const QString &direction);
+    void show_hover_frame();
 
     HydrusMainWindow *main = nullptr;
     QString id;
     QString page_id;
     QString hash;
     HydrusCanvas *canvas = nullptr;
+    QWidget *hover_frame = nullptr;
     HydrusMetadataPanel *metadata = nullptr;
     QLabel *status = nullptr;
     QPushButton *animation_button = nullptr;

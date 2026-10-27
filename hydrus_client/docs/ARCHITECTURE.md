@@ -69,7 +69,9 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
 файлы заранее кладутся в `QPixmapCache`, а размер/позиция окна сохраняются в
 `QSettings`. Масштаб переключается fit/100% и колесом, панорамирование включается
 кнопкой `pan`, фон — dark/black/mid/light/checkerboard; выбранные вьюером режимы
-хранятся в `QSettings` (`viewer/background`, `viewer/pan`).
+хранятся в `QSettings` (`viewer/background`, `viewer/pan`). При наведении курсора
+на верхнюю часть канваса появляется hover-панель с archive/inbox/delete/tags/notes,
+действия уходят в `app_action` с page id и hash.
 
 Миниатюры можно перетаскивать как локальные файлы (экспорт наружу) или как
 `application/x-hydrus-files`; бросок на другую страницу добавляет хэши в её

@@ -2521,6 +2521,49 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     body->setStretchFactor(1, 1);
     body->setSizes({240, 900});
 
+    hover_frame = new QWidget(canvas);
+    hover_frame->setStyleSheet(QStringLiteral(
+        "QWidget { background: rgba(20, 20, 20, 170); border-radius: 4px; }"
+        "QPushButton { background: #4a4a4a; color: #f0f0f0; padding: 3px 8px; }"));
+    auto *hover_layout = new QHBoxLayout(hover_frame);
+    hover_layout->setContentsMargins(6, 4, 6, 4);
+    hover_layout->setSpacing(4);
+
+    const auto add_hover = [this, hover_layout](const QString &label, const QString &action) {
+        auto *button = new QPushButton(label, hover_frame);
+        button->setAutoDefault(false);
+        connect(button, &QPushButton::clicked, this, [this, action]() {
+            if (!hash.isEmpty()) {
+                main->notify(action, page_id, hash);
+            }
+        });
+        hover_layout->addWidget(button);
+    };
+
+    add_hover(QStringLiteral("archive"), QStringLiteral("archive_files"));
+    add_hover(QStringLiteral("inbox"), QStringLiteral("inbox_files"));
+    add_hover(QStringLiteral("delete"), QStringLiteral("delete_files"));
+    add_hover(QStringLiteral("tags"), QStringLiteral("manage_tags"));
+
+    auto *notes_button = new QPushButton(QStringLiteral("notes"), hover_frame);
+    notes_button->setAutoDefault(false);
+    connect(notes_button, &QPushButton::clicked, this, [this]() {
+        if (hash.isEmpty()) {
+            return;
+        }
+
+        QJsonObject payload;
+        payload.insert(QStringLiteral("hash"), hash);
+        main->notify(
+            QStringLiteral("notes_manage"),
+            QString(),
+            QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)));
+    });
+    hover_layout->addWidget(notes_button);
+
+    hover_frame->hide();
+    canvas->installEventFilter(this);
+
     layout->addWidget(body, 1);
 
     status = new QLabel(this);
@@ -2642,6 +2685,10 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     } else {
         resize(1100, 820);
     }
+
+    if (qEnvironmentVariableIsSet("HYDRUS_QT_HOVER")) {
+        QTimer::singleShot(300, this, [this]() { show_hover_frame(); });
+    }
 }
 
 const QString &HydrusViewerWindow::viewer_id() const {
@@ -2726,6 +2773,31 @@ void HydrusViewerWindow::update_state(const QJsonObject &state) {
     metadata->set_suggestions(main->suggestions());
 
     status->setText(state.value(QStringLiteral("info")).toString());
+}
+
+void HydrusViewerWindow::show_hover_frame() {
+    if (hover_frame == nullptr || canvas == nullptr) {
+        return;
+    }
+
+    hover_frame->adjustSize();
+    hover_frame->move(8, 8);
+    hover_frame->raise();
+    hover_frame->show();
+}
+
+bool HydrusViewerWindow::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == canvas && event->type() == QEvent::MouseMove && hover_frame != nullptr) {
+        auto *mouse = static_cast<QMouseEvent *>(event);
+
+        if (mouse->pos().y() < 90) {
+            show_hover_frame();
+        } else {
+            hover_frame->hide();
+        }
+    }
+
+    return QWidget::eventFilter(watched, event);
 }
 
 void HydrusViewerWindow::navigate(const QString &direction) {
@@ -3331,7 +3403,7 @@ public:
                 for (const OptionField &field : fields) {
                     if (field.page == page
                         && field.input_widget != nullptr
-                        && field.input_widget->isVisible()) {
+                        && !field.input_widget->isHidden()) {
                         any_visible = true;
                         break;
                     }

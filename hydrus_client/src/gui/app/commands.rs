@@ -69,6 +69,7 @@ pub enum UiCommand {
     ServicesDialog(String),
     NetworkDialog(String),
     NotifyMessage(String),
+    SetClipboard(String),
     Message(String, String),
     OpenPath(String),
     OpenUrl(String),

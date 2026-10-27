@@ -654,6 +654,7 @@ void hydrus_defer_action(
     int delay_ms);
 void hydrus_show_message(HydrusMainWindow &window, rust::Str title, rust::Str text);
 void hydrus_notify_message(HydrusMainWindow &window, rust::Str message);
+void hydrus_set_clipboard(HydrusMainWindow &window, rust::Str text);
 void hydrus_open_path(rust::Str path);
 void hydrus_open_url(rust::Str url);
 void hydrus_schedule_screenshot(HydrusMainWindow &window, rust::Str path);

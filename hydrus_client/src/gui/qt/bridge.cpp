@@ -778,6 +778,9 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
     copy_url->setEnabled(!url.isEmpty());
     menu.addSeparator();
     QAction *tags = menu.addAction(QStringLiteral("manage tags..."));
+    QAction *copy_tags = menu.addAction(QStringLiteral("copy tags"));
+    QAction *paste_tags = menu.addAction(QStringLiteral("paste tags"));
+    QAction *apply_tags = menu.addAction(QStringLiteral("apply tags to selection..."));
     QAction *notes = menu.addAction(QStringLiteral("manage notes..."));
     QAction *timestamps = menu.addAction(QStringLiteral("edit timestamps..."));
     QAction *viewing_stats = menu.addAction(QStringLiteral("file viewing statistics..."));
@@ -829,6 +832,24 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
 
     if (chosen == timestamps) {
         main->notify(QStringLiteral("edit_timestamps"));
+        return;
+    }
+
+    if (chosen == copy_tags) {
+        main->notify(QStringLiteral("copy_tags"));
+        return;
+    }
+
+    if (chosen == paste_tags) {
+        main->notify(
+            QStringLiteral("paste_tags"),
+            QString(),
+            QApplication::clipboard()->text());
+        return;
+    }
+
+    if (chosen == apply_tags) {
+        main->notify(QStringLiteral("apply_tags_selection"));
         return;
     }
 
@@ -7053,6 +7074,11 @@ void hydrus_show_message(HydrusMainWindow &window, rust::Str title, rust::Str te
 
 void hydrus_notify_message(HydrusMainWindow &window, rust::Str message) {
     window.notify_message(to_qstring(message));
+}
+
+void hydrus_set_clipboard(HydrusMainWindow &window, rust::Str text) {
+    Q_UNUSED(window);
+    QApplication::clipboard()->setText(to_qstring(text));
 }
 
 void hydrus_open_path(rust::Str path) {

@@ -108,6 +108,7 @@ pub(crate) mod ffi {
         );
         fn hydrus_show_message(window: Pin<&mut HydrusMainWindow>, title: &str, text: &str);
         fn hydrus_notify_message(window: Pin<&mut HydrusMainWindow>, message: &str);
+        fn hydrus_set_clipboard(window: Pin<&mut HydrusMainWindow>, text: &str);
         fn hydrus_open_path(path: &str);
         fn hydrus_open_url(url: &str);
         fn hydrus_schedule_screenshot(window: Pin<&mut HydrusMainWindow>, path: &str);

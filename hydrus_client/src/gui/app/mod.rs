@@ -1083,6 +1083,15 @@ impl AppState {
             "timestamps_save" => self.save_timestamps(payload),
             "tag_add" => metadata::tag_action(self, true, payload),
             "tag_remove" => metadata::tag_action(self, false, payload),
+            "copy_tags" => metadata::copy_tags(self),
+            "paste_tags" => metadata::apply_tags_selection(self, payload),
+            "paste_tags_prompt" | "apply_tags_selection" => vec![UiCommand::PromptText {
+                action: "apply_tags_selection_apply".to_string(),
+                title: "apply tags to selection".to_string(),
+                label: "tags, one per line; prefix - to remove".to_string(),
+                initial: String::new(),
+            }],
+            "apply_tags_selection_apply" => metadata::apply_tags_selection(self, payload),
             "rating_set" => metadata::rating_action(self, payload),
             "notes_manage" | "manage_notes_active" => {
                 if action == "manage_notes_active" {

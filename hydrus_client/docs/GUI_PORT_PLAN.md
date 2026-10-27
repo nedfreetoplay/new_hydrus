@@ -184,7 +184,7 @@ Rust-цели: `gui/app/metadata.rs`, `gui/app/tag_relations.rs`,
 - [ ] 05.13 File lookup script tags.
 - [ ] 05.14 Incremental tagging.
 - [ ] 05.15 Tag sorting options.
-- [ ] 05.16 Tag actions: copy/paste/apply к выделению.
+- [x] 05.16 Tag actions: copy/paste/apply к выделению.
 - [x] 05.17 Редактор timestamps.
 - [ ] 05.18 Metadata conditional.
 - [ ] 05.19 Metadata migration (routers, sidecars, test panel).

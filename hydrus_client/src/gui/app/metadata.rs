@@ -441,6 +441,148 @@ pub fn refresh_hash(state: &mut AppState, hash: &[u8]) -> Vec<UiCommand> {
     commands
 }
 
+pub fn copy_tags(state: &mut AppState) -> Vec<UiCommand> {
+    let Some(page) = state.active_query() else {
+        return vec![UiCommand::NotifyMessage("no page selected".to_string())];
+    };
+    let Some(hash) = page.focused.clone() else {
+        return vec![UiCommand::NotifyMessage("no file selected".to_string())];
+    };
+
+    let tags = query::selection_tags(&state.controller, &hash);
+
+    if tags.is_empty() {
+        return vec![UiCommand::NotifyMessage(
+            "the selected file has no tags".to_string(),
+        )];
+    }
+
+    state.message = format!("copied {} tags", tags.len());
+
+    vec![
+        UiCommand::SetClipboard(tags.join("\n")),
+        UiCommand::Status(render::status_json(state)),
+    ]
+}
+
+/// Applies a newline/comma separated tag list to the focused file or to every
+/// selected file. A leading `-` removes the tag instead of adding it.
+pub fn apply_tags_selection(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
+    let controller = state.controller.clone();
+    let text = payload.trim();
+
+    if text.is_empty() {
+        return vec![UiCommand::NotifyMessage("no tags to apply".to_string())];
+    }
+
+    let (hashes, service, page_id) = {
+        let Some(page) = state.active_query() else {
+            return vec![UiCommand::NotifyMessage("no page selected".to_string())];
+        };
+
+        let hashes = if page.selected.is_empty() {
+            page.focused.clone().into_iter().collect::<Vec<_>>()
+        } else {
+            page.selected.clone()
+        };
+
+        (hashes, page.tag_service.clone(), page.id.clone())
+    };
+
+    if hashes.is_empty() {
+        return vec![UiCommand::NotifyMessage("no file selected".to_string())];
+    }
+
+    let Some(service_id) = tag_service_id(&controller, &service) else {
+        return vec![UiCommand::NotifyMessage("no local tag service".to_string())];
+    };
+
+    let (added, removed) = match apply_tags_to_hashes(&controller, &hashes, service_id, text) {
+        Ok(counts) => counts,
+        Err(error) => {
+            return vec![UiCommand::NotifyMessage(format!(
+                "could not update tags: {error}"
+            ))];
+        }
+    };
+
+    state.message = format!("updated {} files: +{added} -{removed}", hashes.len());
+
+    let mut commands = state.refresh_commands();
+    commands.push(UiCommand::NotifyMessage(state.message.clone()));
+    commands.push(UiCommand::Status(render::status_json(state)));
+
+    if let Some(page) = state.find_query(&page_id) {
+        if let Some(hash) = page.focused.clone() {
+            commands.extend(state.focus(&page_id, &query::hex(&hash)));
+        }
+    }
+
+    commands
+}
+
+pub fn apply_tags_to_hashes(
+    controller: &Controller,
+    hashes: &[Vec<u8>],
+    service_id: i64,
+    text: &str,
+) -> Result<(usize, usize), String> {
+    let db = controller.db().db();
+    let mut added = 0;
+    let mut removed = 0;
+
+    for raw in text.split(['\n', ',']) {
+        let raw = raw.trim();
+
+        if raw.is_empty() {
+            continue;
+        }
+
+        let (remove, tag) = match raw.strip_prefix('-') {
+            Some(tag) => (true, tag.trim()),
+            None => (false, raw),
+        };
+
+        if tag.is_empty() {
+            continue;
+        }
+
+        if remove && !master_tags::has_tag(db, tag).map_err(|error| error.to_string())? {
+            continue;
+        }
+
+        let tag_id = master_tags::get_tag_id(db, tag).map_err(|error| error.to_string())?;
+
+        for hash in hashes {
+            let Some(hash_id) = query::hash_id_for(controller, hash) else {
+                continue;
+            };
+
+            let result = if remove {
+                mappings::remove_mappings(
+                    db,
+                    service_id,
+                    ContentStatus::Current,
+                    hash_id,
+                    &[tag_id],
+                )
+            } else {
+                mappings::add_mappings(db, service_id, ContentStatus::Current, hash_id, &[tag_id])
+            };
+
+            result.map_err(|error| error.to_string())?;
+
+            if remove {
+                removed += 1;
+            } else {
+                added += 1;
+            }
+        }
+    }
+
+    Ok((added, removed))
+}
+
 pub fn tag_action(state: &mut AppState, add: bool, payload: &str) -> Vec<UiCommand> {
     let Ok(value) = serde_json::from_str::<Value>(payload) else {
         return vec![UiCommand::NotifyMessage("invalid tag payload".to_string())];

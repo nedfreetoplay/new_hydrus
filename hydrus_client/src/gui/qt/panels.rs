@@ -142,6 +142,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::NotifyMessage(message) => {
             ffi::hydrus_notify_message(window.as_mut(), &message);
         }
+        UiCommand::SetClipboard(text) => {
+            ffi::hydrus_set_clipboard(window.as_mut(), &text);
+        }
         UiCommand::Message(title, text) => {
             ffi::hydrus_show_message(window.as_mut(), &title, &text);
         }

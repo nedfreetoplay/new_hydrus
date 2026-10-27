@@ -106,3 +106,56 @@ fn url_class_editor_can_edit_an_existing_class() {
     assert!(updated.matches("https://example.com/new/7"));
     assert!(!updated.matches("https://example.com/old/7"));
 }
+
+#[test]
+fn apply_tags_to_hashes_adds_and_removes_for_every_file() {
+    use crate::db::master;
+
+    let directory = std::env::temp_dir().join(format!(
+        "hydrus_apply_tags_{}_{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    let controller = Controller::new(&directory).unwrap();
+    controller.init_model().unwrap();
+    let db = controller.db().db();
+
+    let service = controller
+        .services()
+        .get_service(b"local tags")
+        .unwrap()
+        .service_id;
+    let first_hash = vec![0x41; 32];
+    let second_hash = vec![0x42; 32];
+    let first = master::get_hash_id(db, &first_hash).unwrap();
+    let second = master::get_hash_id(db, &second_hash).unwrap();
+    let shared = master_tags::get_tag_id(db, "shared tag").unwrap();
+
+    mappings::add_mappings(db, service, ContentStatus::Current, first, &[shared]).unwrap();
+    mappings::add_mappings(db, service, ContentStatus::Current, second, &[shared]).unwrap();
+
+    let (added, removed) = apply_tags_to_hashes(
+        &controller,
+        &[first_hash.clone(), second_hash.clone()],
+        service,
+        "new tag\n- shared tag\n, another tag",
+    )
+    .unwrap();
+
+    assert_eq!((added, removed), (4, 2));
+
+    for (hash_id, expected) in [(first, "new tag"), (second, "another tag")] {
+        let tag_ids = mappings::get_tag_ids(db, service, ContentStatus::Current, hash_id).unwrap();
+        let tags = master_tags::get_tags(db, &tag_ids).unwrap();
+
+        assert!(tags.iter().any(|tag| tag == expected));
+        assert!(!tags.iter().any(|tag| tag == "shared tag"));
+    }
+
+    let (added, removed) =
+        apply_tags_to_hashes(&controller, &[first_hash], service, "- missing tag").unwrap();
+
+    assert_eq!((added, removed), (0, 0));
+
+    let _ = std::fs::remove_dir_all(directory);
+}

@@ -216,7 +216,7 @@ Rust-цели: `gui/app/import.rs`, `gui/app/import_folders.rs`,
 - [ ] 06.10 File seed cache UI.
 - [ ] 06.11 Gallery seed log UI.
 - [ ] 06.12 Importer sidebars для HDD/gallery/watcher/simple/URLs.
-- [ ] 06.13 «Check all» и полное меню import folders.
+- [x] 06.13 «Check all» и полное меню import folders.
 - [ ] 06.14 Parsing scripts/legacy import scripts.
 - [ ] 06.15 Review local imports и repair import locations.
 

@@ -322,6 +322,26 @@ impl AppState {
             "import_folder_remove" => import_folders::remove(self, payload),
             "import_folder_toggle" => import_folders::toggle(self, payload),
             "import_folder_check" => import_folders::check_now(self, payload),
+            "import_folder_check_all" => {
+                let names: Vec<String> = self
+                    .import_folders
+                    .iter()
+                    .map(|folder| folder.name.clone())
+                    .collect();
+                let mut commands = Vec::new();
+
+                for name in names {
+                    commands.extend(import_folders::check_now(self, &name));
+                }
+
+                if commands.is_empty() {
+                    commands.push(UiCommand::NotifyMessage(
+                        "there are no import folders".to_string(),
+                    ));
+                }
+
+                commands
+            }
             "create_page" => self.create_page(target, payload),
             "close_page" => self.close_page(target),
             "close_other_pages" => self.close_other_pages(target),

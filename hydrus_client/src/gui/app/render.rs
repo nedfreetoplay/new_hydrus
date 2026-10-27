@@ -33,6 +33,7 @@ pub fn menus_json(state: &AppState) -> String {
                 {"label": "import files...", "action": "import_files", "description": "Add new files to the database."},
                 {"label": "import url...", "action": "import_url", "description": "Download one file from a URL and import it."},
                 {"label": "import folders...", "action": "new_import_folders", "description": "Scan folders for new files."},
+                {"label": "import folders", "items": import_folder_menu_items(state)},
                 {"separator": true},
                 {"label": "open", "items": [
                     {"label": "installation directory", "action": "open_install_dir"},
@@ -145,6 +146,27 @@ pub fn menus_json(state: &AppState) -> String {
     ]);
 
     menus.to_string()
+}
+
+fn import_folder_menu_items(state: &AppState) -> Vec<Value> {
+    let mut items = vec![
+        json!({"label": "check all", "action": "import_folder_check_all"}),
+        json!({"separator": true}),
+    ];
+
+    for folder in &state.import_folders {
+        items.push(json!({
+            "label": folder.name,
+            "action": "import_folder_check",
+            "payload": folder.name,
+        }));
+    }
+
+    if state.import_folders.is_empty() {
+        items.push(json!({"label": "no import folders", "action": "", "enabled": false}));
+    }
+
+    items
 }
 
 fn recent_search_items(state: &AppState) -> Vec<Value> {

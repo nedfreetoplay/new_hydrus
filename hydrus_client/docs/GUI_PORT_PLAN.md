@@ -119,7 +119,7 @@ Rust-цели: `gui/app/query.rs`, `gui/app/render.rs`, `gui/qt/bridge.*`,
 - [x] 03.6 Correct focused vs selected file semantics.
 - [ ] 03.7 Masonry layout, scroll direction, thumbnail sizing options.
 - [ ] 03.8 Loading panel/progress и file count.
-- [ ] 03.9 Rating overlays, duplicate indicators, archive/inbox markers.
+- [x] 03.9 Rating overlays, duplicate indicators, archive/inbox markers.
 - [ ] 03.10 Drag & drop файлов, miniatures между страницами.
 - [ ] 03.11 Полные media menus: copy hash/URL, open externally, file services,
   timestamps, notes, ratings.

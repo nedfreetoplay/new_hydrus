@@ -369,7 +369,43 @@ void HydrusThumbnailGrid::set_media(const QJsonArray &media) {
 
         auto *item = new QListWidgetItem(this);
         item->setData(Qt::UserRole, hash);
-        item->setIcon(QIcon(thumbnail_pixmap(thumb)));
+
+        QStringList badges;
+
+        if (object.value(QStringLiteral("inbox")).toBool(false)) {
+            badges.append(QStringLiteral("inbox"));
+        }
+
+        if (object.value(QStringLiteral("duplicate")).toBool(false)) {
+            badges.append(QStringLiteral("dup"));
+        }
+
+        if (object.contains(QStringLiteral("rating"))
+            && !object.value(QStringLiteral("rating")).isNull()) {
+            badges.append(QString::number(object.value(QStringLiteral("rating")).toDouble(), 'g', 3));
+        }
+
+        QPixmap preview = thumbnail_pixmap(thumb);
+
+        if (!badges.isEmpty() && !preview.isNull()) {
+            QPainter painter(&preview);
+            painter.setRenderHint(QPainter::Antialiasing);
+            QFont badge_font = painter.font();
+            badge_font.setBold(true);
+            badge_font.setPointSize(8);
+            painter.setFont(badge_font);
+
+            const QRect bar(0, preview.height() - 18, preview.width(), 18);
+            painter.fillRect(bar, QColor(0, 0, 0, 150));
+            painter.setPen(QColor(240, 240, 240));
+            painter.drawText(
+                bar.adjusted(4, 0, -4, 0),
+                Qt::AlignLeft | Qt::AlignVCenter,
+                badges.join(QLatin1Char(' ')));
+            painter.end();
+        }
+
+        item->setIcon(QIcon(preview));
         item->setToolTip(hash);
         item->setSizeHint(QSize(158, 133));
         item->setTextAlignment(Qt::AlignCenter);

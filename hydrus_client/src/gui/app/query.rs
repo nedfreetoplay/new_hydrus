@@ -442,6 +442,26 @@ pub fn all_tags(controller: &Controller) -> Vec<String> {
 }
 
 pub fn media_json(controller: &Controller, page: &QueryPage) -> Vec<serde_json::Value> {
+    let db = controller.db().db();
+    let mut duplicate_ids = BTreeSet::new();
+
+    if let Ok(pairs) = crate::db::duplicates::get_potential_pairs(db, None) {
+        for (smaller, larger, _) in pairs {
+            duplicate_ids.insert(smaller);
+            duplicate_ids.insert(larger);
+        }
+    }
+
+    let rating_service = controller
+        .services()
+        .get_services(Some(&[
+            ServiceType::LocalRatingNumerical,
+            ServiceType::LocalRatingIncDec,
+            ServiceType::LocalRatingLike,
+        ]))
+        .first()
+        .map(|service| service.service_id);
+
     page.hashes
         .iter()
         .take(MAX_DISPLAYED_FILES)
@@ -449,10 +469,26 @@ pub fn media_json(controller: &Controller, page: &QueryPage) -> Vec<serde_json::
             let thumb = thumbnail_path(controller, hash)
                 .map(|path| path.display().to_string())
                 .unwrap_or_default();
+            let hash_id = hash_id_for(controller, hash);
+            let inbox = hash_id
+                .map(|hash_id| files_storage::is_inbox(db, hash_id).unwrap_or(false))
+                .unwrap_or(false);
+            let duplicate = hash_id.is_some_and(|hash_id| duplicate_ids.contains(&hash_id));
+            let rating = hash_id
+                .zip(rating_service)
+                .and_then(|(hash_id, service_id)| {
+                    crate::db::ratings::get_rating(db, service_id, hash_id)
+                        .ok()
+                        .flatten()
+                })
+                .map(|rating| rating.value());
 
             serde_json::json!({
                 "hash": hex(hash),
                 "thumb": thumb,
+                "inbox": inbox,
+                "duplicate": duplicate,
+                "rating": rating,
             })
         })
         .collect()

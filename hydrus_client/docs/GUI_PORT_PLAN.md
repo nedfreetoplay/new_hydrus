@@ -340,7 +340,7 @@ Rust-цели: `gui/app/mod.rs`, `db/maintenance.rs`, `files/maintenance_executo
 - [x] 11.6 Analyze database.
 - [x] 11.7 Review vacuum data.
 - [x] 11.8 Review deferred delete tables.
-- [ ] 11.9 Job scheduler и file maintenance jobs.
+- [x] 11.9 Job scheduler и file maintenance jobs.
 - [ ] 11.10 Clear orphan files.
 - [x] 11.11 Fix missing archive times.
 - [ ] 11.12 File history chart.

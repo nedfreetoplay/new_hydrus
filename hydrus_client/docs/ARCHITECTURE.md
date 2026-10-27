@@ -107,6 +107,11 @@ CLIENT_API_VERSION, db version, SQLite/Qt/Rust, пути и счётчики с�
 файлов в trash. `fix missing archive times` проходит по архивным файлам
 «my files» без записи в `archive_timestamps` и проставляет текущее время.
 
+После импорта в очередь `FilesMaintenanceManager` ставятся задания modified time и
+transparency. `maintenance_tick` выполняет до двух заданий за тик (если включены
+`file_maintenance_during_active/idle`), а меню Database показывает очередь и умеет
+прогнать её вручную. Неподдерживаемые задания удаляются, чтобы не зацикливать тик.
+
 Страницы можно перетаскивать между notebook'ами (`move_page`), дублировать
 (`duplicate_page` с новыми id для всего поддерева) и выбирать через менеджер
 страниц. Навигация хранится в `PageHistory` и доступна через Alt+Left/Right.

@@ -300,6 +300,79 @@ pub fn handle_tick(mut window: Pin<&mut ffi::HydrusMainWindow>) {
     for command in commands {
         panels::execute(window.as_mut(), command);
     }
+
+    let commands = with_state_mut(maintenance_tick);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+/// Runs a couple of due maintenance jobs on each tick when the corresponding
+/// option is enabled. Big jobs (blurhash, perceptual hashes) therefore never
+/// block the UI for long.
+pub(crate) fn maintenance_tick(state: &mut AppState) -> Vec<UiCommand> {
+    if state.import_queue.running {
+        return Vec::new();
+    }
+
+    let options = state.controller.options();
+
+    if !options.get_boolean("file_maintenance_during_active")
+        && !options.get_boolean("file_maintenance_during_idle")
+    {
+        return Vec::new();
+    }
+
+    let (done, failed) = run_maintenance(state, 2);
+
+    if done == 0 && failed == 0 {
+        return Vec::new();
+    }
+
+    state.message = format!("file maintenance: {done} done, {failed} failed");
+    vec![UiCommand::Status(render::status_json(state))]
+}
+
+pub(crate) fn run_maintenance(state: &mut AppState, limit: usize) -> (usize, usize) {
+    let db = state.controller.db().db();
+    let executor = crate::files::maintenance_executor::FilesMaintenanceExecutor::new(
+        state.controller.files_manager(),
+    );
+    let manager = state.controller.maintenance();
+    let mut done = 0;
+    let mut failed = 0;
+
+    for _ in 0..limit {
+        let mut failure = false;
+        let Some(job) = manager.run_next(|job| {
+            let Ok(Some(hash_id)) = crate::db::master::find_hash_id(db, &job.hash) else {
+                failure = true;
+                return false;
+            };
+
+            match executor.run_job(db, hash_id, job.job_type) {
+                Ok(true) => true,
+                _ => {
+                    failure = true;
+                    false
+                }
+            }
+        }) else {
+            break;
+        };
+
+        if failure {
+            failed += 1;
+            // Unsupported or broken jobs are dropped instead of being retried
+            // forever on every tick.
+            manager.clear_jobs(&[job.hash], job.job_type);
+        } else {
+            done += 1;
+        }
+    }
+
+    (done, failed)
 }
 
 /// Stops the API server and saves the page tree when the application exits.
@@ -1332,6 +1405,25 @@ impl AppState {
                     "deferred delete tables".to_string(),
                     format!("files waiting in trash: {trash}"),
                 )]
+            }
+            "db_file_maintenance" => vec![UiCommand::Message(
+                "file maintenance jobs".to_string(),
+                render::maintenance_json(self),
+            )],
+            "db_run_file_maintenance" => {
+                let (done, failed) = run_maintenance(self, 500);
+                self.message = format!("file maintenance finished: {done} done, {failed} failed");
+                vec![
+                    UiCommand::NotifyMessage(self.message.clone()),
+                    UiCommand::Message(
+                        "file maintenance jobs".to_string(),
+                        format!(
+                            "{}\n\n{done} job(s) completed, {failed} job(s) failed.",
+                            render::maintenance_json(self)
+                        ),
+                    ),
+                    self.status_command(),
+                ]
             }
             "db_fix_archive_times" => {
                 let manager = self.controller.services();

@@ -95,6 +95,9 @@ pub fn menus_json(state: &AppState) -> String {
                     {"label": "review deferred deletes", "action": "db_deferred_deletes"},
                     {"label": "fix missing archive times", "action": "db_fix_archive_times"},
                     {"separator": true},
+                    {"label": "review file maintenance jobs", "action": "db_file_maintenance"},
+                    {"label": "run file maintenance jobs", "action": "db_run_file_maintenance"},
+                    {"separator": true},
                     {"label": "how boned am I?", "action": "db_stats"}
                 ]}
             ]
@@ -535,6 +538,26 @@ pub fn query_progress_json(
         "count": page.hashes.len(),
     })
     .to_string()
+}
+
+pub fn maintenance_json(state: &AppState) -> String {
+    let counts = state.controller.maintenance().get_job_counts();
+    let total: i64 = counts.values().sum();
+
+    if counts.is_empty() {
+        return "no file maintenance jobs are queued".to_string();
+    }
+
+    let mut text = format!("{total} file maintenance job(s) queued\n");
+
+    for (job_type, count) in counts {
+        text.push_str(&format!(
+            "\n{} — {count}",
+            crate::files::maintenance::regen_file_enum_to_str(job_type)
+        ));
+    }
+
+    text
 }
 
 pub fn about_json(state: &AppState) -> String {

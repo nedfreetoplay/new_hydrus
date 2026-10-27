@@ -55,6 +55,30 @@ fn query_state_carries_count_loading_and_thumbnail_options() {
 }
 
 #[test]
+fn maintenance_json_lists_queued_jobs() {
+    let directory = std::env::temp_dir().join(format!(
+        "hydrus_gui_maintenance_{}_{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    let controller = std::sync::Arc::new(Controller::new(&directory).unwrap());
+    controller.init_model().unwrap();
+
+    controller.maintenance().schedule_job_now(
+        vec![0x11; 32],
+        crate::files::maintenance::REGENERATE_FILE_DATA_JOB_FILE_MODIFIED_TIMESTAMP,
+    );
+
+    let state = crate::gui::app::model::AppState::new(controller);
+    let text = maintenance_json(&state);
+
+    assert!(text.contains("1 file maintenance job(s) queued"));
+    assert!(text.contains("regenerate file modified time"));
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn about_json_reports_versions_and_paths() {
     let directory = std::env::temp_dir().join(format!(
         "hydrus_gui_about_{}_{}",

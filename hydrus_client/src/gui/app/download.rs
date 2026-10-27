@@ -579,6 +579,19 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
             };
             state.message = state.import_queue.message.clone();
 
+            let maintenance = state.controller.maintenance();
+
+            for hash in &hashes {
+                maintenance.schedule_job_now(
+                    hash.clone(),
+                    crate::files::maintenance::REGENERATE_FILE_DATA_JOB_FILE_MODIFIED_TIMESTAMP,
+                );
+                maintenance.schedule_job_now(
+                    hash.clone(),
+                    crate::files::maintenance::REGENERATE_FILE_DATA_JOB_FILE_HAS_TRANSPARENCY,
+                );
+            }
+
             let mut commands = Vec::new();
 
             if state.query_ids().is_empty() && !hashes.is_empty() {

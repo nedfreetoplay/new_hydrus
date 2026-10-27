@@ -134,6 +134,8 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
   реальные `PRAGMA quick_check` и `VACUUM`; analyze/optimize, обзор свободных
   страниц, deferred deletes и статистика «how boned am I?» доступны из меню Database;
   fix missing archive times проставляет archive timestamps для архивных файлов;
+  file maintenance jobs после импорта (modified time, transparency) выполняются
+  фоновым тиком и вручную из меню с обзором очереди и счётчиками;
   file viewing statistics показывает views/viewtime/last viewed по media и preview.
 
 ### Что ещё не портировано
@@ -143,7 +145,7 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - расширенные file maintenance jobs (regenerate thumbnails, re-scan file metadata) и
   оставшиеся горячие клавиши Hydrus.
 
-Сейчас проходит 539 unit-тестов и 2 integration-теста. Архитектура:
+Сейчас проходит 540 unit-тестов и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). План портирования GUI с
 чек-листами и флагами: [docs/GUI_PORT_PLAN.md](docs/GUI_PORT_PLAN.md).
 

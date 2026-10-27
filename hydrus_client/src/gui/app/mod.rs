@@ -27,6 +27,7 @@ pub mod options;
 pub mod query;
 pub mod render;
 pub mod search;
+pub mod search_history;
 pub mod session;
 pub mod sessions;
 pub mod tag_relations;
@@ -415,11 +416,86 @@ impl AppState {
                 let controller = self.controller.clone();
 
                 if let Some(page) = self.find_query_mut(target) {
+                    if page.query != payload {
+                        page.query_undo.push(page.query.clone());
+
+                        if page.query_undo.len() > 50 {
+                            page.query_undo.remove(0);
+                        }
+
+                        page.query_redo.clear();
+                    }
+
                     page.query = payload.to_string();
                     page.fixed_hashes = None;
                 }
 
-                self.replace_query_and_refresh(&controller, target)
+                search_history::record(&mut self.search_history, payload);
+                let _ = search_history::persist(self);
+
+                let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
+                commands.extend(self.replace_query_and_refresh(&controller, target));
+                commands
+            }
+            "undo_search" => {
+                let controller = self.controller.clone();
+                let page_id = self.page_id_or_active(target);
+
+                if let Some(page) = self.find_query_mut(&page_id) {
+                    let Some(previous) = page.query_undo.pop() else {
+                        return vec![UiCommand::NotifyMessage("no search to undo".to_string())];
+                    };
+
+                    page.query_redo.push(page.query.clone());
+                    page.query = previous;
+                    page.fixed_hashes = None;
+                } else {
+                    return vec![UiCommand::NotifyMessage("no page selected".to_string())];
+                }
+
+                let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
+                commands.extend(self.replace_query_and_refresh(&controller, &page_id));
+                commands
+            }
+            "redo_search" => {
+                let controller = self.controller.clone();
+                let page_id = self.page_id_or_active(target);
+
+                if let Some(page) = self.find_query_mut(&page_id) {
+                    let Some(next) = page.query_redo.pop() else {
+                        return vec![UiCommand::NotifyMessage("no search to redo".to_string())];
+                    };
+
+                    page.query_undo.push(page.query.clone());
+                    page.query = next;
+                    page.fixed_hashes = None;
+                } else {
+                    return vec![UiCommand::NotifyMessage("no page selected".to_string())];
+                }
+
+                let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
+                commands.extend(self.replace_query_and_refresh(&controller, &page_id));
+                commands
+            }
+            "apply_search_history" => {
+                let controller = self.controller.clone();
+                let page_id = self.page_id_or_active("");
+
+                if let Some(page) = self.find_query_mut(&page_id) {
+                    if page.query != target {
+                        page.query_undo.push(page.query.clone());
+                        page.query_redo.clear();
+                    }
+
+                    page.query = target.to_string();
+                    page.fixed_hashes = None;
+                } else {
+                    return vec![UiCommand::NotifyMessage("no page selected".to_string())];
+                }
+
+                let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
+                commands.extend(self.replace_query_and_refresh(&controller, &page_id));
+                commands
             }
             "set_location" => {
                 if let Some(page) = self.find_query_mut(target) {

@@ -54,7 +54,8 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
   предикаты размера, разрешения, ratio, mime, hash, duration, fps, frames,
   пикселей, слов, числа тегов/URL/заметок, рейтингов и дат; селектор file domain
   (my files / all local files / trash), автодополнение тегов; избранные поиски
-  сохраняют запрос, домен и tag service и доступны из меню;
+  сохраняют запрос, домен и tag service и доступны из меню; recent searches и
+  undo/redo поиска хранят историю запросов в `search history.json`;
 - сетка миниатюр, предпросмотр выбранного файла, статус страницы; выделение
   нескольких файлов и archive/inbox/delete для всей группы; сортировка по hash,
   времени импорта, размеру, mime, разрешению, ratio, пикселям, duration, frames и
@@ -112,7 +113,7 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - расширенные file maintenance jobs (regenerate thumbnails, re-scan file metadata) и
   оставшиеся горячие клавиши Hydrus.
 
-Сейчас проходит 520 unit-тестов и 2 integration-теста. Архитектура:
+Сейчас проходит 521 unit-тест и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). План портирования GUI с
 чек-листами и флагами: [docs/GUI_PORT_PLAN.md](docs/GUI_PORT_PLAN.md).
 

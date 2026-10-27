@@ -96,6 +96,8 @@ duration, fps, frames, пиксели, слова, число тегов/URL/з�
 Избранные поиски хранятся в `favourite searches.json` рядом с сессией: имя,
 запрос, file domain и tag service. Меню `Pages → favourite searches` умеет
 сохранить текущий контекст, применить его к активной странице и удалить запись.
+Последние запросы лежат в `search history.json`; `undo_search`/`redo_search`
+ходят по per-page стеку предикатов, а меню `recent searches` повторяет запрос.
 
 ## Импорт и загрузка
 

@@ -60,6 +60,12 @@ pub fn menus_json(state: &AppState) -> String {
                 {"label": "back", "action": "history_back", "enabled": state.history.can_back()},
                 {"label": "forward", "action": "history_forward", "enabled": state.history.can_forward()},
                 {"separator": true},
+                {"label": "undo search", "action": "undo_search",
+                 "enabled": state.active_query().is_some_and(|page| !page.query_undo.is_empty())},
+                {"label": "redo search", "action": "redo_search",
+                 "enabled": state.active_query().is_some_and(|page| !page.query_redo.is_empty())},
+                {"label": "recent searches", "items": recent_search_items(state)},
+                {"separator": true},
                 {"label": "new page of pages", "action": "new_notebook"},
                 {"label": "new duplicates processing page", "action": "new_duplicates"},
                 {"separator": true},
@@ -139,6 +145,24 @@ pub fn menus_json(state: &AppState) -> String {
     ]);
 
     menus.to_string()
+}
+
+fn recent_search_items(state: &AppState) -> Vec<Value> {
+    let mut items = Vec::new();
+
+    for query in state.search_history.iter().take(15) {
+        items.push(json!({
+            "label": query,
+            "action": "apply_search_history",
+            "target": query,
+        }));
+    }
+
+    if items.is_empty() {
+        items.push(json!({"label": "no recent searches", "action": "", "enabled": false}));
+    }
+
+    items
 }
 
 fn favourite_menu_items(state: &AppState) -> Vec<Value> {

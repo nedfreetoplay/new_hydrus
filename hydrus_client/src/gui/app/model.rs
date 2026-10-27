@@ -30,6 +30,8 @@ pub struct QueryPage {
     pub empty_text: String,
     /// Set for file pages opened from a downloader result set.
     pub fixed_hashes: Option<Vec<Vec<u8>>>,
+    pub query_undo: Vec<String>,
+    pub query_redo: Vec<String>,
 }
 
 impl QueryPage {
@@ -52,6 +54,8 @@ impl QueryPage {
             status: String::new(),
             empty_text: String::new(),
             fixed_hashes: None,
+            query_undo: Vec::new(),
+            query_redo: Vec::new(),
         }
     }
 }
@@ -534,6 +538,7 @@ pub struct AppState {
     pub import_folders: Vec<super::import_folders::ImportFolderEntry>,
     pub auto_rules: Vec<super::auto_resolution::AutoResolutionRule>,
     pub favourites: Vec<super::favourites::FavouriteSearch>,
+    pub search_history: Vec<String>,
     pub import_queue: ImportQueueState,
     pub history: PageHistory,
     pub closed_pages: Vec<ClosedPage>,
@@ -558,6 +563,7 @@ impl AppState {
             import_folders: Vec::new(),
             auto_rules: Vec::new(),
             favourites: Vec::new(),
+            search_history: Vec::new(),
             import_queue: ImportQueueState::default(),
             history: PageHistory::default(),
             closed_pages: Vec::new(),
@@ -586,6 +592,7 @@ impl AppState {
             &db_dir.join("duplicate auto-resolution rules.json"),
         );
         state.favourites = super::favourites::load(&db_dir.join("favourite searches.json"));
+        state.search_history = super::search_history::load(&db_dir.join("search history.json"));
 
         state.reindex();
         state.active = restored_active

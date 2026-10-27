@@ -380,7 +380,7 @@ Rust-цели: `gui/app/options.rs`, `client_options`, `gui/qt/bridge.*`.
 - [ ] 12.18 files and trash (полностью).
 - [ ] 12.19 file search.
 - [ ] 12.20 file sort/collect.
-- [ ] 12.21 file viewing statistics.
+- [x] 12.21 file viewing statistics.
 - [ ] 12.22 gui pages.
 - [ ] 12.23 gui sessions.
 - [ ] 12.24 importing.
@@ -389,7 +389,7 @@ Rust-цели: `gui/app/options.rs`, `client_options`, `gui/qt/bridge.*`.
 - [ ] 12.27 media viewer hovers.
 - [ ] 12.28 media playback.
 - [ ] 12.29 notes.
-- [ ] 12.30 popup notifications.
+- [x] 12.30 popup notifications.
 - [ ] 12.31 ratings.
 - [ ] 12.32 regex favourites.
 - [ ] 12.33 shortcuts.

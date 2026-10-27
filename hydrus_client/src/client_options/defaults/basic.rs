@@ -104,6 +104,7 @@ pub(super) fn integers() -> Map<String, Value> {
         ("max_connection_attempts_allowed", 5),
         ("max_request_attempts_allowed_get", 5),
         ("popup_message_character_width", 56),
+        ("popup_message_max_messages", 200),
         ("duplicate_filter_max_batch_size", 100),
         ("video_thumbnail_percentage_in", 35),
         ("global_audio_volume", 70),

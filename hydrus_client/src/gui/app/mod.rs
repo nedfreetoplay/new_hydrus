@@ -283,6 +283,12 @@ pub fn handle_action(
         for command in &commands {
             if let UiCommand::NotifyMessage(text) = command {
                 state.notifications.push("info", text);
+                let limit = state
+                    .controller
+                    .options()
+                    .get_integer("popup_message_max_messages")
+                    .clamp(1, 5_000) as usize;
+                state.notifications.trim_to(limit);
             }
         }
     });
@@ -2623,6 +2629,13 @@ fn collect_import_folder_ids(notebook: &Notebook, ids: &mut Vec<String>) {
 }
 
 fn record_viewing(controller: &Controller, hash: &[u8], viewtime_ms: i64, add_view: bool) {
+    if !controller
+        .options()
+        .get_boolean("file_viewing_statistics_active")
+    {
+        return;
+    }
+
     let Some(hash_id) = query::hash_id_for(controller, hash) else {
         return;
     };

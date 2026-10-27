@@ -96,6 +96,8 @@ variable-height masonry (QListWidget с неоднородными size hint), �
 
 Меню Help → popup messages... открывает историю `NotifyMessage` (время, уровень,
 текст) с кнопкой очистки; лог ограничен 200 записями и живёт в `AppState`.
+Лимит истории читается из `popup_message_max_messages`, а запись статистики
+просмотров отключается опцией `file_viewing_statistics_active`.
 Help → about собирает `about_json` (SOFTWARE_VERSION, NETWORK_VERSION,
 CLIENT_API_VERSION, db version, SQLite/Qt/Rust, пути и счётчики сервисов) и
 показывает вкладки overview/license/credits с кнопкой открытия сайта.

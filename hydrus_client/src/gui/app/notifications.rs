@@ -54,6 +54,16 @@ impl NotificationLog {
     pub fn clear(&mut self) {
         self.entries.clear();
     }
+
+    /// Applies the user-configured history limit.
+    pub fn trim_to(&mut self, limit: usize) {
+        let limit = limit.max(1);
+
+        if self.entries.len() > limit {
+            let excess = self.entries.len() - limit;
+            self.entries.drain(0..excess);
+        }
+    }
 }
 
 #[cfg(test)]

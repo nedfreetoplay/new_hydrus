@@ -47,15 +47,45 @@ pub fn options_json(state: &AppState) -> String {
     ));
 
     tabs.push(tab(
-        "files",
-        "files and import",
+        "notifications",
+        "popup notifications",
         vec![
-            boolean(&options, "use_qt_file_dialogs", "use Qt file dialogs"),
+            integer(
+                &options,
+                "popup_message_character_width",
+                "popup message width (characters)",
+            ),
+            integer(
+                &options,
+                "popup_message_max_messages",
+                "messages kept in the popup history",
+            ),
+        ],
+    ));
+
+    tabs.push(tab(
+        "statistics",
+        "file viewing statistics",
+        vec![
             boolean(
                 &options,
                 "file_viewing_statistics_active",
                 "record file viewing statistics",
             ),
+            str_field(
+                "viewing_stats_note",
+                "storage",
+                "views and viewtime are written to file_viewing_stats".to_string(),
+                "the viewer records media views; previews and the API use the same table",
+            ),
+        ],
+    ));
+
+    tabs.push(tab(
+        "files",
+        "files and import",
+        vec![
+            boolean(&options, "use_qt_file_dialogs", "use Qt file dialogs"),
             integer(
                 &options,
                 "similar_files_duplicate_pairs_search_distance",

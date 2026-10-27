@@ -57,6 +57,7 @@
 #include <QStatusBar>
 #include <QStyle>
 #include <QStyleFactory>
+#include <QSystemTrayIcon>
 #include <QTabBar>
 #include <QTableWidget>
 #include <QTextEdit>
@@ -4184,6 +4185,10 @@ void HydrusMainWindow::closeEvent(QCloseEvent *event) {
     settings.setValue(QStringLiteral("main/state"), saveState());
     settings.sync();
 
+    if (tray != nullptr) {
+        tray->hide();
+    }
+
     if (services_dialog != nullptr) {
         services_dialog->close();
     }
@@ -4230,6 +4235,40 @@ void HydrusMainWindow::build_shell() {
     statusBar()->addPermanentWidget(status_media);
     statusBar()->addPermanentWidget(status_idle);
     statusBar()->addPermanentWidget(status_db);
+
+    if (QSystemTrayIcon::isSystemTrayAvailable()) {
+        tray = new QSystemTrayIcon(style()->standardIcon(QStyle::SP_ComputerIcon), this);
+        tray->setToolTip(QStringLiteral("Hydrus Client"));
+
+        auto *tray_menu = new QMenu(this);
+        auto *show_action = tray_menu->addAction(QStringLiteral("show/hide"));
+        auto *tray_exit = tray_menu->addAction(QStringLiteral("exit"));
+
+        connect(show_action, &QAction::triggered, this, [this]() {
+            if (isVisible()) {
+                hide();
+            } else {
+                show();
+                raise();
+                activateWindow();
+            }
+        });
+        connect(tray_exit, &QAction::triggered, this, [this]() { notify(QStringLiteral("exit")); });
+        connect(tray, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+            if (reason == QSystemTrayIcon::Trigger) {
+                if (isVisible()) {
+                    hide();
+                } else {
+                    show();
+                    raise();
+                    activateWindow();
+                }
+            }
+        });
+
+        tray->setContextMenu(tray_menu);
+        tray->show();
+    }
 
     build_shortcuts();
 
@@ -5199,6 +5238,14 @@ void HydrusMainWindow::show_message(const QString &title, const QString &text) {
 void HydrusMainWindow::notify_message(const QString &message) {
     if (status_message != nullptr) {
         status_message->setText(message);
+    }
+
+    if (tray != nullptr && tray->isVisible()) {
+        tray->showMessage(
+            QStringLiteral("Hydrus Client"),
+            message,
+            QSystemTrayIcon::Information,
+            3000);
     }
 }
 

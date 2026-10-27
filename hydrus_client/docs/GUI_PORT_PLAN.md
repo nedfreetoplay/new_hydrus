@@ -421,7 +421,7 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
 - [x] 13.3 Базовый splash-модель.
 - [x] 13.4 Базовые light/dark stylesheets.
 - [ ] 13.5 Popup message manager и job status queue.
-- [ ] 13.6 System tray icon и меню.
+- [x] 13.6 System tray icon и меню.
 - [ ] 13.7 Splash screen UI.
 - [ ] 13.8 Exception handling window.
 - [ ] 13.9 Charts (file history, statistics).

@@ -53,6 +53,7 @@ class QDropEvent;
 class QEvent;
 class HydrusTabBar;
 class QMovie;
+class QSystemTrayIcon;
 
 // A zoomable, pannable view for one image. Used both by the small preview in a
 // page sidebar and by the media viewer window.
@@ -519,6 +520,7 @@ private:
     HydrusDuplicatesRulesDialog *duplicates_rules_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
     QTimer *tick_timer = nullptr;
+    QSystemTrayIcon *tray = nullptr;
     QStringList tag_suggestions;
 };
 

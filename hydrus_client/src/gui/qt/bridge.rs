@@ -24,6 +24,11 @@ pub(crate) mod ffi {
         fn hydrus_set_status(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_build_pages(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_page(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
+        fn hydrus_update_page_progress(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            json: &str,
+        );
         fn hydrus_update_downloader(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
         fn hydrus_update_subscriptions(
             window: Pin<&mut HydrusMainWindow>,
@@ -195,8 +200,24 @@ pub fn run_application(controller: Arc<Controller>) {
         app::add_url_for_testing(&url);
     }
 
+    if let Ok(value) = std::env::var("HYDRUS_QT_THUMBNAILS") {
+        let parts: Vec<&str> = value.split(',').collect();
+        let scale = parts
+            .first()
+            .and_then(|part| part.parse().ok())
+            .unwrap_or(100);
+        let masonry = parts.iter().any(|part| *part == "masonry");
+        let horizontal = parts.iter().any(|part| *part == "horizontal");
+
+        app::set_thumbnail_options_for_testing(scale, masonry, horizontal);
+    }
+
     if let Ok(query) = std::env::var("HYDRUS_QT_QUERY") {
         app::set_query_for_testing(&query);
+    }
+
+    if std::env::var_os("HYDRUS_QT_PAGE_LOADING").is_some() {
+        app::show_page_loading_for_testing();
     }
 
     let mut commands = app::initial_commands();

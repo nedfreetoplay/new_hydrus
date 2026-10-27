@@ -466,12 +466,38 @@ HydrusThumbnailGrid::HydrusThumbnailGrid(HydrusMainWindow *main_window, HydrusQu
         }    });
 }
 
+void HydrusThumbnailGrid::set_layout(bool masonry_layout, bool horizontal_scroll, int scale) {
+    masonry = masonry_layout;
+    horizontal = horizontal_scroll;
+    scale_percent = qBound(25, scale, 400);
+
+    setFlow(horizontal ? QListView::TopToBottom : QListView::LeftToRight);
+    setWrapping(true);
+    setUniformItemSizes(!masonry);
+    setHorizontalScrollBarPolicy(
+        horizontal ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
+    setVerticalScrollBarPolicy(
+        horizontal ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded);
+
+    if (masonry) {
+        setGridSize(QSize());
+    }
+}
+
 void HydrusThumbnailGrid::set_media(const QJsonArray &media) {
     const QString focused = focused_hash();
 
     QSignalBlocker blocker(this);
 
     clear();
+
+    const int base_width = qBound(48, 150 * scale_percent / 100, 900);
+    const int base_height = qBound(40, base_width * 5 / 6, 900);
+    setIconSize(QSize(base_width, base_height));
+
+    if (!masonry) {
+        setGridSize(QSize(base_width + 12, base_height + 12));
+    }
 
     if (media.isEmpty()) {
         auto *empty = new QListWidgetItem(QStringLiteral("no files"), this);
@@ -508,6 +534,23 @@ void HydrusThumbnailGrid::set_media(const QJsonArray &media) {
 
         QPixmap preview = thumbnail_pixmap(thumb);
 
+        if (!preview.isNull()) {
+            if (masonry) {
+                const int height = qBound(40, preview.height() * base_width / qMax(1, preview.width()), base_width * 3);
+                preview = preview.scaled(
+                    base_width,
+                    height,
+                    Qt::KeepAspectRatio,
+                    Qt::SmoothTransformation);
+            } else {
+                preview = preview.scaled(
+                    base_width,
+                    base_height,
+                    Qt::KeepAspectRatio,
+                    Qt::SmoothTransformation);
+            }
+        }
+
         if (!badges.isEmpty() && !preview.isNull()) {
             QPainter painter(&preview);
             painter.setRenderHint(QPainter::Antialiasing);
@@ -528,7 +571,14 @@ void HydrusThumbnailGrid::set_media(const QJsonArray &media) {
 
         item->setIcon(QIcon(preview));
         item->setToolTip(hash);
-        item->setSizeHint(QSize(158, 133));
+
+        if (masonry) {
+            const int height = preview.isNull() ? base_height : preview.height();
+            item->setSizeHint(QSize(base_width + 8, height + 8));
+        } else {
+            item->setSizeHint(QSize(base_width + 8, base_height + 8));
+        }
+
         item->setTextAlignment(Qt::AlignCenter);
     }
 
@@ -1532,8 +1582,60 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
 
     splitter->addWidget(vertical);
 
+    results = new QWidget(splitter);
+    auto *results_layout = new QVBoxLayout(results);
+    results_layout->setContentsMargins(0, 0, 0, 0);
+    results_layout->setSpacing(0);
+
+    auto *header = new QWidget(results);
+    header->setObjectName(QStringLiteral("HydrusResultsHeader"));
+    auto *header_layout = new QHBoxLayout(header);
+    header_layout->setContentsMargins(8, 4, 8, 4);
+    header_layout->setSpacing(8);
+
+    count_label = new QLabel(QStringLiteral("0 files"), header);
+    count_label->setStyleSheet(QStringLiteral("font-weight: bold;"));
+    header_layout->addWidget(count_label);
+    header_layout->addStretch(1);
+
+    loading_label = new QLabel(header);
+    loading_label->setVisible(false);
+    header_layout->addWidget(loading_label);
+
+    import_progress = new QProgressBar(header);
+    import_progress->setFixedWidth(190);
+    import_progress->setTextVisible(true);
+    import_progress->setVisible(false);
+    header_layout->addWidget(import_progress);
+
+    results_layout->addWidget(header);
+
     grid = new HydrusThumbnailGrid(main, this);
-    splitter->addWidget(grid);
+    results_layout->addWidget(grid, 1);
+
+    loading_panel = new QWidget(results);
+    loading_panel->setObjectName(QStringLiteral("HydrusLoadingPanel"));
+    loading_panel->setStyleSheet(
+        QStringLiteral("QWidget#HydrusLoadingPanel { background: rgba(30, 30, 30, 210); }"));
+    auto *loading_layout = new QVBoxLayout(loading_panel);
+    loading_layout->addStretch(1);
+    loading_text = new QLabel(QStringLiteral("loading files..."), loading_panel);
+    loading_text->setAlignment(Qt::AlignHCenter);
+    loading_text->setStyleSheet(
+        QStringLiteral("font-size: 15px; color: #e6e6e6; background: transparent;"));
+    loading_layout->addWidget(loading_text);
+    auto *loading_bar = new QProgressBar(loading_panel);
+    loading_bar->setRange(0, 0);
+    loading_bar->setTextVisible(false);
+    loading_bar->setFixedWidth(240);
+    loading_bar->setStyleSheet(
+        QStringLiteral("QProgressBar { background: #2a2a2a; border: 1px solid #555; }"
+                       "QProgressBar::chunk { background: #4a90d9; }"));
+    loading_layout->addWidget(loading_bar, 0, Qt::AlignHCenter);
+    loading_layout->addStretch(2);
+    loading_panel->hide();
+
+    splitter->addWidget(results);
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
     splitter->setSizes({330, 900});
@@ -1642,6 +1744,49 @@ bool HydrusQueryPage::eventFilter(QObject *watched, QEvent *event) {
     return QWidget::eventFilter(watched, event);
 }
 
+void HydrusQueryPage::update_progress(const QJsonObject &state) {
+    const int count = state.value(QStringLiteral("count")).toInt();
+
+    count_label->setText(
+        count == 1 ? QStringLiteral("1 file") : QStringLiteral("%1 files").arg(count));
+
+    const QJsonValue importing = state.value(QStringLiteral("importing"));
+
+    if (importing.isObject()) {
+        const QJsonObject progress = importing.toObject();
+        const int done = progress.value(QStringLiteral("done")).toInt();
+        const int total = progress.value(QStringLiteral("total")).toInt();
+
+        loading_label->setText(progress.value(QStringLiteral("message")).toString());
+        import_progress->setRange(0, qMax(1, total));
+        import_progress->setValue(qBound(0, done, qMax(1, total)));
+        import_progress->setFormat(QStringLiteral("%1 / %2").arg(done).arg(total));
+        loading_label->setVisible(true);
+        import_progress->setVisible(true);
+    } else {
+        loading_label->setVisible(false);
+        import_progress->setVisible(false);
+    }
+
+    const bool loading = state.value(QStringLiteral("loading")).toBool();
+
+    if (loading) {
+        loading_panel->setGeometry(results->rect());
+        loading_panel->raise();
+        loading_panel->show();
+    } else {
+        loading_panel->hide();
+    }
+}
+
+void HydrusQueryPage::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+
+    if (loading_panel != nullptr && loading_panel->isVisible() && results != nullptr) {
+        loading_panel->setGeometry(results->rect());
+    }
+}
+
 void HydrusQueryPage::update_state(const QJsonObject &state) {
     const QString query = state.value(QStringLiteral("query")).toString();
 
@@ -1724,8 +1869,14 @@ void HydrusQueryPage::update_state(const QJsonObject &state) {
     metadata->set_state(metadata_state);
 
     const QString focused = state.value(QStringLiteral("focused")).toString();
+    const QJsonObject thumbnails = state.value(QStringLiteral("thumbnails")).toObject();
 
+    grid->set_layout(
+        thumbnails.value(QStringLiteral("masonry")).toBool(false),
+        thumbnails.value(QStringLiteral("horizontal")).toBool(false),
+        thumbnails.value(QStringLiteral("scale_percent")).toInt(100));
     grid->set_media(state.value(QStringLiteral("media")).toArray());
+    update_progress(state);
 
     if (!focused.isEmpty()) {
         grid->set_focused(focused);
@@ -5214,6 +5365,12 @@ void HydrusMainWindow::update_page(const QString &page_id, const QJsonObject &st
     }
 }
 
+void HydrusMainWindow::update_page_progress(const QString &page_id, const QJsonObject &state) {
+    if (HydrusQueryPage *page = find_page(page_id)) {
+        page->update_progress(state);
+    }
+}
+
 void HydrusMainWindow::update_downloader(const QString &page_id, const QJsonObject &state) {
     if (HydrusDownloaderPage *page = downloaders.value(page_id, nullptr)) {
         page->update_state(state);
@@ -6567,6 +6724,10 @@ void hydrus_build_pages(HydrusMainWindow &window, rust::Str json) {
 
 void hydrus_update_page(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
     window.update_page(to_qstring(page_id), parse_object(json));
+}
+
+void hydrus_update_page_progress(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
+    window.update_page_progress(to_qstring(page_id), parse_object(json));
 }
 
 void hydrus_update_downloader(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {

@@ -10,6 +10,13 @@ pub enum UiCommand {
     Autocomplete(String),
     BuildPages(String),
     UpdatePage(String, String),
+    PageProgress(String, String),
+    Defer {
+        action: String,
+        target: String,
+        payload: String,
+        delay_ms: i32,
+    },
     UpdateDownloader(String, String),
     UpdateSubscriptions(String, String),
     UpdateDuplicates(String, String),

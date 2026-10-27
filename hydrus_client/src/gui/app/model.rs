@@ -32,6 +32,9 @@ pub struct QueryPage {
     pub fixed_hashes: Option<Vec<Vec<u8>>>,
     pub query_undo: Vec<String>,
     pub query_redo: Vec<String>,
+    /// True between the search action and the deferred `run_query` that fills
+    /// the page, so the results panel can show its loading state.
+    pub loading: bool,
 }
 
 impl QueryPage {
@@ -56,6 +59,7 @@ impl QueryPage {
             fixed_hashes: None,
             query_undo: Vec::new(),
             query_redo: Vec::new(),
+            loading: false,
         }
     }
 }

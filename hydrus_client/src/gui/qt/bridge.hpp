@@ -19,6 +19,7 @@
 #include <QListWidget>
 #include <QMainWindow>
 #include <QPlainTextEdit>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QResizeEvent>
 #include <QSpinBox>
@@ -98,6 +99,7 @@ public:
     const QString &page_id() const;
 
     void update_state(const QJsonObject &state);
+    void update_progress(const QJsonObject &state);
     void set_selection(
         const QString &hash,
         const QStringList &tags,
@@ -117,6 +119,7 @@ public:
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     void request_autocomplete();
@@ -134,6 +137,12 @@ private:
     QPushButton *search_button = nullptr;
     QLabel *status_label = nullptr;
     QLabel *empty_label = nullptr;
+    QLabel *count_label = nullptr;
+    QLabel *loading_label = nullptr;
+    QProgressBar *import_progress = nullptr;
+    QWidget *results = nullptr;
+    QWidget *loading_panel = nullptr;
+    QLabel *loading_text = nullptr;
     HydrusMetadataPanel *metadata = nullptr;
     HydrusCanvas *preview = nullptr;
     HydrusThumbnailGrid *grid = nullptr;
@@ -147,6 +156,7 @@ public:
 
     void set_media(const QJsonArray &media);
     void set_focused(const QString &hash);
+    void set_layout(bool masonry, bool horizontal, int scale_percent);
     QString focused_hash() const;
     QStringList selected_hashes() const;
 
@@ -161,6 +171,9 @@ protected:
 private:
     HydrusMainWindow *main = nullptr;
     HydrusQueryPage *page = nullptr;
+    bool masonry = false;
+    bool horizontal = false;
+    int scale_percent = 100;
 };
 
 // Media viewer frame: canvas plus a tag sidebar, as in Hydrus' canvas frame.
@@ -472,6 +485,7 @@ public:
     void set_menus(const QJsonArray &menus);
     void build_pages(const QJsonObject &pages);
     void update_page(const QString &page_id, const QJsonObject &state);
+    void update_page_progress(const QString &page_id, const QJsonObject &state);
     void update_downloader(const QString &page_id, const QJsonObject &state);
     void update_subscriptions(const QString &page_id, const QJsonObject &state);
     void update_duplicates(const QString &page_id, const QJsonObject &state);
@@ -565,6 +579,10 @@ void hydrus_show_autocomplete(HydrusMainWindow &window, rust::Str json);
 void hydrus_set_status(HydrusMainWindow &window, rust::Str json);
 void hydrus_build_pages(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_page(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
+void hydrus_update_page_progress(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Str json);
 void hydrus_update_downloader(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_subscriptions(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust::Str json);

@@ -27,6 +27,17 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdatePage(page_id, json) => {
             ffi::hydrus_update_page(window.as_mut(), &page_id, &json);
         }
+        UiCommand::PageProgress(page_id, json) => {
+            ffi::hydrus_update_page_progress(window.as_mut(), &page_id, &json);
+        }
+        UiCommand::Defer {
+            action,
+            target,
+            payload,
+            delay_ms,
+        } => {
+            ffi::hydrus_defer_action(window.as_mut(), &action, &target, &payload, delay_ms);
+        }
         UiCommand::UpdateDownloader(page_id, json) => {
             ffi::hydrus_update_downloader(window.as_mut(), &page_id, &json);
         }

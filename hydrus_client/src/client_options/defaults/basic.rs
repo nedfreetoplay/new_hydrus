@@ -61,6 +61,8 @@ pub(super) fn booleans() -> Map<String, Value> {
         ("database_deferred_delete_maintenance_during_active", true),
         ("api_enabled", false),
         ("duplicates_auto_resolution_enabled", false),
+        ("thumbnail_layout_masonry", false),
+        ("thumbnail_scroll_horizontal", false),
     ];
 
     entries
@@ -116,6 +118,7 @@ pub(super) fn integers() -> Map<String, Value> {
         ("thumbnail_border", 1),
         ("thumbnail_margin", 2),
         ("thumbnail_dpr_percent", 100),
+        ("thumbnail_scale_percent", 100),
         ("number_of_gui_session_backups", 10),
         ("animated_scanbar_height", 20),
         ("animated_scanbar_nub_width", 10),

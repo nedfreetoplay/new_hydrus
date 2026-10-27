@@ -411,7 +411,7 @@ fn node_json(state: &AppState, node: &PageNode) -> Value {
             "id": page.id,
             "kind": "query",
             "title": page.title,
-            "state": query_state(&state.controller, page),
+            "state": query_state(&state.controller, page, Some(&state.import_queue)),
         }),
         PageNode::Notebook(notebook) => notebook_node(state, notebook),
         PageNode::Downloader(page) => json!({
@@ -451,7 +451,11 @@ fn node_json(state: &AppState, node: &PageNode) -> Value {
     }
 }
 
-pub fn query_state(controller: &crate::controller::Controller, page: &QueryPage) -> Value {
+pub fn query_state(
+    controller: &crate::controller::Controller,
+    page: &QueryPage,
+    import: Option<&super::model::ImportQueueState>,
+) -> Value {
     let focused = page
         .focused
         .as_ref()
@@ -470,6 +474,12 @@ pub fn query_state(controller: &crate::controller::Controller, page: &QueryPage)
         .map(|hash| super::metadata::metadata_json(controller, hash))
         .unwrap_or_else(|| json!({"tag_services": [], "ratings": [], "notes": []}));
 
+    let options = controller.options();
+    let scale = options
+        .get_integer("thumbnail_scale_percent")
+        .clamp(25, 400);
+    let importing = importing_json(import);
+
     json!({
         "query": page.query,
         "location": page.location,
@@ -483,7 +493,43 @@ pub fn query_state(controller: &crate::controller::Controller, page: &QueryPage)
         "tags": tags,
         "metadata": metadata,
         "media": query::media_json(controller, page),
+        "count": page.hashes.len(),
+        "loading": page.loading,
+        "importing": importing,
+        "thumbnails": {
+            "scale_percent": scale,
+            "masonry": options.get_boolean("thumbnail_layout_masonry"),
+            "horizontal": options.get_boolean("thumbnail_scroll_horizontal"),
+        },
     })
+}
+
+fn importing_json(import: Option<&super::model::ImportQueueState>) -> Value {
+    import
+        .filter(|queue| queue.running)
+        .map(|queue| {
+            json!({
+                "done": queue.done,
+                "total": queue.total,
+                "message": queue.message,
+            })
+        })
+        .unwrap_or(Value::Null)
+}
+
+/// Small incremental payload sent while imports run, so the results panel can
+/// show progress without rebuilding the whole thumbnail list.
+pub fn query_progress_json(
+    page: &QueryPage,
+    import: Option<&super::model::ImportQueueState>,
+) -> String {
+    json!({
+        "page_id": page.id,
+        "loading": page.loading,
+        "importing": importing_json(import),
+        "count": page.hashes.len(),
+    })
+    .to_string()
 }
 
 pub fn status_json(state: &AppState) -> String {

@@ -74,6 +74,30 @@ pub fn options_json(state: &AppState) -> String {
     ));
 
     tabs.push(tab(
+        "thumbnails",
+        "thumbnails",
+        vec![
+            integer(
+                &options,
+                "thumbnail_scale_percent",
+                "thumbnail scale (percent)",
+            ),
+            boolean(
+                &options,
+                "thumbnail_layout_masonry",
+                "masonry layout (variable-height rows)",
+            ),
+            boolean(
+                &options,
+                "thumbnail_scroll_horizontal",
+                "scroll thumbnails horizontally",
+            ),
+            integer(&options, "thumbnail_border", "thumbnail border"),
+            integer(&options, "thumbnail_margin", "thumbnail margin"),
+        ],
+    ));
+
+    tabs.push(tab(
         "media",
         "media viewer",
         vec![

@@ -109,6 +109,30 @@ pub fn add_url_for_testing(url: &str) {
     });
 }
 
+/// Development helper: leaves file pages in their searching state so the
+/// loading panel can be checked in screenshots.
+pub fn show_page_loading_for_testing() {
+    with_state_mut(|state| {
+        for id in state.query_ids() {
+            if let Some(page) = state.find_query_mut(&id) {
+                page.loading = true;
+            }
+        }
+    });
+}
+
+/// Development helper: sets the thumbnail layout options before the first page
+/// is built so the results panel can be checked in screenshots.
+pub fn set_thumbnail_options_for_testing(scale_percent: i64, masonry: bool, horizontal: bool) {
+    with_state_mut(|state| {
+        let mut options = state.controller.options();
+        options.set_integer("thumbnail_scale_percent", scale_percent.clamp(25, 400));
+        options.set_boolean("thumbnail_layout_masonry", masonry);
+        options.set_boolean("thumbnail_scroll_horizontal", horizontal);
+        state.controller.replace_options(options);
+    });
+}
+
 /// Development helper: records views on the first file of the active page.
 pub fn add_viewing_stats_for_testing(views: i64) {
     with_state_mut(|state| {
@@ -289,6 +313,21 @@ fn with_state<R>(call: impl FnOnce(&AppState) -> R) -> R {
 impl AppState {
     fn status_command(&self) -> UiCommand {
         UiCommand::Status(render::status_json(self))
+    }
+
+    /// Progress-only updates for every file page; used while imports change
+    /// so the loading panel can animate without a full results rebuild.
+    pub(crate) fn query_progress_commands(&self) -> Vec<UiCommand> {
+        self.query_ids()
+            .into_iter()
+            .filter_map(|id| {
+                let page = self.find_query(&id)?;
+                Some(UiCommand::PageProgress(
+                    id,
+                    render::query_progress_json(page, Some(&self.import_queue)),
+                ))
+            })
+            .collect()
     }
 
     pub(crate) fn refresh_all(&mut self) {
@@ -502,14 +541,51 @@ impl AppState {
 
                     page.query = payload.to_string();
                     page.fixed_hashes = None;
+                    page.loading = true;
                 }
 
                 search_history::record(&mut self.search_history, payload);
                 let _ = search_history::persist(self);
 
                 let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
-                commands.extend(self.replace_query_and_refresh(&controller, target));
+
+                if let Some(page) = self.find_query(target) {
+                    let import = self.import_queue.clone();
+                    commands.push(UiCommand::UpdatePage(
+                        target.to_string(),
+                        render::query_state(&controller, page, Some(&import)).to_string(),
+                    ));
+                    commands.push(UiCommand::Defer {
+                        action: "run_query".to_string(),
+                        target: target.to_string(),
+                        payload: String::new(),
+                        delay_ms: 1,
+                    });
+                }
+
+                commands.push(self.status_command());
                 commands
+            }
+            "run_query" => {
+                let controller = self.controller.clone();
+                let import = self.import_queue.clone();
+
+                let json = {
+                    let Some(page) = self.find_query_mut(target) else {
+                        return vec![UiCommand::NotifyMessage(
+                            "page is not a file page".to_string(),
+                        )];
+                    };
+
+                    page.loading = false;
+                    query::refresh_page(&controller, page);
+                    render::query_state(&controller, page, Some(&import)).to_string()
+                };
+
+                vec![
+                    UiCommand::UpdatePage(target.to_string(), json),
+                    self.status_command(),
+                ]
             }
             "or_dialog" => {
                 let initial = self
@@ -541,12 +617,28 @@ impl AppState {
 
                     page.query = query;
                     page.fixed_hashes = None;
+                    page.loading = true;
                 } else {
                     return vec![UiCommand::NotifyMessage("no page selected".to_string())];
                 }
 
                 let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
-                commands.extend(self.replace_query_and_refresh(&controller, target));
+                let import = self.import_queue.clone();
+
+                if let Some(page) = self.find_query(target) {
+                    commands.push(UiCommand::UpdatePage(
+                        target.to_string(),
+                        render::query_state(&controller, page, Some(&import)).to_string(),
+                    ));
+                    commands.push(UiCommand::Defer {
+                        action: "run_query".to_string(),
+                        target: target.to_string(),
+                        payload: String::new(),
+                        delay_ms: 1,
+                    });
+                }
+
+                commands.push(self.status_command());
                 commands
             }
             "notifications" => vec![UiCommand::NotificationsDialog(render::notifications_json(
@@ -956,13 +1048,14 @@ impl AppState {
                 }
 
                 let controller = self.controller.clone();
+                let import = self.import_queue.clone();
                 let Some(page) = self.find_query_mut(target) else {
                     return vec![UiCommand::NotifyMessage("page is missing".to_string())];
                 };
 
                 query::append_hashes(page, parsed);
 
-                let json = render::query_state(&controller, page).to_string();
+                let json = render::query_state(&controller, page, Some(&import)).to_string();
 
                 vec![
                     UiCommand::UpdatePage(target.to_string(), json),
@@ -1268,10 +1361,11 @@ impl AppState {
 
     pub(crate) fn refresh_page_commands(&mut self, page_id: &str) -> Vec<UiCommand> {
         let controller = self.controller.clone();
+        let import = self.import_queue.clone();
 
         if let Some(page) = self.find_query_mut(page_id) {
             query::refresh_page(&controller, page);
-            let json = render::query_state(&controller, page).to_string();
+            let json = render::query_state(&controller, page, Some(&import)).to_string();
 
             return vec![
                 UiCommand::UpdatePage(page_id.to_string(), json),
@@ -1334,6 +1428,7 @@ impl AppState {
         controller: &Controller,
         page_id: &str,
     ) -> Vec<UiCommand> {
+        let import = self.import_queue.clone();
         let json = {
             let Some(page) = self.find_query_mut(page_id) else {
                 return vec![UiCommand::NotifyMessage(
@@ -1342,7 +1437,7 @@ impl AppState {
             };
 
             query::refresh_page(controller, page);
-            render::query_state(controller, page).to_string()
+            render::query_state(controller, page, Some(&import)).to_string()
         };
 
         vec![
@@ -1353,6 +1448,7 @@ impl AppState {
 
     pub(crate) fn refresh_commands(&mut self) -> Vec<UiCommand> {
         let controller = self.controller.clone();
+        let import = self.import_queue.clone();
         let ids = self.query_ids();
         let mut commands = Vec::new();
 
@@ -1362,7 +1458,7 @@ impl AppState {
                     continue;
                 };
                 query::refresh_page(&controller, page);
-                render::query_state(&controller, page).to_string()
+                render::query_state(&controller, page, Some(&import)).to_string()
             };
 
             commands.push(UiCommand::UpdatePage(id, json));

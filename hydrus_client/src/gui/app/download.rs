@@ -556,7 +556,9 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
             state.import_queue.message = message.clone();
             state.message = message;
 
-            vec![UiCommand::Status(render::status_json(state))]
+            let mut commands = state.query_progress_commands();
+            commands.push(UiCommand::Status(render::status_json(state)));
+            commands
         }
         AsyncEvent::ImportFinished {
             imported,
@@ -604,6 +606,7 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
                 ));
             }
 
+            commands.extend(state.query_progress_commands());
             commands.push(UiCommand::Status(render::status_json(state)));
             commands
         }

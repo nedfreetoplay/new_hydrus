@@ -117,8 +117,10 @@ Rust-цели: `gui/app/query.rs`, `gui/app/render.rs`, `gui/qt/bridge.*`,
 - [~] 03.4 Sort/collect controls и сохранение режима.
 - [x] 03.5 Множественное выделение: действия над всеми выбранными файлами.
 - [x] 03.6 Correct focused vs selected file semantics.
-- [ ] 03.7 Masonry layout, scroll direction, thumbnail sizing options.
-- [ ] 03.8 Loading panel/progress и file count.
+- [~] 03.7 Masonry layout, scroll direction, thumbnail sizing options
+  (масштаб, горизонтальный скролл и variable-height masonry готовы; waterfall
+  по колонкам — приближение на QListWidget).
+- [x] 03.8 Loading panel/progress и file count.
 - [x] 03.9 Rating overlays, duplicate indicators, archive/inbox markers.
 - [x] 03.10 Drag & drop файлов, miniatures между страницами.
 - [~] 03.11 Полные media menus: copy hash/URL, open externally, file services,
@@ -399,7 +401,8 @@ Rust-цели: `gui/app/options.rs`, `client_options`, `gui/qt/bridge.*`.
 - [ ] 12.40 tag sort.
 - [ ] 12.41 tag suggestions.
 - [ ] 12.42 tag autocomplete tabs.
-- [ ] 12.43 thumbnails.
+- [~] 12.43 thumbnails (масштаб, masonry, scroll direction; остальные поля
+  панели Hydrus ещё не перенесены).
 - [ ] 12.44 advanced.
 
 Выход фазы: options покрывают все панели Hydrus, поиск по настройкам работает,

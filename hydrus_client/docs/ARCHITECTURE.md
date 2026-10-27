@@ -78,6 +78,16 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
 результаты (`add_hashes_to_page`), бросок локальных файлов на сетку запускает
 обычный импорт.
 
+Раскладка миниатюр (`HydrusThumbnailGrid`) читает `thumbnails` из `query_state`:
+`thumbnail_scale_percent` масштабирует иконки, `thumbnail_layout_masonry` включает
+variable-height masonry (QListWidget с неоднородными size hint), а
+`thumbnail_scroll_horizontal` переключает flow на `TopToBottom` с горизонтальным
+скроллбаром. Шапка результатов показывает число файлов; `importing` в state
+рисует determinate QProgressBar, `loading` — overlay loading panel. Поиск
+помечает страницу `loading = true`, отдаёт `UpdatePage` и через `UiCommand::Defer`
+выполняет `run_query` на следующем цикле событий, поэтому панель успевает
+отрисоваться до синхронного запроса к БД.
+
 Дерево, очереди загрузчиков, результаты и подписки сериализуются в единый
 `gui session.json` (версия 3): `app` хранит дерево страниц, `legacy` — старый
 `GuiSession` контроллера, плюс `subscriptions`. Загрузчик читает и старые плоские

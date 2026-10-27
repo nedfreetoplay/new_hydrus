@@ -89,12 +89,12 @@ impl FilesMaintenanceExecutor {
                     return Ok(false);
                 };
                 let path = self.file_path(db, hash_id, info.mime)?;
-                let timestamp = core_files::get_file_modified_timestamp_ms(&path)?;
+                let timestamp_ms = core_files::get_file_modified_timestamp_ms(&path)?;
                 files_timestamps::set_file_timestamp(
                     db,
                     hash_id,
                     TimestampType::ModifiedFile,
-                    Some(timestamp),
+                    Some(timestamp_ms / 1000),
                 )?;
 
                 Ok(true)

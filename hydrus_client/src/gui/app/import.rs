@@ -196,12 +196,12 @@ fn import_one(
         let _ = url_map::add_url(db, hash_id, source_url);
     }
 
-    if let Ok(timestamp) = core_files::get_file_modified_timestamp_ms(path) {
+    if let Ok(timestamp_ms) = core_files::get_file_modified_timestamp_ms(path) {
         let _ = files_timestamps::set_file_timestamp(
             db,
             hash_id,
             TimestampType::ModifiedFile,
-            Some(timestamp),
+            Some(timestamp_ms / 1000),
         );
     }
 

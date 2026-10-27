@@ -99,6 +99,7 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - редактирование тегов по локальным tag-сервисам: массовый manage tags для
   выделения, счётчики тегов по выбранным файлам и выбор любого локального сервиса;
   рейтинги (like/dislike, inc/dec и числовые), заметки, archive/inbox/перемещение в trash;
+  редактор archived/modified timestamps;
 - меню Hydrus (`file`, `undo`, `pages`, `database`, `download`, `network`, `services`, `tags`,
   `pending`, `help`), сегментированный статус-бар и единый `gui session.json`
   (legacy `GuiSession` + дерево страниц, загрузчики и подписки) с миграциями старых форматов.

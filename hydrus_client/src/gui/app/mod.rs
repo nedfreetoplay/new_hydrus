@@ -5,12 +5,12 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use hydrus_core::hydrus_constants::{ContentStatus, SOFTWARE_VERSION, dirs};
+use hydrus_core::hydrus_constants::{ContentStatus, SOFTWARE_VERSION, TimestampType, dirs};
 use hydrus_core::hydrus_time;
 use serde_json::{Value, json};
 
 use crate::controller::Controller;
-use crate::db::{files_storage, mappings, master_tags};
+use crate::db::{files_storage, files_timestamps, mappings, master_tags};
 use crate::gui::qt::bridge::ffi;
 use crate::gui::qt::panels;
 
@@ -664,6 +664,8 @@ impl AppState {
             }
             "manage_tags" => self.manage_tags(target, payload, false),
             "manage_tags_active" => self.manage_tags("", "", true),
+            "edit_timestamps" => self.edit_timestamps(),
+            "timestamps_save" => self.save_timestamps(payload),
             "tag_add" => metadata::tag_action(self, true, payload),
             "tag_remove" => metadata::tag_action(self, false, payload),
             "rating_set" => metadata::rating_action(self, payload),
@@ -1667,6 +1669,94 @@ impl AppState {
         commands
     }
 
+    fn edit_timestamps(&mut self) -> Vec<UiCommand> {
+        let Some(page) = self.active_query() else {
+            return vec![UiCommand::NotifyMessage("no page selected".to_string())];
+        };
+        let Some(hash) = page.focused.clone() else {
+            return vec![UiCommand::NotifyMessage("no file selected".to_string())];
+        };
+        let Some(hash_id) = query::hash_id_for(&self.controller, &hash) else {
+            return vec![UiCommand::NotifyMessage(
+                "file is not in the database".to_string(),
+            )];
+        };
+
+        let db = self.controller.db().db();
+        let archived = files_timestamps::get_file_timestamp(db, hash_id, TimestampType::Archived)
+            .ok()
+            .flatten();
+        let modified =
+            files_timestamps::get_file_timestamp(db, hash_id, TimestampType::ModifiedFile)
+                .ok()
+                .flatten();
+
+        let json = json!({
+            "hash": query::hex(&hash),
+            "archived": archived,
+            "modified": modified,
+        })
+        .to_string();
+
+        vec![UiCommand::TimestampsDialog(json)]
+    }
+
+    fn save_timestamps(&mut self, payload: &str) -> Vec<UiCommand> {
+        let Ok(value) = serde_json::from_str::<Value>(payload) else {
+            return vec![UiCommand::NotifyMessage(
+                "invalid timestamp payload".to_string(),
+            )];
+        };
+
+        let Some(hash) = value
+            .get("hash")
+            .and_then(Value::as_str)
+            .and_then(query::unhex)
+        else {
+            return vec![UiCommand::NotifyMessage("invalid file hash".to_string())];
+        };
+        let Some(hash_id) = query::hash_id_for(&self.controller, &hash) else {
+            return vec![UiCommand::NotifyMessage(
+                "file is not in the database".to_string(),
+            )];
+        };
+
+        let timestamp = |key: &str| {
+            value.get(key).and_then(|entry| {
+                if entry.is_null() {
+                    Some(None)
+                } else {
+                    entry.as_i64().map(Some)
+                }
+            })
+        };
+
+        let db = self.controller.db().db();
+
+        if let Some(archived) = timestamp("archived") {
+            let _ = files_timestamps::set_file_timestamp(
+                db,
+                hash_id,
+                TimestampType::Archived,
+                archived,
+            );
+        }
+
+        if let Some(modified) = timestamp("modified") {
+            let _ = files_timestamps::set_file_timestamp(
+                db,
+                hash_id,
+                TimestampType::ModifiedFile,
+                modified,
+            );
+        }
+
+        self.message = "timestamps updated".to_string();
+        let mut commands = metadata::refresh_hash(self, &hash);
+        commands.push(self.status_command());
+        commands
+    }
+
     fn set_inbox(&mut self, page_id: &str, hash_hex: &str, inbox: bool) -> Vec<UiCommand> {
         let Some(hash) = query::unhex(hash_hex) else {
             return vec![];
@@ -1677,6 +1767,16 @@ impl AppState {
         };
 
         let _ = files_storage::set_inbox(self.controller.db().db(), &[hash_id], inbox);
+        let _ = files_timestamps::set_file_timestamp(
+            self.controller.db().db(),
+            hash_id,
+            TimestampType::Archived,
+            if inbox {
+                None
+            } else {
+                Some(hydrus_time::get_now())
+            },
+        );
 
         self.message = if inbox {
             "file moved to inbox".to_string()
@@ -1705,6 +1805,17 @@ impl AppState {
         }
 
         let _ = files_storage::set_inbox(self.controller.db().db(), &hash_ids, inbox);
+
+        let now = hydrus_time::get_now();
+        for hash_id in &hash_ids {
+            let _ = files_timestamps::set_file_timestamp(
+                self.controller.db().db(),
+                *hash_id,
+                TimestampType::Archived,
+                if inbox { None } else { Some(now) },
+            );
+        }
+
         let count = hash_ids.len();
 
         self.message = if inbox {

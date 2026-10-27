@@ -124,6 +124,7 @@ pub fn menus_json(state: &AppState) -> String {
             "items": [
                 {"label": "manage tags...", "action": "manage_tags_active"},
                 {"label": "manage notes...", "action": "manage_notes_active"},
+                {"label": "edit timestamps...", "action": "edit_timestamps"},
                 {"separator": true},
                 {"label": "duplicate auto-resolution...", "action": "duplicates_rules"},
                 {"separator": true},

@@ -71,6 +71,7 @@ pub(crate) mod ffi {
         fn hydrus_close_viewer(window: Pin<&mut HydrusMainWindow>, viewer_id: &str);
         fn hydrus_show_tag_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_manage_tags(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_timestamps(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_options(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_services(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_services(window: Pin<&mut HydrusMainWindow>, json: &str);

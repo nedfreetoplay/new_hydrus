@@ -9,6 +9,7 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDateTime>
+#include <QDateTimeEdit>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -5180,6 +5181,81 @@ private:
     QLineEdit *input = nullptr;
 };
 
+class HydrusTimestampsDialog : public QDialog {
+public:
+    HydrusTimestampsDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent = nullptr)
+        : QDialog(parent), main(main_window), hash(state.value(QStringLiteral("hash")).toString()) {
+        setWindowTitle(QStringLiteral("edit timestamps"));
+        resize(420, 220);
+
+        auto *layout = new QVBoxLayout(this);
+        auto *form = new QFormLayout();
+
+        archived_enabled = new QCheckBox(QStringLiteral("archived time"), this);
+        archived = new QDateTimeEdit(this);
+        archived->setDisplayFormat(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+        archived->setCalendarPopup(true);
+        form->addRow(archived_enabled, archived);
+
+        modified_enabled = new QCheckBox(QStringLiteral("file modified time"), this);
+        modified = new QDateTimeEdit(this);
+        modified->setDisplayFormat(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+        modified->setCalendarPopup(true);
+        form->addRow(modified_enabled, modified);
+
+        layout->addLayout(form);
+
+        set_time(archived_enabled, archived, state.value(QStringLiteral("archived")));
+        set_time(modified_enabled, modified, state.value(QStringLiteral("modified")));
+
+        auto *buttons = new QDialogButtonBox(
+            QDialogButtonBox::Save | QDialogButtonBox::Cancel,
+            this);
+        connect(buttons, &QDialogButtonBox::accepted, this, [this]() { save(); });
+        connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+        layout->addWidget(buttons);
+    }
+
+private:
+    void set_time(QCheckBox *enabled, QDateTimeEdit *editor, const QJsonValue &value) {
+        if (value.isDouble()) {
+            enabled->setChecked(true);
+            editor->setDateTime(QDateTime::fromSecsSinceEpoch(value.toInteger()));
+        } else {
+            enabled->setChecked(false);
+            editor->setDateTime(QDateTime::currentDateTime());
+        }
+    }
+
+    void save() {
+        QJsonObject payload;
+        payload.insert(QStringLiteral("hash"), hash);
+        payload.insert(
+            QStringLiteral("archived"),
+            archived_enabled->isChecked()
+                ? QJsonValue(archived->dateTime().toSecsSinceEpoch())
+                : QJsonValue(QJsonValue::Null));
+        payload.insert(
+            QStringLiteral("modified"),
+            modified_enabled->isChecked()
+                ? QJsonValue(modified->dateTime().toSecsSinceEpoch())
+                : QJsonValue(QJsonValue::Null));
+
+        main->notify(
+            QStringLiteral("timestamps_save"),
+            QString(),
+            QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)));
+        accept();
+    }
+
+    HydrusMainWindow *main = nullptr;
+    QString hash;
+    QCheckBox *archived_enabled = nullptr;
+    QCheckBox *modified_enabled = nullptr;
+    QDateTimeEdit *archived = nullptr;
+    QDateTimeEdit *modified = nullptr;
+};
+
 void HydrusMainWindow::show_tag_dialog(const QJsonObject &state) {
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("manage metadata"));
@@ -5200,6 +5276,11 @@ void HydrusMainWindow::show_tag_dialog(const QJsonObject &state) {
 
 void hydrus_show_manage_tags(HydrusMainWindow &window, rust::Str json) {
     HydrusManageTagsDialog dialog(&window, parse_object(json), &window);
+    dialog.exec();
+}
+
+void hydrus_show_timestamps(HydrusMainWindow &window, rust::Str json) {
+    HydrusTimestampsDialog dialog(&window, parse_object(json), &window);
     dialog.exec();
 }
 

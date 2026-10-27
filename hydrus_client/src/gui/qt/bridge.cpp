@@ -2494,13 +2494,13 @@ QString HydrusNotebook::current_page_id() const {
         return {};
     }
 
-    const QString data = tabBar()->tabData(index).toString();
+    const QString tab_data = tabBar()->tabData(index).toString();
 
-    if (data == QStringLiteral("__plus__")) {
+    if (tab_data == QStringLiteral("__plus__")) {
         return {};
     }
 
-    return data;
+    return tab_data;
 }
 
 void HydrusNotebook::request_close(int index) {
@@ -4341,8 +4341,8 @@ void HydrusMainWindow::build_shortcuts() {
     auto *import_url = new QShortcut(QKeySequence(QStringLiteral("Ctrl+U")), this);
     connect(import_url, &QShortcut::activated, this, [this]() { notify(QStringLiteral("import_url")); });
 
-    auto *import_folders = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+I")), this);
-    connect(import_folders, &QShortcut::activated, this, [this]() {
+    auto *import_folders_shortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+I")), this);
+    connect(import_folders_shortcut, &QShortcut::activated, this, [this]() {
         notify(QStringLiteral("new_import_folders"));
     });
 

@@ -100,7 +100,8 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
   оставшиеся горячие клавиши Hydrus.
 
 Сейчас проходит 504 unit-теста и 2 integration-теста. Архитектура:
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). План портирования GUI с
+чек-листами и флагами: [docs/GUI_PORT_PLAN.md](docs/GUI_PORT_PLAN.md).
 
 ## Проверка GUI без ручного клика
 

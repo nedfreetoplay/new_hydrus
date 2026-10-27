@@ -18,12 +18,15 @@ use crate::client_defaults::CustomHeader;
 use crate::client_options::ClientOptions;
 use crate::db::ClientDB;
 use crate::files::{ClientFilesManager, FilesMaintenanceManager, TrashManager};
-use crate::gui::session::GuiSession;
+use crate::gui::session::{GuiSession, UnifiedSession};
 use crate::gui::shortcuts::ShortcutSet;
 use crate::gui::style::ClientGUIStyle;
-use crate::networking::client_networking_bandwidth::NetworkBandwidthManager;
+use crate::networking::client_networking_bandwidth::{
+    BandwidthRuleEntry, NetworkBandwidthManager, default_rule_entries,
+};
 use crate::networking::client_networking_domain::DomainManager;
 use crate::networking::client_networking_url_class::UrlClass;
+use crate::networking::download_pools::DownloadPoolSettings;
 use crate::services::ServicesManager;
 
 const OPTIONS_NAME: &str = "client options";
@@ -32,8 +35,14 @@ const NETWORK_FILENAME: &str = "network settings.json";
 
 #[derive(Debug, Serialize, Deserialize)]
 struct NetworkSettingsFile {
+    #[serde(default)]
     headers: BTreeMap<String, CustomHeader>,
+    #[serde(default)]
     url_classes: Vec<UrlClass>,
+    #[serde(default = "default_rule_entries")]
+    bandwidth_rules: Vec<BandwidthRuleEntry>,
+    #[serde(default)]
+    download_pools: DownloadPoolSettings,
 }
 
 pub struct Controller {
@@ -48,7 +57,9 @@ pub struct Controller {
     shortcuts: RwLock<ShortcutSet>,
     style: ClientGUIStyle,
     domain_manager: RwLock<DomainManager>,
-    bandwidth_manager: RwLock<NetworkBandwidthManager>,
+    bandwidth_manager: Arc<RwLock<NetworkBandwidthManager>>,
+    bandwidth_rules: RwLock<Vec<BandwidthRuleEntry>>,
+    download_pools: RwLock<DownloadPoolSettings>,
     network_paused: Arc<AtomicBool>,
     api_server: Mutex<Option<ApiServerHandle>>,
 }
@@ -56,8 +67,9 @@ pub struct Controller {
 impl Controller {
     pub fn new(db_dir: impl AsRef<Path>) -> HydrusResult<Self> {
         let db_dir = db_dir.as_ref().to_path_buf();
-        let session = GuiSession::load_from_path(db_dir.join(SESSION_FILENAME))
-            .unwrap_or_else(|_| default_session());
+        let session = UnifiedSession::load(db_dir.join(SESSION_FILENAME))
+            .and_then(|session| session.legacy_session())
+            .unwrap_or_else(default_session);
 
         Ok(Self {
             db: ClientDB::new(&db_dir)?,
@@ -71,7 +83,9 @@ impl Controller {
             shortcuts: RwLock::new(ShortcutSet::new("global")),
             style: ClientGUIStyle::default(),
             domain_manager: RwLock::new(DomainManager::new()),
-            bandwidth_manager: RwLock::new(NetworkBandwidthManager::new()),
+            bandwidth_manager: Arc::new(RwLock::new(NetworkBandwidthManager::new())),
+            bandwidth_rules: RwLock::new(default_rule_entries()),
+            download_pools: RwLock::new(DownloadPoolSettings::new()),
             network_paused: Arc::new(AtomicBool::new(false)),
             api_server: Mutex::new(None),
         })
@@ -440,6 +454,16 @@ impl Controller {
             manager.set_custom_headers(settings.headers);
             manager.set_url_classes(settings.url_classes);
         }
+
+        *self.bandwidth_rules.write().unwrap() = settings.bandwidth_rules.clone();
+        let mut pools = settings.download_pools;
+        pools.normalize();
+        *self.download_pools.write().unwrap() = pools;
+
+        if let Ok(mut manager) = self.bandwidth_manager.write() {
+            manager.clear_rules();
+            manager.apply_rule_entries(&settings.bandwidth_rules);
+        }
     }
 
     pub fn save_network_settings(&self) -> std::io::Result<()> {
@@ -447,25 +471,49 @@ impl Controller {
         let settings = NetworkSettingsFile {
             headers: manager.get_custom_headers().clone(),
             url_classes: manager.get_url_classes().to_vec(),
+            bandwidth_rules: self.bandwidth_rules.read().unwrap().clone(),
+            download_pools: self.download_pools.read().unwrap().clone(),
         };
         let dump = serde_json::to_string_pretty(&settings).map_err(std::io::Error::other)?;
 
         std::fs::write(self.db_dir.join(NETWORK_FILENAME), dump)
     }
 
+    pub fn bandwidth_rule_entries(&self) -> Vec<BandwidthRuleEntry> {
+        self.bandwidth_rules.read().unwrap().clone()
+    }
+
+    pub fn replace_bandwidth_rule_entries(&self, entries: Vec<BandwidthRuleEntry>) {
+        *self.bandwidth_rules.write().unwrap() = entries.clone();
+
+        if let Ok(mut manager) = self.bandwidth_manager.write() {
+            manager.clear_rules();
+            manager.apply_rule_entries(&entries);
+        }
+    }
+
+    pub fn download_pool_settings(&self) -> DownloadPoolSettings {
+        self.download_pools.read().unwrap().clone()
+    }
+
+    pub fn replace_download_pool_settings(&self, mut settings: DownloadPoolSettings) {
+        settings.normalize();
+        *self.download_pools.write().unwrap() = settings;
+    }
+
     pub fn save(&self) -> HydrusResult<()> {
         self.save_options()?;
 
-        let session = self.session.read().unwrap();
-
-        session
-            .save_to_path(self.db_dir.join(SESSION_FILENAME))
-            .map_err(|error| {
-                hydrus_core::hydrus_exceptions::HydrusException::new(
-                    hydrus_core::hydrus_exceptions::ErrorKind::FileMissing,
-                    error.to_string(),
-                )
-            })
+        let path = self.db_dir.join(SESSION_FILENAME);
+        let mut unified = UnifiedSession::load(&path).unwrap_or_default();
+        unified.version = UnifiedSession::VERSION;
+        unified.legacy = Some(self.session.read().unwrap().clone());
+        unified.save(path).map_err(|error| {
+            hydrus_core::hydrus_exceptions::HydrusException::new(
+                hydrus_core::hydrus_exceptions::ErrorKind::FileMissing,
+                error.to_string(),
+            )
+        })
     }
 
     pub fn session(&self) -> GuiSession {

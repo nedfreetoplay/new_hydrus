@@ -5,18 +5,15 @@
 //! drains that channel from its Qt timer tick; widgets never touch worker
 //! state directly.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, VecDeque};
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::thread;
 
 use hydrus_core::hydrus_constants::Mime;
 use hydrus_core::hydrus_db_base::DBBase;
-use regex::Regex;
-use reqwest::Url;
 use reqwest::blocking::Client;
 
 use crate::client_options::ClientOptions;
@@ -24,6 +21,12 @@ use crate::controller::Controller;
 use crate::db::{master, url_map};
 use crate::files::ClientFilesManager;
 use crate::gui::app::import::ImportContext;
+use crate::networking::NetworkContext;
+use crate::networking::client_networking_bandwidth::NetworkBandwidthManager;
+use crate::networking::download_pools::{DownloadPoolSettings, domain_of, group_by_domain};
+use crate::parsing::gallery::{
+    is_media_url, parse_gallery_page, parse_post_page, parser_by_id, parser_for_url,
+};
 
 const MAX_GALLERY_PAGES: usize = 120;
 const MAX_GALLERY_FILES: usize = 2000;
@@ -41,9 +44,11 @@ pub(crate) enum AsyncJob {
         job_id: String,
         urls: Vec<String>,
         filter: String,
+        site: String,
     },
     UpdateOptions(ClientOptions),
     UpdateNetworkHeaders(Vec<(String, String)>),
+    UpdatePools(DownloadPoolSettings),
 }
 
 #[derive(Debug)]
@@ -129,6 +134,10 @@ impl AsyncRuntime {
         let _ = self.sender.send(AsyncJob::UpdateNetworkHeaders(headers));
     }
 
+    pub(crate) fn update_pools(&self, pools: DownloadPoolSettings) {
+        let _ = self.sender.send(AsyncJob::UpdatePools(pools));
+    }
+
     pub(crate) fn drain(&self) -> Vec<AsyncEvent> {
         self.receiver.try_iter().collect()
     }
@@ -141,6 +150,8 @@ struct WorkerContext {
     options: ClientOptions,
     headers: Vec<(String, String)>,
     paused: Arc<AtomicBool>,
+    bandwidth: Arc<RwLock<NetworkBandwidthManager>>,
+    pools: DownloadPoolSettings,
 }
 
 impl WorkerContext {
@@ -155,6 +166,8 @@ impl WorkerContext {
                 .map(|manager| manager.get_custom_header_pairs())
                 .unwrap_or_default(),
             paused: controller.network_paused_flag(),
+            bandwidth: controller.bandwidth_manager_arc(),
+            pools: controller.download_pool_settings(),
         }
     }
 
@@ -214,12 +227,16 @@ fn worker_loop(mut context: WorkerContext, jobs: Receiver<AsyncJob>, events: Sen
                 job_id,
                 urls,
                 filter,
-            } => run_process_pages(&context, &events, &job_id, urls, &filter),
+                site,
+            } => run_process_pages(&context, &events, &job_id, urls, &filter, &site),
             AsyncJob::UpdateOptions(options) => {
                 context.options = options;
             }
             AsyncJob::UpdateNetworkHeaders(headers) => {
                 context.headers = headers;
+            }
+            AsyncJob::UpdatePools(pools) => {
+                context.pools = pools;
             }
         }
     }
@@ -290,48 +307,7 @@ fn run_download_urls(
         total: urls.len(),
     });
 
-    let mut imported = 0;
-    let mut failed = 0;
-    let mut hashes = Vec::new();
-
-    for url in urls {
-        let _ = events.send(AsyncEvent::ItemStarted {
-            job_id: job_id.to_string(),
-            url: url.clone(),
-        });
-
-        if context.paused.load(Ordering::Relaxed) {
-            let _ = events.send(AsyncEvent::Item {
-                job_id: job_id.to_string(),
-                url,
-                ok: false,
-                note: "network is paused".to_string(),
-                hash: None,
-            });
-            failed += 1;
-            continue;
-        }
-
-        let (ok, note, hash) = download_url(context, &url);
-
-        if ok {
-            imported += 1;
-        } else {
-            failed += 1;
-        }
-
-        if let Some(hash) = &hash {
-            hashes.push(hash.clone());
-        }
-
-        let _ = events.send(AsyncEvent::Item {
-            job_id: job_id.to_string(),
-            url,
-            ok,
-            note,
-            hash,
-        });
-    }
+    let (imported, failed, hashes) = run_pool(context, events, job_id, urls);
 
     let _ = events.send(AsyncEvent::Finished {
         job_id: job_id.to_string(),
@@ -348,6 +324,7 @@ fn run_process_pages(
     job_id: &str,
     urls: Vec<String>,
     filter: &str,
+    site: &str,
 ) {
     let client = match context.client() {
         Ok(client) => client,
@@ -365,8 +342,14 @@ fn run_process_pages(
 
     let mut file_urls: BTreeSet<String> = BTreeSet::new();
     let mut page_count = 0usize;
+    let mut page_queue: VecDeque<String> = urls.into_iter().collect();
+    let mut seen_pages: BTreeSet<String> = BTreeSet::new();
 
-    for url in urls {
+    while let Some(page_url) = page_queue.pop_front() {
+        if page_count >= MAX_GALLERY_PAGES || file_urls.len() >= MAX_GALLERY_FILES {
+            break;
+        }
+
         if context.paused.load(Ordering::Relaxed) {
             let _ = events.send(AsyncEvent::Message {
                 job_id: job_id.to_string(),
@@ -375,64 +358,107 @@ fn run_process_pages(
             break;
         }
 
-        if is_media_url(&url) {
-            if matches_filter(&url, filter) {
-                file_urls.insert(url);
+        if is_media_url(&page_url) {
+            if matches_filter(&page_url, filter) {
+                file_urls.insert(page_url);
             }
             continue;
         }
 
+        let key = normalise_page_url(&page_url);
+
+        if !seen_pages.insert(key) {
+            continue;
+        }
+
+        page_count += 1;
+
         let _ = events.send(AsyncEvent::Message {
             job_id: job_id.to_string(),
-            message: format!("fetching page {url}"),
+            message: format!("fetching page {page_url}"),
         });
 
-        let Ok((body, _)) = http_get(&client, &url) else {
+        let Ok((body, _)) = http_get(context, &client, &page_url) else {
             let _ = events.send(AsyncEvent::Message {
                 job_id: job_id.to_string(),
-                message: format!("could not fetch {url}"),
+                message: format!("could not fetch {page_url}"),
             });
             continue;
         };
 
         let html = String::from_utf8_lossy(&body);
-        let page_links = extract_links(&html, &url);
+        let parser = if site.trim().is_empty() || site.eq_ignore_ascii_case("auto") {
+            parser_for_url(&page_url)
+        } else {
+            parser_by_id(site)
+        };
+        let parsed = parse_gallery_page(&html, &page_url, parser);
 
-        let direct: Vec<String> = page_links
-            .iter()
-            .filter(|link| is_media_url(link) && matches_filter(link, filter))
-            .cloned()
-            .collect();
+        if parsed.is_post || parsed.posts.is_empty() {
+            for link in parsed.files {
+                if file_urls.len() >= MAX_GALLERY_FILES {
+                    break;
+                }
 
-        if !direct.is_empty() {
-            for link in direct {
-                file_urls.insert(link);
+                if matches_filter(&link, filter) {
+                    file_urls.insert(link);
+                }
             }
-            continue;
+        } else if parser.id == crate::parsing::gallery::GalleryParserId::Generic {
+            for link in parsed.files {
+                if file_urls.len() >= MAX_GALLERY_FILES {
+                    break;
+                }
+
+                if matches_filter(&link, filter) {
+                    file_urls.insert(link);
+                }
+            }
         }
 
-        for page_link in page_links {
-            if page_count >= MAX_GALLERY_PAGES || file_urls.len() >= MAX_GALLERY_FILES {
-                break;
-            }
+        if !parsed.is_post && !parsed.posts.is_empty() {
+            for post_url in parsed.posts {
+                if page_count >= MAX_GALLERY_PAGES || file_urls.len() >= MAX_GALLERY_FILES {
+                    break;
+                }
 
-            if should_follow_page_link(&page_link, &url) {
+                if context.paused.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                let post_key = normalise_page_url(&post_url);
+
+                if !seen_pages.insert(post_key) {
+                    continue;
+                }
+
                 page_count += 1;
 
                 let _ = events.send(AsyncEvent::Message {
                     job_id: job_id.to_string(),
-                    message: format!("fetching gallery page {page_link}"),
+                    message: format!("fetching post {post_url}"),
                 });
 
-                let Ok((page_body, _)) = http_get(&client, &page_link) else {
+                let Ok((post_body, _)) = http_get(context, &client, &post_url) else {
                     continue;
                 };
 
-                for link in extract_links(&String::from_utf8_lossy(&page_body), &page_link) {
-                    if is_media_url(&link) && matches_filter(&link, filter) {
+                for link in parse_post_page(&String::from_utf8_lossy(&post_body), &post_url, parser)
+                {
+                    if file_urls.len() >= MAX_GALLERY_FILES {
+                        break;
+                    }
+
+                    if matches_filter(&link, filter) {
                         file_urls.insert(link);
                     }
                 }
+            }
+        }
+
+        for next_page in parsed.next_pages {
+            if !seen_pages.contains(&normalise_page_url(&next_page)) {
+                page_queue.push_back(next_page);
             }
         }
     }
@@ -448,44 +474,7 @@ fn run_process_pages(
         total: file_urls.len(),
     });
 
-    let mut imported = 0;
-    let mut failed = 0;
-    let mut hashes = Vec::new();
-
-    for url in file_urls {
-        if context.paused.load(Ordering::Relaxed) {
-            let _ = events.send(AsyncEvent::Message {
-                job_id: job_id.to_string(),
-                message: "network is paused".to_string(),
-            });
-            break;
-        }
-
-        let _ = events.send(AsyncEvent::ItemStarted {
-            job_id: job_id.to_string(),
-            url: url.clone(),
-        });
-
-        let (ok, note, hash) = download_url(context, &url);
-
-        if ok {
-            imported += 1;
-        } else {
-            failed += 1;
-        }
-
-        if let Some(hash) = &hash {
-            hashes.push(hash.clone());
-        }
-
-        let _ = events.send(AsyncEvent::Item {
-            job_id: job_id.to_string(),
-            url,
-            ok,
-            note,
-            hash,
-        });
-    }
+    let (imported, failed, hashes) = run_pool(context, events, job_id, file_urls);
 
     let _ = events.send(AsyncEvent::Finished {
         job_id: job_id.to_string(),
@@ -494,6 +483,152 @@ fn run_process_pages(
         message: format!("{imported} imported, {failed} failed from {page_count} pages"),
         hashes,
     });
+}
+
+/// Runs file downloads through per-domain pools. Each domain gets its own
+/// queue and up to its configured number of concurrent workers; a shared gate
+/// enforces the global `max_network_jobs` option.
+fn run_pool(
+    context: &WorkerContext,
+    events: &Sender<AsyncEvent>,
+    job_id: &str,
+    urls: Vec<String>,
+) -> (usize, usize, Vec<Vec<u8>>) {
+    let groups = group_by_domain(urls);
+    let global = Arc::new(PoolGate::new(
+        context.options.get_integer("max_network_jobs").max(1) as usize,
+    ));
+    let default_domain = context
+        .options
+        .get_integer("max_network_jobs_per_domain")
+        .max(1) as usize;
+    let imported = Arc::new(AtomicUsize::new(0));
+    let failed = Arc::new(AtomicUsize::new(0));
+    let hashes = Arc::new(Mutex::new(Vec::new()));
+
+    thread::scope(|scope| {
+        for (domain, urls) in groups {
+            let limit = context
+                .pools
+                .limit_for(&domain, default_domain)
+                .min(urls.len().max(1));
+            let queue = Arc::new(Mutex::new(VecDeque::from(urls)));
+
+            for _ in 0..limit {
+                let queue = queue.clone();
+                let global = global.clone();
+                let imported = imported.clone();
+                let failed = failed.clone();
+                let hashes = hashes.clone();
+                let events = events.clone();
+                let context = context.clone();
+                let job_id = job_id.to_string();
+
+                scope.spawn(move || {
+                    loop {
+                        let next = {
+                            let mut queue = queue.lock().unwrap();
+                            queue.pop_front()
+                        };
+
+                        let Some(url) = next else {
+                            return;
+                        };
+
+                        if context.paused.load(Ordering::Relaxed) {
+                            let _ = events.send(AsyncEvent::Item {
+                                job_id: job_id.clone(),
+                                url,
+                                ok: false,
+                                note: "network is paused".to_string(),
+                                hash: None,
+                            });
+                            failed.fetch_add(1, Ordering::Relaxed);
+                            continue;
+                        }
+
+                        let _ = events.send(AsyncEvent::ItemStarted {
+                            job_id: job_id.clone(),
+                            url: url.clone(),
+                        });
+
+                        global.acquire();
+                        let (ok, note, hash) = download_url(&context, &url);
+                        global.release();
+
+                        if ok {
+                            imported.fetch_add(1, Ordering::Relaxed);
+                        } else {
+                            failed.fetch_add(1, Ordering::Relaxed);
+                        }
+
+                        if let Some(hash) = &hash {
+                            hashes.lock().unwrap().push(hash.clone());
+                        }
+
+                        let _ = events.send(AsyncEvent::Item {
+                            job_id: job_id.clone(),
+                            url,
+                            ok,
+                            note,
+                            hash,
+                        });
+                    }
+                });
+            }
+        }
+    });
+
+    let hashes = hashes
+        .lock()
+        .map(|mut hashes| std::mem::take(&mut *hashes))
+        .unwrap_or_default();
+
+    (
+        imported.load(Ordering::Relaxed),
+        failed.load(Ordering::Relaxed),
+        hashes,
+    )
+}
+
+struct PoolGate {
+    active: Mutex<usize>,
+    wake: Condvar,
+    max: usize,
+}
+
+impl PoolGate {
+    fn new(max: usize) -> Self {
+        Self {
+            active: Mutex::new(0),
+            wake: Condvar::new(),
+            max: max.max(1),
+        }
+    }
+
+    fn acquire(&self) {
+        let mut active = self.active.lock().unwrap();
+
+        while *active >= self.max {
+            active = self.wake.wait(active).unwrap();
+        }
+
+        *active += 1;
+    }
+
+    fn release(&self) {
+        let mut active = self.active.lock().unwrap();
+        *active = active.saturating_sub(1);
+        self.wake.notify_one();
+    }
+}
+
+fn normalise_page_url(url: &str) -> String {
+    url.split('#')
+        .next()
+        .unwrap_or(url)
+        .trim_end_matches('/')
+        .to_ascii_lowercase()
 }
 
 fn download_url(context: &WorkerContext, url: &str) -> (bool, String, Option<Vec<u8>>) {
@@ -510,7 +645,7 @@ fn download_url(context: &WorkerContext, url: &str) -> (bool, String, Option<Vec
         Err(error) => return (false, error, None),
     };
 
-    let (bytes, _content_type) = match http_get(&client, url) {
+    let (bytes, _content_type) = match http_get(context, &client, url) {
         Ok(value) => value,
         Err(error) => return (false, error, None),
     };
@@ -574,12 +709,23 @@ fn mime_note(db: &DBBase, hash: &[u8]) -> String {
         .unwrap_or_else(|| "file".to_string())
 }
 
-fn http_get(client: &Client, url: &str) -> Result<(Vec<u8>, String), String> {
+fn http_get(
+    context: &WorkerContext,
+    client: &Client,
+    url: &str,
+) -> Result<(Vec<u8>, String), String> {
+    if !wait_for_bandwidth(context, url) {
+        return Err("network is paused".to_string());
+    }
+
     let response = client
         .get(url)
         .send()
-        .and_then(|response| response.error_for_status())
-        .map_err(|error| error.to_string())?;
+        .and_then(|response| response.error_for_status());
+
+    report_request_used(context, url);
+
+    let response = response.map_err(|error| error.to_string())?;
 
     let content_type = response
         .headers()
@@ -593,139 +739,56 @@ fn http_get(client: &Client, url: &str) -> Result<(Vec<u8>, String), String> {
         .map_err(|error| error.to_string())?
         .to_vec();
 
+    report_data_used(context, url, bytes.len());
+
     Ok((bytes, content_type))
 }
 
-/// Extracts href/src links from a page and resolves them against its URL.
-pub fn extract_links(html: &str, base: &str) -> Vec<String> {
-    static LINK: OnceLock<Regex> = OnceLock::new();
+fn bandwidth_context(url: &str) -> NetworkContext {
+    let domain = domain_of(url);
 
-    let regex = LINK.get_or_init(|| {
-        Regex::new(r#"(?is)(?:href|src|data-src|data-original)\s*=\s*["']([^"']+)["']"#)
-            .expect("valid link regex")
-    });
-
-    let Ok(base) = Url::parse(base) else {
-        return Vec::new();
-    };
-
-    let mut links = Vec::new();
-    let mut seen = BTreeSet::new();
-
-    for capture in regex.captures_iter(html) {
-        let Some(raw) = capture.get(1).map(|value| value.as_str().trim()) else {
-            continue;
-        };
-
-        if raw.is_empty()
-            || raw.starts_with('#')
-            || raw.starts_with("javascript:")
-            || raw.starts_with("mailto:")
-            || raw.starts_with("data:")
-        {
-            continue;
-        }
-
-        let raw = raw
-            .replace("&amp;", "&")
-            .replace("&quot;", "\"")
-            .replace("&#39;", "'");
-
-        let Ok(mut url) = base.join(&raw) else {
-            continue;
-        };
-
-        if !matches!(url.scheme(), "http" | "https") {
-            continue;
-        }
-
-        url.set_fragment(None);
-
-        let text = url.to_string();
-
-        if seen.insert(text.clone()) {
-            links.push(text);
-        }
+    if domain.is_empty() {
+        NetworkContext::default_context()
+    } else {
+        NetworkContext::for_domain(domain)
     }
-
-    links
 }
 
-pub fn is_media_url(url: &str) -> bool {
-    let path = url
-        .split(['?', '#'])
-        .next()
-        .unwrap_or(url)
-        .to_ascii_lowercase();
+fn wait_for_bandwidth(context: &WorkerContext, url: &str) -> bool {
+    let network_context = bandwidth_context(url);
 
-    let extension = path.rsplit('.').next().unwrap_or_default();
+    loop {
+        if context.paused.load(Ordering::Relaxed) {
+            return false;
+        }
 
-    matches!(
-        extension,
-        "jpg"
-            | "jpeg"
-            | "png"
-            | "gif"
-            | "webp"
-            | "bmp"
-            | "tif"
-            | "tiff"
-            | "ico"
-            | "qoi"
-            | "avif"
-            | "heic"
-            | "jxl"
-            | "svg"
-            | "mp4"
-            | "webm"
-            | "mkv"
-            | "mov"
-            | "m4v"
-            | "avi"
-            | "mp3"
-            | "flac"
-            | "wav"
-            | "ogg"
-            | "opus"
-            | "m4a"
-            | "pdf"
-            | "zip"
-            | "rar"
-            | "7z"
-    )
+        let (allowed, waiting) = {
+            let mut manager = context.bandwidth.write().unwrap();
+
+            (
+                manager.can_start_request(&network_context, 5),
+                manager.get_waiting_estimate(&network_context),
+            )
+        };
+
+        if allowed {
+            return true;
+        }
+
+        thread::sleep(std::time::Duration::from_secs(waiting.clamp(1, 30) as u64));
+    }
 }
 
-fn should_follow_page_link(link: &str, gallery_url: &str) -> bool {
-    if link == gallery_url || is_media_url(link) {
-        return false;
+fn report_request_used(context: &WorkerContext, url: &str) {
+    if let Ok(mut manager) = context.bandwidth.write() {
+        manager.report_request_used(&bandwidth_context(url), 1);
     }
+}
 
-    let (Ok(link_url), Ok(gallery)) = (Url::parse(link), Url::parse(gallery_url)) else {
-        return false;
-    };
-
-    if link_url
-        .host_str()
-        .map(|host| host.trim_start_matches("www."))
-        != gallery
-            .host_str()
-            .map(|host| host.trim_start_matches("www."))
-    {
-        return false;
+fn report_data_used(context: &WorkerContext, url: &str, bytes: usize) {
+    if let Ok(mut manager) = context.bandwidth.write() {
+        manager.report_data_used(&bandwidth_context(url), bytes as i64);
     }
-
-    let path = link
-        .split(['?', '#'])
-        .next()
-        .unwrap_or(link)
-        .to_ascii_lowercase();
-
-    let extension = path.rsplit('.').next().unwrap_or_default();
-
-    !matches!(
-        extension,
-        "css" | "js" | "json" | "xml" | "rss" | "ico" | "woff" | "woff2" | "ttf" | "otf"
-    )
 }
 
 fn matches_filter(url: &str, filter: &str) -> bool {
@@ -785,27 +848,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn extracts_and_resolves_links() {
-        let links = extract_links(
-            r#"<a href="/post/1">one</a><img src="https://cdn.example.com/a.jpg"><a href='javascript:x'>no</a>"#,
-            "https://example.com/gallery",
-        );
-
-        assert_eq!(
-            links,
-            vec![
-                "https://example.com/post/1".to_string(),
-                "https://cdn.example.com/a.jpg".to_string()
-            ]
-        );
-    }
-
-    #[test]
     fn recognises_media_extensions() {
         assert!(is_media_url("https://x/a.JPG?size=1"));
         assert!(is_media_url("https://x/a.webm"));
         assert!(!is_media_url("https://x/a.css"));
         assert!(!is_media_url("https://x/post/1"));
+    }
+
+    #[test]
+    fn pool_gate_limits_concurrency() {
+        let gate = PoolGate::new(1);
+        gate.acquire();
+        gate.release();
+        gate.acquire();
+        gate.release();
     }
 
     #[test]

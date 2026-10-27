@@ -13,6 +13,7 @@ use crate::gui::app::{AppState, UiCommand, query, render};
 
 pub fn refresh(state: &mut AppState, page_id: &str) -> Vec<UiCommand> {
     let controller = state.controller.clone();
+    let rules = state.auto_rules.clone();
 
     let Some(page) = state.find_duplicates_mut(page_id) else {
         return vec![UiCommand::NotifyMessage(
@@ -20,17 +21,22 @@ pub fn refresh(state: &mut AppState, page_id: &str) -> Vec<UiCommand> {
         )];
     };
 
-    load_queue(&controller, page);
+    load_queue(&controller, page, &rules);
     duplicates_commands(state, page_id)
 }
 
 /// Fills a freshly created page without needing the page tree.
-pub fn refresh_for(controller: &Controller, page: &mut DuplicatesPage) {
-    load_queue(controller, page);
+pub fn refresh_for(
+    controller: &Controller,
+    page: &mut DuplicatesPage,
+    rules: &[super::auto_resolution::AutoResolutionRule],
+) {
+    load_queue(controller, page, rules);
 }
 
 pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) -> Vec<UiCommand> {
     let controller = state.controller.clone();
+    let rules = state.auto_rules.clone();
 
     let Some(page) = state.find_duplicates_mut(page_id) else {
         return vec![UiCommand::NotifyMessage(
@@ -46,7 +52,7 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
             }
         }
         "duplicates_refresh" => {
-            load_queue(&controller, page);
+            load_queue(&controller, page, &rules);
         }
         "duplicates_keep_a" | "duplicates_keep_b" | "duplicates_same" => {
             let Some(pair) = page.current().cloned() else {
@@ -120,7 +126,11 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
     commands
 }
 
-fn load_queue(controller: &Controller, page: &mut DuplicatesPage) {
+fn load_queue(
+    controller: &Controller,
+    page: &mut DuplicatesPage,
+    rules: &[super::auto_resolution::AutoResolutionRule],
+) {
     let max_distance = controller
         .options()
         .get_integer("similar_files_duplicate_pairs_search_distance");
@@ -143,11 +153,25 @@ fn load_queue(controller: &Controller, page: &mut DuplicatesPage) {
                 })
                 .collect();
             page.index = 0;
+
+            let applied = if controller
+                .options()
+                .get_boolean("duplicates_auto_resolution_enabled")
+            {
+                apply_rules(controller, page, rules)
+            } else {
+                0
+            };
+
             page.status = match page.pairs.len() {
                 0 => "no potential duplicates".to_string(),
                 1 => "1 potential duplicate pair".to_string(),
                 count => format!("{count} potential duplicate pairs"),
             };
+
+            if applied > 0 {
+                page.status = format!("{}; {applied} auto-resolved", page.status);
+            }
         }
         Err(error) => {
             page.pairs.clear();
@@ -155,6 +179,52 @@ fn load_queue(controller: &Controller, page: &mut DuplicatesPage) {
             page.status = format!("could not load the duplicate queue: {error}");
         }
     }
+}
+
+fn apply_rules(
+    controller: &Controller,
+    page: &mut DuplicatesPage,
+    rules: &[super::auto_resolution::AutoResolutionRule],
+) -> usize {
+    if rules.is_empty() {
+        return 0;
+    }
+
+    use super::auto_resolution::AutoDecision;
+
+    let mut kept = Vec::new();
+    let mut applied = 0;
+
+    for pair in std::mem::take(&mut page.pairs) {
+        let decision = rules
+            .iter()
+            .find_map(|rule| rule.evaluate(controller, &pair.a, &pair.b));
+
+        let result = match decision {
+            Some(AutoDecision::KeepFirst) => merge_pair(controller, &pair.a, &pair.b, true),
+            Some(AutoDecision::KeepSecond) => merge_pair(controller, &pair.b, &pair.a, true),
+            Some(AutoDecision::Same) => merge_pair(controller, &pair.a, &pair.b, false),
+            Some(AutoDecision::NotDuplicates) => mark_false_positive(controller, &pair.a, &pair.b),
+            Some(AutoDecision::DeleteBoth) => delete_both(controller, &pair.a, &pair.b),
+            None => {
+                kept.push(pair);
+                continue;
+            }
+        };
+
+        match result {
+            Ok(()) => applied += 1,
+            Err(error) => {
+                page.status = format!("auto-resolution failed: {error}");
+                kept.push(pair);
+            }
+        }
+    }
+
+    page.pairs = kept;
+    page.index = 0;
+
+    applied
 }
 
 fn merge_pair(

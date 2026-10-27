@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use crate::client_options::ClientOptions;
 use crate::gui::app::{AppState, UiCommand, render};
-use crate::networking::client_networking_url_class::{PathComponent, UrlClass};
+use crate::networking::client_networking_url_class::PathComponent;
 
 pub fn options_json(state: &AppState) -> String {
     let controller = &state.controller;
@@ -60,6 +60,11 @@ pub fn options_json(state: &AppState) -> String {
                 &options,
                 "similar_files_duplicate_pairs_search_distance",
                 "duplicate pair creation distance (0 = exact)",
+            ),
+            boolean(
+                &options,
+                "duplicates_auto_resolution_enabled",
+                "apply duplicate auto-resolution rules",
             ),
             integer(&options, "thumbnail_border", "thumbnail border"),
             integer(&options, "thumbnail_margin", "thumbnail margin"),
@@ -153,6 +158,9 @@ pub fn apply_options(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 
     state.controller.replace_options(options);
     state.runtime.update_options(state.controller.options());
+    state
+        .runtime
+        .update_pools(state.controller.download_pool_settings());
 
     if let Err(error) = state.controller.save_options() {
         state.message = format!("could not save options: {error}");
@@ -203,7 +211,9 @@ pub fn services_json(state: &AppState) -> String {
             {"label": "local file domain", "value": ServiceType::LocalFileDomain.as_int(), "short": "local file domain"},
             {"label": "local tag domain", "value": ServiceType::LocalTag.as_int(), "short": "local tag domain"},
             {"label": "local notes", "value": ServiceType::LocalNotes.as_int(), "short": "local file notes service"},
-            {"label": "inc/dec ratings", "value": ServiceType::LocalRatingIncDec.as_int(), "short": "local inc/dec rating service"}
+            {"label": "inc/dec ratings", "value": ServiceType::LocalRatingIncDec.as_int(), "short": "local inc/dec rating service"},
+            {"label": "numerical ratings", "value": ServiceType::LocalRatingNumerical.as_int(), "short": "local numerical rating service"},
+            {"label": "like/dislike ratings", "value": ServiceType::LocalRatingLike.as_int(), "short": "local like/dislike rating service"}
         ]
     })
     .to_string()
@@ -298,14 +308,34 @@ pub fn network_json(state: &AppState) -> String {
         .map(|class| {
             json!({
                 "name": class.name,
+                "url_type": class.url_type,
+                "url_type_name": crate::networking::client_networking_url_class::url_type_name(class.url_type),
+                "preferred_scheme": class.preferred_scheme.clone().unwrap_or_default(),
                 "netloc": class.netloc,
+                "match_subdomains": class.match_subdomains,
+                "keep_matched_subdomains": class.keep_matched_subdomains,
                 "components": class.path_components.iter().map(|component| match component {
                     PathComponent::Fixed(value) => value.clone(),
                     PathComponent::Variable { name, .. } => format!("{{{name}}}"),
                 }).collect::<Vec<_>>(),
+                "parameters": class.parameters.iter().map(|(name, value)| match value {
+                    Some(value) => format!("{name}={value}"),
+                    None => name.clone(),
+                }).collect::<Vec<_>>().join("\n"),
+                "can_produce_multiple_files": class.can_produce_multiple_files,
+                "should_be_associated_with_files": class.should_be_associated_with_files,
+                "example_url": class.example_url,
             })
         })
         .collect();
+
+    let pools = controller.download_pool_settings();
+    let domain_limits: Vec<Value> = pools
+        .domain_limits
+        .iter()
+        .map(|(domain, limit)| json!({"domain": domain, "limit": limit}))
+        .collect();
+    let bandwidth_rules = controller.bandwidth_rule_entries();
 
     json!({
         "options": {
@@ -323,6 +353,18 @@ pub fn network_json(state: &AppState) -> String {
         "api_status": controller.api_status().unwrap_or_else(|| "stopped".to_string()),
         "headers": headers,
         "url_classes": url_classes,
+        "url_types": [
+            {"value": 0, "label": "post url"},
+            {"value": 1, "label": "api/redirect url"},
+            {"value": 2, "label": "file url"},
+            {"value": 3, "label": "gallery url"},
+            {"value": 4, "label": "watchable url"},
+            {"value": 5, "label": "unknown url"},
+            {"value": 7, "label": "downloadable/pursuable url"},
+            {"value": 9, "label": "sub-gallery url"}
+        ],
+        "download_pools": domain_limits,
+        "bandwidth_rules": bandwidth_rules,
     })
     .to_string()
 }
@@ -347,6 +389,29 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
             state.controller.replace_options(options);
             state.runtime.update_options(state.controller.options());
             let _ = state.controller.save_options();
+
+            if let Some(pools) = value.get("download_pools") {
+                if let Ok(pools) = serde_json::from_value::<
+                    crate::networking::download_pools::DownloadPoolSettings,
+                >(pools.clone())
+                {
+                    state.controller.replace_download_pool_settings(pools);
+                }
+            }
+
+            if let Some(rules) = value.get("bandwidth_rules") {
+                if let Ok(rules) = serde_json::from_value::<
+                    Vec<crate::networking::client_networking_bandwidth::BandwidthRuleEntry>,
+                >(rules.clone())
+                {
+                    state.controller.replace_bandwidth_rule_entries(rules);
+                }
+            }
+
+            state
+                .runtime
+                .update_pools(state.controller.download_pool_settings());
+
             let status = state
                 .controller
                 .refresh_api()
@@ -402,44 +467,44 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
                 state.message = format!("saved header '{name}'");
             }
         }
-        "network_url_class_add" => {
+        "network_url_class_add" | "network_url_class_save" => {
             let Ok(value) = serde_json::from_str::<Value>(payload) else {
                 state.message = "invalid url class payload".to_string();
                 return network_commands(state);
             };
 
-            let name = value
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or("url class");
-            let netloc = value
-                .get("netloc")
+            let original = value
+                .get("original")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            let path = value
-                .get("path")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-
-            let mut class = UrlClass::new(name, netloc);
-
-            for segment in path.split('/').filter(|segment| !segment.is_empty()) {
-                if segment.starts_with('{') && segment.ends_with('}') {
-                    class = class.with_variable(segment.trim_matches(['{', '}']));
-                } else {
-                    class
-                        .path_components
-                        .push(PathComponent::Fixed(segment.to_string()));
-                }
-            }
-
-            state
+            let existing = state
                 .controller
                 .domain_manager()
-                .write()
+                .read()
                 .unwrap()
-                .add_url_class(class);
-            state.message = format!("url class '{name}' added");
+                .get_url_classes()
+                .iter()
+                .find(|class| class.name == original)
+                .cloned();
+
+            let Some(class) =
+                crate::gui::app::metadata::url_class_from_json(&value, existing.as_ref())
+            else {
+                state.message = "a url class needs a name and a domain".to_string();
+                return network_commands(state);
+            };
+
+            let name = class.name.clone();
+            let mut manager = state.controller.domain_manager().write().unwrap();
+
+            if !original.is_empty() && original != name {
+                manager.remove_url_class(original);
+            } else if action == "network_url_class_add" {
+                manager.remove_url_class(&name);
+            }
+
+            manager.add_url_class(class);
+            state.message = format!("url class '{name}' saved");
         }
         "network_url_class_remove" => {
             let Ok(value) = serde_json::from_str::<Value>(payload) else {
@@ -462,6 +527,99 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
                 format!("url class '{name}' removed")
             } else {
                 format!("url class '{name}' was not found")
+            };
+        }
+        "network_pool_set" => {
+            let Ok(value) = serde_json::from_str::<Value>(payload) else {
+                state.message = "invalid pool payload".to_string();
+                return network_commands(state);
+            };
+
+            let domain = value
+                .get("domain")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let limit = value.get("limit").and_then(Value::as_u64).unwrap_or(1) as usize;
+            let mut pools = state.controller.download_pool_settings();
+            pools.set_limit(domain, limit);
+            state
+                .controller
+                .replace_download_pool_settings(pools.clone());
+            state.runtime.update_pools(pools);
+            state.message = format!("download pool for '{domain}' set to {limit}");
+        }
+        "network_pool_remove" => {
+            let Ok(value) = serde_json::from_str::<Value>(payload) else {
+                state.message = "invalid pool payload".to_string();
+                return network_commands(state);
+            };
+
+            let domain = value
+                .get("domain")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let mut pools = state.controller.download_pool_settings();
+            pools.remove_limit(domain);
+            state
+                .controller
+                .replace_download_pool_settings(pools.clone());
+            state.runtime.update_pools(pools);
+            state.message = format!("download pool for '{domain}' removed");
+        }
+        "network_rule_set" => {
+            let Ok(value) = serde_json::from_str::<Value>(payload) else {
+                state.message = "invalid bandwidth rule".to_string();
+                return network_commands(state);
+            };
+
+            let Ok(entry) = serde_json::from_value::<
+                crate::networking::client_networking_bandwidth::BandwidthRuleEntry,
+            >(value) else {
+                state.message = "invalid bandwidth rule".to_string();
+                return network_commands(state);
+            };
+
+            let mut rules = state.controller.bandwidth_rule_entries();
+            rules.retain(|existing| {
+                !(existing.context_type == entry.context_type
+                    && existing.context == entry.context
+                    && existing.bandwidth_type == entry.bandwidth_type)
+            });
+            rules.push(entry);
+            state.controller.replace_bandwidth_rule_entries(rules);
+            state.message = "bandwidth rule saved".to_string();
+        }
+        "network_rule_remove" => {
+            let Ok(value) = serde_json::from_str::<Value>(payload) else {
+                state.message = "invalid bandwidth rule".to_string();
+                return network_commands(state);
+            };
+
+            let context_type = value
+                .get("context_type")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let context = value
+                .get("context")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let bandwidth_type = value
+                .get("bandwidth_type")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+
+            let mut rules = state.controller.bandwidth_rule_entries();
+            let before = rules.len();
+            rules.retain(|existing| {
+                !(existing.context_type == context_type
+                    && existing.context == context
+                    && existing.bandwidth_type == bandwidth_type)
+            });
+            state.controller.replace_bandwidth_rule_entries(rules);
+            state.message = if before > 0 {
+                "bandwidth rule removed".to_string()
+            } else {
+                "bandwidth rule was not found".to_string()
             };
         }
         _ => {

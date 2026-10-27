@@ -14,10 +14,13 @@ use crate::db::{files_storage, mappings, master_tags};
 use crate::gui::qt::bridge::ffi;
 use crate::gui::qt::panels;
 
+pub mod auto_resolution;
 pub mod commands;
 pub mod download;
 pub mod duplicates;
 pub mod import;
+pub mod import_folders;
+pub mod metadata;
 pub mod model;
 pub mod options;
 pub mod query;
@@ -232,7 +235,8 @@ impl AppState {
 
     pub(crate) fn refresh_all(&mut self) {
         let controller = self.controller.clone();
-        refresh_notebook(&mut self.root, &controller);
+        let rules = self.auto_rules.clone();
+        refresh_notebook(&mut self.root, &controller, &rules);
     }
 
     pub(crate) fn query_ids(&self) -> Vec<String> {
@@ -285,6 +289,14 @@ impl AppState {
                 let notebook = self.active_notebook_id();
                 self.create_page(&notebook, "subscriptions")
             }
+            "new_import_folders" | "import_folders" => {
+                let notebook = self.active_notebook_id();
+                import_folders::create_page(self, &notebook)
+            }
+            "import_folder_add" => import_folders::add(self, payload),
+            "import_folder_remove" => import_folders::remove(self, payload),
+            "import_folder_toggle" => import_folders::toggle(self, payload),
+            "import_folder_check" => import_folders::check_now(self, payload),
             "create_page" => self.create_page(target, payload),
             "close_page" => self.close_page(target),
             "close_other_pages" => self.close_other_pages(target),
@@ -312,6 +324,17 @@ impl AppState {
             }
             "manage_tags" => self.manage_tags(target, payload, false),
             "manage_tags_active" => self.manage_tags("", "", true),
+            "tag_add" => metadata::tag_action(self, true, payload),
+            "tag_remove" => metadata::tag_action(self, false, payload),
+            "rating_set" => metadata::rating_action(self, payload),
+            "notes_manage" | "manage_notes_active" => {
+                if action == "manage_notes_active" {
+                    metadata::manage_notes_active(self)
+                } else {
+                    metadata::notes_action(self, payload, false)
+                }
+            }
+            "notes_save" => metadata::notes_action(self, payload, true),
             "apply_tags" => self.apply_tags(payload),
             "archive_files" => self.set_inbox(target, payload, false),
             "inbox_files" => self.set_inbox(target, payload, true),
@@ -345,6 +368,30 @@ impl AppState {
             "subscription_add" => download::add_subscription(self, target, payload),
             "subscription_open_results" => {
                 download::open_subscription_results(self, target, payload)
+            }
+            "duplicates_rules" => vec![UiCommand::DuplicatesRulesDialog(
+                auto_resolution::dialog_json(self),
+            )],
+            "duplicates_rule_add" => auto_resolution::add_rule(self, payload),
+            "duplicates_rule_remove" => auto_resolution::remove_rule(self, payload),
+            "duplicates_auto_toggle" => {
+                let mut options = self.controller.options();
+                let enabled = !options.get_boolean("duplicates_auto_resolution_enabled");
+                options.set_boolean("duplicates_auto_resolution_enabled", enabled);
+                self.controller.replace_options(options);
+                let _ = self.controller.save_options();
+                self.message = if enabled {
+                    "duplicate auto-resolution enabled".to_string()
+                } else {
+                    "duplicate auto-resolution disabled".to_string()
+                };
+                self.refresh_all();
+                let mut commands = self.refresh_commands();
+                commands.push(UiCommand::DuplicatesRulesDialog(
+                    auto_resolution::dialog_json(self),
+                ));
+                commands.push(UiCommand::Status(render::status_json(self)));
+                commands
             }
             action if action.starts_with("duplicates_") => {
                 duplicates::action(self, target, action, payload)
@@ -470,6 +517,16 @@ impl AppState {
             ];
         }
 
+        if self.find_import_folders(page_id).is_some() {
+            return vec![
+                UiCommand::UpdateImportFolders(
+                    page_id.to_string(),
+                    import_folders::rules_json(self, page_id),
+                ),
+                self.status_command(),
+            ];
+        }
+
         vec![UiCommand::NotifyMessage(
             "this page cannot be refreshed".to_string(),
         )]
@@ -575,11 +632,13 @@ impl AppState {
                 return vec![UiCommand::NotifyMessage("notebook is missing".to_string())];
             };
             parent.add(PageNode::Subscriptions(SubscriptionsPage::new(id)));
+        } else if kind == "import_folders" {
+            return import_folders::create_page(self, notebook_id);
         } else if kind == "duplicates" {
             let id = self.new_id("p");
             page_id = id.clone();
             let mut page = DuplicatesPage::new(id);
-            duplicates::refresh_for(&controller, &mut page);
+            duplicates::refresh_for(&controller, &mut page, &self.auto_rules);
 
             let Some(parent) = self.find_notebook_mut(notebook_id) else {
                 return vec![UiCommand::NotifyMessage("notebook is missing".to_string())];
@@ -720,6 +779,7 @@ impl AppState {
             PageNode::Downloader(page) => page.title = name.to_string(),
             PageNode::Subscriptions(page) => page.title = name.to_string(),
             PageNode::Duplicates(page) => page.title = name.to_string(),
+            PageNode::ImportFolders(page) => page.title = name.to_string(),
             PageNode::Placeholder(page) => page.title = name.to_string(),
         }
 
@@ -736,7 +796,7 @@ impl AppState {
             return vec![];
         };
 
-        let (tags_json, preview_path) = {
+        let (tags_json, preview_path, metadata_json) = {
             let Some(page) = self.find_query_mut(page_id) else {
                 return vec![];
             };
@@ -747,10 +807,12 @@ impl AppState {
             let preview = query::preview_path(&controller, &hash)
                 .map(|path| path.display().to_string())
                 .unwrap_or_default();
+            let metadata = metadata::metadata_json(&controller, &hash);
 
             (
                 serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()),
                 preview,
+                metadata.to_string(),
             )
         };
 
@@ -760,6 +822,7 @@ impl AppState {
                 hash: query::hex(&hash),
                 tags_json,
                 preview_path,
+                metadata_json,
             },
             self.status_command(),
         ]
@@ -866,6 +929,7 @@ impl AppState {
             "hash": hash_hex,
             "service": service,
             "tags": tags,
+            "metadata": metadata::metadata_json(&controller, &hash),
             "page_id": page_id,
         })
         .to_string();
@@ -892,7 +956,12 @@ impl AppState {
             )];
         };
 
-        let Some(service_id) = query::tag_service_id(&self.controller) else {
+        let Some(service_id) = value
+            .get("service")
+            .and_then(Value::as_str)
+            .and_then(|service| metadata::tag_service_id(&self.controller, service))
+            .or_else(|| query::tag_service_id(&self.controller))
+        else {
             return vec![UiCommand::NotifyMessage("no local tag service".to_string())];
         };
 
@@ -931,37 +1000,8 @@ impl AppState {
 
         self.message = format!("tags updated ({changed} changes)");
 
-        let mut commands = self.refresh_commands();
-
-        if let Some(page) = self.active_query() {
-            if let Some(hash) = page.focused.clone() {
-                commands.extend(self.focus(&page.id.clone(), &query::hex(&hash)));
-            }
-        }
-
-        let viewer_updates = self.viewer_updates_for_hash(&hash);
-        commands.extend(viewer_updates);
+        let mut commands = metadata::refresh_hash(self, &hash);
         commands.push(self.status_command());
-
-        commands
-    }
-
-    fn viewer_updates_for_hash(&self, hash: &[u8]) -> Vec<UiCommand> {
-        let controller = &self.controller;
-        let mut commands = Vec::new();
-
-        for (viewer_id, context) in &self.viewers {
-            if context.hash != hash {
-                continue;
-            }
-
-            if let Some(page) = self.find_query(&context.page_id) {
-                commands.push(UiCommand::UpdateViewer(
-                    viewer_id.clone(),
-                    render::viewer_json(controller, viewer_id, page, hash),
-                ));
-            }
-        }
 
         commands
     }
@@ -1108,13 +1148,20 @@ impl AppState {
     }
 }
 
-fn refresh_notebook(notebook: &mut Notebook, controller: &Controller) {
+fn refresh_notebook(
+    notebook: &mut Notebook,
+    controller: &Controller,
+    rules: &[auto_resolution::AutoResolutionRule],
+) {
     for child in &mut notebook.children {
         match child {
             PageNode::Query(page) => query::refresh_page(controller, page),
-            PageNode::Notebook(inner) => refresh_notebook(inner, controller),
-            PageNode::Duplicates(page) => duplicates::refresh_for(controller, page),
-            PageNode::Downloader(_) | PageNode::Subscriptions(_) | PageNode::Placeholder(_) => {}
+            PageNode::Notebook(inner) => refresh_notebook(inner, controller, rules),
+            PageNode::Duplicates(page) => duplicates::refresh_for(controller, page, rules),
+            PageNode::Downloader(_)
+            | PageNode::Subscriptions(_)
+            | PageNode::ImportFolders(_)
+            | PageNode::Placeholder(_) => {}
         }
     }
 }
@@ -1127,6 +1174,7 @@ fn collect_query_ids(notebook: &Notebook, ids: &mut Vec<String>) {
             PageNode::Downloader(_)
             | PageNode::Subscriptions(_)
             | PageNode::Duplicates(_)
+            | PageNode::ImportFolders(_)
             | PageNode::Placeholder(_) => {}
         }
     }
@@ -1138,6 +1186,16 @@ fn collect_page_ids(node: &PageNode, ids: &mut Vec<String>) {
     if let PageNode::Notebook(notebook) = node {
         for child in &notebook.children {
             collect_page_ids(child, ids);
+        }
+    }
+}
+
+fn collect_import_folder_ids(notebook: &Notebook, ids: &mut Vec<String>) {
+    for child in &notebook.children {
+        match child {
+            PageNode::ImportFolders(page) => ids.push(page.id.clone()),
+            PageNode::Notebook(inner) => collect_import_folder_ids(inner, ids),
+            _ => {}
         }
     }
 }

@@ -41,8 +41,12 @@ class HydrusSubscriptionsPage;
 class HydrusDuplicatesPage;
 class HydrusServicesDialog;
 class HydrusNetworkDialog;
+class HydrusMetadataPanel;
+class HydrusImportFoldersPage;
+class HydrusDuplicatesRulesDialog;
 class QTabBar;
 class QCompleter;
+class QVBoxLayout;
 class QDragEnterEvent;
 class QDropEvent;
 class QEvent;
@@ -80,7 +84,11 @@ public:
     const QString &page_id() const;
 
     void update_state(const QJsonObject &state);
-    void set_selection(const QString &hash, const QStringList &tags, const QString &preview_path);
+    void set_selection(
+        const QString &hash,
+        const QStringList &tags,
+        const QString &preview_path,
+        const QJsonObject &metadata);
     void set_suggestions(const QStringList &suggestions);
 
     void focus_hash(const QString &hash);
@@ -100,7 +108,7 @@ private:
     QPushButton *search_button = nullptr;
     QLabel *status_label = nullptr;
     QLabel *empty_label = nullptr;
-    QListWidget *selection_tags = nullptr;
+    HydrusMetadataPanel *metadata = nullptr;
     HydrusCanvas *preview = nullptr;
     HydrusThumbnailGrid *grid = nullptr;
 };
@@ -144,8 +152,74 @@ private:
     QString page_id;
     QString hash;
     HydrusCanvas *canvas = nullptr;
-    QListWidget *tags = nullptr;
+    HydrusMetadataPanel *metadata = nullptr;
     QLabel *status = nullptr;
+};
+
+// Full Hydrus-style metadata sidebar: tag services, ratings and notes for the
+// focused file. Shared by query pages and the media viewer.
+class HydrusMetadataPanel : public QWidget {
+public:
+    explicit HydrusMetadataPanel(HydrusMainWindow *main, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &metadata);
+    void set_suggestions(const QStringList &suggestions);
+
+private:
+    void rebuild_tags();
+    void rebuild_ratings(const QJsonArray &ratings);
+    void add_tag();
+    void remove_selected_tags();
+    void edit_notes();
+    void send_tag(const QString &tag, bool add);
+    void send_rating(const QString &service, const QString &action, double value = 0.0);
+
+    HydrusMainWindow *main = nullptr;
+    QString hash;
+    QJsonObject data;
+    QComboBox *services = nullptr;
+    QLineEdit *tag_filter = nullptr;
+    QListWidget *tags = nullptr;
+    QLineEdit *tag_input = nullptr;
+    QCompleter *completer = nullptr;
+    QWidget *ratings = nullptr;
+    QVBoxLayout *ratings_layout = nullptr;
+    QListWidget *notes = nullptr;
+};
+
+// Import folders manager page.
+class HydrusImportFoldersPage : public QWidget {
+public:
+    HydrusImportFoldersPage(HydrusMainWindow *main, const QString &page_id, const QJsonObject &state);
+
+    const QString &page_id() const;
+    void update_state(const QJsonObject &state);
+
+private:
+    void add_folder();
+    void with_selected(const QString &action);
+
+    HydrusMainWindow *main = nullptr;
+    QString id;
+    QTableWidget *table = nullptr;
+    QLabel *status = nullptr;
+};
+
+// Editor for duplicate auto-resolution rules.
+class HydrusDuplicatesRulesDialog : public QDialog {
+public:
+    explicit HydrusDuplicatesRulesDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void add_rule();
+    void remove_selected();
+
+    HydrusMainWindow *main = nullptr;
+    QTableWidget *table = nullptr;
+    QCheckBox *enabled = nullptr;
+    QJsonObject data;
 };
 
 // A notebook is a page of pages: tabs, a trailing "+" tab, and the usual
@@ -195,6 +269,7 @@ private:
     QWidget *input_row = nullptr;
     QLineEdit *url = nullptr;
     QLineEdit *query = nullptr;
+    QComboBox *site = nullptr;
     QLineEdit *filter = nullptr;
     QLineEdit *subject = nullptr;
     QSpinBox *period = nullptr;
@@ -208,6 +283,7 @@ private:
     QPlainTextEdit *log = nullptr;
     QWidget *url_row = nullptr;
     QWidget *query_row = nullptr;
+    QWidget *site_row = nullptr;
     QWidget *subject_row = nullptr;
     QWidget *period_row = nullptr;
 };
@@ -228,6 +304,7 @@ private:
     QString id;
     QTableWidget *table = nullptr;
     QLabel *status = nullptr;
+    QJsonArray sites;
 };
 
 // Side-by-side duplicate pair filter.
@@ -262,6 +339,7 @@ private:
     QPushButton *skip = nullptr;
     QPushButton *refresh = nullptr;
     QPushButton *delete_both = nullptr;
+    QPushButton *rules = nullptr;
 };
 
 // Non-modal service manager. It is updated by `ServicesDialog` commands.
@@ -295,7 +373,12 @@ private:
     void add_header();
     void remove_header();
     void add_url_class();
+    void edit_url_class();
     void remove_url_class();
+    void add_pool();
+    void remove_pool();
+    void add_bandwidth_rule();
+    void remove_bandwidth_rule();
 
     HydrusMainWindow *main = nullptr;
     QJsonObject data;
@@ -312,6 +395,8 @@ private:
     QCheckBox *paused = nullptr;
     QTableWidget *headers = nullptr;
     QTableWidget *url_classes = nullptr;
+    QTableWidget *pools = nullptr;
+    QTableWidget *bandwidth_rules = nullptr;
 };
 
 class HydrusMainWindow : public QMainWindow {
@@ -326,11 +411,13 @@ public:
     void update_downloader(const QString &page_id, const QJsonObject &state);
     void update_subscriptions(const QString &page_id, const QJsonObject &state);
     void update_duplicates(const QString &page_id, const QJsonObject &state);
+    void update_import_folders(const QString &page_id, const QJsonObject &state);
     void set_selection(
         const QString &page_id,
         const QString &hash,
         const QStringList &tags,
-        const QString &preview_path);
+        const QString &preview_path,
+        const QJsonObject &metadata);
     void set_tag_suggestions(const QStringList &suggestions);
     const QStringList &suggestions() const;
     void show_page_chooser(const QString &notebook_id);
@@ -339,6 +426,8 @@ public:
     void update_viewer(const QString &viewer_id, const QJsonObject &state);
     void close_viewer(const QString &viewer_id);
     void show_tag_dialog(const QJsonObject &state);
+    void show_notes(const QJsonObject &state);
+    void show_duplicates_rules(const QJsonObject &state);
     void show_options(const QJsonObject &state);
     void show_services(const QJsonObject &state);
     void update_services(const QJsonObject &state);
@@ -379,10 +468,12 @@ private:
     QHash<QString, HydrusDownloaderPage *> downloaders;
     QHash<QString, HydrusSubscriptionsPage *> subscriptions;
     QHash<QString, HydrusDuplicatesPage *> duplicates;
+    QHash<QString, HydrusImportFoldersPage *> import_folders;
     QHash<QString, HydrusNotebook *> notebooks;
     QHash<QString, HydrusViewerWindow *> viewers;
     HydrusServicesDialog *services_dialog = nullptr;
     HydrusNetworkDialog *network_dialog = nullptr;
+    HydrusDuplicatesRulesDialog *duplicates_rules_dialog = nullptr;
     QTimer *tick_timer = nullptr;
     QStringList tag_suggestions;
 };
@@ -405,12 +496,16 @@ void hydrus_update_page(HydrusMainWindow &window, rust::Str page_id, rust::Str j
 void hydrus_update_downloader(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_subscriptions(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
+void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
+void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_notes(HydrusMainWindow &window, rust::Str json);
 void hydrus_set_selection(
     HydrusMainWindow &window,
     rust::Str page_id,
     rust::Str hash,
     rust::Str tags_json,
-    rust::Str preview_path);
+    rust::Str preview_path,
+    rust::Str metadata_json);
 void hydrus_show_page_chooser(HydrusMainWindow &window, rust::Str notebook_id);
 void hydrus_pick_files(HydrusMainWindow &window);
 void hydrus_prompt_url(HydrusMainWindow &window);

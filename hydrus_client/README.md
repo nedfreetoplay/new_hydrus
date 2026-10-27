@@ -51,39 +51,45 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - файловые страницы: реальный поиск по локальной БД (теги, `-tag`, wildcard,
   namespace, `system:inbox`, `system:archive`, `system:limit=N`), автодополнение тегов;
 - сетка миниатюр, предпросмотр выбранного файла, статус страницы;
-- медиа-вьюер: зум, панорамирование, поворот, следующая/предыдущая, теги,
-  управление тегами, archive/inbox/delete, F11;
+- медиа-вьюер: зум, панорамирование, поворот, следующая/предыдущая, полная
+  metadata-панель (теги по сервисам, рейтинги, заметки), archive/inbox/delete, F11;
 - импорт локальных файлов через меню и drag-and-drop: хэширование, копирование в
   файловое хранилище, `files_info`, сервис файлов, inbox и генерация миниатюр;
 - импорт локальных файлов и загрузка URL идут через фоновую очередь: прогресс виден
   в статус-баре, интерфейс не блокируется;
 - страницы загрузчиков: полноценная `urls`-очередь с повтором/очисткой, `gallery`
-  (разбор страницы и постов по ссылкам, подстановка `{query}` в URL), `watcher`
-  с автоматическими проверками по периоду, `subscriptions` с менеджером подписок и
-  `simple downloader` для страниц со ссылками на файлы;
+  (встроенные парсеры danbooru, gelbooru, e621, rule34, safebooru, pixiv и generic,
+  подстановка `{query}`, переходы по next-страницам), `watcher` с автоматическими
+  проверками по периоду, `subscriptions` с менеджером подписок и `simple downloader`;
+- загрузки идут через per-domain пулы: глобальный лимит, лимит по умолчанию и
+  переопределения для домена, плюс bandwidth rules (requests/data) с ожиданием;
 - duplicates processing: пары из `potential_duplicate_pairs`, две стороны с превью,
   тегами и URL, «this is better», «they are the same», «not duplicates», skip,
   удаление обоих файлов; при merge переносятся теги и URL, худший файл уходит в trash;
+  auto-resolution rules (higher resolution/larger/more tags/older) выполняются при
+  включённом флаге;
+- import folders: сканирование папок по периоду, ручная проверка, пауза и удаление;
 - Options с вкладками general/files/downloaders/network/client API, менеджер сервисов
   (добавление, переименование и удаление пустых локальных сервисов) и менеджер сети
-  (прокси, таймауты, пользовательские заголовки, URL classes, пауза сети, запуск API);
+  (прокси, таймауты, заголовки, полноценный редактор URL classes с проверкой URL,
+  per-domain пулы, bandwidth rules, пауза сети, запуск API);
 - Client API сервер на `127.0.0.1`: `/api_version`, `/get_services`,
   `/get_files/search_files`, `/get_files/file_metadata`, `/get_files/file`,
   `/add_tags/add_tags`, `/add_tags/delete_tags`, проверка access key;
 - импорт одного файла по URL через `File → import url…`;
-- редактирование тегов (локальный сервис), archive/inbox/перемещение в trash;
+- редактирование тегов по локальным tag-сервисам, рейтинги (like/dislike, inc/dec и
+  числовые), заметки, archive/inbox/перемещение в trash;
 - меню Hydrus (`file`, `undo`, `pages`, `database`, `download`, `network`, `services`, `tags`,
-  `pending`, `help`), сегментированный статус-бар и сохранение дерева страниц,
-  загрузчиков и подписок в `gui session.json`.
+  `pending`, `help`), сегментированный статус-бар и единый `gui session.json`
+  (legacy `GuiSession` + дерево страниц, загрузчики и подписки) с миграциями старых форматов.
 
 ### Что ещё не портировано
 
-- полноценные site-specific gallery parsers и редактор URL classes (сейчас работает
-  универсальный разбор `href`/`src`/`data-src` для страниц и постов);
-- полный набор tag-панелей, рейтингов, notes и горячих клавиш Hydrus;
-- импорт-папки, дедупликация по всем типам медиа и расширенные auto-resolution rules.
+- полноценный редактор tag siblings/parents и tag display;
+- импорт-папки с move/delete-действиями после импорта и расширенные фильтры импорта;
+- отдельные GUI-настройки media view, file maintenance и полный набор горячих клавиш Hydrus.
 
-Сейчас проходит 478 unit-тестов и 2 integration-теста. Архитектура:
+Сейчас проходит 500 unit-тестов и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Проверка GUI без ручного клика

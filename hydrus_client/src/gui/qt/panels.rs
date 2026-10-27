@@ -33,13 +33,28 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdateDuplicates(page_id, json) => {
             ffi::hydrus_update_duplicates(window.as_mut(), &page_id, &json);
         }
+        UiCommand::UpdateImportFolders(page_id, json) => {
+            ffi::hydrus_update_import_folders(window.as_mut(), &page_id, &json);
+        }
+        UiCommand::DuplicatesRulesDialog(json) => {
+            ffi::hydrus_show_duplicates_rules(window.as_mut(), &json);
+        }
+        UiCommand::NotesDialog(json) => ffi::hydrus_show_notes(window.as_mut(), &json),
         UiCommand::SetSelection {
             page_id,
             hash,
             tags_json,
             preview_path,
+            metadata_json,
         } => {
-            ffi::hydrus_set_selection(window.as_mut(), &page_id, &hash, &tags_json, &preview_path);
+            ffi::hydrus_set_selection(
+                window.as_mut(),
+                &page_id,
+                &hash,
+                &tags_json,
+                &preview_path,
+                &metadata_json,
+            );
         }
         UiCommand::Status(json) => ffi::hydrus_set_status(window.as_mut(), &json),
         UiCommand::ShowPageChooser(notebook_id) => {

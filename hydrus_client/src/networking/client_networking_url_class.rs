@@ -6,6 +6,49 @@ use serde::{Deserialize, Serialize};
 
 use crate::networking::client_networking_functions::{ParsedUrl, parse_url};
 
+pub const URL_TYPE_POST: i32 = 0;
+pub const URL_TYPE_API: i32 = 1;
+pub const URL_TYPE_FILE: i32 = 2;
+pub const URL_TYPE_GALLERY: i32 = 3;
+pub const URL_TYPE_WATCHABLE: i32 = 4;
+pub const URL_TYPE_UNKNOWN: i32 = 5;
+pub const URL_TYPE_NEXT: i32 = 6;
+pub const URL_TYPE_DESIRED: i32 = 7;
+pub const URL_TYPE_SOURCE: i32 = 8;
+pub const URL_TYPE_SUB_GALLERY: i32 = 9;
+
+pub fn url_type_name(value: i32) -> &'static str {
+    match value {
+        URL_TYPE_POST => "post url",
+        URL_TYPE_API => "api/redirect url",
+        URL_TYPE_FILE => "file url",
+        URL_TYPE_GALLERY => "gallery url",
+        URL_TYPE_WATCHABLE => "watchable url",
+        URL_TYPE_UNKNOWN => "unknown url",
+        URL_TYPE_NEXT => "next page url",
+        URL_TYPE_DESIRED => "downloadable/pursuable url",
+        URL_TYPE_SOURCE => "source url",
+        URL_TYPE_SUB_GALLERY => "sub-gallery url",
+        _ => "unknown url",
+    }
+}
+
+pub fn url_type_from_name(value: &str) -> Option<i32> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "post" | "post url" => Some(URL_TYPE_POST),
+        "api" | "api/redirect" | "api/redirect url" => Some(URL_TYPE_API),
+        "file" | "file url" => Some(URL_TYPE_FILE),
+        "gallery" | "gallery url" => Some(URL_TYPE_GALLERY),
+        "watchable" | "watchable url" => Some(URL_TYPE_WATCHABLE),
+        "unknown" | "unknown url" => Some(URL_TYPE_UNKNOWN),
+        "next" | "next page url" => Some(URL_TYPE_NEXT),
+        "desired" | "downloadable/pursuable url" => Some(URL_TYPE_DESIRED),
+        "source" | "source url" => Some(URL_TYPE_SOURCE),
+        "sub-gallery" | "sub-gallery url" => Some(URL_TYPE_SUB_GALLERY),
+        _ => None,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PathComponent {
     Fixed(String),
@@ -15,26 +58,48 @@ pub enum PathComponent {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UrlClass {
     pub name: String,
+    #[serde(default)]
     pub url_type: i32,
+    #[serde(default)]
     pub preferred_scheme: Option<String>,
     pub netloc: String,
+    #[serde(default)]
     pub path_components: Vec<PathComponent>,
+    #[serde(default)]
     pub parameters: BTreeMap<String, Option<String>>,
+    #[serde(default)]
     pub can_produce_multiple_files: bool,
+    #[serde(default = "default_true")]
     pub should_be_associated_with_files: bool,
+    /// Match any subdomain of `netloc` (`cdn.example.com` for `example.com`).
+    #[serde(default)]
+    pub match_subdomains: bool,
+    /// Keep the matched subdomain when normalising instead of replacing it with
+    /// `netloc`.
+    #[serde(default)]
+    pub keep_matched_subdomains: bool,
+    #[serde(default)]
+    pub example_url: String,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl UrlClass {
     pub fn new(name: impl Into<String>, netloc: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            url_type: 0,
+            url_type: URL_TYPE_POST,
             preferred_scheme: Some("https".to_string()),
             netloc: netloc.into(),
             path_components: Vec::new(),
             parameters: BTreeMap::new(),
             can_produce_multiple_files: false,
             should_be_associated_with_files: true,
+            match_subdomains: false,
+            keep_matched_subdomains: false,
+            example_url: String::new(),
         }
     }
 
@@ -65,7 +130,16 @@ impl UrlClass {
     pub fn parse(&self, url: &str) -> Option<(ParsedUrl, BTreeMap<String, String>)> {
         let parsed = parse_url(url)?;
 
-        if parsed.netloc != self.netloc.to_lowercase() {
+        let netloc = self.netloc.to_ascii_lowercase();
+        let host = parsed.netloc.to_ascii_lowercase();
+
+        let host_matches = if self.match_subdomains {
+            host == netloc || host.ends_with(&format!(".{netloc}"))
+        } else {
+            host == netloc
+        };
+
+        if !host_matches {
             return None;
         }
 
@@ -126,7 +200,13 @@ impl UrlClass {
 
         let path = parsed.path.trim_end_matches('/');
 
-        let mut result = format!("{scheme}://{}{path}", self.netloc.to_lowercase());
+        let netloc = if self.keep_matched_subdomains {
+            parsed.netloc.to_ascii_lowercase()
+        } else {
+            self.netloc.to_ascii_lowercase()
+        };
+
+        let mut result = format!("{scheme}://{netloc}{path}");
 
         if let Some(query) = &parsed.query {
             let mut pairs: Vec<String> = query

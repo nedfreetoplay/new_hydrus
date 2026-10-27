@@ -49,6 +49,7 @@ pub(super) fn booleans() -> Map<String, Value> {
         ("media_viewer_audio_mute", false),
         ("use_advanced_file_deletion_dialog", false),
         ("api_enabled", false),
+        ("duplicates_auto_resolution_enabled", false),
     ];
 
     entries

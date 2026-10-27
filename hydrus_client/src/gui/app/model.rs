@@ -125,6 +125,9 @@ pub struct DownloaderPage {
     pub url: String,
     /// Gallery search terms, substituted into `{query}` in the URL.
     pub query: String,
+    /// Built-in site parser id, or empty/auto to detect it from the URL.
+    #[serde(default)]
+    pub site: String,
     /// Optional case-insensitive link filter for gallery/watcher parsing.
     pub filter: String,
     pub subject: String,
@@ -152,6 +155,7 @@ impl DownloaderPage {
             input: String::new(),
             url: String::new(),
             query: String::new(),
+            site: String::new(),
             filter: String::new(),
             subject: String::new(),
             paused: false,
@@ -209,6 +213,8 @@ pub struct SubscriptionEntry {
     pub name: String,
     pub url: String,
     pub query: String,
+    #[serde(default)]
+    pub site: String,
     pub filter: String,
     #[serde(default = "default_subscription_period")]
     pub period: i64,
@@ -237,6 +243,7 @@ impl SubscriptionEntry {
             name: name.into(),
             url: url.into(),
             query: String::new(),
+            site: String::new(),
             filter: String::new(),
             period: default_subscription_period(),
             paused: false,
@@ -351,6 +358,23 @@ impl Notebook {
 }
 
 #[derive(Debug, Clone)]
+pub struct ImportFoldersPage {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+}
+
+impl ImportFoldersPage {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            title: "import folders".to_string(),
+            status: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct PlaceholderPage {
     pub id: String,
     pub title: String,
@@ -365,6 +389,7 @@ pub enum PageNode {
     Downloader(DownloaderPage),
     Subscriptions(SubscriptionsPage),
     Duplicates(DuplicatesPage),
+    ImportFolders(ImportFoldersPage),
     Placeholder(PlaceholderPage),
 }
 
@@ -376,6 +401,7 @@ impl PageNode {
             Self::Downloader(page) => &page.id,
             Self::Subscriptions(page) => &page.id,
             Self::Duplicates(page) => &page.id,
+            Self::ImportFolders(page) => &page.id,
             Self::Placeholder(page) => &page.id,
         }
     }
@@ -387,6 +413,7 @@ impl PageNode {
             Self::Downloader(page) => &page.title,
             Self::Subscriptions(page) => &page.title,
             Self::Duplicates(page) => &page.title,
+            Self::ImportFolders(page) => &page.title,
             Self::Placeholder(page) => &page.title,
         }
     }
@@ -405,6 +432,8 @@ pub struct AppState {
     pub message: String,
     pub viewers: std::collections::BTreeMap<String, ViewerContext>,
     pub subscriptions: Vec<SubscriptionEntry>,
+    pub import_folders: Vec<super::import_folders::ImportFolderEntry>,
+    pub auto_rules: Vec<super::auto_resolution::AutoResolutionRule>,
     pub import_queue: ImportQueueState,
     pub(crate) runtime: AsyncRuntime,
     next_id: u64,
@@ -413,6 +442,7 @@ pub struct AppState {
 impl AppState {
     pub fn new(controller: Arc<Controller>) -> Self {
         let session_path = controller.db_dir().join("gui session.json");
+        let db_dir = controller.db_dir().to_path_buf();
         let runtime = AsyncRuntime::new(controller.clone());
 
         let mut state = Self {
@@ -422,20 +452,37 @@ impl AppState {
             message: "ready".to_string(),
             viewers: Default::default(),
             subscriptions: Vec::new(),
+            import_folders: Vec::new(),
+            auto_rules: Vec::new(),
             import_queue: ImportQueueState::default(),
             runtime,
             next_id: 1,
         };
 
+        let mut restored_active = None;
+
         if let Some(loaded) = crate::gui::app::session::load_session(&session_path) {
+            if let Some(legacy) = loaded.legacy {
+                state.controller.set_session(legacy);
+            }
+
+            restored_active = loaded.active;
             state.root = loaded.root;
             state.subscriptions = loaded.subscriptions;
         } else {
             state.root = default_root();
         }
 
+        state.import_folders = super::import_folders::load(&db_dir.join("import folders.json"));
+        state.auto_rules = super::auto_resolution::load_rules(
+            &db_dir.join("duplicate auto-resolution rules.json"),
+        );
+
         state.reindex();
-        state.active = current_leaf(&state.root).or_else(|| first_page_id(&state.root));
+        state.active = restored_active
+            .filter(|id| find_node(&state.root, id).is_some())
+            .or_else(|| current_leaf(&state.root))
+            .or_else(|| first_page_id(&state.root));
 
         state
     }
@@ -468,6 +515,7 @@ impl AppState {
                     PageNode::Downloader(page) => page.id = replacement,
                     PageNode::Subscriptions(page) => page.id = replacement,
                     PageNode::Duplicates(page) => page.id = replacement,
+                    PageNode::ImportFolders(page) => page.id = replacement,
                     PageNode::Placeholder(page) => page.id = replacement,
                 }
             }
@@ -565,6 +613,26 @@ impl AppState {
             PageNode::Subscriptions(page) => Some(page),
             _ => None,
         })
+    }
+
+    pub fn find_import_folders(&self, id: &str) -> Option<&ImportFoldersPage> {
+        find_node(&self.root, id).and_then(|node| match node {
+            PageNode::ImportFolders(page) => Some(page),
+            _ => None,
+        })
+    }
+
+    pub fn find_import_folders_mut(&mut self, id: &str) -> Option<&mut ImportFoldersPage> {
+        find_node_mut(&mut self.root, id).and_then(|node| match node {
+            PageNode::ImportFolders(page) => Some(page),
+            _ => None,
+        })
+    }
+
+    pub fn import_folder_page_ids(&self) -> Vec<String> {
+        let mut ids = Vec::new();
+        super::collect_import_folder_ids(&self.root, &mut ids);
+        ids
     }
 
     pub fn find_notebook(&self, id: &str) -> Option<&Notebook> {

@@ -47,3 +47,16 @@ fn normalisation_applies_scheme_and_sorts_parameters() {
 fn non_http_schemes_are_rejected() {
     assert!(!url_class().matches("ftp://example.com/post/1"));
 }
+
+#[test]
+fn subdomain_matching_can_keep_the_matched_host() {
+    let mut class = url_class();
+    class.match_subdomains = true;
+    class.keep_matched_subdomains = true;
+
+    assert!(class.matches("https://cdn.example.com/post/1"));
+    assert_eq!(
+        class.normalise("https://cdn.example.com/post/1").unwrap(),
+        "https://cdn.example.com/post/1"
+    );
+}

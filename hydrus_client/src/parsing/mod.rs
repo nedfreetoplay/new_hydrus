@@ -1,5 +1,6 @@
 pub mod content_parser;
 pub mod formula;
+pub mod gallery;
 pub mod html_formula;
 pub mod results;
 pub mod string_match;

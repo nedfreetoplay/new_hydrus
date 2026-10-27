@@ -1,23 +1,18 @@
-//! Persistence of the page tree, downloaders and subscriptions in
-//! `gui session.json`.
+//! Persistence of the page tree, downloaders and subscriptions in the shared
+//! `gui session.json` (`UnifiedSession` also carries the controller's legacy
+//! `GuiSession`). Import-folder and auto-resolution settings use their own JSON
+//! files next to it.
 
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::gui::session::{GuiSession, UnifiedSession};
+
 use super::model::{
     DownloadItem, DownloaderKind, DownloaderPage, DuplicatesPage, Notebook, PageNode,
     PlaceholderPage, QueryPage, SubscriptionEntry, SubscriptionsPage,
 };
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SessionFile {
-    pub version: u32,
-    pub root: SessionNode,
-    pub active: Option<String>,
-    #[serde(default)]
-    pub subscriptions: Vec<SubscriptionEntry>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionNode {
@@ -43,6 +38,8 @@ pub struct SessionNode {
     #[serde(default)]
     pub search_query: Option<String>,
     #[serde(default)]
+    pub site: Option<String>,
+    #[serde(default)]
     pub filter: Option<String>,
     #[serde(default)]
     pub subject: Option<String>,
@@ -65,15 +62,27 @@ pub struct SessionNode {
 pub struct LoadedSession {
     pub root: Notebook,
     pub subscriptions: Vec<SubscriptionEntry>,
+    pub legacy: Option<GuiSession>,
+    pub active: Option<String>,
 }
 
 pub fn load_session(path: &Path) -> Option<LoadedSession> {
-    let text = std::fs::read_to_string(path).ok()?;
-    let session: SessionFile = serde_json::from_str(&text).ok()?;
+    let unified = UnifiedSession::load(path)?;
+
+    let app = unified.app?;
+    let root_value = app.get("root").cloned().unwrap_or(app);
+    let root: SessionNode = serde_json::from_value(root_value).ok()?;
+    let subscriptions = unified
+        .subscriptions
+        .into_iter()
+        .filter_map(|value| serde_json::from_value::<SubscriptionEntry>(value).ok())
+        .collect();
 
     Some(LoadedSession {
-        root: to_notebook(&session.root),
-        subscriptions: session.subscriptions,
+        root: to_notebook(&root),
+        subscriptions,
+        legacy: unified.legacy,
+        active: unified.active,
     })
 }
 
@@ -83,14 +92,27 @@ pub fn load(path: &Path) -> Option<Notebook> {
 
 pub fn save(state: &super::model::AppState) -> std::io::Result<()> {
     let path = state.controller.db_dir().join("gui session.json");
-    let session = SessionFile {
-        version: 2,
-        root: from_notebook(&state.root),
+    let subscriptions = state
+        .subscriptions
+        .iter()
+        .filter_map(|subscription| serde_json::to_value(subscription).ok())
+        .collect();
+
+    let unified = UnifiedSession {
+        version: UnifiedSession::VERSION,
+        legacy: Some(state.controller.session()),
+        app: Some(
+            serde_json::to_value(from_notebook(&state.root))
+                .map_err(|error| std::io::Error::other(error.to_string()))?,
+        ),
         active: state.active.clone(),
-        subscriptions: state.subscriptions.clone(),
+        subscriptions,
     };
-    let dump = serde_json::to_string_pretty(&session).map_err(std::io::Error::other)?;
-    std::fs::write(path, dump)
+
+    let _ = super::import_folders::persist(state);
+    let _ = super::auto_resolution::persist(state);
+
+    unified.save(path)
 }
 
 fn from_notebook(notebook: &Notebook) -> SessionNode {
@@ -107,6 +129,7 @@ fn from_notebook(notebook: &Notebook) -> SessionNode {
         input: None,
         url: None,
         search_query: None,
+        site: None,
         filter: None,
         subject: None,
         paused: None,
@@ -141,6 +164,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             input: None,
             url: None,
             search_query: None,
+            site: None,
             filter: None,
             subject: None,
             paused: None,
@@ -162,6 +186,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             input: Some(page.input.clone()),
             url: Some(page.url.clone()),
             search_query: Some(page.query.clone()),
+            site: Some(page.site.clone()),
             filter: Some(page.filter.clone()),
             subject: Some(page.subject.clone()),
             paused: Some(page.paused),
@@ -185,6 +210,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             input: None,
             url: None,
             search_query: None,
+            site: None,
             filter: None,
             subject: None,
             paused: None,
@@ -208,6 +234,31 @@ fn from_node(node: &PageNode) -> SessionNode {
             input: None,
             url: None,
             search_query: None,
+            site: None,
+            filter: None,
+            subject: None,
+            paused: None,
+            auto_watch: None,
+            check_period: None,
+            last_check: None,
+            queue: Vec::new(),
+            results: Vec::new(),
+            fixed_hashes: Vec::new(),
+        },
+        PageNode::ImportFolders(page) => SessionNode {
+            id: page.id.clone(),
+            kind: "import_folders".to_string(),
+            title: page.title.clone(),
+            query: None,
+            location: None,
+            message: None,
+            current: None,
+            children: Vec::new(),
+            downloader_kind: None,
+            input: None,
+            url: None,
+            search_query: None,
+            site: None,
             filter: None,
             subject: None,
             paused: None,
@@ -231,6 +282,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             input: None,
             url: None,
             search_query: None,
+            site: None,
             filter: None,
             subject: None,
             paused: None,
@@ -291,6 +343,7 @@ fn to_node(node: &SessionNode) -> PageNode {
             page.input = node.input.clone().unwrap_or_default();
             page.url = node.url.clone().unwrap_or_default();
             page.query = node.search_query.clone().unwrap_or_default();
+            page.site = node.site.clone().unwrap_or_default();
             page.filter = node.filter.clone().unwrap_or_default();
             page.subject = node.subject.clone().unwrap_or_default();
             page.paused = node.paused.unwrap_or(false);
@@ -319,6 +372,11 @@ fn to_node(node: &SessionNode) -> PageNode {
             let mut page = DuplicatesPage::new(node.id.clone());
             page.title = node.title.clone();
             PageNode::Duplicates(page)
+        }
+        "import_folders" => {
+            let mut page = super::model::ImportFoldersPage::new(node.id.clone());
+            page.title = node.title.clone();
+            PageNode::ImportFolders(page)
         }
         "placeholder" => {
             let title = node.title.to_ascii_lowercase();

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::client_constants::PageState;
 use crate::gui::pages::{Page, PageType, PagesNotebook};
+use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionPage {
@@ -106,6 +107,73 @@ impl GuiSession {
     }
 }
 
+/// One on-disk session shared by the controller and the page tree.
+///
+/// Older builds wrote either the legacy flat `GuiSession` (`pages` +
+/// `current_index`) or the app v2 page tree (`root`) directly to
+/// `gui session.json`. Both are migrated on load. New files wrap the app page
+/// tree in `app` and keep the legacy notebook under `legacy` so the controller
+/// and GUI never overwrite each other.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct UnifiedSession {
+    #[serde(default)]
+    pub version: u32,
+    #[serde(default)]
+    pub legacy: Option<GuiSession>,
+    #[serde(default)]
+    pub app: Option<Value>,
+    #[serde(default)]
+    pub active: Option<String>,
+    #[serde(default)]
+    pub subscriptions: Vec<Value>,
+}
+
+impl UnifiedSession {
+    pub const VERSION: u32 = 3;
+
+    pub fn load(path: impl AsRef<Path>) -> Option<Self> {
+        let text = std::fs::read_to_string(path).ok()?;
+        let value: Value = serde_json::from_str(&text).ok()?;
+
+        if value.get("pages").is_some() {
+            let legacy: GuiSession = serde_json::from_value(value).ok()?;
+
+            return Some(Self {
+                version: 2,
+                legacy: Some(legacy),
+                ..Self::default()
+            });
+        }
+
+        if value.get("root").is_some() {
+            return Some(Self {
+                version: 2,
+                app: Some(value),
+                ..Self::default()
+            });
+        }
+
+        serde_json::from_value(value).ok()
+    }
+
+    pub fn save(&self, path: impl AsRef<Path>) -> std::io::Result<()> {
+        let path = path.as_ref();
+
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let dump = serde_json::to_string_pretty(self)
+            .map_err(|error| std::io::Error::other(error.to_string()))?;
+
+        std::fs::write(path, dump)
+    }
+
+    pub fn legacy_session(&self) -> Option<GuiSession> {
+        self.legacy.clone()
+    }
+}
+
 fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
@@ -173,5 +241,46 @@ mod tests {
         .to_page();
 
         assert_eq!(page.page_type, PageType::Other);
+    }
+
+    #[test]
+    fn unified_session_migrates_the_legacy_flat_format() {
+        let path = std::env::temp_dir().join(format!(
+            "hydrus_client_unified_legacy_{}_{}.json",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+        let session = GuiSession::from_notebook(&notebook());
+
+        std::fs::write(&path, serde_json::to_string(&session).unwrap()).unwrap();
+
+        let unified = UnifiedSession::load(&path).expect("legacy session loads");
+
+        assert_eq!(unified.legacy.as_ref().unwrap().pages.len(), 2);
+        assert!(unified.app.is_none());
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn unified_session_migrates_the_app_v2_shape() {
+        let path = std::env::temp_dir().join(format!(
+            "hydrus_client_unified_app_{}_{}.json",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+
+        std::fs::write(
+            &path,
+            r#"{"version":2,"root":{"id":"root","kind":"notebook","title":"top","children":[]},"active":null,"subscriptions":[]}"#,
+        )
+        .unwrap();
+
+        let unified = UnifiedSession::load(&path).expect("app session loads");
+
+        assert!(unified.app.as_ref().unwrap().get("root").is_some());
+        assert!(unified.legacy.is_none());
+
+        let _ = std::fs::remove_file(path);
     }
 }

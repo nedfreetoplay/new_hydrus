@@ -3,6 +3,14 @@ use crate::gui::app::model::{
     DownloadItem, DownloadItemStatus, DownloaderKind, DownloaderPage, Notebook, PageNode,
     PlaceholderPage, QueryPage, SubscriptionEntry, SubscriptionsPage,
 };
+use crate::gui::session::UnifiedSession;
+
+fn round_trip(notebook: &Notebook) -> Notebook {
+    let value = serde_json::to_value(from_notebook(notebook)).unwrap();
+    let node: SessionNode = serde_json::from_value(value).unwrap();
+
+    to_notebook(&node)
+}
 
 #[test]
 fn notebook_round_trips_through_the_session_format() {
@@ -21,16 +29,7 @@ fn notebook_round_trips_through_the_session_format() {
     }));
     root.add(PageNode::Notebook(nested));
 
-    let session = SessionFile {
-        version: 2,
-        root: from_notebook(&root),
-        active: Some("p1".to_string()),
-        subscriptions: Vec::new(),
-    };
-
-    let text = serde_json::to_string(&session).unwrap();
-    let parsed: SessionFile = serde_json::from_str(&text).unwrap();
-    let restored = to_notebook(&parsed.root);
+    let restored = round_trip(&root);
 
     assert_eq!(restored.children.len(), 2);
 
@@ -59,6 +58,7 @@ fn downloaders_and_subscriptions_round_trip() {
     let mut downloader = DownloaderPage::new("p2", DownloaderKind::Gallery);
     downloader.url = "https://example.com/search?q={query}".to_string();
     downloader.query = "blue eyes".to_string();
+    downloader.site = "danbooru".to_string();
     downloader.filter = ".jpg".to_string();
     downloader.auto_watch = true;
     downloader.check_period = 900;
@@ -72,22 +72,13 @@ fn downloaders_and_subscriptions_round_trip() {
 
     root.add(PageNode::Subscriptions(SubscriptionsPage::new("p3")));
 
-    let subscription = SubscriptionEntry::new("daily", "https://example.com/search?q={query}");
-    let session = SessionFile {
-        version: 2,
-        root: from_notebook(&root),
-        active: Some("p2".to_string()),
-        subscriptions: vec![subscription],
-    };
-
-    let text = serde_json::to_string(&session).unwrap();
-    let parsed: SessionFile = serde_json::from_str(&text).unwrap();
-    let restored = to_notebook(&parsed.root);
+    let restored = round_trip(&root);
 
     match &restored.children[0] {
         PageNode::Downloader(page) => {
             assert_eq!(page.kind, DownloaderKind::Gallery);
             assert_eq!(page.query, "blue eyes");
+            assert_eq!(page.site, "danbooru");
             assert_eq!(page.filter, ".jpg");
             assert!(page.auto_watch);
             assert_eq!(page.check_period, 900);
@@ -97,8 +88,23 @@ fn downloaders_and_subscriptions_round_trip() {
         _ => panic!("downloader did not round-trip"),
     }
 
-    assert_eq!(parsed.subscriptions.len(), 1);
-    assert_eq!(parsed.subscriptions[0].name, "daily");
+    let subscription = SubscriptionEntry::new("daily", "https://example.com/search?q={query}");
+    let value = serde_json::to_value(&subscription).unwrap();
+    let restored: SubscriptionEntry = serde_json::from_value(value).unwrap();
+
+    assert_eq!(restored.name, "daily");
+}
+
+#[test]
+fn import_folder_pages_round_trip() {
+    let mut root = Notebook::new("root", "top page notebook");
+    root.add(PageNode::ImportFolders(
+        crate::gui::app::model::ImportFoldersPage::new("p4"),
+    ));
+
+    let restored = round_trip(&root);
+
+    assert!(matches!(restored.children[0], PageNode::ImportFolders(_)));
 }
 
 #[test]
@@ -109,14 +115,16 @@ fn session_file_loads_from_disk() {
         rand::random::<u64>()
     ));
 
-    let session = SessionFile {
-        version: 2,
-        root: from_notebook(&crate::gui::app::model::default_root()),
+    let root = crate::gui::app::model::default_root();
+    let unified = UnifiedSession {
+        version: UnifiedSession::VERSION,
+        legacy: None,
+        app: Some(serde_json::to_value(from_notebook(&root)).unwrap()),
         active: Some("p1".to_string()),
         subscriptions: Vec::new(),
     };
 
-    std::fs::write(&path, serde_json::to_string(&session).unwrap()).unwrap();
+    unified.save(&path).unwrap();
 
     let notebook = load(&path).expect("session loads");
 

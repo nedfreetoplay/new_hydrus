@@ -44,6 +44,7 @@
 #include <QScrollBar>
 #include <QShortcut>
 #include <QSignalBlocker>
+#include <QSlider>
 #include <QSpinBox>
 #include <QSplitter>
 #include <QStringListModel>
@@ -442,6 +443,341 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
 }
 
 // ---------------------------------------------------------------------------
+// HydrusMetadataPanel
+// ---------------------------------------------------------------------------
+
+HydrusMetadataPanel::HydrusMetadataPanel(HydrusMainWindow *main_window, QWidget *parent)
+    : QWidget(parent), main(main_window) {
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    auto *tabs = new QTabWidget(this);
+    layout->addWidget(tabs);
+
+    auto *tag_page = new QWidget(tabs);
+    auto *tag_layout = new QVBoxLayout(tag_page);
+    tag_layout->setContentsMargins(4, 4, 4, 4);
+    tag_layout->setSpacing(4);
+
+    services = new QComboBox(tag_page);
+    tag_layout->addWidget(services);
+
+    tag_filter = new QLineEdit(tag_page);
+    tag_filter->setPlaceholderText(QStringLiteral("filter tags"));
+    tag_layout->addWidget(tag_filter);
+
+    tags = new QListWidget(tag_page);
+    tags->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    tag_layout->addWidget(tags, 1);
+
+    tag_input = new QLineEdit(tag_page);
+    tag_input->setPlaceholderText(QStringLiteral("add a tag"));
+    completer = new QCompleter(main->suggestions(), this);
+    completer->setCaseSensitivity(Qt::CaseInsensitive);
+    completer->setFilterMode(Qt::MatchContains);
+    tag_input->setCompleter(completer);
+    tag_layout->addWidget(tag_input);
+
+    auto *tag_buttons = new QHBoxLayout();
+    auto *add_button = new QPushButton(QStringLiteral("add"), tag_page);
+    auto *remove_button = new QPushButton(QStringLiteral("remove"), tag_page);
+    tag_buttons->addWidget(add_button);
+    tag_buttons->addWidget(remove_button);
+    tag_buttons->addStretch(1);
+    tag_layout->addLayout(tag_buttons);
+
+    tabs->addTab(tag_page, QStringLiteral("tags"));
+
+    auto *ratings_page = new QWidget(tabs);
+    ratings_layout = new QVBoxLayout(ratings_page);
+    ratings_layout->setContentsMargins(6, 6, 6, 6);
+    ratings_layout->setSpacing(6);
+    ratings = ratings_page;
+    tabs->addTab(ratings_page, QStringLiteral("ratings"));
+
+    auto *notes_page = new QWidget(tabs);
+    auto *notes_layout = new QVBoxLayout(notes_page);
+    notes_layout->setContentsMargins(4, 4, 4, 4);
+    notes = new QListWidget(notes_page);
+    notes_layout->addWidget(notes, 1);
+    auto *edit_notes_button = new QPushButton(QStringLiteral("edit notes..."), notes_page);
+    notes_layout->addWidget(edit_notes_button);
+    tabs->addTab(notes_page, QStringLiteral("notes"));
+
+    connect(services, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+        rebuild_tags();
+    });
+    connect(tag_filter, &QLineEdit::textChanged, this, [this](const QString &) { rebuild_tags(); });
+    connect(add_button, &QPushButton::clicked, this, [this]() { add_tag(); });
+    connect(remove_button, &QPushButton::clicked, this, [this]() { remove_selected_tags(); });
+    connect(tag_input, &QLineEdit::returnPressed, this, [this]() { add_tag(); });
+    connect(edit_notes_button, &QPushButton::clicked, this, [this]() { edit_notes(); });
+    connect(tags, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *) { remove_selected_tags(); });
+}
+
+void HydrusMetadataPanel::set_state(const QJsonObject &metadata) {
+    data = metadata;
+    hash = metadata.value(QStringLiteral("hash")).toString();
+
+    const QString previous = services->currentData().toString();
+    QSignalBlocker blocker(services);
+    services->clear();
+
+    const QJsonArray tag_services = metadata.value(QStringLiteral("tag_services")).toArray();
+
+    for (const QJsonValue &value : tag_services) {
+        const QJsonObject service = value.toObject();
+        services->addItem(
+            service.value(QStringLiteral("name")).toString(),
+            service.value(QStringLiteral("key")).toString());
+    }
+
+    if (services->count() == 0) {
+        services->addItem(QStringLiteral("no local tag service"), QString());
+    }
+
+    if (!previous.isEmpty()) {
+        const int index = services->findData(previous);
+
+        if (index >= 0) {
+            services->setCurrentIndex(index);
+        }
+    }
+
+    blocker.unblock();
+    rebuild_tags();
+    rebuild_ratings(metadata.value(QStringLiteral("ratings")).toArray());
+
+    notes->clear();
+
+    for (const QJsonValue &value : metadata.value(QStringLiteral("notes")).toArray()) {
+        const QJsonObject note = value.toObject();
+        QString text = note.value(QStringLiteral("text")).toString().simplified();
+
+        if (text.size() > 100) {
+            text = text.left(100) + QStringLiteral("...");
+        }
+
+        notes->addItem(QStringLiteral("%1: %2").arg(note.value(QStringLiteral("name")).toString(), text));
+    }
+
+    const QJsonArray note_array = metadata.value(QStringLiteral("notes")).toArray();
+
+    if (note_array.isEmpty()) {
+        notes->addItem(QStringLiteral("no notes"));
+    }
+}
+
+void HydrusMetadataPanel::set_suggestions(const QStringList &suggestions) {
+    completer->setModel(new QStringListModel(suggestions, completer));
+}
+
+void HydrusMetadataPanel::rebuild_tags() {
+    tags->clear();
+
+    const QString key = services->currentData().toString();
+    const QJsonArray tag_services = data.value(QStringLiteral("tag_services")).toArray();
+    const QString filter = tag_filter->text().trimmed();
+
+    for (const QJsonValue &value : tag_services) {
+        const QJsonObject service = value.toObject();
+
+        if (service.value(QStringLiteral("key")).toString() != key) {
+            continue;
+        }
+
+        for (const QJsonValue &tag : service.value(QStringLiteral("tags")).toArray()) {
+            const QString text = tag.toString();
+
+            if (filter.isEmpty() || text.contains(filter, Qt::CaseInsensitive)) {
+                tags->addItem(text);
+            }
+        }
+
+        break;
+    }
+}
+
+void HydrusMetadataPanel::rebuild_ratings(const QJsonArray &ratings_value) {
+    while (QLayoutItem *item = ratings_layout->takeAt(0)) {
+        if (QWidget *widget = item->widget()) {
+            widget->deleteLater();
+        }
+
+        delete item;
+    }
+
+    if (ratings_value.isEmpty()) {
+        auto *label = new QLabel(QStringLiteral("No rating services. Create one in services."), ratings);
+        label->setWordWrap(true);
+        ratings_layout->addWidget(label);
+    }
+
+    for (const QJsonValue &value : ratings_value) {
+        const QJsonObject rating = value.toObject();
+        const QString service = rating.value(QStringLiteral("key")).toString();
+        const QString kind = rating.value(QStringLiteral("kind")).toString();
+        const QString name = rating.value(QStringLiteral("name")).toString();
+
+        auto *row = new QWidget(ratings);
+        auto *row_layout = new QVBoxLayout(row);
+        row_layout->setContentsMargins(0, 0, 0, 0);
+        row_layout->setSpacing(2);
+
+        auto *caption = new QLabel(name, row);
+        caption->setStyleSheet(QStringLiteral("font-weight: bold;"));
+        row_layout->addWidget(caption);
+
+        if (kind == QStringLiteral("numerical")) {
+            const double current = rating.value(QStringLiteral("value")).toDouble();
+            auto *slider_row = new QWidget(row);
+            auto *slider_layout = new QHBoxLayout(slider_row);
+            slider_layout->setContentsMargins(0, 0, 0, 0);
+            auto *slider = new QSlider(Qt::Horizontal, slider_row);
+            slider->setRange(0, 100);
+            slider->setValue(static_cast<int>(current * 100.0 + 0.5));
+            auto *label = new QLabel(QStringLiteral("%1%").arg(slider->value()), slider_row);
+            label->setMinimumWidth(42);
+            slider_layout->addWidget(slider, 1);
+            slider_layout->addWidget(label);
+            connect(slider, &QSlider::valueChanged, label, [label](int value) {
+                label->setText(QStringLiteral("%1%").arg(value));
+            });
+            connect(slider, &QSlider::sliderReleased, this, [this, service, slider]() {
+                send_rating(service, QStringLiteral("set"), slider->value() / 100.0);
+            });
+            row_layout->addWidget(slider_row);
+        } else if (kind == QStringLiteral("like")) {
+            auto *buttons = new QWidget(row);
+            auto *buttons_layout = new QHBoxLayout(buttons);
+            buttons_layout->setContentsMargins(0, 0, 0, 0);
+            auto *like = new QPushButton(QStringLiteral("like"), buttons);
+            auto *dislike = new QPushButton(QStringLiteral("dislike"), buttons);
+            auto *clear = new QPushButton(QStringLiteral("clear"), buttons);
+            const QString current = rating.value(QStringLiteral("value")).toString();
+            like->setCheckable(true);
+            dislike->setCheckable(true);
+            like->setChecked(current == QStringLiteral("like"));
+            dislike->setChecked(current == QStringLiteral("dislike"));
+            connect(like, &QPushButton::clicked, this, [this, service]() {
+                send_rating(service, QStringLiteral("like"));
+            });
+            connect(dislike, &QPushButton::clicked, this, [this, service]() {
+                send_rating(service, QStringLiteral("dislike"));
+            });
+            connect(clear, &QPushButton::clicked, this, [this, service]() {
+                send_rating(service, QStringLiteral("clear"));
+            });
+            buttons_layout->addWidget(like);
+            buttons_layout->addWidget(dislike);
+            buttons_layout->addWidget(clear);
+            buttons_layout->addStretch(1);
+            row_layout->addWidget(buttons);
+        } else {
+            auto *buttons = new QWidget(row);
+            auto *buttons_layout = new QHBoxLayout(buttons);
+            buttons_layout->setContentsMargins(0, 0, 0, 0);
+            auto *minus = new QPushButton(QStringLiteral("-1"), buttons);
+            auto *plus = new QPushButton(QStringLiteral("+1"), buttons);
+            auto *clear = new QPushButton(QStringLiteral("clear"), buttons);
+            auto *label = new QLabel(QStringLiteral("value: %1").arg(rating.value(QStringLiteral("value")).toInt()), buttons);
+            connect(minus, &QPushButton::clicked, this, [this, service]() {
+                send_rating(service, QStringLiteral("set"), -1.0);
+            });
+            connect(plus, &QPushButton::clicked, this, [this, service]() {
+                send_rating(service, QStringLiteral("set"), 1.0);
+            });
+            connect(clear, &QPushButton::clicked, this, [this, service]() {
+                send_rating(service, QStringLiteral("clear"));
+            });
+            buttons_layout->addWidget(minus);
+            buttons_layout->addWidget(plus);
+            buttons_layout->addWidget(clear);
+            buttons_layout->addWidget(label);
+            buttons_layout->addStretch(1);
+            row_layout->addWidget(buttons);
+        }
+
+        ratings_layout->addWidget(row);
+    }
+
+    ratings_layout->addStretch(1);
+}
+
+void HydrusMetadataPanel::send_tag(const QString &tag, bool add) {
+    if (hash.isEmpty() || tag.trimmed().isEmpty()) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("hash"), hash);
+    payload.insert(QStringLiteral("service"), services->currentData().toString());
+    payload.insert(QStringLiteral("tag"), tag.trimmed());
+
+    main->notify(
+        add ? QStringLiteral("tag_add") : QStringLiteral("tag_remove"),
+        QString(),
+        json_payload(payload));
+
+    if (add) {
+        if (tags->findItems(tag.trimmed(), Qt::MatchExactly).isEmpty()) {
+            tags->addItem(tag.trimmed());
+        }
+    } else {
+        for (QListWidgetItem *item : tags->findItems(tag.trimmed(), Qt::MatchExactly)) {
+            delete tags->takeItem(tags->row(item));
+        }
+    }
+}
+
+void HydrusMetadataPanel::send_rating(const QString &service, const QString &action, double value) {
+    if (hash.isEmpty()) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("hash"), hash);
+    payload.insert(QStringLiteral("service"), service);
+    payload.insert(QStringLiteral("action"), action);
+    payload.insert(QStringLiteral("value"), value);
+
+    main->notify(QStringLiteral("rating_set"), QString(), json_payload(payload));
+}
+
+void HydrusMetadataPanel::add_tag() {
+    const QString tag = tag_input->text().trimmed();
+
+    if (tag.isEmpty()) {
+        return;
+    }
+
+    send_tag(tag, true);
+    tag_input->clear();
+}
+
+void HydrusMetadataPanel::remove_selected_tags() {
+    QStringList selected;
+
+    for (QListWidgetItem *item : tags->selectedItems()) {
+        selected.append(item->text());
+    }
+
+    for (const QString &tag : selected) {
+        send_tag(tag, false);
+    }
+}
+
+void HydrusMetadataPanel::edit_notes() {
+    if (hash.isEmpty()) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("hash"), hash);
+    main->notify(QStringLiteral("notes_manage"), QString(), json_payload(payload));
+}
+
+// ---------------------------------------------------------------------------
 // HydrusQueryPage
 // ---------------------------------------------------------------------------
 
@@ -510,13 +846,12 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
     status_label->setWordWrap(true);
     sidebar_layout->addWidget(status_label);
 
-    auto *tags_title = new QLabel(QStringLiteral("selection tags"), sidebar);
+    auto *tags_title = new QLabel(QStringLiteral("metadata"), sidebar);
     tags_title->setStyleSheet(QStringLiteral("font-weight: bold;"));
     sidebar_layout->addWidget(tags_title);
 
-    selection_tags = new QListWidget(sidebar);
-    selection_tags->setSelectionMode(QAbstractItemView::NoSelection);
-    sidebar_layout->addWidget(selection_tags, 1);
+    metadata = new HydrusMetadataPanel(main, sidebar);
+    sidebar_layout->addWidget(metadata, 1);
 
     auto *vertical = new QSplitter(Qt::Vertical, splitter);
     vertical->addWidget(sidebar);
@@ -573,9 +908,8 @@ void HydrusQueryPage::update_state(const QJsonObject &state) {
 
     status_label->setText(status);
 
-    const QStringList tags = json_to_strings(state.value(QStringLiteral("tags")).toArray());
-    selection_tags->clear();
-    selection_tags->addItems(tags);
+    const QJsonObject metadata_state = state.value(QStringLiteral("metadata")).toObject();
+    metadata->set_state(metadata_state);
 
     const QString focused = state.value(QStringLiteral("focused")).toString();
 
@@ -586,9 +920,13 @@ void HydrusQueryPage::update_state(const QJsonObject &state) {
     }
 }
 
-void HydrusQueryPage::set_selection(const QString &hash, const QStringList &tags, const QString &preview_path) {
-    selection_tags->clear();
-    selection_tags->addItems(tags);
+void HydrusQueryPage::set_selection(
+    const QString &hash,
+    const QStringList &tags,
+    const QString &preview_path,
+    const QJsonObject &metadata_state) {
+    Q_UNUSED(tags);
+    metadata->set_state(metadata_state);
 
     grid->set_focused(hash);
 
@@ -605,6 +943,7 @@ void HydrusQueryPage::set_suggestions(const QStringList &suggestions) {
     }
 
     completer->setModel(new QStringListModel(suggestions, completer));
+    metadata->set_suggestions(suggestions);
 }
 
 void HydrusQueryPage::focus_hash(const QString &hash) {
@@ -704,6 +1043,10 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     query_row = field_row(QStringLiteral("search"), query_widget, this);
     form->addRow(query_row);
 
+    site = new QComboBox(this);
+    site_row = field_row(QStringLiteral("site parser"), site, this);
+    form->addRow(site_row);
+
     subject = new QLineEdit(this);
     subject->setPlaceholderText(QStringLiteral("watcher subject"));
     subject_row = field_row(QStringLiteral("subject"), subject, this);
@@ -740,11 +1083,12 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     auto *splitter = new QSplitter(Qt::Vertical, this);
 
     queue = new QTableWidget(splitter);
-    queue->setColumnCount(3);
-    queue->setHorizontalHeaderLabels({QStringLiteral("url"), QStringLiteral("status"), QStringLiteral("note")});
+    queue->setColumnCount(4);
+    queue->setHorizontalHeaderLabels({QStringLiteral("url"), QStringLiteral("domain"), QStringLiteral("status"), QStringLiteral("note")});
     queue->horizontalHeader()->setStretchLastSection(true);
     queue->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     queue->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    queue->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
     queue->setSelectionBehavior(QAbstractItemView::SelectRows);
     queue->setSelectionMode(QAbstractItemView::SingleSelection);
     queue->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -787,6 +1131,7 @@ void HydrusDownloaderPage::start() {
     payload.insert(QStringLiteral("input"), input->toPlainText());
     payload.insert(QStringLiteral("url"), url->text());
     payload.insert(QStringLiteral("query"), query->text());
+    payload.insert(QStringLiteral("site"), site->currentData().toString());
     payload.insert(QStringLiteral("filter"), filter->text());
     payload.insert(QStringLiteral("subject"), subject->text());
     payload.insert(QStringLiteral("period"), period->value());
@@ -822,6 +1167,7 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     input_row->setVisible(urls);
     url_row->setVisible(gallery || watcher);
     query_row->setVisible(gallery);
+    site_row->setVisible(gallery || watcher);
     subject_row->setVisible(watcher);
     period_row->setVisible(watcher);
     pause_button->setVisible(!watcher);
@@ -844,6 +1190,22 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     update_line_edit(url, state.value(QStringLiteral("url")).toString());
     update_line_edit(query, state.value(QStringLiteral("query")).toString());
     update_line_edit(filter, state.value(QStringLiteral("filter")).toString());
+
+    if (site->count() == 0) {
+        site->addItem(QStringLiteral("auto detect"), QString());
+
+        for (const QJsonValue &value : state.value(QStringLiteral("sites")).toArray()) {
+            const QJsonObject parser = value.toObject();
+            site->addItem(parser.value(QStringLiteral("title")).toString(), parser.value(QStringLiteral("id")).toString());
+        }
+    }
+
+    const int site_index = site->findData(state.value(QStringLiteral("site")).toString());
+
+    if (site_index >= 0 && !site->hasFocus()) {
+        QSignalBlocker blocker(site);
+        site->setCurrentIndex(site_index);
+    }
     update_line_edit(subject, state.value(QStringLiteral("subject")).toString());
 
     if (!period->hasFocus()) {
@@ -881,7 +1243,7 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
 
     const QJsonArray items = state.value(QStringLiteral("queue")).toArray();
 
-    if (queue->rowCount() != items.size() || queue->columnCount() != 3) {
+    if (queue->rowCount() != items.size() || queue->columnCount() != 4) {
         queue->setRowCount(items.size());
     }
 
@@ -897,13 +1259,17 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
             queue->setItem(index, 0, url_item);
             queue->setItem(index, 1, new QTableWidgetItem());
             queue->setItem(index, 2, new QTableWidgetItem());
+            queue->setItem(index, 3, new QTableWidgetItem());
         }
 
         url_item->setText(item_url);
         url_item->setData(Qt::UserRole, item_url);
         url_item->setToolTip(item_url);
 
-        QTableWidgetItem *status_item = queue->item(index, 1);
+        queue->item(index, 1)->setText(item.value(QStringLiteral("domain")).toString());
+        queue->item(index, 1)->setToolTip(item.value(QStringLiteral("domain")).toString());
+
+        QTableWidgetItem *status_item = queue->item(index, 2);
         status_item->setText(item_status);
 
         if (item_status == QStringLiteral("error")) {
@@ -914,8 +1280,8 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
             status_item->setForeground(QColor(220, 200, 120));
         }
 
-        queue->item(index, 2)->setText(item.value(QStringLiteral("note")).toString());
-        queue->item(index, 2)->setToolTip(item.value(QStringLiteral("note")).toString());
+        queue->item(index, 3)->setText(item.value(QStringLiteral("note")).toString());
+        queue->item(index, 3)->setToolTip(item.value(QStringLiteral("note")).toString());
     }
 
     queue->resizeRowsToContents();
@@ -1002,16 +1368,25 @@ void HydrusSubscriptionsPage::add_subscription() {
     auto *name = new QLineEdit(&dialog);
     auto *url = new QLineEdit(&dialog);
     auto *query = new QLineEdit(&dialog);
+    auto *site = new QComboBox(&dialog);
     auto *filter = new QLineEdit(&dialog);
     auto *period = new QSpinBox(&dialog);
     period->setRange(60, 31536000);
     period->setValue(86400);
+
+    site->addItem(QStringLiteral("auto detect"), QString());
+
+    for (const QJsonValue &value : sites) {
+        const QJsonObject parser = value.toObject();
+        site->addItem(parser.value(QStringLiteral("title")).toString(), parser.value(QStringLiteral("id")).toString());
+    }
 
     url->setPlaceholderText(QStringLiteral("https://example.com/search?q={query}"));
     query->setPlaceholderText(QStringLiteral("search terms for {query}"));
     form->addRow(QStringLiteral("name"), name);
     form->addRow(QStringLiteral("gallery url"), url);
     form->addRow(QStringLiteral("search terms"), query);
+    form->addRow(QStringLiteral("site parser"), site);
     form->addRow(QStringLiteral("link filter"), filter);
     form->addRow(QStringLiteral("period (seconds)"), period);
 
@@ -1029,6 +1404,7 @@ void HydrusSubscriptionsPage::add_subscription() {
     payload.insert(QStringLiteral("name"), name->text());
     payload.insert(QStringLiteral("url"), url->text());
     payload.insert(QStringLiteral("query"), query->text());
+    payload.insert(QStringLiteral("site"), site->currentData().toString());
     payload.insert(QStringLiteral("filter"), filter->text());
     payload.insert(QStringLiteral("period"), period->value());
 
@@ -1036,6 +1412,7 @@ void HydrusSubscriptionsPage::add_subscription() {
 }
 
 void HydrusSubscriptionsPage::update_state(const QJsonObject &state) {
+    sites = state.value(QStringLiteral("sites")).toArray();
     const QJsonArray subscriptions = state.value(QStringLiteral("subscriptions")).toArray();
 
     status->setText(QStringLiteral("%1 subscriptions").arg(subscriptions.size()));
@@ -1092,8 +1469,10 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     refresh_button->setObjectName(QStringLiteral("refresh_duplicates"));
     refresh = refresh_button;
     delete_both = new QPushButton(QStringLiteral("delete both"), this);
+    rules = new QPushButton(QStringLiteral("auto-resolution..."), this);
     header->addWidget(status, 1);
     header->addWidget(distance);
+    header->addWidget(rules);
     header->addWidget(refresh_button);
     header->addWidget(delete_both);
     layout->addLayout(header);
@@ -1177,6 +1556,9 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     connect(not_duplicates, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_false")); });
     connect(skip, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_skip")); });
     connect(refresh_button, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_refresh")); });
+    connect(rules, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("duplicates_rules"));
+    });
     connect(delete_both, &QPushButton::clicked, this, [this]() {
         if (QMessageBox::question(this, QStringLiteral("delete both"), QStringLiteral("Move both files to the trash?")) == QMessageBox::Yes) {
             act(QStringLiteral("duplicates_delete_both"));
@@ -1298,10 +1680,10 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
 
     auto *body = new QSplitter(Qt::Horizontal, this);
 
-    tags = new QListWidget(body);
-    tags->setMinimumWidth(180);
-    tags->setMaximumWidth(320);
-    body->addWidget(tags);
+    metadata = new HydrusMetadataPanel(main, body);
+    metadata->setMinimumWidth(240);
+    metadata->setMaximumWidth(380);
+    body->addWidget(metadata);
 
     canvas = new HydrusCanvas(body);
     body->addWidget(canvas);
@@ -1398,8 +1780,8 @@ void HydrusViewerWindow::update_state(const QJsonObject &state) {
         canvas->clear_image();
     }
 
-    tags->clear();
-    tags->addItems(json_to_strings(state.value(QStringLiteral("tags")).toArray()));
+    metadata->set_state(state.value(QStringLiteral("metadata")).toObject());
+    metadata->set_suggestions(main->suggestions());
 
     status->setText(state.value(QStringLiteral("info")).toString());
 }
@@ -1769,6 +2151,7 @@ private:
         page_layout->addWidget(new QLabel(QStringLiteral("special"), stack->currentWidget()));
         add_button(QStringLiteral("page of pages"), QStringLiteral("notebook"));
         add_button(QStringLiteral("duplicates processing"), QStringLiteral("duplicates"));
+        add_button(QStringLiteral("import folders"), QStringLiteral("import_folders"));
         add_nav(QStringLiteral("back"), 0);
         page_layout->addStretch(1);
     }
@@ -1886,6 +2269,171 @@ private:
 
     HydrusMainWindow *main = nullptr;
     QVector<OptionField> fields;
+};
+
+} // namespace
+
+namespace {
+
+class HydrusUrlClassDialog : public QDialog {
+public:
+    HydrusUrlClassDialog(const QJsonObject &entry, const QJsonArray &types, QWidget *parent = nullptr)
+        : QDialog(parent), data(entry) {
+        setWindowTitle(QStringLiteral("url class"));
+        resize(620, 560);
+
+        auto *layout = new QVBoxLayout(this);
+        auto *form = new QFormLayout();
+
+        name = new QLineEdit(this);
+        type = new QComboBox(this);
+        scheme = new QLineEdit(this);
+        netloc = new QLineEdit(this);
+        path = new QLineEdit(this);
+        parameters = new QPlainTextEdit(this);
+        parameters->setMaximumHeight(80);
+        parameters->setPlaceholderText(QStringLiteral("one name=value per line"));
+        example = new QLineEdit(this);
+        match_subdomains = new QCheckBox(QStringLiteral("match subdomains"), this);
+        keep_subdomains = new QCheckBox(QStringLiteral("keep the matched subdomain"), this);
+        multiple = new QCheckBox(QStringLiteral("can produce multiple files"), this);
+        associate = new QCheckBox(QStringLiteral("associate with files"), this);
+        associate->setChecked(true);
+
+        for (const QJsonValue &value : types) {
+            const QJsonObject item = value.toObject();
+            type->addItem(item.value(QStringLiteral("label")).toString(), item.value(QStringLiteral("value")).toInt());
+        }
+
+        form->addRow(QStringLiteral("name"), name);
+        form->addRow(QStringLiteral("url type"), type);
+        form->addRow(QStringLiteral("preferred scheme"), scheme);
+        form->addRow(QStringLiteral("domain"), netloc);
+        form->addRow(QStringLiteral("path"), path);
+        form->addRow(QStringLiteral("parameters"), parameters);
+        form->addRow(QStringLiteral("example url"), example);
+        form->addRow(match_subdomains);
+        form->addRow(keep_subdomains);
+        form->addRow(multiple);
+        form->addRow(associate);
+        layout->addLayout(form);
+
+        auto *test_row = new QWidget(this);
+        auto *test_layout = new QHBoxLayout(test_row);
+        test_layout->setContentsMargins(0, 0, 0, 0);
+        test = new QLineEdit(test_row);
+        test->setPlaceholderText(QStringLiteral("paste a url to test matching"));
+        auto *test_button = new QPushButton(QStringLiteral("test"), test_row);
+        test_layout->addWidget(test, 1);
+        test_layout->addWidget(test_button);
+        layout->addWidget(test_row);
+
+        result = new QLabel(this);
+        result->setWordWrap(true);
+        layout->addWidget(result);
+
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+        connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+        connect(test_button, &QPushButton::clicked, this, [this]() { run_test(); });
+        layout->addWidget(buttons);
+
+        name->setText(data.value(QStringLiteral("name")).toString());
+        scheme->setText(data.value(QStringLiteral("preferred_scheme")).toString());
+        if (scheme->text().isEmpty()) {
+            scheme->setText(QStringLiteral("https"));
+        }
+        netloc->setText(data.value(QStringLiteral("netloc")).toString());
+        path->setText(json_to_strings(data.value(QStringLiteral("components")).toArray()).join(QStringLiteral("/")));
+        parameters->setPlainText(data.value(QStringLiteral("parameters")).toString());
+        example->setText(data.value(QStringLiteral("example_url")).toString());
+        match_subdomains->setChecked(data.value(QStringLiteral("match_subdomains")).toBool());
+        keep_subdomains->setChecked(data.value(QStringLiteral("keep_matched_subdomains")).toBool());
+        multiple->setChecked(data.value(QStringLiteral("can_produce_multiple_files")).toBool());
+        associate->setChecked(data.value(QStringLiteral("should_be_associated_with_files")).toBool(true));
+
+        const int index = type->findData(data.value(QStringLiteral("url_type")).toInt(0));
+        if (index >= 0) {
+            type->setCurrentIndex(index);
+        }
+    }
+
+    QJsonObject payload() const {
+        QJsonObject value;
+        value.insert(QStringLiteral("original"), data.value(QStringLiteral("name")).toString());
+        value.insert(QStringLiteral("name"), name->text().trimmed());
+        value.insert(QStringLiteral("url_type"), type->currentData().toInt());
+        value.insert(QStringLiteral("preferred_scheme"), scheme->text().trimmed());
+        value.insert(QStringLiteral("netloc"), netloc->text().trimmed());
+        value.insert(QStringLiteral("path"), path->text().trimmed());
+        value.insert(QStringLiteral("parameters"), parameters->toPlainText());
+        value.insert(QStringLiteral("example_url"), example->text().trimmed());
+        value.insert(QStringLiteral("match_subdomains"), match_subdomains->isChecked());
+        value.insert(QStringLiteral("keep_matched_subdomains"), keep_subdomains->isChecked());
+        value.insert(QStringLiteral("can_produce_multiple_files"), multiple->isChecked());
+        value.insert(QStringLiteral("should_be_associated_with_files"), associate->isChecked());
+
+        return value;
+    }
+
+private:
+    void run_test() {
+        const QUrl url(test->text().trimmed());
+
+        if (!url.isValid() || url.host().isEmpty()) {
+            result->setText(QStringLiteral("not a valid http(s) url"));
+            return;
+        }
+
+        QString domain = netloc->text().trimmed().toLower();
+        domain.remove(QStringLiteral("www."));
+        QString host = url.host().toLower();
+        host.remove(QStringLiteral("www."));
+
+        if (host != domain
+            && !(match_subdomains->isChecked() && host.endsWith(QStringLiteral(".") + domain))) {
+            result->setText(QStringLiteral("domain does not match %1").arg(domain));
+            return;
+        }
+
+        const QStringList expected = path->text().trimmed().split(QLatin1Char('/'), Qt::SkipEmptyParts);
+        const QStringList actual = url.path().trimmed().split(QLatin1Char('/'), Qt::SkipEmptyParts);
+
+        if (expected.size() != actual.size()) {
+            result->setText(QStringLiteral("path has %1 segments; expected %2").arg(actual.size()).arg(expected.size()));
+            return;
+        }
+
+        for (int index = 0; index < expected.size(); ++index) {
+            const QString component = expected.at(index);
+
+            if (component.startsWith(QLatin1Char('{')) && component.endsWith(QLatin1Char('}'))) {
+                continue;
+            }
+
+            if (component != actual.at(index)) {
+                result->setText(QStringLiteral("segment %1 does not match").arg(index + 1));
+                return;
+            }
+        }
+
+        result->setText(QStringLiteral("matches this url class"));
+    }
+
+    QJsonObject data;
+    QLineEdit *name = nullptr;
+    QComboBox *type = nullptr;
+    QLineEdit *scheme = nullptr;
+    QLineEdit *netloc = nullptr;
+    QLineEdit *path = nullptr;
+    QPlainTextEdit *parameters = nullptr;
+    QLineEdit *example = nullptr;
+    QCheckBox *match_subdomains = nullptr;
+    QCheckBox *keep_subdomains = nullptr;
+    QCheckBox *multiple = nullptr;
+    QCheckBox *associate = nullptr;
+    QLineEdit *test = nullptr;
+    QLabel *result = nullptr;
 };
 
 } // namespace
@@ -2144,10 +2692,11 @@ HydrusNetworkDialog::HydrusNetworkDialog(HydrusMainWindow *main_window, const QJ
     auto *classes_page = new QWidget(tabs);
     auto *classes_layout = new QVBoxLayout(classes_page);
     url_classes = new QTableWidget(classes_page);
-    url_classes->setColumnCount(3);
-    url_classes->setHorizontalHeaderLabels({QStringLiteral("name"), QStringLiteral("domain"), QStringLiteral("path")});
+    url_classes->setColumnCount(4);
+    url_classes->setHorizontalHeaderLabels({QStringLiteral("name"), QStringLiteral("type"), QStringLiteral("domain"), QStringLiteral("path")});
     url_classes->horizontalHeader()->setStretchLastSection(true);
     url_classes->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    url_classes->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     url_classes->setSelectionBehavior(QAbstractItemView::SelectRows);
     url_classes->setEditTriggers(QAbstractItemView::NoEditTriggers);
     url_classes->verticalHeader()->setVisible(false);
@@ -2155,12 +2704,63 @@ HydrusNetworkDialog::HydrusNetworkDialog(HydrusMainWindow *main_window, const QJ
 
     auto *class_buttons = new QHBoxLayout();
     auto *add_class = new QPushButton(QStringLiteral("add url class..."), classes_page);
+    auto *edit_class = new QPushButton(QStringLiteral("edit..."), classes_page);
     auto *remove_class = new QPushButton(QStringLiteral("remove"), classes_page);
     class_buttons->addWidget(add_class);
+    class_buttons->addWidget(edit_class);
     class_buttons->addWidget(remove_class);
     class_buttons->addStretch(1);
     classes_layout->addLayout(class_buttons);
     tabs->addTab(classes_page, QStringLiteral("url classes"));
+
+    auto *pools_page = new QWidget(tabs);
+    auto *pools_layout = new QVBoxLayout(pools_page);
+    pools = new QTableWidget(pools_page);
+    pools->setColumnCount(2);
+    pools->setHorizontalHeaderLabels({QStringLiteral("domain"), QStringLiteral("simultaneous downloads")});
+    pools->horizontalHeader()->setStretchLastSection(true);
+    pools->setSelectionBehavior(QAbstractItemView::SelectRows);
+    pools->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    pools->verticalHeader()->setVisible(false);
+    pools_layout->addWidget(pools, 1);
+
+    auto *pool_buttons = new QHBoxLayout();
+    auto *add_pool_button = new QPushButton(QStringLiteral("add domain limit..."), pools_page);
+    auto *remove_pool_button = new QPushButton(QStringLiteral("remove"), pools_page);
+    pool_buttons->addWidget(add_pool_button);
+    pool_buttons->addWidget(remove_pool_button);
+    pool_buttons->addStretch(1);
+    pools_layout->addLayout(pool_buttons);
+    tabs->addTab(pools_page, QStringLiteral("download pools"));
+
+    auto *bandwidth_page = new QWidget(tabs);
+    auto *bandwidth_layout = new QVBoxLayout(bandwidth_page);
+    bandwidth_rules = new QTableWidget(bandwidth_page);
+    bandwidth_rules->setColumnCount(5);
+    bandwidth_rules->setHorizontalHeaderLabels({
+        QStringLiteral("context"),
+        QStringLiteral("domain"),
+        QStringLiteral("type"),
+        QStringLiteral("period"),
+        QStringLiteral("maximum")
+    });
+    bandwidth_rules->horizontalHeader()->setStretchLastSection(true);
+    bandwidth_rules->setSelectionBehavior(QAbstractItemView::SelectRows);
+    bandwidth_rules->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    bandwidth_rules->verticalHeader()->setVisible(false);
+    bandwidth_layout->addWidget(bandwidth_rules, 1);
+    bandwidth_layout->addWidget(new QLabel(
+        QStringLiteral("Data limits are in bytes. A zero period means the calendar month."),
+        bandwidth_page));
+
+    auto *bandwidth_buttons = new QHBoxLayout();
+    auto *add_rule_button = new QPushButton(QStringLiteral("add rule..."), bandwidth_page);
+    auto *remove_rule_button = new QPushButton(QStringLiteral("remove"), bandwidth_page);
+    bandwidth_buttons->addWidget(add_rule_button);
+    bandwidth_buttons->addWidget(remove_rule_button);
+    bandwidth_buttons->addStretch(1);
+    bandwidth_layout->addLayout(bandwidth_buttons);
+    tabs->addTab(bandwidth_page, QStringLiteral("bandwidth"));
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Close, this);
     connect(buttons, &QDialogButtonBox::accepted, this, [this]() { save(); });
@@ -2173,7 +2773,12 @@ HydrusNetworkDialog::HydrusNetworkDialog(HydrusMainWindow *main_window, const QJ
     connect(add_header_button, &QPushButton::clicked, this, [this]() { add_header(); });
     connect(remove_header_button, &QPushButton::clicked, this, [this]() { remove_header(); });
     connect(add_class, &QPushButton::clicked, this, [this]() { add_url_class(); });
+    connect(edit_class, &QPushButton::clicked, this, [this]() { edit_url_class(); });
     connect(remove_class, &QPushButton::clicked, this, [this]() { remove_url_class(); });
+    connect(add_pool_button, &QPushButton::clicked, this, [this]() { add_pool(); });
+    connect(remove_pool_button, &QPushButton::clicked, this, [this]() { remove_pool(); });
+    connect(add_rule_button, &QPushButton::clicked, this, [this]() { add_bandwidth_rule(); });
+    connect(remove_rule_button, &QPushButton::clicked, this, [this]() { remove_bandwidth_rule(); });
 
     set_state(state);
 }
@@ -2218,19 +2823,74 @@ void HydrusNetworkDialog::set_state(const QJsonObject &state) {
     for (int index = 0; index < classes.size(); ++index) {
         const QJsonObject entry = classes.at(index).toObject();
 
-        for (int column = 0; column < 3; ++column) {
+        for (int column = 0; column < 4; ++column) {
             if (url_classes->item(index, column) == nullptr) {
                 url_classes->setItem(index, column, new QTableWidgetItem());
             }
         }
 
         url_classes->item(index, 0)->setText(entry.value(QStringLiteral("name")).toString());
-        url_classes->item(index, 1)->setText(entry.value(QStringLiteral("netloc")).toString());
-        url_classes->item(index, 2)->setText(json_to_strings(entry.value(QStringLiteral("components")).toArray()).join(QStringLiteral("/")));
+        url_classes->item(index, 0)->setData(Qt::UserRole, entry.value(QStringLiteral("name")).toString());
+        url_classes->item(index, 1)->setText(entry.value(QStringLiteral("url_type_name")).toString());
+        url_classes->item(index, 2)->setText(entry.value(QStringLiteral("netloc")).toString());
+        url_classes->item(index, 3)->setText(json_to_strings(entry.value(QStringLiteral("components")).toArray()).join(QStringLiteral("/")));
+    }
+
+    const QJsonArray pool_values = state.value(QStringLiteral("download_pools")).toArray();
+    pools->setRowCount(pool_values.size());
+
+    for (int index = 0; index < pool_values.size(); ++index) {
+        const QJsonObject entry = pool_values.at(index).toObject();
+
+        for (int column = 0; column < 2; ++column) {
+            if (pools->item(index, column) == nullptr) {
+                pools->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        pools->item(index, 0)->setText(entry.value(QStringLiteral("domain")).toString());
+        pools->item(index, 0)->setData(Qt::UserRole, entry.value(QStringLiteral("domain")).toString());
+        pools->item(index, 1)->setText(QString::number(entry.value(QStringLiteral("limit")).toInt()));
+    }
+
+    const QJsonArray rules = state.value(QStringLiteral("bandwidth_rules")).toArray();
+    bandwidth_rules->setRowCount(rules.size());
+
+    for (int index = 0; index < rules.size(); ++index) {
+        const QJsonObject entry = rules.at(index).toObject();
+
+        for (int column = 0; column < 5; ++column) {
+            if (bandwidth_rules->item(index, column) == nullptr) {
+                bandwidth_rules->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        const QString context_type = entry.value(QStringLiteral("context_type")).toString();
+        const QString context = entry.value(QStringLiteral("context")).toString();
+        const QString bandwidth_type = entry.value(QStringLiteral("bandwidth_type")).toString();
+        const QJsonValue period_value = entry.value(QStringLiteral("time_delta"));
+        const qint64 max_value = entry.value(QStringLiteral("max_allowed")).toVariant().toLongLong();
+
+        bandwidth_rules->item(index, 0)->setText(context_type);
+        bandwidth_rules->item(index, 0)->setData(Qt::UserRole, context_type);
+        bandwidth_rules->item(index, 1)->setText(context);
+        bandwidth_rules->item(index, 1)->setData(Qt::UserRole, context);
+        bandwidth_rules->item(index, 2)->setText(bandwidth_type);
+        bandwidth_rules->item(index, 2)->setData(Qt::UserRole, bandwidth_type);
+        bandwidth_rules->item(index, 3)->setText(
+            period_value.isNull() || period_value.toInt() <= 0
+                ? QStringLiteral("month")
+                : QStringLiteral("%1 s").arg(period_value.toInt()));
+        bandwidth_rules->item(index, 4)->setText(
+            bandwidth_type == QStringLiteral("data")
+                ? QStringLiteral("%1 MB").arg(max_value / (1024 * 1024))
+                : QString::number(max_value));
     }
 
     headers->resizeRowsToContents();
     url_classes->resizeRowsToContents();
+    pools->resizeRowsToContents();
+    bandwidth_rules->resizeRowsToContents();
 }
 
 void HydrusNetworkDialog::save() {
@@ -2300,33 +2960,42 @@ void HydrusNetworkDialog::remove_header() {
 }
 
 void HydrusNetworkDialog::add_url_class() {
-    QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("add url class"));
-    auto *layout = new QVBoxLayout(&dialog);
-    auto *form = new QFormLayout();
-    auto *name = new QLineEdit(&dialog);
-    auto *netloc = new QLineEdit(&dialog);
-    auto *path = new QLineEdit(&dialog);
-    path->setPlaceholderText(QStringLiteral("post/{post_id}"));
-    form->addRow(QStringLiteral("name"), name);
-    form->addRow(QStringLiteral("domain"), netloc);
-    form->addRow(QStringLiteral("path"), path);
-    layout->addLayout(form);
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons);
+    HydrusUrlClassDialog dialog(QJsonObject(), data.value(QStringLiteral("url_types")).toArray(), this);
 
-    if (dialog.exec() != QDialog::Accepted || netloc->text().trimmed().isEmpty()) {
+    if (dialog.exec() != QDialog::Accepted) {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("name"), name->text().trimmed());
-    payload.insert(QStringLiteral("netloc"), netloc->text().trimmed());
-    payload.insert(QStringLiteral("path"), path->text().trimmed());
+    QJsonObject payload = dialog.payload();
+
+    if (payload.value(QStringLiteral("netloc")).toString().isEmpty()) {
+        return;
+    }
 
     main->notify(QStringLiteral("network_url_class_add"), QString(), json_payload(payload));
+}
+
+void HydrusNetworkDialog::edit_url_class() {
+    const int row = url_classes->currentRow();
+    const QJsonArray classes = data.value(QStringLiteral("url_classes")).toArray();
+
+    if (row < 0 || row >= classes.size()) {
+        return;
+    }
+
+    HydrusUrlClassDialog dialog(
+        classes.at(row).toObject(),
+        data.value(QStringLiteral("url_types")).toArray(),
+        this);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    main->notify(
+        QStringLiteral("network_url_class_save"),
+        QString(),
+        json_payload(dialog.payload()));
 }
 
 void HydrusNetworkDialog::remove_url_class() {
@@ -2340,6 +3009,403 @@ void HydrusNetworkDialog::remove_url_class() {
     payload.insert(QStringLiteral("name"), url_classes->item(row, 0)->text());
 
     main->notify(QStringLiteral("network_url_class_remove"), QString(), json_payload(payload));
+}
+
+void HydrusNetworkDialog::add_pool() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("domain download pool"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+    auto *domain = new QLineEdit(&dialog);
+    domain->setPlaceholderText(QStringLiteral("example.com"));
+    auto *limit = new QSpinBox(&dialog);
+    limit->setRange(1, 64);
+    limit->setValue(2);
+    form->addRow(QStringLiteral("domain"), domain);
+    form->addRow(QStringLiteral("simultaneous downloads"), limit);
+    layout->addLayout(form);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted || domain->text().trimmed().isEmpty()) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("domain"), domain->text().trimmed());
+    payload.insert(QStringLiteral("limit"), limit->value());
+    main->notify(QStringLiteral("network_pool_set"), QString(), json_payload(payload));
+}
+
+void HydrusNetworkDialog::remove_pool() {
+    const int row = pools->currentRow();
+
+    if (row < 0 || pools->item(row, 0) == nullptr) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("domain"), pools->item(row, 0)->data(Qt::UserRole).toString());
+    main->notify(QStringLiteral("network_pool_remove"), QString(), json_payload(payload));
+}
+
+void HydrusNetworkDialog::add_bandwidth_rule() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("bandwidth rule"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+    auto *context_type = new QComboBox(&dialog);
+    context_type->addItem(QStringLiteral("global"), QStringLiteral("global"));
+    context_type->addItem(QStringLiteral("domain"), QStringLiteral("domain"));
+    context_type->addItem(QStringLiteral("hydrus"), QStringLiteral("hydrus"));
+    auto *context = new QLineEdit(&dialog);
+    context->setPlaceholderText(QStringLiteral("domain name (domain rules only)"));
+    auto *bandwidth_type = new QComboBox(&dialog);
+    bandwidth_type->addItem(QStringLiteral("requests"), QStringLiteral("requests"));
+    bandwidth_type->addItem(QStringLiteral("data"), QStringLiteral("data"));
+    auto *period = new QSpinBox(&dialog);
+    period->setRange(0, 30 * 86400);
+    period->setValue(1);
+    period->setSpecialValueText(QStringLiteral("calendar month"));
+    auto *maximum = new QSpinBox(&dialog);
+    maximum->setRange(0, 2'000'000'000);
+    maximum->setValue(1);
+    auto *hint = new QLabel(QStringLiteral("Data maximums are in MB; request maximums are counts."), &dialog);
+    hint->setWordWrap(true);
+    form->addRow(QStringLiteral("context"), context_type);
+    form->addRow(QStringLiteral("domain"), context);
+    form->addRow(QStringLiteral("type"), bandwidth_type);
+    form->addRow(QStringLiteral("period (seconds)"), period);
+    form->addRow(QStringLiteral("maximum"), maximum);
+    layout->addLayout(form);
+    layout->addWidget(hint);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    connect(bandwidth_type, QOverload<int>::of(&QComboBox::currentIndexChanged), &dialog, [maximum, bandwidth_type](int) {
+        if (bandwidth_type->currentData().toString() == QStringLiteral("data")) {
+            maximum->setRange(0, 2'000'000);
+            maximum->setValue(1024);
+        } else {
+            maximum->setRange(0, 2'000'000'000);
+            maximum->setValue(1);
+        }
+    });
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("context_type"), context_type->currentData().toString());
+    payload.insert(QStringLiteral("context"), context->text().trimmed());
+    payload.insert(QStringLiteral("bandwidth_type"), bandwidth_type->currentData().toString());
+
+    if (period->value() <= 0) {
+        payload.insert(QStringLiteral("time_delta"), QJsonValue::Null);
+    } else {
+        payload.insert(QStringLiteral("time_delta"), period->value());
+    }
+
+    payload.insert(
+        QStringLiteral("max_allowed"),
+        bandwidth_type->currentData().toString() == QStringLiteral("data")
+            ? static_cast<qint64>(maximum->value()) * 1024 * 1024
+            : static_cast<qint64>(maximum->value()));
+
+    main->notify(QStringLiteral("network_rule_set"), QString(), json_payload(payload));
+}
+
+void HydrusNetworkDialog::remove_bandwidth_rule() {
+    const int row = bandwidth_rules->currentRow();
+
+    if (row < 0 || bandwidth_rules->item(row, 0) == nullptr) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("context_type"), bandwidth_rules->item(row, 0)->data(Qt::UserRole).toString());
+    payload.insert(QStringLiteral("context"), bandwidth_rules->item(row, 1)->data(Qt::UserRole).toString());
+    payload.insert(QStringLiteral("bandwidth_type"), bandwidth_rules->item(row, 2)->data(Qt::UserRole).toString());
+
+    main->notify(QStringLiteral("network_rule_remove"), QString(), json_payload(payload));
+}
+
+// ---------------------------------------------------------------------------
+// HydrusImportFoldersPage
+// ---------------------------------------------------------------------------
+
+HydrusImportFoldersPage::HydrusImportFoldersPage(HydrusMainWindow *main_window, const QString &page_id, const QJsonObject &state)
+    : QWidget(), main(main_window), id(page_id) {
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(6, 6, 6, 6);
+
+    status = new QLabel(this);
+    status->setWordWrap(true);
+    layout->addWidget(status);
+
+    table = new QTableWidget(this);
+    table->setColumnCount(5);
+    table->setHorizontalHeaderLabels({
+        QStringLiteral("name"),
+        QStringLiteral("path"),
+        QStringLiteral("check every"),
+        QStringLiteral("status"),
+        QStringLiteral("last queued")
+    });
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setSelectionMode(QAbstractItemView::SingleSelection);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->verticalHeader()->setVisible(false);
+    layout->addWidget(table, 1);
+
+    auto *buttons = new QHBoxLayout();
+    auto *add = new QPushButton(QStringLiteral("add folder..."), this);
+    auto *check = new QPushButton(QStringLiteral("check now"), this);
+    auto *toggle = new QPushButton(QStringLiteral("pause/resume"), this);
+    auto *remove = new QPushButton(QStringLiteral("remove"), this);
+    buttons->addWidget(add);
+    buttons->addWidget(check);
+    buttons->addWidget(toggle);
+    buttons->addWidget(remove);
+    buttons->addStretch(1);
+    layout->addLayout(buttons);
+
+    connect(add, &QPushButton::clicked, this, [this]() { add_folder(); });
+    connect(check, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("import_folder_check")); });
+    connect(toggle, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("import_folder_toggle")); });
+    connect(remove, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("import_folder_remove")); });
+
+    update_state(state);
+}
+
+const QString &HydrusImportFoldersPage::page_id() const {
+    return id;
+}
+
+void HydrusImportFoldersPage::add_folder() {
+    const QString path = QFileDialog::getExistingDirectory(this, QStringLiteral("choose an import folder"));
+
+    if (path.isEmpty()) {
+        return;
+    }
+
+    bool ok = false;
+    const QString name = QInputDialog::getText(
+        this,
+        QStringLiteral("import folder"),
+        QStringLiteral("name"),
+        QLineEdit::Normal,
+        QFileInfo(path).fileName(),
+        &ok);
+
+    if (!ok || name.trimmed().isEmpty()) {
+        return;
+    }
+
+    const int period = QInputDialog::getInt(
+        this,
+        QStringLiteral("import folder"),
+        QStringLiteral("check every (seconds)"),
+        300,
+        60,
+        30 * 86400,
+        60);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("name"), name.trimmed());
+    payload.insert(QStringLiteral("path"), path);
+    payload.insert(QStringLiteral("period"), period);
+
+    main->notify(QStringLiteral("import_folder_add"), id, json_payload(payload));
+}
+
+void HydrusImportFoldersPage::with_selected(const QString &action) {
+    const int row = table->currentRow();
+
+    if (row < 0 || table->item(row, 0) == nullptr) {
+        return;
+    }
+
+    main->notify(action, id, table->item(row, 0)->data(Qt::UserRole).toString());
+}
+
+void HydrusImportFoldersPage::update_state(const QJsonObject &state) {
+    status->setText(state.value(QStringLiteral("status")).toString());
+
+    const QJsonArray folders = state.value(QStringLiteral("folders")).toArray();
+    table->setRowCount(folders.size());
+
+    for (int index = 0; index < folders.size(); ++index) {
+        const QJsonObject folder = folders.at(index).toObject();
+
+        for (int column = 0; column < 5; ++column) {
+            if (table->item(index, column) == nullptr) {
+                table->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        auto *name = table->item(index, 0);
+        name->setText(folder.value(QStringLiteral("name")).toString());
+        name->setData(Qt::UserRole, folder.value(QStringLiteral("name")).toString());
+
+        if (folder.value(QStringLiteral("paused")).toBool()) {
+            name->setForeground(QColor(160, 160, 160));
+        } else {
+            name->setForeground(QBrush());
+        }
+
+        table->item(index, 1)->setText(folder.value(QStringLiteral("path")).toString());
+        table->item(index, 2)->setText(
+            QStringLiteral("%1 s").arg(folder.value(QStringLiteral("period")).toInt()));
+        table->item(index, 3)->setText(folder.value(QStringLiteral("status")).toString());
+        table->item(index, 4)->setText(QString::number(folder.value(QStringLiteral("last_imported")).toInt()));
+    }
+
+    table->resizeRowsToContents();
+}
+
+// ---------------------------------------------------------------------------
+// HydrusDuplicatesRulesDialog
+// ---------------------------------------------------------------------------
+
+HydrusDuplicatesRulesDialog::HydrusDuplicatesRulesDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    : QDialog(parent), main(main_window) {
+    setWindowTitle(QStringLiteral("duplicate auto-resolution"));
+    setAttribute(Qt::WA_DeleteOnClose, true);
+    resize(700, 460);
+
+    auto *layout = new QVBoxLayout(this);
+
+    enabled = new QCheckBox(QStringLiteral("apply these rules automatically when a duplicates page refreshes"), this);
+    layout->addWidget(enabled);
+
+    auto *help = new QLabel(
+        QStringLiteral("Rules are checked in order. The first matching rule resolves the pair.\n"
+                       "An empty rule list leaves every pair for manual review."),
+        this);
+    help->setWordWrap(true);
+    layout->addWidget(help);
+
+    table = new QTableWidget(this);
+    table->setColumnCount(3);
+    table->setHorizontalHeaderLabels({
+        QStringLiteral("name"),
+        QStringLiteral("comparator"),
+        QStringLiteral("action")
+    });
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setSelectionMode(QAbstractItemView::SingleSelection);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->verticalHeader()->setVisible(false);
+    layout->addWidget(table, 1);
+
+    auto *buttons = new QHBoxLayout();
+    auto *add = new QPushButton(QStringLiteral("add rule..."), this);
+    auto *remove = new QPushButton(QStringLiteral("remove"), this);
+    auto *close = new QPushButton(QStringLiteral("close"), this);
+    buttons->addWidget(add);
+    buttons->addWidget(remove);
+    buttons->addStretch(1);
+    buttons->addWidget(close);
+    layout->addLayout(buttons);
+
+    connect(enabled, &QCheckBox::clicked, this, [this](bool) {
+        main->notify(QStringLiteral("duplicates_auto_toggle"));
+    });
+    connect(add, &QPushButton::clicked, this, [this]() { add_rule(); });
+    connect(remove, &QPushButton::clicked, this, [this]() { remove_selected(); });
+    connect(close, &QPushButton::clicked, this, &QDialog::close);
+
+    set_state(state);
+}
+
+void HydrusDuplicatesRulesDialog::set_state(const QJsonObject &state) {
+    data = state;
+
+    const QJsonArray rules = state.value(QStringLiteral("rules")).toArray();
+    table->setRowCount(rules.size());
+
+    for (int index = 0; index < rules.size(); ++index) {
+        const QJsonObject rule = rules.at(index).toObject();
+
+        for (int column = 0; column < 3; ++column) {
+            if (table->item(index, column) == nullptr) {
+                table->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        table->item(index, 0)->setText(rule.value(QStringLiteral("name")).toString());
+        table->item(index, 0)->setData(Qt::UserRole, rule.value(QStringLiteral("name")).toString());
+        table->item(index, 1)->setText(rule.value(QStringLiteral("comparator")).toString());
+        table->item(index, 2)->setText(rule.value(QStringLiteral("action")).toString());
+    }
+
+    QSignalBlocker blocker(enabled);
+    enabled->setChecked(state.value(QStringLiteral("enabled")).toBool());
+
+    table->resizeRowsToContents();
+}
+
+void HydrusDuplicatesRulesDialog::add_rule() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("add auto-resolution rule"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+    auto *name = new QLineEdit(&dialog);
+    auto *comparator = new QComboBox(&dialog);
+    auto *action = new QComboBox(&dialog);
+
+    for (const QJsonValue &value : data.value(QStringLiteral("comparators")).toArray()) {
+        const QJsonObject entry = value.toObject();
+        comparator->addItem(entry.value(QStringLiteral("label")).toString(), entry.value(QStringLiteral("value")).toString());
+    }
+
+    for (const QJsonValue &value : data.value(QStringLiteral("actions")).toArray()) {
+        const QJsonObject entry = value.toObject();
+        action->addItem(entry.value(QStringLiteral("label")).toString(), entry.value(QStringLiteral("value")).toString());
+    }
+
+    form->addRow(QStringLiteral("name"), name);
+    form->addRow(QStringLiteral("comparator"), comparator);
+    form->addRow(QStringLiteral("action"), action);
+    layout->addLayout(form);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted || name->text().trimmed().isEmpty()) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("name"), name->text().trimmed());
+    payload.insert(QStringLiteral("comparator"), comparator->currentData().toString());
+    payload.insert(QStringLiteral("action"), action->currentData().toString());
+
+    main->notify(QStringLiteral("duplicates_rule_add"), QString(), json_payload(payload));
+}
+
+void HydrusDuplicatesRulesDialog::remove_selected() {
+    const int row = table->currentRow();
+
+    if (row < 0 || table->item(row, 0) == nullptr) {
+        return;
+    }
+
+    main->notify(
+        QStringLiteral("duplicates_rule_remove"),
+        QString(),
+        table->item(row, 0)->data(Qt::UserRole).toString());
 }
 
 // ---------------------------------------------------------------------------
@@ -2558,6 +3624,7 @@ void HydrusMainWindow::build_pages(const QJsonObject &object) {
     downloaders.clear();
     subscriptions.clear();
     duplicates.clear();
+    import_folders.clear();
     notebooks.clear();
     notebooks.insert(QStringLiteral("root"), root);
 
@@ -2610,6 +3677,10 @@ void HydrusMainWindow::populate_notebook(HydrusNotebook *notebook, const QJsonOb
             auto *page = new HydrusDuplicatesPage(this, page_id, child.value(QStringLiteral("state")).toObject());
             duplicates.insert(page_id, page);
             notebook->add_page_widget(page_id, title.isEmpty() ? QStringLiteral("duplicates") : title, page);
+        } else if (kind == QStringLiteral("import_folders")) {
+            auto *page = new HydrusImportFoldersPage(this, page_id, child.value(QStringLiteral("state")).toObject());
+            import_folders.insert(page_id, page);
+            notebook->add_page_widget(page_id, title.isEmpty() ? QStringLiteral("import folders") : title, page);
         } else {
             const QString message = child.value(QStringLiteral("state")).toObject().value(QStringLiteral("message")).toString();
             auto *placeholder = new QWidget(notebook);
@@ -2653,13 +3724,20 @@ void HydrusMainWindow::update_duplicates(const QString &page_id, const QJsonObje
     }
 }
 
+void HydrusMainWindow::update_import_folders(const QString &page_id, const QJsonObject &state) {
+    if (HydrusImportFoldersPage *page = import_folders.value(page_id, nullptr)) {
+        page->update_state(state);
+    }
+}
+
 void HydrusMainWindow::set_selection(
     const QString &page_id,
     const QString &hash,
     const QStringList &tags,
-    const QString &preview_path) {
+    const QString &preview_path,
+    const QJsonObject &metadata) {
     if (HydrusQueryPage *page = find_page(page_id)) {
-        page->set_selection(hash, tags, preview_path);
+        page->set_selection(hash, tags, preview_path, metadata);
     }
 }
 
@@ -2720,79 +3798,127 @@ void HydrusMainWindow::close_viewer(const QString &viewer_id) {
 }
 
 void HydrusMainWindow::show_tag_dialog(const QJsonObject &state) {
-    const QString hash = state.value(QStringLiteral("hash")).toString();
-    const QString service = state.value(QStringLiteral("service")).toString();
-    const QStringList tags = json_to_strings(state.value(QStringLiteral("tags")).toArray());
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("manage metadata"));
+    dialog.resize(460, 620);
 
-    // NOTE: a small local dialog keeps the common "edit tags of one file" flow
-    // synchronous. It mirrors Hydrus' manage tags dialog for the local service.
-    class Dialog : public QDialog {
-    public:
-        Dialog(HydrusMainWindow *main_window, const QString &file_hash, const QString &service_name, const QStringList &initial, QWidget *parent)
-            : QDialog(parent), main(main_window), hash(file_hash), before(initial) {
-            setWindowTitle(QStringLiteral("manage tags"));
-            resize(520, 480);
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *panel = new HydrusMetadataPanel(this, &dialog);
+    panel->set_suggestions(suggestions());
+    panel->set_state(state.value(QStringLiteral("metadata")).toObject());
+    layout->addWidget(panel, 1);
 
-            auto *layout = new QVBoxLayout(this);
-            auto *info = new QLabel(
-                QStringLiteral("%1\nservice: %2\n\none tag per line; empty list removes every tag").arg(hash.left(16) + QStringLiteral("..."), service_name),
-                this);
-            info->setWordWrap(true);
-            layout->addWidget(info);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::accept);
+    layout->addWidget(buttons);
 
-            editor = new QPlainTextEdit(this);
-            editor->setPlainText(initial.join(QStringLiteral("\n")));
-            layout->addWidget(editor, 1);
-
-            auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-            connect(buttons, &QDialogButtonBox::accepted, this, [this]() { apply(); accept(); });
-            connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-            layout->addWidget(buttons);
-        }
-
-    private:
-        void apply() {
-            QStringList after;
-
-            for (const QString &line : editor->toPlainText().split(QRegularExpression(QStringLiteral("[\r\n]+")), Qt::SkipEmptyParts)) {
-                const QString tag = line.trimmed();
-
-                if (!tag.isEmpty() && !after.contains(tag)) {
-                    after.append(tag);
-                }
-            }
-
-            QJsonArray added;
-            QJsonArray removed;
-
-            for (const QString &tag : after) {
-                if (!before.contains(tag)) {
-                    added.append(tag);
-                }
-            }
-
-            for (const QString &tag : before) {
-                if (!after.contains(tag)) {
-                    removed.append(tag);
-                }
-            }
-
-            QJsonObject payload;
-            payload.insert(QStringLiteral("hash"), hash);
-            payload.insert(QStringLiteral("add"), added);
-            payload.insert(QStringLiteral("remove"), removed);
-
-            main->notify(QStringLiteral("apply_tags"), QString(), QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)));
-        }
-
-        HydrusMainWindow *main = nullptr;
-        QString hash;
-        QStringList before;
-        QPlainTextEdit *editor = nullptr;
-    };
-
-    Dialog dialog(this, hash, service, tags, this);
     dialog.exec();
+}
+
+void HydrusMainWindow::show_notes(const QJsonObject &state) {
+    const QString hash = state.value(QStringLiteral("hash")).toString();
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("notes"));
+    dialog.resize(620, 460);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *info = new QLabel(hash.left(16) + QStringLiteral("..."), &dialog);
+    info->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addWidget(info);
+
+    auto *table = new QTableWidget(&dialog);
+    table->setColumnCount(2);
+    table->setHorizontalHeaderLabels({QStringLiteral("name"), QStringLiteral("note")});
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    table->verticalHeader()->setVisible(false);
+
+    const QJsonArray notes = state.value(QStringLiteral("notes")).toArray();
+    table->setRowCount(notes.size());
+
+    for (int index = 0; index < notes.size(); ++index) {
+        const QJsonObject note = notes.at(index).toObject();
+        table->setItem(index, 0, new QTableWidgetItem(note.value(QStringLiteral("name")).toString()));
+        table->setItem(index, 1, new QTableWidgetItem(note.value(QStringLiteral("text")).toString()));
+    }
+
+    table->resizeRowsToContents();
+    layout->addWidget(table, 1);
+
+    auto *buttons = new QHBoxLayout();
+    auto *add = new QPushButton(QStringLiteral("add note"), &dialog);
+    auto *remove = new QPushButton(QStringLiteral("remove"), &dialog);
+    buttons->addWidget(add);
+    buttons->addWidget(remove);
+    buttons->addStretch(1);
+    auto *box = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, &dialog);
+    buttons->addWidget(box);
+    layout->addLayout(buttons);
+
+    connect(add, &QPushButton::clicked, &dialog, [table]() {
+        const int row = table->rowCount();
+        table->insertRow(row);
+        table->setItem(row, 0, new QTableWidgetItem());
+        table->setItem(row, 1, new QTableWidgetItem());
+        table->editItem(table->item(row, 0));
+    });
+    connect(remove, &QPushButton::clicked, &dialog, [table]() {
+        const int row = table->currentRow();
+
+        if (row >= 0) {
+            table->removeRow(row);
+        }
+    });
+    connect(box, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(box, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QJsonArray values;
+
+    for (int row = 0; row < table->rowCount(); ++row) {
+        const QString name = table->item(row, 0) == nullptr
+            ? QString()
+            : table->item(row, 0)->text().trimmed();
+        const QString text = table->item(row, 1) == nullptr
+            ? QString()
+            : table->item(row, 1)->text();
+
+        if (name.isEmpty() && text.trimmed().isEmpty()) {
+            continue;
+        }
+
+        QJsonObject note;
+        note.insert(QStringLiteral("name"), name);
+        note.insert(QStringLiteral("text"), text);
+        values.append(note);
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("hash"), hash);
+    payload.insert(QStringLiteral("notes"), values);
+
+    notify(QStringLiteral("notes_save"), QString(), json_payload(payload));
+}
+
+void HydrusMainWindow::show_duplicates_rules(const QJsonObject &state) {
+    if (duplicates_rules_dialog == nullptr) {
+        duplicates_rules_dialog = new HydrusDuplicatesRulesDialog(this, state, this);
+        connect(duplicates_rules_dialog, &QObject::destroyed, this, [this]() {
+            duplicates_rules_dialog = nullptr;
+        });
+        duplicates_rules_dialog->show();
+        duplicates_rules_dialog->raise();
+        duplicates_rules_dialog->activateWindow();
+        return;
+    }
+
+    duplicates_rules_dialog->set_state(state);
+    duplicates_rules_dialog->raise();
+    duplicates_rules_dialog->activateWindow();
 }
 
 void HydrusMainWindow::show_options(const QJsonObject &state) {
@@ -2962,17 +4088,31 @@ void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust:
     window.update_duplicates(to_qstring(page_id), parse_object(json));
 }
 
+void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
+    window.update_import_folders(to_qstring(page_id), parse_object(json));
+}
+
+void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json) {
+    window.show_duplicates_rules(parse_object(json));
+}
+
+void hydrus_show_notes(HydrusMainWindow &window, rust::Str json) {
+    window.show_notes(parse_object(json));
+}
+
 void hydrus_set_selection(
     HydrusMainWindow &window,
     rust::Str page_id,
     rust::Str hash,
     rust::Str tags_json,
-    rust::Str preview_path) {
+    rust::Str preview_path,
+    rust::Str metadata_json) {
     window.set_selection(
         to_qstring(page_id),
         to_qstring(hash),
         json_to_strings(parse_array(tags_json)),
-        to_qstring(preview_path));
+        to_qstring(preview_path),
+        parse_object(metadata_json));
 }
 
 void hydrus_show_page_chooser(HydrusMainWindow &window, rust::Str notebook_id) {

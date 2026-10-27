@@ -38,6 +38,10 @@ impl Controller {
         &self.bandwidth_manager
     }
 
+    pub fn bandwidth_manager_arc(&self) -> std::sync::Arc<RwLock<NetworkBandwidthManager>> {
+        self.bandwidth_manager.clone()
+    }
+
     pub(super) fn init_client_files_manager(&self) -> HydrusResult<()> {
         let locations = files_physical_storage::get_current_locations(self.db.db())?;
         let locations = if locations.is_empty() {

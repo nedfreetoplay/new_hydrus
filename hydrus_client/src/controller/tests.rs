@@ -29,7 +29,7 @@ fn init_model_creates_local_services_and_loads_options() {
     assert_eq!(controller.status_line().contains("services"), true);
     assert_eq!(controller.session().pages.len(), 1);
     assert_eq!(controller.session().pages[0].name, "Welcome");
-    assert_eq!(controller.services().get_num_services(), 3);
+    assert_eq!(controller.services().get_num_services(), 5);
     assert_eq!(controller.files_manager().locations().len(), 2);
     assert_eq!(controller.shortcuts().len(), 2);
 
@@ -58,7 +58,7 @@ fn services_can_be_added_renamed_and_deleted() {
         .collect();
 
     assert_eq!(service.name, "test tags");
-    assert_eq!(controller.services().get_num_services(), 4);
+    assert_eq!(controller.services().get_num_services(), 6);
 
     controller.rename_service(&key, "renamed tags").unwrap();
     assert!(
@@ -70,7 +70,7 @@ fn services_can_be_added_renamed_and_deleted() {
     );
 
     controller.delete_service(&key).unwrap();
-    assert_eq!(controller.services().get_num_services(), 3);
+    assert_eq!(controller.services().get_num_services(), 5);
 
     drop(controller);
     let _ = std::fs::remove_dir_all(directory);
@@ -92,6 +92,19 @@ fn network_settings_are_saved_and_reloaded() {
                 note: String::new(),
             },
         );
+
+    controller.replace_bandwidth_rule_entries(vec![BandwidthRuleEntry {
+        context_type: "domain".to_string(),
+        context: "example.com".to_string(),
+        bandwidth_type: "requests".to_string(),
+        time_delta: Some(60),
+        max_allowed: 4,
+    }]);
+
+    let mut pools = DownloadPoolSettings::new();
+    pools.set_limit("example.com", 3);
+    controller.replace_download_pool_settings(pools);
+
     controller.save_network_settings().unwrap();
 
     let reloaded = Controller::new(&directory).unwrap();
@@ -106,6 +119,18 @@ fn network_settings_are_saved_and_reloaded() {
         .unwrap();
 
     assert_eq!(header.value, "yes");
+    assert_eq!(
+        reloaded
+            .download_pool_settings()
+            .limit_for("example.com", 1),
+        3
+    );
+
+    let rules = reloaded.bandwidth_rule_entries();
+
+    assert!(rules.iter().any(|rule| {
+        rule.context_type == "domain" && rule.context == "example.com" && rule.max_allowed == 4
+    }));
 
     drop(reloaded);
     drop(controller);

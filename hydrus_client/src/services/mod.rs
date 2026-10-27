@@ -42,6 +42,16 @@ impl ServicesManager {
                 ServiceType::LocalFileTrashDomain,
                 "trash",
             ),
+            (
+                b"local notes".as_slice(),
+                ServiceType::LocalNotes,
+                "local notes",
+            ),
+            (
+                b"favourites".as_slice(),
+                ServiceType::LocalRatingLike,
+                "favourites",
+            ),
         ] {
             services::get_or_add_service(db, key, service_type, name)?;
         }
@@ -125,7 +135,7 @@ mod tests {
         let (db, directory) = database();
         let manager = ServicesManager::ensure_local_services(db.db()).unwrap();
 
-        assert_eq!(manager.get_num_services(), 3);
+        assert_eq!(manager.get_num_services(), 5);
         assert_eq!(manager.get_name(b"my files"), "my files");
         assert_eq!(
             manager.get_service_key_from_name("local tags"),

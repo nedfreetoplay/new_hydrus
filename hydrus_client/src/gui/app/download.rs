@@ -15,6 +15,7 @@ use crate::gui::app::{AppState, UiCommand, render};
 
 pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiCommand> {
     let value: Value = serde_json::from_str(payload).unwrap_or_else(|_| json!({}));
+    let controller = state.controller.clone();
 
     let Some(page) = state.find_downloader_mut(page_id) else {
         return vec![UiCommand::NotifyMessage(
@@ -48,6 +49,11 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
         .and_then(Value::as_str)
         .unwrap_or(&page.filter)
         .to_string();
+    let site = value
+        .get("site")
+        .and_then(Value::as_str)
+        .unwrap_or(&page.site)
+        .to_string();
     let subject = value
         .get("subject")
         .and_then(Value::as_str)
@@ -66,6 +72,7 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
     page.input = input.clone();
     page.url = url.clone();
     page.query = query.clone();
+    page.site = site.clone();
     page.filter = filter.clone();
     page.subject = subject;
     page.auto_watch = auto;
@@ -82,7 +89,7 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
 
     let (urls, category) = match kind {
         DownloaderKind::Urls => {
-            let urls = lines(&input);
+            let urls = normalise_urls(&controller, lines(&input));
 
             if urls.is_empty() {
                 page.note("no urls to download");
@@ -94,7 +101,7 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
             (urls, "url")
         }
         DownloaderKind::Simple => {
-            let urls = lines(&input);
+            let urls = normalise_urls(&controller, lines(&input));
 
             if urls.is_empty() {
                 page.note("no page urls to download");
@@ -113,9 +120,29 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
                 return update_commands(state, page_id);
             }
 
+            let resolved = controller
+                .domain_manager()
+                .read()
+                .ok()
+                .and_then(|manager| manager.normalise_url(&resolved))
+                .unwrap_or(resolved);
+
             page.queue.clear();
-            page.note(format!("starting gallery {resolved}"));
-            (vec![resolved], "page")
+
+            let file_class =
+                controller.domain_manager().read().ok().and_then(|manager| {
+                    manager
+                        .get_url_class_for_url(&resolved)
+                        .map(|class| class.url_type)
+                }) == Some(crate::networking::client_networking_url_class::URL_TYPE_FILE);
+
+            if file_class {
+                page.note(format!("gallery url is a file url: {resolved}"));
+                (vec![resolved], "url")
+            } else {
+                page.note(format!("starting gallery {resolved}"));
+                (vec![resolved], "page")
+            }
         }
         DownloaderKind::Watcher => {
             if url.is_empty() {
@@ -144,6 +171,7 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
             job_id,
             urls,
             filter,
+            site: site.clone(),
         }
     };
 
@@ -326,6 +354,7 @@ pub fn start_subscription(state: &mut AppState, page_id: &str, name: &str) -> Ve
         job_id: format!("sub:{}", entry.name),
         urls: vec![url],
         filter: entry.filter.clone(),
+        site: entry.site.clone(),
     };
 
     if let Err(error) = state.runtime.submit(job) {
@@ -405,6 +434,11 @@ pub fn add_subscription(state: &mut AppState, page_id: &str, payload: &str) -> V
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
+    let site = value
+        .get("site")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
     let default_period = state
         .controller
         .options()
@@ -422,6 +456,7 @@ pub fn add_subscription(state: &mut AppState, page_id: &str, payload: &str) -> V
 
     let mut entry = SubscriptionEntry::new(name.clone(), url);
     entry.query = query;
+    entry.site = site;
     entry.filter = filter;
     entry.period = period;
 
@@ -450,6 +485,7 @@ pub fn tick(state: &mut AppState) -> Vec<UiCommand> {
             job_id: page_id.clone(),
             urls: vec![url.clone()],
             filter,
+            site: String::new(),
         };
 
         if state.runtime.submit(job).is_ok() {
@@ -462,7 +498,7 @@ pub fn tick(state: &mut AppState) -> Vec<UiCommand> {
     }
 
     let events = state.runtime.drain();
-    let mut commands = Vec::new();
+    let mut commands = super::import_folders::tick(state);
 
     for event in events {
         commands.extend(handle_event(state, event));
@@ -795,6 +831,25 @@ fn subscriptions_page_ids(notebook: &super::model::Notebook) -> Vec<String> {
     }
 
     ids
+}
+
+fn normalise_urls(controller: &crate::controller::Controller, urls: Vec<String>) -> Vec<String> {
+    let manager = match controller.domain_manager().read() {
+        Ok(manager) => manager,
+        Err(_) => return urls,
+    };
+
+    let mut normalised = Vec::with_capacity(urls.len());
+
+    for url in urls {
+        let url = manager.normalise_url(&url).unwrap_or(url);
+
+        if !normalised.contains(&url) {
+            normalised.push(url);
+        }
+    }
+
+    normalised
 }
 
 fn lines(text: &str) -> Vec<String> {

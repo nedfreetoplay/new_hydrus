@@ -30,12 +30,20 @@ pub(crate) mod ffi {
             json: &str,
         );
         fn hydrus_update_duplicates(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
+        fn hydrus_update_import_folders(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            json: &str,
+        );
+        fn hydrus_show_duplicates_rules(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_notes(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_set_selection(
             window: Pin<&mut HydrusMainWindow>,
             page_id: &str,
             hash: &str,
             tags_json: &str,
             preview_path: &str,
+            metadata_json: &str,
         );
         fn hydrus_show_page_chooser(window: Pin<&mut HydrusMainWindow>, notebook_id: &str);
         fn hydrus_pick_files(window: Pin<&mut HydrusMainWindow>);

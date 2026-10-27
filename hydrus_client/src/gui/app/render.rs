@@ -32,6 +32,7 @@ pub fn menus_json(state: &AppState) -> String {
             "items": [
                 {"label": "import files...", "action": "import_files", "description": "Add new files to the database."},
                 {"label": "import url...", "action": "import_url", "description": "Download one file from a URL and import it."},
+                {"label": "import folders...", "action": "new_import_folders", "description": "Scan folders for new files."},
                 {"separator": true},
                 {"label": "open", "items": [
                     {"label": "installation directory", "action": "open_install_dir"},
@@ -99,6 +100,9 @@ pub fn menus_json(state: &AppState) -> String {
             "title": "&tags",
             "items": [
                 {"label": "manage tags...", "action": "manage_tags_active"},
+                {"label": "manage notes...", "action": "manage_notes_active"},
+                {"separator": true},
+                {"label": "duplicate auto-resolution...", "action": "duplicates_rules"},
                 {"separator": true},
                 {"label": "manage tag siblings...", "action": "tag_siblings"},
                 {"label": "manage tag parents...", "action": "tag_parents"}
@@ -176,6 +180,13 @@ fn node_json(state: &AppState, node: &PageNode) -> Value {
             "state": serde_json::from_str::<Value>(&duplicates_json(&state.controller, page))
                 .unwrap_or(Value::Null),
         }),
+        PageNode::ImportFolders(page) => json!({
+            "id": page.id,
+            "kind": "import_folders",
+            "title": page.title,
+            "state": serde_json::from_str::<Value>(&super::import_folders::rules_json(state, &page.id))
+                .unwrap_or(Value::Null),
+        }),
         PageNode::Placeholder(page) => json!({
             "id": page.id,
             "kind": "placeholder",
@@ -198,12 +209,19 @@ pub fn query_state(controller: &crate::controller::Controller, page: &QueryPage)
         .map(|hash| query::selection_tags(controller, hash))
         .unwrap_or_default();
 
+    let metadata = page
+        .focused
+        .as_ref()
+        .map(|hash| super::metadata::metadata_json(controller, hash))
+        .unwrap_or_else(|| json!({"tag_services": [], "ratings": [], "notes": []}));
+
     json!({
         "query": page.query,
         "status": page.status,
         "empty_text": page.empty_text,
         "focused": focused,
         "tags": tags,
+        "metadata": metadata,
         "media": query::media_json(controller, page),
     })
 }
@@ -327,6 +345,7 @@ pub fn viewer_json(
         "title": format!("{} - {}/{}", page.title, position + 1, total),
         "path": path,
         "tags": query::selection_tags(controller, hash),
+        "metadata": super::metadata::metadata_json(controller, hash),
         "info": format!("{info} - file {}/{}", position + 1, total),
     })
     .to_string()
@@ -347,6 +366,7 @@ pub fn downloader_json(
         .map(|item| {
             json!({
                 "url": item.url,
+                "domain": crate::networking::download_pools::domain_of(&item.url),
                 "status": item.status.as_str(),
                 "note": item.note,
             })
@@ -360,6 +380,11 @@ pub fn downloader_json(
         "input": page.input,
         "url": page.url,
         "query": page.query,
+        "site": page.site,
+        "sites": crate::parsing::gallery::GALLERY_PARSERS
+            .iter()
+            .map(|parser| json!({"id": parser.id.as_str(), "title": parser.title}))
+            .collect::<Vec<_>>(),
         "filter": page.filter,
         "subject": page.subject,
         "paused": page.paused,
@@ -389,6 +414,7 @@ pub fn subscriptions_json(state: &AppState, page_id: &str) -> String {
                 "name": subscription.name,
                 "url": subscription.url,
                 "query": subscription.query,
+                "site": subscription.site,
                 "filter": subscription.filter,
                 "period": subscription.period,
                 "paused": subscription.paused,
@@ -408,6 +434,10 @@ pub fn subscriptions_json(state: &AppState, page_id: &str) -> String {
         "page_id": page_id,
         "title": page.map(|page| page.title.as_str()).unwrap_or("subscriptions"),
         "status": page.map(|page| page.status.as_str()).unwrap_or(""),
+        "sites": crate::parsing::gallery::GALLERY_PARSERS
+            .iter()
+            .map(|parser| json!({"id": parser.id.as_str(), "title": parser.title}))
+            .collect::<Vec<_>>(),
         "subscriptions": subscriptions,
     })
     .to_string()

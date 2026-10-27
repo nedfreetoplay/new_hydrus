@@ -593,7 +593,17 @@ impl AppState {
             "pending" => vec![UiCommand::NotifyMessage(
                 "there is no pending upload in this local-only build".to_string(),
             )],
-            "undo" => vec![UiCommand::NotifyMessage("nothing to undo".to_string())],
+            "undo" => match self.undo_closed_page() {
+                Some(id) => {
+                    self.message = format!("restored page '{id}'");
+                    vec![
+                        UiCommand::Menus(render::menus_json(self)),
+                        UiCommand::BuildPages(render::pages_json(self)),
+                        self.status_command(),
+                    ]
+                }
+                None => vec![UiCommand::NotifyMessage("nothing to undo".to_string())],
+            },
             unknown => vec![UiCommand::NotifyMessage(format!(
                 "unknown action: {unknown}"
             ))],
@@ -828,8 +838,23 @@ impl AppState {
             collect_page_ids(node, &mut ids);
         }
 
+        let parent_id = model::parent_notebook_id(&self.root, page_id);
+        let index = parent_id.as_deref().and_then(|parent_id| {
+            self.find_notebook(parent_id).and_then(|parent| {
+                parent
+                    .children
+                    .iter()
+                    .position(|child| child.id() == page_id)
+            })
+        });
+        let closed_node = model::find_node(&self.root, page_id).cloned();
+
         if !self.remove_page(page_id) {
             return vec![UiCommand::NotifyMessage("page is missing".to_string())];
+        }
+
+        if let (Some(parent_id), Some(index), Some(node)) = (parent_id, index, closed_node) {
+            self.push_closed_page(parent_id, index, node);
         }
 
         let mut known = Vec::new();
@@ -868,21 +893,32 @@ impl AppState {
             return vec![UiCommand::NotifyMessage("page is missing".to_string())];
         };
 
-        let Some(parent) = self.find_notebook_mut(&parent_id) else {
-            return vec![UiCommand::NotifyMessage("notebook is missing".to_string())];
-        };
-
         let mut removed = Vec::new();
+        let mut closed = Vec::new();
 
-        parent.children.retain(|child| {
-            if child.id() == page_id {
-                true
-            } else {
-                collect_page_ids(child, &mut removed);
-                false
+        {
+            let Some(parent) = self.find_notebook_mut(&parent_id) else {
+                return vec![UiCommand::NotifyMessage("notebook is missing".to_string())];
+            };
+
+            let mut kept = Vec::new();
+
+            for (index, child) in parent.children.drain(..).enumerate() {
+                if child.id() == page_id {
+                    kept.push(child);
+                } else {
+                    collect_page_ids(&child, &mut removed);
+                    closed.push((parent_id.clone(), index, child));
+                }
             }
-        });
-        parent.current = Some(page_id.to_string());
+
+            parent.children = kept;
+            parent.current = Some(page_id.to_string());
+        }
+
+        for (parent_id, index, node) in closed {
+            self.push_closed_page(parent_id, index, node);
+        }
 
         let mut known = Vec::new();
         for child in &self.root.children {

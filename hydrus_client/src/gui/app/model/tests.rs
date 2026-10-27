@@ -75,6 +75,37 @@ fn selecting_a_page_selects_its_whole_notebook_chain() {
 }
 
 #[test]
+fn undo_restores_a_closed_page_at_its_old_position() {
+    let (mut state, directory) = test_state();
+
+    let mut notebook = Notebook::new("n2", "group");
+    add_query(&mut notebook, "p2");
+    add_query(&mut notebook, "p3");
+    state.root.add(PageNode::Notebook(notebook));
+
+    let node = find_node(&state.root, "p3").unwrap().clone();
+    state.remove_page("p3");
+    state.push_closed_page("n2", 1, node);
+
+    let restored = state.undo_closed_page().unwrap();
+
+    assert_eq!(restored, "p3");
+    assert_eq!(
+        state
+            .find_notebook("n2")
+            .unwrap()
+            .children
+            .iter()
+            .map(|child| child.id())
+            .collect::<Vec<_>>(),
+        vec!["p2", "p3"]
+    );
+    assert_eq!(state.active.as_deref(), Some("p3"));
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn moves_pages_between_and_inside_notebooks() {
     let (mut state, directory) = test_state();
 

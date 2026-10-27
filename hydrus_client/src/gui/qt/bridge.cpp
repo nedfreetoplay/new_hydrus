@@ -3904,8 +3904,10 @@ void HydrusMainWindow::build_shortcuts() {
         }
     });
 
-    auto *back = new QShortcut(QKeySequence(QStringLiteral("Alt+Left")), this);
-    connect(back, &QShortcut::activated, this, [this]() { notify(QStringLiteral("history_back")); });
+    auto *undo = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Z")), this);
+    connect(undo, &QShortcut::activated, this, [this]() { notify(QStringLiteral("undo")); });
+
+    auto *back = new QShortcut(QKeySequence(QStringLiteral("Alt+Left")), this);    connect(back, &QShortcut::activated, this, [this]() { notify(QStringLiteral("history_back")); });
 
     auto *forward = new QShortcut(QKeySequence(QStringLiteral("Alt+Right")), this);
     connect(forward, &QShortcut::activated, this, [this]() { notify(QStringLiteral("history_forward")); });

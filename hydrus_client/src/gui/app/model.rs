@@ -425,6 +425,14 @@ pub struct ViewerContext {
     pub hash: Vec<u8>,
 }
 
+/// A page removed from the tree, kept so the user can restore it with undo.
+#[derive(Debug, Clone)]
+pub struct ClosedPage {
+    pub parent_id: String,
+    pub index: usize,
+    pub node: PageNode,
+}
+
 /// Back/forward list of pages the user has visited, mirroring the navigation
 /// history of `PagesNotebook` in the Python client.
 #[derive(Debug, Clone, Default)]
@@ -517,6 +525,7 @@ pub struct AppState {
     pub auto_rules: Vec<super::auto_resolution::AutoResolutionRule>,
     pub import_queue: ImportQueueState,
     pub history: PageHistory,
+    pub closed_pages: Vec<ClosedPage>,
     pub session_name: Option<String>,
     pub(crate) runtime: AsyncRuntime,
     next_id: u64,
@@ -539,6 +548,7 @@ impl AppState {
             auto_rules: Vec::new(),
             import_queue: ImportQueueState::default(),
             history: PageHistory::default(),
+            closed_pages: Vec::new(),
             session_name: None,
             runtime,
             next_id: 1,
@@ -796,6 +806,40 @@ impl AppState {
         }
     }
 
+    /// Remembers a closed page so `undo` can put it back where it was.
+    pub fn push_closed_page(&mut self, parent_id: impl Into<String>, index: usize, node: PageNode) {
+        self.closed_pages.push(ClosedPage {
+            parent_id: parent_id.into(),
+            index,
+            node,
+        });
+
+        if self.closed_pages.len() > 25 {
+            self.closed_pages.remove(0);
+        }
+    }
+
+    /// Restores the newest closed page and selects it.
+    pub fn undo_closed_page(&mut self) -> Option<String> {
+        while let Some(closed) = self.closed_pages.pop() {
+            let Some(parent) = self.find_notebook_mut(&closed.parent_id) else {
+                continue;
+            };
+
+            let id = closed.node.id().to_string();
+            let index = closed.index.min(parent.children.len());
+            parent.children.insert(index, closed.node);
+            parent.current = Some(id.clone());
+
+            if self.select_page(&id) {
+                self.record_history(&id);
+                return Some(id);
+            }
+        }
+
+        None
+    }
+
     pub fn history_back(&mut self) -> Option<String> {
         let mut candidate = self.history.back();
 
@@ -938,6 +982,7 @@ impl AppState {
         self.root = loaded.root;
         self.subscriptions = loaded.subscriptions;
         self.history.clear();
+        self.closed_pages.clear();
         self.viewers.clear();
         self.active = None;
         self.reindex();

@@ -47,7 +47,8 @@ pub fn menus_json(state: &AppState) -> String {
         {
             "title": "&undo",
             "items": [
-                {"label": "undo", "action": "undo", "enabled": false}
+                {"label": "undo", "action": "undo", "enabled": !state.closed_pages.is_empty(),
+                 "description": "Restore the most recently closed page."}
             ]
         },
         {

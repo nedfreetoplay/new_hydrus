@@ -4,6 +4,58 @@ use crate::networking::client_networking_url_class::{
 };
 
 #[test]
+fn manage_tags_counts_tags_across_the_selection() {
+    use crate::controller::Controller;
+    use crate::db::{master, master_tags};
+
+    let directory = std::env::temp_dir().join(format!(
+        "hydrus_manage_tags_{}_{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    let controller = Controller::new(&directory).unwrap();
+    controller.init_model().unwrap();
+    let db = controller.db().db();
+
+    let service = controller
+        .services()
+        .get_service(b"local tags")
+        .unwrap()
+        .service_id;
+    let first = master::get_hash_id(db, &[0x31; 32]).unwrap();
+    let second = master::get_hash_id(db, &[0x32; 32]).unwrap();
+    let shared = master_tags::get_tag_id(db, "shared tag").unwrap();
+    let only_first = master_tags::get_tag_id(db, "only first").unwrap();
+
+    mappings::add_mappings(
+        db,
+        service,
+        ContentStatus::Current,
+        first,
+        &[shared, only_first],
+    )
+    .unwrap();
+    mappings::add_mappings(db, service, ContentStatus::Current, second, &[shared]).unwrap();
+
+    let json = manage_tags_json(&controller, &[vec![0x31; 32], vec![0x32; 32]]);
+    let tags = json["services"][0]["tags"].as_array().unwrap();
+    let counts: BTreeMap<&str, i64> = tags
+        .iter()
+        .map(|value| {
+            (
+                value["tag"].as_str().unwrap(),
+                value["count"].as_i64().unwrap(),
+            )
+        })
+        .collect();
+
+    assert_eq!(counts.get("shared tag"), Some(&2));
+    assert_eq!(counts.get("only first"), Some(&1));
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn url_class_json_round_trips_editor_fields() {
     let value = json!({
         "name": "gallery",

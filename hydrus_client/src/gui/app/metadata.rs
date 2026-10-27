@@ -47,6 +47,46 @@ pub struct NoteView {
     pub text: String,
 }
 
+/// Aggregates the tags of every selected file per local tag service. The
+/// manage-tags dialog uses the counts to show how many files already have a
+/// tag.
+pub fn manage_tags_json(controller: &Controller, hashes: &[Vec<u8>]) -> Value {
+    let db = controller.db().db();
+    let mut services = Vec::new();
+
+    for service in controller
+        .services()
+        .get_services(Some(&[ServiceType::LocalTag]))
+    {
+        let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+
+        for hash in hashes {
+            let Some(hash_id) = query::hash_id_for(controller, hash) else {
+                continue;
+            };
+
+            let tags = mappings::get_tags(db, service.service_id, ContentStatus::Current, hash_id)
+                .unwrap_or_default();
+
+            for tag in tags {
+                *counts.entry(tag).or_default() += 1;
+            }
+        }
+
+        let tags: Vec<Value> = counts
+            .into_iter()
+            .map(|(tag, count)| json!({"tag": tag, "count": count}))
+            .collect();
+
+        services.push(json!({"name": service.name, "tags": tags}));
+    }
+
+    json!({
+        "hashes": hashes.iter().map(|hash| query::hex(hash)).collect::<Vec<_>>(),
+        "services": services,
+    })
+}
+
 pub fn metadata_json(controller: &Controller, hash: &[u8]) -> Value {
     let Some(hash_id) = query::hash_id_for(controller, hash) else {
         return json!({"hash": query::hex(hash), "tag_services": [], "ratings": [], "notes": []});

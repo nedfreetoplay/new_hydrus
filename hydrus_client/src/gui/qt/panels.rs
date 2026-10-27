@@ -98,6 +98,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
             ffi::hydrus_close_viewer(window.as_mut(), &viewer_id);
         }
         UiCommand::TagDialog(json) => ffi::hydrus_show_tag_dialog(window.as_mut(), &json),
+        UiCommand::ManageTagsDialog(json) => {
+            ffi::hydrus_show_manage_tags(window.as_mut(), &json);
+        }
         UiCommand::OptionsDialog(json) => ffi::hydrus_show_options(window.as_mut(), &json),
         UiCommand::ServicesDialog(json) => ffi::hydrus_show_services(window.as_mut(), &json),
         UiCommand::NetworkDialog(json) => ffi::hydrus_show_network(window.as_mut(), &json),

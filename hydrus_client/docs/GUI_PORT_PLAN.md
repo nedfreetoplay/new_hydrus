@@ -173,7 +173,7 @@ Rust-цели: `gui/app/metadata.rs`, `gui/app/tag_relations.rs`,
 - [x] 05.4 Заметки: просмотр и редактирование.
 - [x] 05.5 Siblings/parents: добавление и удаление пар с проверкой циклов.
 - [x] 05.6 Display tags с учётом siblings и tooltip’ом storage-тегов.
-- [ ] 05.7 Manage Tags: несколько сервисов и массовое применение.
+- [x] 05.7 Manage Tags: несколько сервисов и массовое применение.
 - [ ] 05.8 Pending/deleted/petitioned tags.
 - [ ] 05.9 Tag filter (allow/deny) и tag summary.
 - [ ] 05.10 Tag display manager: namespace/subtag order, colours, decorators.

@@ -96,8 +96,9 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
   `/get_files/search_files`, `/get_files/file_metadata`, `/get_files/file`,
   `/add_tags/add_tags`, `/add_tags/delete_tags`, проверка access key;
 - импорт одного файла по URL через `File → import url…`;
-- редактирование тегов по локальным tag-сервисам, рейтинги (like/dislike, inc/dec и
-  числовые), заметки, archive/inbox/перемещение в trash;
+- редактирование тегов по локальным tag-сервисам: массовый manage tags для
+  выделения, счётчики тегов по выбранным файлам и выбор любого локального сервиса;
+  рейтинги (like/dislike, inc/dec и числовые), заметки, archive/inbox/перемещение в trash;
 - меню Hydrus (`file`, `undo`, `pages`, `database`, `download`, `network`, `services`, `tags`,
   `pending`, `help`), сегментированный статус-бар и единый `gui session.json`
   (legacy `GuiSession` + дерево страниц, загрузчики и подписки) с миграциями старых форматов.
@@ -119,7 +120,7 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - расширенные file maintenance jobs (regenerate thumbnails, re-scan file metadata) и
   оставшиеся горячие клавиши Hydrus.
 
-Сейчас проходит 521 unit-тест и 2 integration-теста. Архитектура:
+Сейчас проходит 522 unit-теста и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). План портирования GUI с
 чек-листами и флагами: [docs/GUI_PORT_PLAN.md](docs/GUI_PORT_PLAN.md).
 

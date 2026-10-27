@@ -147,6 +147,11 @@ query или заголовке `Hydrus-Client-API-Access-Key`. Сервер з�
 плюс карту `display_tag_sources`, поэтому metadata-панель умеет переключаться на
 Hydrus-подобное отображение display tags без второй реализации.
 
+`metadata::manage_tags_json` агрегирует теги выделения по каждому локальному
+tag-сервису со счётчиками. Диалог manage tags выбирает сервис и отправляет
+`apply_tags` с массивом `hashes`, поэтому добавление/удаление применяется ко всем
+выбранным файлам одной транзакцией UI-команды.
+
 ## Import folders
 
 `gui::app::import_folders` хранит entry в `import folders.json`: период, paused,

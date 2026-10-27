@@ -45,6 +45,7 @@ pub enum UiCommand {
     UpdateViewer(String, String),
     CloseViewer(String),
     TagDialog(String),
+    ManageTagsDialog(String),
     NotesDialog(String),
     OptionsDialog(String),
     ServicesDialog(String),

@@ -575,6 +575,7 @@ void hydrus_open_viewer(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_viewer(HydrusMainWindow &window, rust::Str viewer_id, rust::Str json);
 void hydrus_close_viewer(HydrusMainWindow &window, rust::Str viewer_id);
 void hydrus_show_tag_dialog(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_manage_tags(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_options(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_services(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_services(HydrusMainWindow &window, rust::Str json);

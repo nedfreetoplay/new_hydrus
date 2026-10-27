@@ -1518,20 +1518,25 @@ impl AppState {
     fn manage_tags(&mut self, page_id: &str, hash_hex: &str, active: bool) -> Vec<UiCommand> {
         let controller = self.controller.clone();
 
-        let (page_id, hash_hex) = if active {
+        if active {
             let Some(page) = self.active_query() else {
                 return vec![UiCommand::NotifyMessage("no page selected".to_string())];
             };
-            let Some(hash) = page.focused.clone() else {
+
+            let hashes = if page.selected.len() > 1 {
+                page.selected.clone()
+            } else if let Some(hash) = page.focused.clone() {
+                vec![hash]
+            } else {
                 return vec![UiCommand::NotifyMessage("no file selected".to_string())];
             };
 
-            (page.id.clone(), query::hex(&hash))
-        } else {
-            (page_id.to_string(), hash_hex.to_string())
-        };
+            return vec![UiCommand::ManageTagsDialog(
+                metadata::manage_tags_json(&controller, &hashes).to_string(),
+            )];
+        }
 
-        let Some(hash) = query::unhex(&hash_hex) else {
+        let Some(hash) = query::unhex(hash_hex) else {
             return vec![];
         };
 
@@ -1555,19 +1560,24 @@ impl AppState {
             return vec![UiCommand::NotifyMessage("invalid tag payload".to_string())];
         };
 
-        let Some(hash) = value
-            .get("hash")
-            .and_then(Value::as_str)
-            .and_then(query::unhex)
-        else {
-            return vec![UiCommand::NotifyMessage("invalid file hash".to_string())];
+        let hashes: Vec<Vec<u8>> = if let Some(list) = value.get("hashes").and_then(Value::as_array)
+        {
+            list.iter()
+                .filter_map(Value::as_str)
+                .filter_map(query::unhex)
+                .collect()
+        } else {
+            value
+                .get("hash")
+                .and_then(Value::as_str)
+                .and_then(query::unhex)
+                .into_iter()
+                .collect()
         };
 
-        let Some(hash_id) = query::hash_id_for(&self.controller, &hash) else {
-            return vec![UiCommand::NotifyMessage(
-                "file is not in the database".to_string(),
-            )];
-        };
+        if hashes.is_empty() {
+            return vec![UiCommand::NotifyMessage("invalid file hash".to_string())];
+        }
 
         let Some(service_id) = value
             .get("service")
@@ -1578,11 +1588,41 @@ impl AppState {
             return vec![UiCommand::NotifyMessage("no local tag service".to_string())];
         };
 
+        let add: Vec<String> = value
+            .get("add")
+            .and_then(Value::as_array)
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let remove: Vec<String> = value
+            .get("remove")
+            .and_then(Value::as_array)
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+
         let db = self.controller.db().db();
         let mut changed = 0;
+        let mut found = 0;
 
-        if let Some(values) = value.get("add").and_then(Value::as_array) {
-            for tag in values.iter().filter_map(Value::as_str) {
+        for hash in &hashes {
+            let Some(hash_id) = query::hash_id_for(&self.controller, hash) else {
+                continue;
+            };
+
+            found += 1;
+
+            for tag in &add {
                 if let Ok(tag_id) = master_tags::get_tag_id(db, tag) {
                     let _ = mappings::add_mappings(
                         db,
@@ -1594,10 +1634,8 @@ impl AppState {
                     changed += 1;
                 }
             }
-        }
 
-        if let Some(values) = value.get("remove").and_then(Value::as_array) {
-            for tag in values.iter().filter_map(Value::as_str) {
+            for tag in &remove {
                 if let Ok(tag_id) = master_tags::get_tag_id(db, tag) {
                     let _ = mappings::remove_mappings(
                         db,
@@ -1611,9 +1649,19 @@ impl AppState {
             }
         }
 
-        self.message = format!("tags updated ({changed} changes)");
+        if found == 0 {
+            return vec![UiCommand::NotifyMessage(
+                "file is not in the database".to_string(),
+            )];
+        }
 
-        let mut commands = metadata::refresh_hash(self, &hash);
+        self.message = format!("tags updated ({changed} changes on {found} files)");
+
+        let mut commands = if hashes.len() == 1 {
+            metadata::refresh_hash(self, &hashes[0])
+        } else {
+            self.refresh_commands()
+        };
         commands.push(self.status_command());
 
         commands

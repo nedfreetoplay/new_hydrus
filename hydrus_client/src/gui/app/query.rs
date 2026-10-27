@@ -45,8 +45,8 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
     }
 
     let service_ids = file_service_ids(controller, &page.location);
-    let tag_service_id =
-        tag_service_id(controller).ok_or_else(|| "no local tag service".to_string())?;
+    let tag_service_id = tag_service_id_for(controller, &page.tag_service)
+        .ok_or_else(|| "no local tag service".to_string())?;
     let plan = search::plan(db, &page.query)?;
 
     let mut all: BTreeSet<i64> = BTreeSet::new();
@@ -245,6 +245,32 @@ pub fn tag_service_id(controller: &Controller) -> Option<i64> {
                 .first()
                 .map(|service| service.service_id)
         })
+}
+
+/// Resolves the tag service selected on a query page, falling back to the
+/// first local tag service when the page has no explicit selection.
+pub fn tag_service_id_for(controller: &Controller, name: &str) -> Option<i64> {
+    if name.is_empty() {
+        return tag_service_id(controller);
+    }
+
+    let manager = controller.services();
+
+    manager
+        .get_service(name.as_bytes())
+        .filter(|service| service.service_type == ServiceType::LocalTag)
+        .map(|service| service.service_id)
+        .or_else(|| tag_service_id(controller))
+}
+
+/// Names of the local tag services shown in the query page selector.
+pub fn local_tag_service_names(controller: &Controller) -> Vec<String> {
+    controller
+        .services()
+        .get_services(Some(&[ServiceType::LocalTag]))
+        .into_iter()
+        .map(|service| service.name.clone())
+        .collect()
 }
 
 pub fn trash_service_id(controller: &Controller) -> Option<i64> {

@@ -18,6 +18,8 @@ pub struct QueryPage {
     pub query: String,
     /// Name of the local file domain used by this page ("my files", "trash", ...).
     pub location: String,
+    /// Local tag service name; empty means the first local tag service.
+    pub tag_service: String,
     pub hashes: Vec<Vec<u8>>,
     pub focused: Option<Vec<u8>>,
     pub status: String,
@@ -37,6 +39,7 @@ impl QueryPage {
             title: title.into(),
             query: String::new(),
             location: location.into(),
+            tag_service: String::new(),
             hashes: Vec::new(),
             focused: None,
             status: String::new(),

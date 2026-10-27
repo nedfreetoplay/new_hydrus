@@ -840,6 +840,17 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
         main->notify(QStringLiteral("set_location"), id, value);
     });
 
+    tag_service = new QComboBox(sidebar);
+    sidebar_layout->addWidget(tag_service);
+
+    connect(tag_service, &QComboBox::currentTextChanged, this, [this](const QString &value) {
+        if (main->building || value.isEmpty()) {
+            return;
+        }
+
+        main->notify(QStringLiteral("set_tag_service"), id, value);
+    });
+
     search = new QLineEdit(sidebar);
     search->setPlaceholderText(QStringLiteral("tags: blue eyes, -sky, system:inbox"));
     sidebar_layout->addWidget(search);
@@ -949,6 +960,39 @@ void HydrusQueryPage::update_state(const QJsonObject &state) {
 
         if (index >= 0) {
             location->setCurrentIndex(index);
+        }
+    }
+
+    QStringList tag_service_names;
+
+    for (const QJsonValue &value : state.value(QStringLiteral("tag_services")).toArray()) {
+        tag_service_names.append(value.toString());
+    }
+
+    bool rebuild_services = tag_service_names.size() != tag_service->count();
+
+    for (int index = 0; !rebuild_services && index < tag_service_names.size(); ++index) {
+        rebuild_services = tag_service->itemText(index) != tag_service_names[index];
+    }
+
+    if (rebuild_services) {
+        const QSignalBlocker blocker(tag_service);
+        tag_service->clear();
+        tag_service->addItems(tag_service_names);
+    }
+
+    QString tag_service_value = state.value(QStringLiteral("tag_service")).toString();
+
+    if (tag_service_value.isEmpty() && !tag_service_names.isEmpty()) {
+        tag_service_value = tag_service_names.first();
+    }
+
+    if (!tag_service_value.isEmpty() && tag_service->currentText() != tag_service_value) {
+        const QSignalBlocker blocker(tag_service);
+        const int index = tag_service->findText(tag_service_value);
+
+        if (index >= 0) {
+            tag_service->setCurrentIndex(index);
         }
     }
 

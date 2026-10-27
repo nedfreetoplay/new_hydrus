@@ -424,6 +424,21 @@ impl AppState {
                 let controller = self.controller.clone();
                 self.replace_query_and_refresh(&controller, target)
             }
+            "set_tag_service" => {
+                if let Some(page) = self.find_query_mut(target) {
+                    if page.tag_service != payload {
+                        page.tag_service = payload.to_string();
+                        page.fixed_hashes = None;
+                    }
+                } else {
+                    return vec![UiCommand::NotifyMessage(
+                        "page is not a file page".to_string(),
+                    )];
+                }
+
+                let controller = self.controller.clone();
+                self.replace_query_and_refresh(&controller, target)
+            }
             "focus_hash" => self.focus(target, payload),
             "open_viewer" => self.open_viewer(target, payload),
             "viewer_nav" => self.viewer_nav(target, payload),

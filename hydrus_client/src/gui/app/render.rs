@@ -352,6 +352,8 @@ pub fn query_state(controller: &crate::controller::Controller, page: &QueryPage)
     json!({
         "query": page.query,
         "location": page.location,
+        "tag_service": page.tag_service,
+        "tag_services": query::local_tag_service_names(controller),
         "status": page.status,
         "empty_text": page.empty_text,
         "focused": focused,

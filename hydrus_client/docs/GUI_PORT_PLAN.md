@@ -85,7 +85,7 @@ Rust-цели: `gui/app/query.rs`, новый `gui/app/search.rs`,
   `system:archive`, `system:everything`, `system:limit`.
 - [x] 02.2 Простой autocomplete по тегам.
 - [x] 02.3 Модель списка предикатов вместо разбора строки.
-- [~] 02.4 File domain и tag service selector’ы.
+- [x] 02.4 File domain и tag service selector’ы.
 - [ ] 02.5 Autocomplete dropdown с вкладками и счётчиками.
 - [ ] 02.6 OR-предикаты и advanced OR editor.
 - [x] 02.7 Системные предикаты: размер, разрешение, ratio, mime, hash.
@@ -97,7 +97,7 @@ Rust-цели: `gui/app/query.rs`, новый `gui/app/search.rs`,
 - [ ] 02.13 Системные предикаты: file viewing stats, file service.
 - [ ] 02.14 Favourite searches и их менеджер.
 - [ ] 02.15 История поиска и undo добавления/удаления предикатов.
-- [ ] 02.16 Сохранение поискового контекста в странице/сессии.
+- [x] 02.16 Сохранение поискового контекста в странице/сессии.
 
 Выход фазы: поиск собирается из предикатов, поддерживает OR, домены и
 системные фильтры; любимые поиски сохраняются.

@@ -24,6 +24,8 @@ pub struct SessionNode {
     #[serde(default)]
     pub location: Option<String>,
     #[serde(default)]
+    pub tag_service: Option<String>,
+    #[serde(default)]
     pub message: Option<String>,
     #[serde(default)]
     pub current: Option<String>,
@@ -132,6 +134,7 @@ fn from_notebook(notebook: &Notebook) -> SessionNode {
         title: notebook.title.clone(),
         query: None,
         location: None,
+        tag_service: None,
         message: None,
         current: notebook.current.clone(),
         children: notebook.children.iter().map(from_node).collect(),
@@ -160,6 +163,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             title: page.title.clone(),
             query: Some(page.query.clone()),
             location: Some(page.location.clone()),
+            tag_service: Some(page.tag_service.clone()),
             message: None,
             current: None,
             children: Vec::new(),
@@ -189,6 +193,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             title: page.title.clone(),
             query: None,
             location: None,
+            tag_service: None,
             message: None,
             current: None,
             children: Vec::new(),
@@ -213,6 +218,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             title: page.title.clone(),
             query: None,
             location: None,
+            tag_service: None,
             message: None,
             current: None,
             children: Vec::new(),
@@ -237,6 +243,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             title: page.title.clone(),
             query: None,
             location: None,
+            tag_service: None,
             message: None,
             current: None,
             children: Vec::new(),
@@ -261,6 +268,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             title: page.title.clone(),
             query: None,
             location: None,
+            tag_service: None,
             message: None,
             current: None,
             children: Vec::new(),
@@ -285,6 +293,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             title: page.title.clone(),
             query: None,
             location: None,
+            tag_service: None,
             message: Some(page.message.clone()),
             current: None,
             children: Vec::new(),
@@ -329,6 +338,7 @@ fn to_node(node: &SessionNode) -> PageNode {
                     .unwrap_or_else(|| "my files".to_string()),
             );
             page.query = node.query.clone().unwrap_or_default();
+            page.tag_service = node.tag_service.clone().unwrap_or_default();
 
             let fixed: Vec<Vec<u8>> = node
                 .fixed_hashes

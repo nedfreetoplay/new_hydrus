@@ -18,6 +18,7 @@ fn notebook_round_trips_through_the_session_format() {
 
     let mut query = QueryPage::new("p1", "files", "my files");
     query.query = "blue eyes".to_string();
+    query.tag_service = "my tags".to_string();
     root.add(PageNode::Query(query));
 
     let mut nested = Notebook::new("n2", "page of pages");
@@ -38,6 +39,7 @@ fn notebook_round_trips_through_the_session_format() {
             assert_eq!(page.id, "p1");
             assert_eq!(page.query, "blue eyes");
             assert_eq!(page.location, "my files");
+            assert_eq!(page.tag_service, "my tags");
         }
         _ => panic!("first node was not a query"),
     }

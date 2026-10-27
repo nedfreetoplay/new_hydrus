@@ -104,7 +104,8 @@ CLIENT_API_VERSION, db version, SQLite/Qt/Rust, пути и счётчики с�
 
 Меню Database вызывает реальные SQLite-операции: `PRAGMA quick_check`, `VACUUM`,
 `PRAGMA optimize` + `ANALYZE`, обзор `page_count`/`freelist_count` и подсчёт
-файлов в trash.
+файлов в trash. `fix missing archive times` проходит по архивным файлам
+«my files» без записи в `archive_timestamps` и проставляет текущее время.
 
 Страницы можно перетаскивать между notebook'ами (`move_page`), дублировать
 (`duplicate_page` с новыми id для всего поддерева) и выбирать через менеджер

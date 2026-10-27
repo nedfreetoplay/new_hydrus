@@ -54,6 +54,39 @@ pub fn get_file_timestamp(
     .map(|value| value.flatten())
 }
 
+/// Gives every archived file without an archive timestamp the supplied time.
+/// Hydrus runs the same repair from its database maintenance menu.
+pub fn fix_missing_archive_times(
+    db: &DBBase,
+    file_service_id: i64,
+    now: i64,
+) -> HydrusResult<usize> {
+    let current = super::files_storage::get_hash_ids(
+        db,
+        file_service_id,
+        hydrus_core::hydrus_constants::ContentStatus::Current,
+    )?;
+    let inbox: std::collections::BTreeSet<i64> = super::files_storage::get_inbox_hash_ids(db)?
+        .into_iter()
+        .collect();
+    let mut fixed = 0;
+
+    for hash_id in current {
+        if inbox.contains(&hash_id) {
+            continue;
+        }
+
+        if get_file_timestamp(db, hash_id, TimestampType::Archived)?.is_some() {
+            continue;
+        }
+
+        set_file_timestamp(db, hash_id, TimestampType::Archived, Some(now))?;
+        fixed += 1;
+    }
+
+    Ok(fixed)
+}
+
 pub fn set_file_domain_timestamp(
     db: &DBBase,
     service_id: i64,
@@ -123,6 +156,46 @@ mod tests {
         assert_eq!(
             get_file_timestamp(db.db(), hash_id, TimestampType::Archived).unwrap(),
             None
+        );
+
+        drop(db);
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn missing_archive_times_are_repaired_only_for_archived_files() {
+        let (db, directory) = database();
+        crate::db::files_storage::create_tables(db.db(), 1).unwrap();
+
+        let inbox = get_hash_id(db.db(), &[3]).unwrap();
+        let archived = get_hash_id(db.db(), &[4]).unwrap();
+        let already_set = get_hash_id(db.db(), &[5]).unwrap();
+
+        crate::db::files_storage::add_files(
+            db.db(),
+            1,
+            hydrus_core::hydrus_constants::ContentStatus::Current,
+            &[inbox, archived, already_set],
+            Some(1),
+        )
+        .unwrap();
+        crate::db::files_storage::set_inbox(db.db(), &[inbox], true).unwrap();
+        set_file_timestamp(db.db(), already_set, TimestampType::Archived, Some(99)).unwrap();
+
+        let fixed = fix_missing_archive_times(db.db(), 1, 1234).unwrap();
+
+        assert_eq!(fixed, 1);
+        assert_eq!(
+            get_file_timestamp(db.db(), archived, TimestampType::Archived).unwrap(),
+            Some(1234)
+        );
+        assert_eq!(
+            get_file_timestamp(db.db(), inbox, TimestampType::Archived).unwrap(),
+            None
+        );
+        assert_eq!(
+            get_file_timestamp(db.db(), already_set, TimestampType::Archived).unwrap(),
+            Some(99)
         );
 
         drop(db);

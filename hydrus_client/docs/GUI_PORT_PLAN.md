@@ -341,7 +341,7 @@ Rust-цели: `gui/app/mod.rs`, `db/maintenance.rs`, `files/maintenance_executo
 - [x] 11.8 Review deferred delete tables.
 - [ ] 11.9 Job scheduler и file maintenance jobs.
 - [ ] 11.10 Clear orphan files.
-- [ ] 11.11 Fix missing archive times.
+- [x] 11.11 Fix missing archive times.
 - [ ] 11.12 File history chart.
 - [x] 11.13 «How boned am I?».
 - [ ] 11.14 Embedded metadata review.

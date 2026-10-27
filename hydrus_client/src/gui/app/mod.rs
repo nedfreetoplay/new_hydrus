@@ -1310,6 +1310,31 @@ impl AppState {
                     format!("files waiting in trash: {trash}"),
                 )]
             }
+            "db_fix_archive_times" => {
+                let manager = self.controller.services();
+                let Some(service) = manager.get_service(b"my files") else {
+                    return vec![UiCommand::NotifyMessage(
+                        "the 'my files' service is missing".to_string(),
+                    )];
+                };
+
+                match files_timestamps::fix_missing_archive_times(
+                    self.controller.db().db(),
+                    service.service_id,
+                    hydrus_time::get_now(),
+                ) {
+                    Ok(fixed) => {
+                        self.message = format!("fixed archive times for {fixed} files");
+                        vec![
+                            UiCommand::NotifyMessage(self.message.clone()),
+                            self.status_command(),
+                        ]
+                    }
+                    Err(error) => vec![UiCommand::NotifyMessage(format!(
+                        "could not fix archive times: {error}"
+                    ))],
+                }
+            }
             "db_stats" => {
                 let db = self.controller.db().db();
                 let version = self.controller.db().get_version().unwrap_or(0);

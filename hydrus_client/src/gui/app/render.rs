@@ -93,6 +93,7 @@ pub fn menus_json(state: &AppState) -> String {
                     {"label": "vacuum database", "action": "db_vacuum"},
                     {"label": "review vacuum data", "action": "db_vacuum_info"},
                     {"label": "review deferred deletes", "action": "db_deferred_deletes"},
+                    {"label": "fix missing archive times", "action": "db_fix_archive_times"},
                     {"separator": true},
                     {"label": "how boned am I?", "action": "db_stats"}
                 ]}

@@ -126,6 +126,9 @@ pub struct UnifiedSession {
     pub active: Option<String>,
     #[serde(default)]
     pub subscriptions: Vec<Value>,
+    /// Name of the last session loaded or saved from the session menu.
+    #[serde(default)]
+    pub session_name: Option<String>,
 }
 
 impl UnifiedSession {

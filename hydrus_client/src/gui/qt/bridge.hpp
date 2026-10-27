@@ -51,6 +51,7 @@ class QVBoxLayout;
 class QDragEnterEvent;
 class QDropEvent;
 class QEvent;
+class HydrusTabBar;
 
 // A zoomable, pannable view for one image. Used both by the small preview in a
 // page sidebar and by the media viewer window.
@@ -540,6 +541,19 @@ void hydrus_set_selection(
     rust::Str preview_path,
     rust::Str metadata_json);
 void hydrus_show_page_chooser(HydrusMainWindow &window, rust::Str notebook_id);
+void hydrus_show_page_manager(HydrusMainWindow &window, rust::Str json);
+void hydrus_prompt_text(
+    HydrusMainWindow &window,
+    rust::Str action,
+    rust::Str title,
+    rust::Str label,
+    rust::Str initial);
+void hydrus_confirm_action(
+    HydrusMainWindow &window,
+    rust::Str action,
+    rust::Str target,
+    rust::Str title,
+    rust::Str text);
 void hydrus_pick_files(HydrusMainWindow &window);
 void hydrus_prompt_url(HydrusMainWindow &window);
 void hydrus_open_viewer(HydrusMainWindow &window, rust::Str json);

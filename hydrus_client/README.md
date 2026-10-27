@@ -88,6 +88,10 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - меню Hydrus (`file`, `undo`, `pages`, `database`, `download`, `network`, `services`, `tags`,
   `pending`, `help`), сегментированный статус-бар и единый `gui session.json`
   (legacy `GuiSession` + дерево страниц, загрузчики и подписки) с миграциями старых форматов.
+- дерево страниц: drag & drop вкладок и перенос между notebook’ами, история
+  назад/вперёд (Alt+Left/Right), менеджер страниц с фильтром и массовым закрытием,
+  дублирование страницы и именованные сессии с загрузкой, добавлением, удалением и
+  резервными копиями в `sessions/`.
 - media viewer следует настройкам zoom step/recenter/always-on-top/frameless, поддерживает
   поворот и полный набор основных горячих клавиш; database check/vacuum выполняют
   реальные `PRAGMA quick_check` и `VACUUM`.
@@ -99,7 +103,7 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - расширенные file maintenance jobs (regenerate thumbnails, re-scan file metadata) и
   оставшиеся горячие клавиши Hydrus.
 
-Сейчас проходит 504 unit-теста и 2 integration-теста. Архитектура:
+Сейчас проходит 512 unit-тестов и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). План портирования GUI с
 чек-листами и флагами: [docs/GUI_PORT_PLAN.md](docs/GUI_PORT_PLAN.md).
 

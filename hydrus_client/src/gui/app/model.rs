@@ -425,6 +425,87 @@ pub struct ViewerContext {
     pub hash: Vec<u8>,
 }
 
+/// Back/forward list of pages the user has visited, mirroring the navigation
+/// history of `PagesNotebook` in the Python client.
+#[derive(Debug, Clone, Default)]
+pub struct PageHistory {
+    entries: Vec<String>,
+    index: usize,
+}
+
+impl PageHistory {
+    pub const LIMIT: usize = 200;
+
+    pub fn record(&mut self, page_id: &str) {
+        if page_id.is_empty() || self.entries.get(self.index).is_some_and(|id| id == page_id) {
+            return;
+        }
+
+        self.entries.truncate(self.index + 1);
+        self.entries.push(page_id.to_string());
+
+        if self.entries.len() > Self::LIMIT {
+            let excess = self.entries.len() - Self::LIMIT;
+            self.entries.drain(0..excess);
+        }
+
+        self.index = self.entries.len() - 1;
+    }
+
+    pub fn back(&mut self) -> Option<String> {
+        if self.index == 0 {
+            return None;
+        }
+
+        self.index -= 1;
+        self.entries.get(self.index).cloned()
+    }
+
+    pub fn forward(&mut self) -> Option<String> {
+        if self.index + 1 >= self.entries.len() {
+            return None;
+        }
+
+        self.index += 1;
+        self.entries.get(self.index).cloned()
+    }
+
+    pub fn can_back(&self) -> bool {
+        self.index > 0
+    }
+
+    pub fn can_forward(&self) -> bool {
+        self.index + 1 < self.entries.len()
+    }
+
+    pub fn entries(&self) -> &[String] {
+        &self.entries
+    }
+
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        self.index = 0;
+    }
+
+    /// Drops ids that no longer exist. Keeps the cursor on the same page when
+    /// possible and otherwise parks it at the newest surviving entry.
+    pub fn retain(&mut self, mut keep: impl FnMut(&str) -> bool) {
+        let current = self.entries.get(self.index).cloned();
+        let mut kept = Vec::with_capacity(self.entries.len());
+
+        for id in self.entries.drain(..) {
+            if keep(&id) {
+                kept.push(id);
+            }
+        }
+
+        self.entries = kept;
+        self.index = current
+            .and_then(|id| self.entries.iter().position(|entry| *entry == id))
+            .unwrap_or_else(|| self.entries.len().saturating_sub(1));
+    }
+}
+
 pub struct AppState {
     pub controller: Arc<Controller>,
     pub root: Notebook,
@@ -435,6 +516,8 @@ pub struct AppState {
     pub import_folders: Vec<super::import_folders::ImportFolderEntry>,
     pub auto_rules: Vec<super::auto_resolution::AutoResolutionRule>,
     pub import_queue: ImportQueueState,
+    pub history: PageHistory,
+    pub session_name: Option<String>,
     pub(crate) runtime: AsyncRuntime,
     next_id: u64,
 }
@@ -455,6 +538,8 @@ impl AppState {
             import_folders: Vec::new(),
             auto_rules: Vec::new(),
             import_queue: ImportQueueState::default(),
+            history: PageHistory::default(),
+            session_name: None,
             runtime,
             next_id: 1,
         };
@@ -467,6 +552,7 @@ impl AppState {
             }
 
             restored_active = loaded.active;
+            state.session_name = loaded.session_name;
             state.root = loaded.root;
             state.subscriptions = loaded.subscriptions;
         } else {
@@ -488,9 +574,14 @@ impl AppState {
     }
 
     pub fn new_id(&mut self, prefix: &str) -> String {
-        let id = format!("{prefix}{}", self.next_id);
-        self.next_id += 1;
-        id
+        loop {
+            let id = format!("{prefix}{}", self.next_id);
+            self.next_id += 1;
+
+            if find_node(&self.root, &id).is_none() {
+                return id;
+            }
+        }
     }
 
     /// Makes the internal counter larger than every id in the loaded session
@@ -686,6 +777,250 @@ impl AppState {
 
         closed
     }
+
+    /// Makes `page_id` the current page all the way down to the root notebook.
+    pub fn select_page(&mut self, page_id: &str) -> bool {
+        if find_node(&self.root, page_id).is_none() {
+            return false;
+        }
+
+        select_in_notebook(&mut self.root, page_id);
+        self.active = Some(page_id.to_string());
+        true
+    }
+
+    /// Records a page the user navigated to. Repeated selections are ignored.
+    pub fn record_history(&mut self, page_id: &str) {
+        if find_node(&self.root, page_id).is_some() {
+            self.history.record(page_id);
+        }
+    }
+
+    pub fn history_back(&mut self) -> Option<String> {
+        let mut candidate = self.history.back();
+
+        while let Some(id) = candidate {
+            if self.select_page(&id) {
+                return Some(id);
+            }
+
+            candidate = self.history.back();
+        }
+
+        None
+    }
+
+    pub fn history_forward(&mut self) -> Option<String> {
+        let mut candidate = self.history.forward();
+
+        while let Some(id) = candidate {
+            if self.select_page(&id) {
+                return Some(id);
+            }
+
+            candidate = self.history.forward();
+        }
+
+        None
+    }
+
+    /// Moves a page relative to another page or into another notebook.
+    ///
+    /// `position` is `inside`, `before` or `after`; a non-notebook target falls
+    /// back to `after`.
+    pub fn move_page(
+        &mut self,
+        source_id: &str,
+        target_id: &str,
+        position: &str,
+    ) -> Result<(), String> {
+        if source_id == target_id {
+            return Err("a page cannot be moved onto itself".to_string());
+        }
+
+        let source_is_notebook = match find_node(&self.root, source_id) {
+            Some(PageNode::Notebook(_)) => true,
+            Some(_) => false,
+            None => return Err("page is missing".to_string()),
+        };
+
+        if source_is_notebook {
+            let contains_target = match find_node(&self.root, source_id) {
+                Some(PageNode::Notebook(notebook)) => find_node(notebook, target_id).is_some(),
+                _ => false,
+            };
+
+            if contains_target {
+                return Err("a page of pages cannot be moved into itself".to_string());
+            }
+        }
+
+        if find_node(&self.root, target_id).is_none() {
+            return Err("target page is missing".to_string());
+        }
+
+        let mut node = Some(
+            take_node(&mut self.root, source_id).ok_or_else(|| "page is missing".to_string())?,
+        );
+
+        let inserted_inside = if position == "inside" {
+            match find_node_mut(&mut self.root, target_id) {
+                Some(PageNode::Notebook(notebook)) => {
+                    if let Some(page) = node.take() {
+                        notebook.add(page);
+                    }
+                    true
+                }
+                _ => false,
+            }
+        } else {
+            false
+        };
+
+        if !inserted_inside {
+            let parent_id = parent_notebook_id(&self.root, target_id)
+                .ok_or_else(|| "target notebook is missing".to_string())?;
+            let parent = self
+                .find_notebook_mut(&parent_id)
+                .ok_or_else(|| "target notebook is missing".to_string())?;
+            let index = parent
+                .children
+                .iter()
+                .position(|child| child.id() == target_id)
+                .ok_or_else(|| "target page is missing".to_string())?;
+            let insert_at = if position == "before" {
+                index
+            } else {
+                index + 1
+            };
+
+            let page = node.ok_or_else(|| "page is missing".to_string())?;
+            parent.children.insert(insert_at, page);
+        }
+
+        if !self.select_page(source_id) {
+            return Err("moved page is missing".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// Deep-copies a page and puts the copy right after the original.
+    pub fn duplicate_page(&mut self, page_id: &str) -> Result<String, String> {
+        let parent_id =
+            parent_notebook_id(&self.root, page_id).ok_or_else(|| "page is missing".to_string())?;
+        let mut node = find_node(&self.root, page_id)
+            .cloned()
+            .ok_or_else(|| "page is missing".to_string())?;
+
+        self.reassign_ids(&mut node);
+
+        let new_id = node.id().to_string();
+        let parent = self
+            .find_notebook_mut(&parent_id)
+            .ok_or_else(|| "notebook is missing".to_string())?;
+        let index = parent
+            .children
+            .iter()
+            .position(|child| child.id() == page_id)
+            .ok_or_else(|| "page is missing".to_string())?;
+
+        parent.children.insert(index + 1, node);
+        parent.current = Some(new_id.clone());
+        self.select_page(&new_id);
+
+        Ok(new_id)
+    }
+
+    /// Replaces the live tree with a saved session.
+    pub fn replace_session(&mut self, loaded: crate::gui::app::session::LoadedSession) {
+        self.session_name = loaded.session_name;
+        self.root = loaded.root;
+        self.subscriptions = loaded.subscriptions;
+        self.history.clear();
+        self.viewers.clear();
+        self.active = None;
+        self.reindex();
+        self.active = loaded
+            .active
+            .filter(|id| find_node(&self.root, id).is_some())
+            .or_else(|| current_leaf(&self.root))
+            .or_else(|| first_page_id(&self.root));
+
+        if let Some(id) = self.active.clone() {
+            self.select_page(&id);
+            self.record_history(&id);
+        }
+    }
+
+    /// Appends another session's pages and subscriptions to the live tree.
+    pub fn append_session(&mut self, loaded: crate::gui::app::session::LoadedSession) -> usize {
+        let mut added = 0;
+
+        for mut child in loaded.root.children {
+            self.reassign_ids(&mut child);
+            let first = first_page_id_of(&child);
+            self.root.children.push(child);
+            added += 1;
+
+            if let Some(id) = first {
+                self.root.current = Some(id.clone());
+                self.select_page(&id);
+                self.record_history(&id);
+            }
+        }
+
+        for subscription in loaded.subscriptions {
+            if !self
+                .subscriptions
+                .iter()
+                .any(|existing| existing.name == subscription.name)
+            {
+                self.subscriptions.push(subscription);
+            }
+        }
+
+        added
+    }
+
+    /// Gives every node a fresh id and keeps notebook selections consistent.
+    fn reassign_ids(&mut self, node: &mut PageNode) {
+        let old_current = match node {
+            PageNode::Notebook(notebook) => notebook.current.clone(),
+            _ => None,
+        };
+
+        let prefix = match node {
+            PageNode::Notebook(_) => "n",
+            _ => "p",
+        };
+        let new_id = self.new_id(prefix);
+
+        match node {
+            PageNode::Query(page) => page.id = new_id,
+            PageNode::Notebook(notebook) => notebook.id = new_id,
+            PageNode::Downloader(page) => page.id = new_id,
+            PageNode::Subscriptions(page) => page.id = new_id,
+            PageNode::Duplicates(page) => page.id = new_id,
+            PageNode::ImportFolders(page) => page.id = new_id,
+            PageNode::Placeholder(page) => page.id = new_id,
+        }
+
+        if let PageNode::Notebook(notebook) = node {
+            let current_position = old_current
+                .as_deref()
+                .and_then(|old| notebook.children.iter().position(|child| child.id() == old));
+
+            for child in &mut notebook.children {
+                self.reassign_ids(child);
+            }
+
+            notebook.current = current_position
+                .and_then(|index| notebook.children.get(index))
+                .or_else(|| notebook.children.first())
+                .map(|child| child.id().to_string());
+        }
+    }
 }
 
 pub fn default_root() -> Notebook {
@@ -770,6 +1105,71 @@ pub fn parent_notebook_id(notebook: &Notebook, id: &str) -> Option<String> {
     None
 }
 
+fn select_in_notebook(notebook: &mut Notebook, id: &str) -> bool {
+    let mut found = None;
+
+    for (index, child) in notebook.children.iter().enumerate() {
+        if child.id() == id {
+            found = Some((index, false));
+            break;
+        }
+
+        if let PageNode::Notebook(inner) = child {
+            if find_node(inner, id).is_some() {
+                found = Some((index, true));
+                break;
+            }
+        }
+    }
+
+    let Some((index, nested)) = found else {
+        return false;
+    };
+
+    let child_id = notebook.children[index].id().to_string();
+    notebook.current = Some(child_id);
+
+    if nested {
+        if let PageNode::Notebook(inner) = &mut notebook.children[index] {
+            return select_in_notebook(inner, id);
+        }
+    }
+
+    true
+}
+
+fn take_node(notebook: &mut Notebook, id: &str) -> Option<PageNode> {
+    if let Some(position) = notebook.children.iter().position(|child| child.id() == id) {
+        let node = notebook.children.remove(position);
+
+        if notebook.current.as_deref() == Some(id) {
+            notebook.current = notebook
+                .children
+                .get(position.min(notebook.children.len().saturating_sub(1)))
+                .map(|child| child.id().to_string());
+        }
+
+        return Some(node);
+    }
+
+    for child in &mut notebook.children {
+        if let PageNode::Notebook(inner) = child {
+            if let Some(node) = take_node(inner, id) {
+                return Some(node);
+            }
+        }
+    }
+
+    None
+}
+
+fn first_page_id_of(node: &PageNode) -> Option<String> {
+    match node {
+        PageNode::Notebook(notebook) => first_page_id(notebook),
+        _ => Some(node.id().to_string()),
+    }
+}
+
 fn remove_node(notebook: &mut Notebook, id: &str) -> bool {
     if let Some(position) = notebook.children.iter().position(|child| child.id() == id) {
         notebook.children.remove(position);
@@ -794,3 +1194,6 @@ fn remove_node(notebook: &mut Notebook, id: &str) -> bool {
 
     false
 }
+
+#[cfg(test)]
+mod tests;

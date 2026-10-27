@@ -56,11 +56,19 @@ pub fn menus_json(state: &AppState) -> String {
                 {"label": "new page...", "action": "new_page"},
                 {"label": "refresh", "action": "refresh_page"},
                 {"separator": true},
+                {"label": "back", "action": "history_back", "enabled": state.history.can_back()},
+                {"label": "forward", "action": "history_forward", "enabled": state.history.can_forward()},
+                {"separator": true},
                 {"label": "new page of pages", "action": "new_notebook"},
                 {"label": "new duplicates processing page", "action": "new_duplicates"},
                 {"separator": true},
+                {"label": "manage pages...", "action": "page_manager"},
+                {"label": "duplicate page", "action": "duplicate_page"},
+                {"separator": true},
                 {"label": "close page", "action": "close_page"},
-                {"label": "close other pages", "action": "close_other_pages"}
+                {"label": "close other pages", "action": "close_other_pages"},
+                {"separator": true},
+                {"label": "sessions", "items": session_menu_items(state)}
             ]
         },
         {
@@ -128,6 +136,131 @@ pub fn menus_json(state: &AppState) -> String {
     ]);
 
     menus.to_string()
+}
+
+fn session_menu_items(state: &AppState) -> Vec<Value> {
+    let mut items = vec![
+        json!({"label": "save current as...", "action": "session_save_as",
+               "description": "Save the open pages under a new session name."}),
+        json!({"label": "backup current", "action": "session_backup",
+               "description": "Copy the open pages into the backup folder."}),
+        json!({"separator": true}),
+    ];
+
+    let mut load = Vec::new();
+    let mut append = Vec::new();
+    let mut delete = Vec::new();
+
+    for session in super::sessions::list(state) {
+        let label = format!("{} ({} pages)", session.name, session.pages);
+        load.push(json!({"label": label, "action": "session_load", "target": session.name}));
+        append.push(json!({"label": label, "action": "session_append", "target": session.name}));
+        delete.push(json!({"label": label, "action": "session_delete", "target": session.name}));
+    }
+
+    if load.is_empty() {
+        load.push(json!({"label": "no saved sessions", "action": "", "enabled": false}));
+        append.push(json!({"label": "no saved sessions", "action": "", "enabled": false}));
+        delete.push(json!({"label": "no saved sessions", "action": "", "enabled": false}));
+    }
+
+    items.push(json!({"label": "load", "items": load}));
+    items.push(json!({"label": "append", "items": append}));
+
+    let backups = super::sessions::list_backups(state);
+    let mut append_backup = Vec::new();
+
+    for backup in backups {
+        append_backup.push(json!({
+            "label": format!("{} ({} pages)", backup.name, backup.pages),
+            "action": "session_append_backup",
+            "target": backup.name
+        }));
+    }
+
+    if append_backup.is_empty() {
+        append_backup.push(json!({"label": "no backups", "action": "", "enabled": false}));
+    }
+
+    items.push(json!({"label": "append backup", "items": append_backup}));
+    items.push(json!({"label": "delete", "items": delete}));
+
+    items
+}
+
+pub fn page_manager_json(state: &AppState) -> String {
+    json!({"root": manager_node(state, &state.root)}).to_string()
+}
+
+fn manager_node(state: &AppState, notebook: &super::model::Notebook) -> Value {
+    let children: Vec<Value> = notebook
+        .children
+        .iter()
+        .map(|child| manager_item(state, child))
+        .collect();
+
+    json!({
+        "id": notebook.id,
+        "kind": "notebook",
+        "title": notebook.title,
+        "count": children.len(),
+        "active": state.active.as_deref() == Some(notebook.id.as_str()),
+        "children": children,
+    })
+}
+
+fn manager_item(state: &AppState, node: &PageNode) -> Value {
+    match node {
+        PageNode::Notebook(notebook) => manager_node(state, notebook),
+        PageNode::Query(page) => json!({
+            "id": page.id,
+            "kind": "query",
+            "title": page.title,
+            "count": page.hashes.len(),
+            "active": state.active.as_deref() == Some(page.id.as_str()),
+            "children": [],
+        }),
+        PageNode::Downloader(page) => json!({
+            "id": page.id,
+            "kind": "downloader",
+            "title": page.title,
+            "count": page.results.len(),
+            "active": state.active.as_deref() == Some(page.id.as_str()),
+            "children": [],
+        }),
+        PageNode::Subscriptions(page) => json!({
+            "id": page.id,
+            "kind": "subscriptions",
+            "title": page.title,
+            "count": state.subscriptions.len(),
+            "active": state.active.as_deref() == Some(page.id.as_str()),
+            "children": [],
+        }),
+        PageNode::Duplicates(page) => json!({
+            "id": page.id,
+            "kind": "duplicates",
+            "title": page.title,
+            "count": page.pairs.len(),
+            "active": state.active.as_deref() == Some(page.id.as_str()),
+            "children": [],
+        }),
+        PageNode::ImportFolders(page) => json!({
+            "id": page.id,
+            "kind": "import_folders",
+            "title": page.title,
+            "count": state.import_folders.len(),
+            "active": state.active.as_deref() == Some(page.id.as_str()),
+            "children": [],
+        }),
+        PageNode::Placeholder(page) => json!({
+            "id": page.id,
+            "kind": "placeholder",
+            "title": page.title,
+            "count": 0,
+            "active": state.active.as_deref() == Some(page.id.as_str()),
+            "children": [],
+        }),
+    }
 }
 
 pub fn pages_json(state: &AppState) -> String {

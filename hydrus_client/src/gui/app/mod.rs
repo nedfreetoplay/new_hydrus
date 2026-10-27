@@ -26,6 +26,7 @@ pub mod options;
 pub mod query;
 pub mod render;
 pub mod session;
+pub mod sessions;
 pub mod tag_relations;
 pub mod worker;
 
@@ -250,7 +251,14 @@ impl AppState {
         match action {
             "page_selected" => {
                 self.active = Some(target.to_string());
-                vec![self.status_command()]
+                self.record_history(target);
+                let mut commands = vec![self.status_command()];
+
+                if self.select_page(target) {
+                    commands.insert(0, UiCommand::Menus(render::menus_json(self)));
+                }
+
+                commands
             }
             "new_page_menu" => {
                 let notebook = if target.is_empty() {
@@ -303,6 +311,88 @@ impl AppState {
             "create_page" => self.create_page(target, payload),
             "close_page" => self.close_page(target),
             "close_other_pages" => self.close_other_pages(target),
+            "move_page" => self.page_move(target, payload),
+            "duplicate_page" => self.duplicate_page_command(target),
+            "history_back" => self.navigate_history(true),
+            "history_forward" => self.navigate_history(false),
+            "page_manager" => vec![UiCommand::PageManagerDialog(render::page_manager_json(
+                self,
+            ))],
+            "page_manager_activate" => {
+                if self.select_page(target) {
+                    vec![
+                        UiCommand::BuildPages(render::pages_json(self)),
+                        UiCommand::Menus(render::menus_json(self)),
+                        self.status_command(),
+                    ]
+                } else {
+                    vec![UiCommand::NotifyMessage("page is missing".to_string())]
+                }
+            }
+            "page_manager_close" => {
+                let ids: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
+                let mut commands = Vec::new();
+
+                for id in ids {
+                    commands.extend(self.close_page(&id));
+                }
+
+                commands
+            }
+            "session_save_as" => vec![UiCommand::PromptText {
+                action: "session_save".to_string(),
+                title: "save session".to_string(),
+                label: "session name".to_string(),
+                initial: self.session_name.clone().unwrap_or_default(),
+            }],
+            "session_save" => match sessions::save_named(self, payload) {
+                Ok(name) => {
+                    self.message = format!("saved session '{name}'");
+                    vec![
+                        UiCommand::Menus(render::menus_json(self)),
+                        self.status_command(),
+                    ]
+                }
+                Err(error) => vec![UiCommand::Message(
+                    "save session".to_string(),
+                    format!("could not save the session: {error}"),
+                )],
+            },
+            "session_backup" => match sessions::backup(self) {
+                Ok(name) => {
+                    self.message = format!("backed up session as '{name}'");
+                    vec![
+                        UiCommand::Menus(render::menus_json(self)),
+                        self.status_command(),
+                    ]
+                }
+                Err(error) => vec![UiCommand::Message(
+                    "backup session".to_string(),
+                    format!("could not back up the session: {error}"),
+                )],
+            },
+            "session_load" => self.load_session_named(target, false, false),
+            "session_append" => self.load_session_named(target, true, false),
+            "session_append_backup" => self.load_session_named(target, true, true),
+            "session_delete" => vec![UiCommand::ConfirmAction {
+                action: "session_delete_confirmed".to_string(),
+                target: target.to_string(),
+                title: "delete session".to_string(),
+                text: format!("Delete the session '{target}'? This cannot be undone."),
+            }],
+            "session_delete_confirmed" => match sessions::delete_named(self, target) {
+                Ok(()) => {
+                    self.message = format!("deleted session '{target}'");
+                    vec![
+                        UiCommand::Menus(render::menus_json(self)),
+                        self.status_command(),
+                    ]
+                }
+                Err(error) => vec![UiCommand::Message(
+                    "delete session".to_string(),
+                    format!("could not delete the session: {error}"),
+                )],
+            },
             "rename_page" => self.rename_page(target, payload),
             "refresh_page" => {
                 let id = self.page_id_or_active(target);
@@ -721,7 +811,9 @@ impl AppState {
             }
         }
 
-        self.active = Some(page_id);
+        self.active = Some(page_id.clone());
+
+        self.record_history(&page_id);
 
         vec![
             UiCommand::BuildPages(render::pages_json(self)),
@@ -739,6 +831,13 @@ impl AppState {
         if !self.remove_page(page_id) {
             return vec![UiCommand::NotifyMessage("page is missing".to_string())];
         }
+
+        let mut known = Vec::new();
+        for child in &self.root.children {
+            collect_page_ids(child, &mut known);
+        }
+        self.history
+            .retain(|id| known.iter().any(|known_id| known_id == id));
 
         let mut commands = Vec::new();
 
@@ -785,6 +884,13 @@ impl AppState {
         });
         parent.current = Some(page_id.to_string());
 
+        let mut known = Vec::new();
+        for child in &self.root.children {
+            collect_page_ids(child, &mut known);
+        }
+        self.history
+            .retain(|id| known.iter().any(|known_id| known_id == id));
+
         let mut commands = Vec::new();
 
         for id in removed {
@@ -794,6 +900,117 @@ impl AppState {
         }
 
         self.active = Some(page_id.to_string());
+        commands.push(UiCommand::BuildPages(render::pages_json(self)));
+        commands.push(self.status_command());
+
+        commands
+    }
+
+    fn page_move(&mut self, page_id: &str, payload: &str) -> Vec<UiCommand> {
+        let request: Value = match serde_json::from_str(payload) {
+            Ok(value) => value,
+            Err(_) => {
+                return vec![UiCommand::NotifyMessage(
+                    "move request is invalid".to_string(),
+                )];
+            }
+        };
+
+        let target = request
+            .get("target")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let position = request
+            .get("position")
+            .and_then(Value::as_str)
+            .unwrap_or("after");
+
+        match self.move_page(page_id, target, position) {
+            Ok(()) => {
+                self.record_history(page_id);
+                vec![
+                    UiCommand::BuildPages(render::pages_json(self)),
+                    UiCommand::Menus(render::menus_json(self)),
+                    self.status_command(),
+                ]
+            }
+            Err(error) => vec![UiCommand::NotifyMessage(error)],
+        }
+    }
+
+    fn duplicate_page_command(&mut self, page_id: &str) -> Vec<UiCommand> {
+        match self.duplicate_page(page_id) {
+            Ok(id) => {
+                self.record_history(&id);
+                vec![
+                    UiCommand::BuildPages(render::pages_json(self)),
+                    UiCommand::Menus(render::menus_json(self)),
+                    self.status_command(),
+                ]
+            }
+            Err(error) => vec![UiCommand::NotifyMessage(error)],
+        }
+    }
+
+    fn navigate_history(&mut self, back: bool) -> Vec<UiCommand> {
+        let target = if back {
+            self.history_back()
+        } else {
+            self.history_forward()
+        };
+
+        match target {
+            Some(id) => {
+                self.select_page(&id);
+                vec![
+                    UiCommand::BuildPages(render::pages_json(self)),
+                    UiCommand::Menus(render::menus_json(self)),
+                    self.status_command(),
+                ]
+            }
+            None => vec![self.status_command()],
+        }
+    }
+
+    fn load_session_named(&mut self, name: &str, append: bool, backup: bool) -> Vec<UiCommand> {
+        let loaded = if backup {
+            sessions::load_backup(self, name)
+        } else {
+            sessions::load_named(self, name)
+        };
+
+        let loaded = match loaded {
+            Ok(loaded) => loaded,
+            Err(error) => {
+                return vec![UiCommand::Message("load session".to_string(), error)];
+            }
+        };
+
+        if append {
+            let added = self.append_session(loaded);
+            self.refresh_all();
+            self.message = format!("appended {added} page groups from '{name}'");
+            return vec![
+                UiCommand::Menus(render::menus_json(self)),
+                UiCommand::BuildPages(render::pages_json(self)),
+                self.status_command(),
+            ];
+        }
+
+        let viewer_ids: Vec<String> = self.viewers.keys().cloned().collect();
+        let restored = loaded
+            .session_name
+            .clone()
+            .unwrap_or_else(|| name.to_string());
+        self.replace_session(loaded);
+        self.session_name = Some(restored);
+        self.refresh_all();
+
+        let mut commands: Vec<UiCommand> =
+            viewer_ids.into_iter().map(UiCommand::CloseViewer).collect();
+
+        self.message = format!("loaded session '{name}'");
+        commands.push(UiCommand::Menus(render::menus_json(self)));
         commands.push(UiCommand::BuildPages(render::pages_json(self)));
         commands.push(self.status_command());
 

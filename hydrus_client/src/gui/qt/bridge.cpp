@@ -12,6 +12,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QDrag>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFileDialog>
@@ -57,6 +58,7 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QToolButton>
+#include <QTreeWidget>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -1862,14 +1864,130 @@ void HydrusViewerWindow::closeEvent(QCloseEvent *event) {
 }
 
 // ---------------------------------------------------------------------------
+// HydrusTabBar
+// ---------------------------------------------------------------------------
+
+namespace {
+const QString kPageMimeType = QStringLiteral("application/x-hydrus-page");
+}
+
+// A tab bar that starts a drag for pages and accepts drops from any notebook.
+// Ordering and cross-notebook moves are applied by the Rust page model.
+class HydrusTabBar : public QTabBar {
+public:
+    HydrusTabBar(HydrusMainWindow *main_window, HydrusNotebook *notebook_widget, QWidget *parent = nullptr)
+        : QTabBar(parent), main(main_window), notebook(notebook_widget) {
+        setAcceptDrops(true);
+        setMovable(false);
+        setDrawBase(false);
+    }
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            press_position = event->pos();
+        }
+
+        QTabBar::mousePressEvent(event);
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override {
+        if (!(event->buttons() & Qt::LeftButton)) {
+            QTabBar::mouseMoveEvent(event);
+            return;
+        }
+
+        if ((event->pos() - press_position).manhattanLength() < QApplication::startDragDistance()) {
+            QTabBar::mouseMoveEvent(event);
+            return;
+        }
+
+        const int index = tabAt(press_position);
+        const QPoint pressed = press_position;
+        press_position = QPoint(-1000, -1000);
+
+        if (index < 0) {
+            return;
+        }
+
+        const QString page_id = tabData(index).toString();
+
+        if (page_id.isEmpty() || page_id == QStringLiteral("__plus__")) {
+            return;
+        }
+
+        auto *mime = new QMimeData();
+        mime->setData(kPageMimeType, page_id.toUtf8());
+
+        auto *drag = new QDrag(this);
+        drag->setMimeData(mime);
+        drag->exec(Qt::MoveAction);
+
+        Q_UNUSED(pressed);
+    }
+
+    void dragEnterEvent(QDragEnterEvent *event) override {
+        if (event->mimeData()->hasFormat(kPageMimeType)) {
+            event->acceptProposedAction();
+            return;
+        }
+
+        QTabBar::dragEnterEvent(event);
+    }
+
+    void dragMoveEvent(QDragMoveEvent *event) override {
+        if (event->mimeData()->hasFormat(kPageMimeType)) {
+            event->acceptProposedAction();
+            return;
+        }
+
+        QTabBar::dragMoveEvent(event);
+    }
+
+    void dropEvent(QDropEvent *event) override {
+        if (!event->mimeData()->hasFormat(kPageMimeType)) {
+            QTabBar::dropEvent(event);
+            return;
+        }
+
+        const QString source = QString::fromUtf8(event->mimeData()->data(kPageMimeType));
+        const int index = tabAt(event->position().toPoint());
+
+        QJsonObject request;
+        request.insert(QStringLiteral("target"), notebook->notebook_id());
+        request.insert(QStringLiteral("position"), QStringLiteral("inside"));
+
+        if (index >= 0 && index < count() - 1) {
+            const QString target = tabData(index).toString();
+
+            if (!target.isEmpty() && target != QStringLiteral("__plus__") && target != source) {
+                request.insert(QStringLiteral("target"), target);
+                request.insert(QStringLiteral("position"), QStringLiteral("before"));
+            }
+        }
+
+        const QByteArray payload = QJsonDocument(request).toJson(QJsonDocument::Compact);
+        main->notify(QStringLiteral("move_page"), source, QString::fromUtf8(payload));
+        event->acceptProposedAction();
+    }
+
+private:
+    HydrusMainWindow *main = nullptr;
+    HydrusNotebook *notebook = nullptr;
+    QPoint press_position{-1000, -1000};
+};
+
+// ---------------------------------------------------------------------------
 // HydrusNotebook
 // ---------------------------------------------------------------------------
 
 HydrusNotebook::HydrusNotebook(HydrusMainWindow *main_window, const QString &notebook_id, QWidget *parent)
     : QTabWidget(parent), main(main_window), id(notebook_id) {
+    setTabBar(new HydrusTabBar(main_window, this, this));
     setTabsClosable(true);
     setMovable(false);
     setDocumentMode(true);
+    setAcceptDrops(true);
 
     connect(this, &QTabWidget::tabCloseRequested, this, [this](int index) { request_close(index); });
 
@@ -3786,6 +3904,22 @@ void HydrusMainWindow::build_shortcuts() {
         }
     });
 
+    auto *back = new QShortcut(QKeySequence(QStringLiteral("Alt+Left")), this);
+    connect(back, &QShortcut::activated, this, [this]() { notify(QStringLiteral("history_back")); });
+
+    auto *forward = new QShortcut(QKeySequence(QStringLiteral("Alt+Right")), this);
+    connect(forward, &QShortcut::activated, this, [this]() { notify(QStringLiteral("history_forward")); });
+
+    auto *page_manager = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+P")), this);
+    connect(page_manager, &QShortcut::activated, this, [this]() { notify(QStringLiteral("page_manager")); });
+
+    auto *duplicate = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+T")), this);
+    connect(duplicate, &QShortcut::activated, this, [this]() {
+        if (!active_page.isEmpty()) {
+            notify(QStringLiteral("duplicate_page"), active_page);
+        }
+    });
+
     auto *import = new QShortcut(QKeySequence(QStringLiteral("Ctrl+I")), this);
     connect(import, &QShortcut::activated, this, [this]() { notify(QStringLiteral("import_files")); });
 
@@ -3840,19 +3974,19 @@ void HydrusMainWindow::set_menus(const QJsonArray &menus) {
 
         std::function<void(QMenu *, const QJsonArray &)> add_items;
 
-        add_items = [this, &add_items](QMenu *target, const QJsonArray &items) {
+        add_items = [this, &add_items](QMenu *menu_target, const QJsonArray &items) {
             for (const QJsonValue &item_value : items) {
                 const QJsonObject item = item_value.toObject();
 
                 if (item.value(QStringLiteral("separator")).toBool()) {
-                    target->addSeparator();
+                    menu_target->addSeparator();
                     continue;
                 }
 
                 const QJsonArray children = item.value(QStringLiteral("items")).toArray();
 
                 if (!children.isEmpty()) {
-                    auto *submenu = target->addMenu(item.value(QStringLiteral("label")).toString());
+                    auto *submenu = menu_target->addMenu(item.value(QStringLiteral("label")).toString());
                     submenu->setToolTipsVisible(true);
                     add_items(submenu, children);
                     continue;
@@ -3860,12 +3994,14 @@ void HydrusMainWindow::set_menus(const QJsonArray &menus) {
 
                 const QString label = item.value(QStringLiteral("label")).toString();
                 const QString action_id = item.value(QStringLiteral("action")).toString();
+                const QString item_target = item.value(QStringLiteral("target")).toString();
+                const QString payload = item.value(QStringLiteral("payload")).toString();
 
                 if (label.isEmpty()) {
                     continue;
                 }
 
-                auto *action = target->addAction(label);
+                auto *action = menu_target->addAction(label);
                 action->setEnabled(item.value(QStringLiteral("enabled")).toBool(true));
 
                 if (item.value(QStringLiteral("checkable")).toBool(false)) {
@@ -3879,9 +4015,9 @@ void HydrusMainWindow::set_menus(const QJsonArray &menus) {
                     action->setToolTip(tooltip);
                 }
 
-                connect(action, &QAction::triggered, this, [this, action_id]() {
+                connect(action, &QAction::triggered, this, [this, action_id, item_target, payload]() {
                     if (!action_id.isEmpty()) {
-                        notify(action_id);
+                        notify(action_id, item_target, payload);
                     }
                 });
             }
@@ -4035,11 +4171,267 @@ void HydrusMainWindow::set_selection(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Page manager
+// ---------------------------------------------------------------------------
+
+class HydrusPageManager : public QDialog {
+public:
+    HydrusPageManager(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent = nullptr)
+        : QDialog(parent), main(main_window) {
+        setWindowTitle(QStringLiteral("manage pages"));
+        resize(560, 560);
+
+        auto *layout = new QVBoxLayout(this);
+
+        filter = new QLineEdit(this);
+        filter->setPlaceholderText(QStringLiteral("filter pages..."));
+        layout->addWidget(filter);
+
+        tree = new QTreeWidget(this);
+        tree->setColumnCount(3);
+        tree->setHeaderLabels({QStringLiteral("page"), QStringLiteral("type"), QStringLiteral("files")});
+        tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
+        tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+        tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+        tree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+        layout->addWidget(tree, 1);
+
+        auto *buttons = new QHBoxLayout();
+        auto *activate = new QPushButton(QStringLiteral("activate"), this);
+        auto *close_selected = new QPushButton(QStringLiteral("close selected"), this);
+        auto *close_all = new QPushButton(QStringLiteral("close all"), this);
+        auto *close_dialog = new QPushButton(QStringLiteral("close"), this);
+
+        buttons->addWidget(activate);
+        buttons->addWidget(close_selected);
+        buttons->addWidget(close_all);
+        buttons->addStretch(1);
+        buttons->addWidget(close_dialog);
+        layout->addLayout(buttons);
+
+        build(state.value(QStringLiteral("root")).toObject());
+
+        connect(filter, &QLineEdit::textChanged, this, [this](const QString &text) {
+            apply_filter(text.trimmed());
+        });
+        connect(activate, &QPushButton::clicked, this, [this]() { activate_current(); });
+        connect(close_selected, &QPushButton::clicked, this, [this]() { close_selected_pages(); });
+        connect(close_all, &QPushButton::clicked, this, [this]() { close_all_pages(); });
+        connect(close_dialog, &QPushButton::clicked, this, &QDialog::reject);
+        connect(tree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem *, int) {
+            activate_current();
+        });
+    }
+
+private:
+    QIcon icon_for(const QString &kind) const {
+        if (kind == QStringLiteral("notebook")) {
+            return style()->standardIcon(QStyle::SP_DirIcon);
+        }
+
+        if (kind == QStringLiteral("query")) {
+            return style()->standardIcon(QStyle::SP_FileDialogContentsView);
+        }
+
+        if (kind == QStringLiteral("downloader")) {
+            return style()->standardIcon(QStyle::SP_ArrowDown);
+        }
+
+        if (kind == QStringLiteral("subscriptions")) {
+            return style()->standardIcon(QStyle::SP_BrowserReload);
+        }
+
+        if (kind == QStringLiteral("duplicates")) {
+            return style()->standardIcon(QStyle::SP_FileDialogDetailedView);
+        }
+
+        if (kind == QStringLiteral("import_folders")) {
+            return style()->standardIcon(QStyle::SP_DirOpenIcon);
+        }
+
+        return style()->standardIcon(QStyle::SP_MessageBoxQuestion);
+    }
+
+    void build(const QJsonObject &root) {
+        tree->clear();
+        top_levels.clear();
+
+        const QJsonArray children = root.value(QStringLiteral("children")).toArray();
+
+        for (const QJsonValue &value : children) {
+            const QJsonObject child = value.toObject();
+            top_levels.append(child.value(QStringLiteral("id")).toString());
+            add_node(nullptr, child);
+        }
+
+        tree->expandAll();
+    }
+
+    QTreeWidgetItem *add_node(QTreeWidgetItem *parent, const QJsonObject &node) {
+        const QString id = node.value(QStringLiteral("id")).toString();
+        const QString title = node.value(QStringLiteral("title")).toString();
+        const QString kind = node.value(QStringLiteral("kind")).toString();
+        const int count = node.value(QStringLiteral("count")).toInt();
+        const bool active = node.value(QStringLiteral("active")).toBool();
+
+        auto *item = parent == nullptr ? new QTreeWidgetItem(tree) : new QTreeWidgetItem(parent);
+        item->setText(0, title.isEmpty() ? QStringLiteral("page") : title);
+        item->setText(1, kind);
+        item->setText(2, QString::number(count));
+        item->setIcon(0, icon_for(kind));
+        item->setData(0, Qt::UserRole, id);
+
+        if (active) {
+            QFont font = item->font(0);
+            font.setBold(true);
+            item->setFont(0, font);
+        }
+
+        const QJsonArray children = node.value(QStringLiteral("children")).toArray();
+
+        for (const QJsonValue &value : children) {
+            add_node(item, value.toObject());
+        }
+
+        return item;
+    }
+
+    bool filter_item(QTreeWidgetItem *item, const QString &needle) {
+        bool child_visible = false;
+
+        for (int index = 0; index < item->childCount(); ++index) {
+            child_visible = filter_item(item->child(index), needle) || child_visible;
+        }
+
+        const bool matches = needle.isEmpty()
+            || item->text(0).contains(needle, Qt::CaseInsensitive)
+            || item->text(1).contains(needle, Qt::CaseInsensitive);
+        const bool visible = matches || child_visible;
+
+        item->setHidden(!visible);
+
+        return visible;
+    }
+
+    void apply_filter(const QString &needle) {
+        for (int index = 0; index < tree->topLevelItemCount(); ++index) {
+            filter_item(tree->topLevelItem(index), needle);
+        }
+    }
+
+    QString id_of(QTreeWidgetItem *item) const {
+        return item == nullptr ? QString() : item->data(0, Qt::UserRole).toString();
+    }
+
+    void activate_current() {
+        const QString id = id_of(tree->currentItem());
+
+        if (id.isEmpty()) {
+            return;
+        }
+
+        main->notify(QStringLiteral("page_manager_activate"), id);
+        accept();
+    }
+
+    void close_selected_pages() {
+        QJsonArray ids;
+
+        for (QTreeWidgetItem *item : tree->selectedItems()) {
+            bool ancestor_selected = false;
+
+            for (QTreeWidgetItem *parent = item->parent(); parent != nullptr; parent = parent->parent()) {
+                if (parent->isSelected()) {
+                    ancestor_selected = true;
+                    break;
+                }
+            }
+
+            if (!ancestor_selected) {
+                ids.append(id_of(item));
+            }
+        }
+
+        if (ids.isEmpty()) {
+            return;
+        }
+
+        const QByteArray payload = QJsonDocument(ids).toJson(QJsonDocument::Compact);
+        main->notify(QStringLiteral("page_manager_close"), QString(), QString::fromUtf8(payload));
+        accept();
+    }
+
+    void close_all_pages() {
+        QJsonArray ids;
+
+        for (const QString &id : top_levels) {
+            ids.append(id);
+        }
+
+        if (ids.isEmpty()) {
+            return;
+        }
+
+        const QByteArray payload = QJsonDocument(ids).toJson(QJsonDocument::Compact);
+        main->notify(QStringLiteral("page_manager_close"), QString(), QString::fromUtf8(payload));
+        accept();
+    }
+
+    HydrusMainWindow *main = nullptr;
+    QLineEdit *filter = nullptr;
+    QTreeWidget *tree = nullptr;
+    QStringList top_levels;
+};
+
 void HydrusMainWindow::show_page_chooser(const QString &notebook_id) {
     HydrusPageChooser chooser(notebook_id, this);
 
     if (chooser.exec() == QDialog::Accepted && !chooser.result.isEmpty()) {
         notify(QStringLiteral("create_page"), notebook_id, chooser.result);
+    }
+}
+
+void hydrus_show_page_manager(HydrusMainWindow &window, rust::Str json) {
+    HydrusPageManager manager(&window, parse_object(json), &window);
+    manager.exec();
+}
+
+void hydrus_prompt_text(
+    HydrusMainWindow &window,
+    rust::Str action,
+    rust::Str title,
+    rust::Str label,
+    rust::Str initial) {
+    bool ok = false;
+    const QString text = QInputDialog::getText(
+        &window,
+        from_rust(title),
+        from_rust(label),
+        QLineEdit::Normal,
+        from_rust(initial),
+        &ok);
+
+    if (ok) {
+        window.notify(from_rust(action), QString(), text);
+    }
+}
+
+void hydrus_confirm_action(
+    HydrusMainWindow &window,
+    rust::Str action,
+    rust::Str target,
+    rust::Str title,
+    rust::Str text) {
+    const QMessageBox::StandardButton answer = QMessageBox::question(
+        &window,
+        from_rust(title),
+        from_rust(text),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No);
+
+    if (answer == QMessageBox::Yes) {
+        window.notify(from_rust(action), from_rust(target));
     }
 }
 

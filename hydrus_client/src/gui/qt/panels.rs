@@ -66,6 +66,25 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::ShowPageChooser(notebook_id) => {
             ffi::hydrus_show_page_chooser(window.as_mut(), &notebook_id);
         }
+        UiCommand::PageManagerDialog(json) => {
+            ffi::hydrus_show_page_manager(window.as_mut(), &json);
+        }
+        UiCommand::PromptText {
+            action,
+            title,
+            label,
+            initial,
+        } => {
+            ffi::hydrus_prompt_text(window.as_mut(), &action, &title, &label, &initial);
+        }
+        UiCommand::ConfirmAction {
+            action,
+            target,
+            title,
+            text,
+        } => {
+            ffi::hydrus_confirm_action(window.as_mut(), &action, &target, &title, &text);
+        }
         UiCommand::PickFiles => ffi::hydrus_pick_files(window.as_mut()),
         UiCommand::PromptUrl => ffi::hydrus_prompt_url(window.as_mut()),
         UiCommand::OpenViewer(json) => ffi::hydrus_open_viewer(window.as_mut(), &json),

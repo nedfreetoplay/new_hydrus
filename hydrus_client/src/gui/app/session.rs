@@ -64,6 +64,7 @@ pub struct LoadedSession {
     pub subscriptions: Vec<SubscriptionEntry>,
     pub legacy: Option<GuiSession>,
     pub active: Option<String>,
+    pub session_name: Option<String>,
 }
 
 pub fn load_session(path: &Path) -> Option<LoadedSession> {
@@ -83,6 +84,7 @@ pub fn load_session(path: &Path) -> Option<LoadedSession> {
         subscriptions,
         legacy: unified.legacy,
         active: unified.active,
+        session_name: unified.session_name,
     })
 }
 
@@ -92,6 +94,16 @@ pub fn load(path: &Path) -> Option<Notebook> {
 
 pub fn save(state: &super::model::AppState) -> std::io::Result<()> {
     let path = state.controller.db_dir().join("gui session.json");
+
+    let _ = super::import_folders::persist(state);
+    let _ = super::auto_resolution::persist(state);
+
+    save_to(state, &path)
+}
+
+/// Writes the page tree, controller legacy session and subscriptions to `path`.
+/// Side files are not touched, so this is also used for named sessions.
+pub fn save_to(state: &super::model::AppState, path: &Path) -> std::io::Result<()> {
     let subscriptions = state
         .subscriptions
         .iter()
@@ -107,10 +119,8 @@ pub fn save(state: &super::model::AppState) -> std::io::Result<()> {
         ),
         active: state.active.clone(),
         subscriptions,
+        session_name: state.session_name.clone(),
     };
-
-    let _ = super::import_folders::persist(state);
-    let _ = super::auto_resolution::persist(state);
 
     unified.save(path)
 }

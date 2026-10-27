@@ -122,6 +122,7 @@ fn session_file_loads_from_disk() {
         app: Some(serde_json::to_value(from_notebook(&root)).unwrap()),
         active: Some("p1".to_string()),
         subscriptions: Vec::new(),
+        session_name: None,
     };
 
     unified.save(&path).unwrap();

@@ -48,6 +48,21 @@ pub(crate) mod ffi {
             metadata_json: &str,
         );
         fn hydrus_show_page_chooser(window: Pin<&mut HydrusMainWindow>, notebook_id: &str);
+        fn hydrus_show_page_manager(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_prompt_text(
+            window: Pin<&mut HydrusMainWindow>,
+            action: &str,
+            title: &str,
+            label: &str,
+            initial: &str,
+        );
+        fn hydrus_confirm_action(
+            window: Pin<&mut HydrusMainWindow>,
+            action: &str,
+            target: &str,
+            title: &str,
+            text: &str,
+        );
         fn hydrus_pick_files(window: Pin<&mut HydrusMainWindow>);
         fn hydrus_prompt_url(window: Pin<&mut HydrusMainWindow>);
         fn hydrus_open_viewer(window: Pin<&mut HydrusMainWindow>, json: &str);

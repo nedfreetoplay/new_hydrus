@@ -555,6 +555,14 @@ pub fn viewer_json(
         .into_iter()
         .next()
         .unwrap_or_default();
+    let neighbour_path = |direction: &str| {
+        query::neighbour(page, hash, direction)
+            .and_then(|neighbour| query::preview_path(controller, &neighbour))
+            .map(|path| path.display().to_string())
+            .unwrap_or_default()
+    };
+    let previous_path = neighbour_path("prev");
+    let next_path = neighbour_path("next");
 
     let options = controller.options();
     let always_on_top = options.get_boolean("media_viewer_window_always_on_top")
@@ -569,6 +577,8 @@ pub fn viewer_json(
         "path": path,
         "file_path": file_path,
         "url": url,
+        "previous_path": previous_path,
+        "next_path": next_path,
         "tags": query::selection_tags(controller, hash),
         "metadata": super::metadata::metadata_json(controller, hash),
         "info": format!("{info} - file {}/{}", position + 1, total),

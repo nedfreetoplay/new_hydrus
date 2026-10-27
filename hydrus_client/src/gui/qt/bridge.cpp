@@ -40,6 +40,7 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPixmap>
+#include <QPixmapCache>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScreen>
@@ -225,7 +226,15 @@ bool HydrusCanvas::load_image(const QString &path) {
 
     delete loaded_movie;
 
-    QPixmap pixmap(path);
+    QPixmap pixmap;
+
+    if (!QPixmapCache::find(path, &pixmap)) {
+        pixmap.load(path);
+
+        if (!pixmap.isNull()) {
+            QPixmapCache::insert(path, pixmap);
+        }
+    }
 
     if (pixmap.isNull()) {
         clear_image();
@@ -2091,7 +2100,14 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
 
     update_state(state);
 
-    resize(1100, 820);
+    QSettings settings;
+    const QByteArray geometry = settings.value(QStringLiteral("viewer/geometry")).toByteArray();
+
+    if (!geometry.isEmpty()) {
+        restoreGeometry(geometry);
+    } else {
+        resize(1100, 820);
+    }
 }
 
 const QString &HydrusViewerWindow::viewer_id() const {
@@ -2153,6 +2169,25 @@ void HydrusViewerWindow::update_state(const QJsonObject &state) {
     animation_button->setEnabled(canvas->is_animated());
     animation_button->setText(QStringLiteral("pause"));
 
+    for (const QString &neighbour : {
+             state.value(QStringLiteral("previous_path")).toString(),
+             state.value(QStringLiteral("next_path")).toString(),
+         }) {
+        if (neighbour.isEmpty()) {
+            continue;
+        }
+
+        QPixmap cached;
+
+        if (!QPixmapCache::find(neighbour, &cached)) {
+            cached.load(neighbour);
+
+            if (!cached.isNull()) {
+                QPixmapCache::insert(neighbour, cached);
+            }
+        }
+    }
+
     metadata->set_state(state.value(QStringLiteral("metadata")).toObject());
     metadata->set_suggestions(main->suggestions());
 
@@ -2166,6 +2201,10 @@ void HydrusViewerWindow::navigate(const QString &direction) {
 }
 
 void HydrusViewerWindow::closeEvent(QCloseEvent *event) {
+    QSettings settings;
+    settings.setValue(QStringLiteral("viewer/geometry"), saveGeometry());
+    settings.sync();
+
     const QByteArray viewer_bytes = id.toUtf8();
     app_action(*main, rust::Str("viewer_close", 12), rust::Str(viewer_bytes.constData(), viewer_bytes.size()), rust::Str());
 

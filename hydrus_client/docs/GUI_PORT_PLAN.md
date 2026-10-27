@@ -147,9 +147,9 @@ Rust-цели: `gui/qt/bridge.*`, `gui/app/render.rs`, `gui/app/metadata.rs`,
   ratings.
 - [ ] 04.8 Duplicate filter canvas.
 - [ ] 04.9 Zoom modes menu, pan modes, background colour/checkerboard.
-- [ ] 04.10 Prefetch previous/next.
+- [x] 04.10 Prefetch previous/next.
 - [~] 04.11 Open externally и embed button.
-- [ ] 04.12 Восстановление размера/позиции viewer.
+- [x] 04.12 Восстановление размера/позиции viewer.
 - [~] 04.13 Media actions: copy, file services, notes, timestamps, ratings.
 - [ ] 04.14 Media playback options panel.
 

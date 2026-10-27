@@ -79,6 +79,7 @@ pub(crate) mod ffi {
         fn hydrus_show_tag_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_notifications(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_viewing_stats(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_about(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_export_downloader(window: Pin<&mut HydrusMainWindow>, page_id: &str);
         fn hydrus_import_downloader(window: Pin<&mut HydrusMainWindow>, target: &str);
         fn hydrus_show_manage_tags(window: Pin<&mut HydrusMainWindow>, json: &str);

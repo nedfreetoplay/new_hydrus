@@ -55,6 +55,31 @@ fn query_state_carries_count_loading_and_thumbnail_options() {
 }
 
 #[test]
+fn about_json_reports_versions_and_paths() {
+    let directory = std::env::temp_dir().join(format!(
+        "hydrus_gui_about_{}_{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    let controller = Controller::new(&directory).unwrap();
+    controller.init_model().unwrap();
+
+    let state = crate::gui::app::model::AppState::new(std::sync::Arc::new(controller));
+    let json: Value = serde_json::from_str(&about_json(&state)).unwrap();
+
+    assert_eq!(json["software_version"], 689);
+    assert_eq!(json["network_version"], 20);
+    assert!(json["db_version"].as_i64().unwrap() > 0);
+    assert!(json["sqlite"].as_str().unwrap().starts_with('3'));
+    assert_eq!(json["db_dir"], directory.display().to_string());
+    assert_eq!(json["api"], "stopped");
+    assert!(json["services"].as_i64().unwrap() > 0);
+    assert!(json["site"].as_str().unwrap().starts_with("https://"));
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn viewing_stats_json_lists_media_and_preview() {
     let directory = std::env::temp_dir().join(format!(
         "hydrus_gui_viewing_stats_{}_{}",

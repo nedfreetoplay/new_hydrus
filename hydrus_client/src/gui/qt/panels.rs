@@ -111,6 +111,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::ViewingStatsDialog(json) => {
             ffi::hydrus_show_viewing_stats(window.as_mut(), &json);
         }
+        UiCommand::AboutDialog(json) => {
+            ffi::hydrus_show_about(window.as_mut(), &json);
+        }
         UiCommand::ExportDownloader(page_id) => {
             ffi::hydrus_export_downloader(window.as_mut(), &page_id);
         }

@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use hydrus_core::hydrus_constants::{ContentStatus, SOFTWARE_VERSION, TimestampType, dirs};
+use hydrus_core::hydrus_constants::{ContentStatus, TimestampType, dirs};
 use hydrus_core::hydrus_time;
 use serde_json::{Value, json};
 
@@ -1174,12 +1174,7 @@ impl AppState {
             "docs" => vec![UiCommand::OpenUrl(
                 "https://hydrusnetwork.github.io/hydrus/".to_string(),
             )],
-            "about" => vec![UiCommand::Message(
-                "about hydrus".to_string(),
-                format!(
-                    "Hydrus Client (Rust port)\n\nhydrus version {SOFTWARE_VERSION}\nRust + Qt 6\n\nQuery pages, local and URL import, gallery/watcher/subscriptions downloaders, duplicates processing, thumbnails, the media viewer, tag editing, options, service/network managers and the local Client API are wired to the real client database."
-                ),
-            )],
+            "about" => vec![UiCommand::AboutDialog(render::about_json(self))],
             "db_info" => {
                 let version = self.controller.db().get_version().unwrap_or(0);
                 let services = self.controller.services().get_num_services();

@@ -53,6 +53,7 @@ pub enum UiCommand {
     },
     NotificationsDialog(String),
     ViewingStatsDialog(String),
+    AboutDialog(String),
     ExportDownloader(String),
     ImportDownloader(String),
     PickFiles,

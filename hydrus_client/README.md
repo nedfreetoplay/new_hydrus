@@ -117,7 +117,9 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
   (legacy `GuiSession` + дерево страниц, загрузчики и подписки) с миграциями старых форматов.
 - system tray с show/hide и exit; уведомления дублируются в трей; история
   сообщений доступна в Help → popup messages... с очисткой; command
-  palette (Ctrl+K) запускает основные действия и maintenance-команды.
+  palette (Ctrl+K) запускает основные действия и maintenance-команды; Help →
+  about показывает версии software/network/API/DB, SQLite, Qt, Rust, пути и
+  статистику сервисов/локаций/шорткатов с вкладками license и credits.
 - дерево страниц: drag & drop вкладок и перенос между notebook’ами, история
   назад/вперёд (Alt+Left/Right), менеджер страниц с фильтром и массовым закрытием,
   дублирование страницы и именованные сессии с загрузкой, добавлением, удалением и
@@ -135,7 +137,7 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - расширенные file maintenance jobs (regenerate thumbnails, re-scan file metadata) и
   оставшиеся горячие клавиши Hydrus.
 
-Сейчас проходит 535 unit-тестов и 2 integration-теста. Архитектура:
+Сейчас проходит 536 unit-тестов и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). План портирования GUI с
 чек-листами и флагами: [docs/GUI_PORT_PLAN.md](docs/GUI_PORT_PLAN.md).
 

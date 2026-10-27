@@ -532,6 +532,40 @@ pub fn query_progress_json(
     .to_string()
 }
 
+pub fn about_json(state: &AppState) -> String {
+    let controller = &state.controller;
+    let db = controller.db().db();
+    let sqlite: String = db
+        .query_one("SELECT sqlite_version()", &[], |row| row.get(0))
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    let install_dir = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(|parent| parent.display().to_string()))
+        .unwrap_or_default();
+
+    json!({
+        "title": "about",
+        "software_version": hydrus_core::hydrus_constants::SOFTWARE_VERSION,
+        "network_version": hydrus_core::hydrus_constants::NETWORK_VERSION,
+        "client_api_version": hydrus_core::hydrus_constants::CLIENT_API_VERSION,
+        "db_version": controller.db().get_version().unwrap_or(0),
+        "db_dir": controller.db_dir().display().to_string(),
+        "install_dir": install_dir,
+        "services": controller.services().get_num_services(),
+        "locations": controller.files_manager().locations().len(),
+        "shortcuts": controller.shortcuts().len(),
+        "api": controller.api_status().unwrap_or_else(|| "stopped".to_string()),
+        "sqlite": sqlite,
+        "rust": env!("CARGO_PKG_VERSION"),
+        "license": "Hydrus is free software, released under the WTFPL.",
+        "site": "https://hydrusnetwork.github.io/hydrus/",
+        "credits": "Hydrus Network by the Hydrus developer and contributors.",
+    })
+    .to_string()
+}
+
 pub fn status_json(state: &AppState) -> String {
     let media = match state.active_query() {
         Some(page) => {

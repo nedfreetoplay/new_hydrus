@@ -507,6 +507,7 @@ public:
     void show_tag_dialog(const QJsonObject &state);
     void show_notifications(const QJsonObject &state);
     void show_viewing_stats(const QJsonObject &state);
+    void show_about(const QJsonObject &state);
     void show_notes(const QJsonObject &state);
     void show_duplicates_rules(const QJsonObject &state);
     void show_tag_relations(const QJsonObject &state);
@@ -625,6 +626,7 @@ void hydrus_close_viewer(HydrusMainWindow &window, rust::Str viewer_id);
 void hydrus_show_tag_dialog(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_notifications(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_viewing_stats(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_about(HydrusMainWindow &window, rust::Str json);
 void hydrus_export_downloader(HydrusMainWindow &window, rust::Str page_id);
 void hydrus_import_downloader(HydrusMainWindow &window, rust::Str target);
 void hydrus_show_manage_tags(HydrusMainWindow &window, rust::Str json);

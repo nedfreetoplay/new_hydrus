@@ -730,6 +730,7 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
     QAction *tags = menu.addAction(QStringLiteral("manage tags..."));
     QAction *notes = menu.addAction(QStringLiteral("manage notes..."));
     QAction *timestamps = menu.addAction(QStringLiteral("edit timestamps..."));
+    QAction *viewing_stats = menu.addAction(QStringLiteral("file viewing statistics..."));
     auto *ratings = menu.addMenu(QStringLiteral("rating"));
     QAction *like = ratings->addAction(QStringLiteral("like"));
     QAction *dislike = ratings->addAction(QStringLiteral("dislike"));
@@ -778,6 +779,11 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
 
     if (chosen == timestamps) {
         main->notify(QStringLiteral("edit_timestamps"));
+        return;
+    }
+
+    if (chosen == viewing_stats) {
+        main->notify(QStringLiteral("viewing_stats"), page->page_id(), hash);
         return;
     }
 
@@ -5911,6 +5917,120 @@ private:
     QDateTimeEdit *modified = nullptr;
 };
 
+// ---------------------------------------------------------------------------
+// Popup messages
+// ---------------------------------------------------------------------------
+
+class HydrusNotificationsDialog : public QDialog {
+public:
+    HydrusNotificationsDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent = nullptr)
+        : QDialog(parent), main(main_window) {
+        setWindowTitle(QStringLiteral("popup messages"));
+        resize(720, 460);
+
+        auto *layout = new QVBoxLayout(this);
+
+        summary = new QLabel(
+            QStringLiteral("%1 message(s)").arg(state.value(QStringLiteral("count")).toInt()),
+            this);
+        layout->addWidget(summary);
+
+        table = new QTableWidget(this);
+        table->setColumnCount(3);
+        table->setHorizontalHeaderLabels({
+            QStringLiteral("time"),
+            QStringLiteral("level"),
+            QStringLiteral("message"),
+        });
+        table->verticalHeader()->setVisible(false);
+        table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        table->setSelectionBehavior(QAbstractItemView::SelectRows);
+        table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+        table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+        table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+        layout->addWidget(table, 1);
+
+        rebuild(state.value(QStringLiteral("entries")).toArray());
+
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+        auto *clear = new QPushButton(QStringLiteral("clear"), this);
+        buttons->addButton(clear, QDialogButtonBox::ActionRole);
+        connect(clear, &QPushButton::clicked, this, [this]() {
+            table->setRowCount(0);
+            summary->setText(QStringLiteral("0 message(s)"));
+            main->notify(QStringLiteral("notifications_clear"));
+        });
+        connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::accept);
+        layout->addWidget(buttons);
+    }
+
+private:
+    void rebuild(const QJsonArray &entries) {
+        table->setRowCount(entries.size());
+
+        for (int row = 0; row < entries.size(); ++row) {
+            const QJsonObject entry = entries.at(row).toObject();
+
+            table->setItem(row, 0, new QTableWidgetItem(entry.value(QStringLiteral("time")).toString()));
+            table->setItem(row, 1, new QTableWidgetItem(entry.value(QStringLiteral("level")).toString()));
+            table->setItem(row, 2, new QTableWidgetItem(entry.value(QStringLiteral("text")).toString()));
+        }
+    }
+
+    HydrusMainWindow *main = nullptr;
+    QLabel *summary = nullptr;
+    QTableWidget *table = nullptr;
+};
+
+void HydrusMainWindow::show_viewing_stats(const QJsonObject &state) {
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("file viewing statistics"));
+    dialog.resize(560, 260);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *hash = new QLabel(
+        QStringLiteral("file: %1").arg(state.value(QStringLiteral("hash")).toString()),
+        &dialog);
+    hash->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addWidget(hash);
+
+    auto *table = new QTableWidget(&dialog);
+    table->setColumnCount(4);
+    table->setHorizontalHeaderLabels({
+        QStringLiteral("canvas"),
+        QStringLiteral("views"),
+        QStringLiteral("viewtime (s)"),
+        QStringLiteral("last viewed"),
+    });
+    table->verticalHeader()->setVisible(false);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+    const QJsonArray rows = state.value(QStringLiteral("rows")).toArray();
+    table->setRowCount(rows.size());
+
+    for (int row = 0; row < rows.size(); ++row) {
+        const QJsonObject entry = rows.at(row).toObject();
+        table->setItem(row, 0, new QTableWidgetItem(entry.value(QStringLiteral("canvas")).toString()));
+        table->setItem(row, 1, new QTableWidgetItem(QString::number(entry.value(QStringLiteral("views")).toInt())));
+        table->setItem(row, 2, new QTableWidgetItem(QString::number(entry.value(QStringLiteral("viewtime")).toDouble())));
+        table->setItem(row, 3, new QTableWidgetItem(entry.value(QStringLiteral("last_viewed")).toString()));
+    }
+
+    layout->addWidget(table, 1);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::accept);
+    layout->addWidget(buttons);
+
+    dialog.exec();
+}
+
+void HydrusMainWindow::show_notifications(const QJsonObject &state) {
+    HydrusNotificationsDialog dialog(this, state, this);
+    dialog.exec();
+}
+
 void HydrusMainWindow::show_tag_dialog(const QJsonObject &state) {
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("manage metadata"));
@@ -6466,6 +6586,38 @@ void hydrus_close_viewer(HydrusMainWindow &window, rust::Str viewer_id) {
 
 void hydrus_show_tag_dialog(HydrusMainWindow &window, rust::Str json) {
     window.show_tag_dialog(parse_object(json));
+}
+
+void hydrus_show_notifications(HydrusMainWindow &window, rust::Str json) {
+    window.show_notifications(parse_object(json));
+}
+
+void hydrus_show_viewing_stats(HydrusMainWindow &window, rust::Str json) {
+    window.show_viewing_stats(parse_object(json));
+}
+
+void hydrus_export_downloader(HydrusMainWindow &window, rust::Str page_id) {
+    const QString path = QFileDialog::getSaveFileName(
+        &window,
+        QStringLiteral("export downloader definition"),
+        QStringLiteral("downloader.json"),
+        QStringLiteral("JSON (*.json)"));
+
+    if (!path.isEmpty()) {
+        window.notify(QStringLiteral("downloader_export_to"), to_qstring(page_id), path);
+    }
+}
+
+void hydrus_import_downloader(HydrusMainWindow &window, rust::Str target) {
+    const QString path = QFileDialog::getOpenFileName(
+        &window,
+        QStringLiteral("import downloader definition"),
+        QString(),
+        QStringLiteral("JSON (*.json)"));
+
+    if (!path.isEmpty()) {
+        window.notify(QStringLiteral("downloader_import_from"), to_qstring(target), path);
+    }
 }
 
 void hydrus_show_options(HydrusMainWindow &window, rust::Str json) {

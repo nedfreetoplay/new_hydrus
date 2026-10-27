@@ -72,6 +72,10 @@ pub(crate) mod ffi {
         fn hydrus_update_viewer(window: Pin<&mut HydrusMainWindow>, viewer_id: &str, json: &str);
         fn hydrus_close_viewer(window: Pin<&mut HydrusMainWindow>, viewer_id: &str);
         fn hydrus_show_tag_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_notifications(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_viewing_stats(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_export_downloader(window: Pin<&mut HydrusMainWindow>, page_id: &str);
+        fn hydrus_import_downloader(window: Pin<&mut HydrusMainWindow>, target: &str);
         fn hydrus_show_manage_tags(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_timestamps(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_options(window: Pin<&mut HydrusMainWindow>, json: &str);
@@ -223,13 +227,21 @@ pub fn run_application(controller: Arc<Controller>) {
     }
 
     if let Ok(script) = std::env::var("HYDRUS_QT_DEFER") {
-        let mut parts = script.split('|');
-        let action = parts.next().unwrap_or_default();
-        let target = parts.next().unwrap_or_default();
-        let payload = parts.next().unwrap_or_default();
+        for (index, step) in script.split(';').enumerate() {
+            let mut parts = step.split('|');
+            let action = parts.next().unwrap_or_default();
+            let target = parts.next().unwrap_or_default();
+            let payload = parts.next().unwrap_or_default();
 
-        if !action.is_empty() {
-            ffi::hydrus_defer_action(window.pin_mut(), action, target, payload, 400);
+            if !action.is_empty() {
+                ffi::hydrus_defer_action(
+                    window.pin_mut(),
+                    action,
+                    target,
+                    payload,
+                    400 + index as i32 * 250,
+                );
+            }
         }
     }
 

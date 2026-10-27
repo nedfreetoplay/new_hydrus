@@ -82,6 +82,9 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
 сессии (`pages`) и app-v2 (`root`). При старте активная страница вычисляется по
 цепочке `current` вложенных notebook'ов; дубликаты id исправляются.
 
+Меню Help → popup messages... открывает историю `NotifyMessage` (время, уровень,
+текст) с кнопкой очистки; лог ограничен 200 записями и живёт в `AppState`.
+
 Меню Database вызывает реальные SQLite-операции: `PRAGMA quick_check`, `VACUUM`,
 `PRAGMA optimize` + `ANALYZE`, обзор `page_count`/`freelist_count` и подсчёт
 файлов в trash.

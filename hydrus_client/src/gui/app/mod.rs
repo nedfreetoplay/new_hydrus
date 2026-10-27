@@ -17,12 +17,14 @@ use crate::gui::qt::panels;
 pub mod auto_resolution;
 pub mod commands;
 pub mod download;
+pub mod downloader_export;
 pub mod duplicates;
 pub mod favourites;
 pub mod import;
 pub mod import_folders;
 pub mod metadata;
 pub mod model;
+pub mod notifications;
 pub mod options;
 pub mod query;
 pub mod render;
@@ -229,6 +231,14 @@ pub fn handle_action(
     payload: &str,
 ) {
     let commands = with_state_mut(|state| state.dispatch(action, target, payload));
+
+    with_state_mut(|state| {
+        for command in &commands {
+            if let UiCommand::NotifyMessage(text) = command {
+                state.notifications.push("info", text);
+            }
+        }
+    });
 
     for command in commands {
         panels::execute(window.as_mut(), command);
@@ -538,6 +548,145 @@ impl AppState {
                 let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
                 commands.extend(self.replace_query_and_refresh(&controller, target));
                 commands
+            }
+            "notifications" => vec![UiCommand::NotificationsDialog(render::notifications_json(
+                self,
+            ))],
+            "notifications_clear" => {
+                self.notifications.clear();
+                vec![
+                    UiCommand::Menus(render::menus_json(self)),
+                    self.status_command(),
+                ]
+            }
+            "downloader_export" => {
+                let Some(page_id) = self.active.clone().filter(|id| {
+                    matches!(
+                        model::find_node(&self.root, id),
+                        Some(PageNode::Downloader(_))
+                    )
+                }) else {
+                    return vec![UiCommand::NotifyMessage(
+                        "select a downloader page first".to_string(),
+                    )];
+                };
+
+                vec![UiCommand::ExportDownloader(page_id)]
+            }
+            "downloader_import" => {
+                let target = self.active.clone().unwrap_or_else(|| "root".to_string());
+                vec![UiCommand::ImportDownloader(target)]
+            }
+            "downloader_export_to" => {
+                let path = PathBuf::from(payload);
+                let Some(node) = model::find_node(&self.root, target) else {
+                    return vec![UiCommand::NotifyMessage("page is missing".to_string())];
+                };
+                let PageNode::Downloader(page) = node else {
+                    return vec![UiCommand::NotifyMessage(
+                        "page is not a downloader".to_string(),
+                    )];
+                };
+
+                let json = downloader_export::to_json(page);
+                let text = match serde_json::to_string_pretty(&json) {
+                    Ok(text) => text,
+                    Err(error) => {
+                        return vec![UiCommand::Message(
+                            "export downloader".to_string(),
+                            error.to_string(),
+                        )];
+                    }
+                };
+
+                match std::fs::write(&path, text) {
+                    Ok(()) => {
+                        self.message = format!("exported downloader to {}", path.display());
+                        vec![
+                            UiCommand::Menus(render::menus_json(self)),
+                            self.status_command(),
+                        ]
+                    }
+                    Err(error) => vec![UiCommand::Message(
+                        "export downloader".to_string(),
+                        format!("could not write the definition: {error}"),
+                    )],
+                }
+            }
+            "downloader_import_from" => {
+                let text = match std::fs::read_to_string(payload) {
+                    Ok(text) => text,
+                    Err(error) => {
+                        return vec![UiCommand::Message(
+                            "import downloader".to_string(),
+                            format!("could not read the definition: {error}"),
+                        )];
+                    }
+                };
+                let value: Value = match serde_json::from_str(&text) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        return vec![UiCommand::Message(
+                            "import downloader".to_string(),
+                            format!("the definition is not valid JSON: {error}"),
+                        )];
+                    }
+                };
+
+                let new_id = self.new_id("p");
+                let page = match downloader_export::from_json(&value, &new_id) {
+                    Ok(page) => page,
+                    Err(error) => {
+                        return vec![UiCommand::Message("import downloader".to_string(), error)];
+                    }
+                };
+
+                let notebook_id = if self.find_notebook(target).is_some() {
+                    target.to_string()
+                } else {
+                    model::parent_notebook_id(&self.root, target)
+                        .unwrap_or_else(|| "root".to_string())
+                };
+
+                let Some(notebook) = self.find_notebook_mut(&notebook_id) else {
+                    return vec![UiCommand::NotifyMessage(
+                        "target notebook is missing".to_string(),
+                    )];
+                };
+
+                notebook.add(PageNode::Downloader(page));
+                notebook.current = Some(new_id.clone());
+                self.select_page(&new_id);
+                self.record_history(&new_id);
+                self.refresh_all();
+                self.message = "imported downloader definition".to_string();
+
+                vec![
+                    UiCommand::Menus(render::menus_json(self)),
+                    UiCommand::BuildPages(render::pages_json(self)),
+                    self.status_command(),
+                ]
+            }
+            "viewing_stats" => {
+                let hash_bytes = if payload.is_empty() {
+                    let Some(page) = self.active_query() else {
+                        return vec![UiCommand::NotifyMessage("no page selected".to_string())];
+                    };
+                    let Some(hash) = page.focused.clone() else {
+                        return vec![UiCommand::NotifyMessage("no file selected".to_string())];
+                    };
+                    hash
+                } else {
+                    let Some(hash) = query::unhex(payload) else {
+                        return vec![UiCommand::NotifyMessage("invalid file hash".to_string())];
+                    };
+                    hash
+                };
+
+                vec![UiCommand::ViewingStatsDialog(render::viewing_stats_json(
+                    &self.controller,
+                    &hash_bytes,
+                ))]
             }
             "undo_search" => {
                 let controller = self.controller.clone();

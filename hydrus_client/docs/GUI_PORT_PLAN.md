@@ -247,7 +247,7 @@ Rust-цели: `gui/app/download.rs`, `gui/app/model.rs`,
 - [ ] 07.12 Watcher editor/review.
 - [ ] 07.13 Subscription editor/query editor.
 - [ ] 07.14 Gallery seed log.
-- [ ] 07.15 Downloader export/import.
+- [x] 07.15 Downloader export/import.
 - [ ] 07.16 Login credentials и login scripts.
 - [ ] 07.17 Per-downloader import options.
 - [ ] 07.18 Thread slots/network job control UI.
@@ -346,7 +346,7 @@ Rust-цели: `gui/app/mod.rs`, `db/maintenance.rs`, `files/maintenance_executo
 - [ ] 11.15 Repair file system.
 - [ ] 11.16 Move media files/physical storage.
 - [ ] 11.17 Review local imports.
-- [ ] 11.18 File viewing statistics.
+- [x] 11.18 File viewing statistics.
 
 Выход фазы: maintenance-сценарии выполняются и отображаются в GUI, а не только
 через PRAGMA.
@@ -420,7 +420,7 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
 - [x] 13.2 Фиксированные горячие клавиши основного окна и viewer.
 - [x] 13.3 Базовый splash-модель.
 - [x] 13.4 Базовые light/dark stylesheets.
-- [ ] 13.5 Popup message manager и job status queue.
+- [x] 13.5 Popup message manager и job status queue.
 - [x] 13.6 System tray icon и меню.
 - [ ] 13.7 Splash screen UI.
 - [ ] 13.8 Exception handling window.

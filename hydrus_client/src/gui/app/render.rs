@@ -105,7 +105,10 @@ pub fn menus_json(state: &AppState) -> String {
                 {"label": "gallery", "action": "new_gallery", "description": "Parse a gallery page and download its files."},
                 {"label": "watcher", "action": "new_watcher", "description": "Watch a page for new files."},
                 {"label": "subscriptions", "action": "new_subscriptions", "description": "Manage periodic gallery subscriptions."},
-                {"label": "simple downloader", "action": "new_simple", "description": "Parse page links and download the files they point to."}
+                {"label": "simple downloader", "action": "new_simple", "description": "Parse page links and download the files they point to."},
+                {"separator": true},
+                {"label": "export downloader definition...", "action": "downloader_export"},
+                {"label": "import downloader definition...", "action": "downloader_import"}
             ]
         },
         {
@@ -142,6 +145,7 @@ pub fn menus_json(state: &AppState) -> String {
             "title": "&help",
             "items": [
                 {"label": "documentation", "action": "docs"},
+                {"label": "popup messages...", "action": "notifications"},
                 {"label": "command palette...", "action": "command_palette", "description": "Ctrl+K"},
                 {"label": "about", "action": "about"},
                 {"separator": true},
@@ -285,10 +289,31 @@ fn session_menu_items(state: &AppState) -> Vec<Value> {
     items
 }
 
+pub fn notifications_json(state: &AppState) -> String {
+    let entries: Vec<Value> = state
+        .notifications
+        .entries()
+        .iter()
+        .rev()
+        .map(|notification| {
+            json!({
+                "time": hydrus_core::hydrus_time::timestamp_to_pretty_time(
+                    Some(notification.timestamp as f64),
+                    false,
+                    true,
+                ),
+                "level": notification.level,
+                "text": notification.text,
+            })
+        })
+        .collect();
+
+    json!({"count": state.notifications.len(), "entries": entries}).to_string()
+}
+
 pub fn page_manager_json(state: &AppState) -> String {
     json!({"root": manager_node(state, &state.root)}).to_string()
 }
-
 fn manager_node(state: &AppState, notebook: &super::model::Notebook) -> Value {
     let children: Vec<Value> = notebook
         .children
@@ -548,6 +573,36 @@ fn running_downloader(state: &AppState) -> Option<(String, usize, usize)> {
             })
     })
 }
+
+pub fn viewing_stats_json(controller: &crate::controller::Controller, hash: &[u8]) -> String {
+    let Some(hash_id) = query::hash_id_for(controller, hash) else {
+        return json!({"hash": query::hex(hash), "rows": []}).to_string();
+    };
+
+    let db = controller.db().db();
+    let mut rows = Vec::new();
+
+    for (canvas_type, name) in [(0i64, "media"), (1i64, "preview")] {
+        let stats = crate::db::files_viewing_stats::get_viewing_stats(db, hash_id, canvas_type)
+            .unwrap_or_default();
+
+        rows.push(json!({
+            "canvas": name,
+            "last_viewed": hydrus_core::hydrus_time::timestamp_to_pretty_time(
+                stats.last_viewed_timestamp_ms.map(|value| value as f64 / 1000.0),
+                false,
+                true,
+            ),
+            "views": stats.views,
+            "viewtime": stats.viewtime_ms / 1000,
+        }));
+    }
+
+    json!({"hash": query::hex(hash), "rows": rows}).to_string()
+}
+
+#[cfg(test)]
+mod tests;
 
 pub fn viewer_json(
     controller: &crate::controller::Controller,

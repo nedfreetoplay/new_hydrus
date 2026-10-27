@@ -94,6 +94,18 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::PromptOr { page_id, initial } => {
             ffi::hydrus_show_or_dialog(window.as_mut(), &page_id, &initial);
         }
+        UiCommand::NotificationsDialog(json) => {
+            ffi::hydrus_show_notifications(window.as_mut(), &json);
+        }
+        UiCommand::ViewingStatsDialog(json) => {
+            ffi::hydrus_show_viewing_stats(window.as_mut(), &json);
+        }
+        UiCommand::ExportDownloader(page_id) => {
+            ffi::hydrus_export_downloader(window.as_mut(), &page_id);
+        }
+        UiCommand::ImportDownloader(notebook_id) => {
+            ffi::hydrus_import_downloader(window.as_mut(), &notebook_id);
+        }
         UiCommand::PickFiles => ffi::hydrus_pick_files(window.as_mut()),
         UiCommand::PromptUrl => ffi::hydrus_prompt_url(window.as_mut()),
         UiCommand::OpenViewer(json) => ffi::hydrus_open_viewer(window.as_mut(), &json),

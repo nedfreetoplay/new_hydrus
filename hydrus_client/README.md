@@ -78,6 +78,7 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
   (встроенные парсеры danbooru, gelbooru, e621, rule34, safebooru, pixiv и generic,
   подстановка `{query}`, переходы по next-страницам), `watcher` с автоматическими
   проверками по периоду, `subscriptions` с менеджером подписок и `simple downloader`;
+  определения загрузчиков экспортируются/импортируются как JSON из меню Download;
 - загрузки идут через per-domain пулы: глобальный лимит, лимит по умолчанию и
   переопределения для домена, плюс bandwidth rules (requests/data) с ожиданием;
 - duplicates processing: пары из `potential_duplicate_pairs`, две стороны с превью,
@@ -108,7 +109,8 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - меню Hydrus (`file`, `undo`, `pages`, `database`, `download`, `network`, `services`, `tags`,
   `pending`, `help`), сегментированный статус-бар и единый `gui session.json`
   (legacy `GuiSession` + дерево страниц, загрузчики и подписки) с миграциями старых форматов.
-- system tray с show/hide и exit; уведомления дублируются в трей; command
+- system tray с show/hide и exit; уведомления дублируются в трей; история
+  сообщений доступна в Help → popup messages... с очисткой; command
   palette (Ctrl+K) запускает основные действия и maintenance-команды.
 - дерево страниц: drag & drop вкладок и перенос между notebook’ами, история
   назад/вперёд (Alt+Left/Right), менеджер страниц с фильтром и массовым закрытием,
@@ -117,7 +119,8 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - media viewer следует настройкам zoom step/recenter/always-on-top/frameless, поддерживает
   поворот и полный набор основных горячих клавиш; database check/vacuum выполняют
   реальные `PRAGMA quick_check` и `VACUUM`; analyze/optimize, обзор свободных
-  страниц, deferred deletes и статистика «how boned am I?» доступны из меню Database.
+  страниц, deferred deletes и статистика «how boned am I?» доступны из меню Database;
+  file viewing statistics показывает views/viewtime/last viewed по media и preview.
 
 ### Что ещё не портировано
 
@@ -126,7 +129,7 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - расширенные file maintenance jobs (regenerate thumbnails, re-scan file metadata) и
   оставшиеся горячие клавиши Hydrus.
 
-Сейчас проходит 528 unit-тестов и 2 integration-теста. Архитектура:
+Сейчас проходит 533 unit-теста и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). План портирования GUI с
 чек-листами и флагами: [docs/GUI_PORT_PLAN.md](docs/GUI_PORT_PLAN.md).
 

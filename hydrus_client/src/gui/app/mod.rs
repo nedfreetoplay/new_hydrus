@@ -839,6 +839,80 @@ impl AppState {
                     )],
                 }
             }
+            "db_analyze" => {
+                let result = self
+                    .controller
+                    .db()
+                    .db()
+                    .execute_batch("PRAGMA optimize; ANALYZE;");
+
+                match result {
+                    Ok(()) => vec![UiCommand::Message(
+                        "analyze database".to_string(),
+                        "statistics were rebuilt and the query planner was optimized".to_string(),
+                    )],
+                    Err(error) => vec![UiCommand::Message(
+                        "analyze database".to_string(),
+                        format!("analyze failed: {error}"),
+                    )],
+                }
+            }
+            "db_vacuum_info" => {
+                let db = self.controller.db().db();
+                let page_count = pragma_i64(db, "page_count");
+                let freelist = pragma_i64(db, "freelist_count");
+                let page_size = pragma_i64(db, "page_size");
+                let free_bytes = freelist.saturating_mul(page_size);
+                let total_bytes = page_count.saturating_mul(page_size);
+
+                vec![UiCommand::Message(
+                    "vacuum data".to_string(),
+                    format!(
+                        "pages: {page_count}\nfree pages: {freelist}\npage size: {page_size} bytes\ntotal: {}\nreusable: {}",
+                        human_bytes(total_bytes as u64),
+                        human_bytes(free_bytes as u64)
+                    ),
+                )]
+            }
+            "db_deferred_deletes" => {
+                let db = self.controller.db().db();
+                let trash = query::trash_service_id(&self.controller)
+                    .and_then(|service_id| {
+                        files_storage::get_hash_ids(db, service_id, ContentStatus::Current).ok()
+                    })
+                    .map(|ids| ids.len())
+                    .unwrap_or(0);
+
+                vec![UiCommand::Message(
+                    "deferred delete tables".to_string(),
+                    format!("files waiting in trash: {trash}"),
+                )]
+            }
+            "db_stats" => {
+                let db = self.controller.db().db();
+                let version = self.controller.db().get_version().unwrap_or(0);
+                let services = self.controller.services().get_num_services();
+                let files = scalar_i64(db, "SELECT COUNT(*) FROM files_info");
+                let inbox = files_storage::get_num_inbox(db).unwrap_or(0);
+                let trash = query::trash_service_id(&self.controller)
+                    .and_then(|service_id| {
+                        files_storage::get_hash_ids(db, service_id, ContentStatus::Current).ok()
+                    })
+                    .map(|ids| ids.len() as i64)
+                    .unwrap_or(0);
+                let tags = query::tag_service_id(&self.controller)
+                    .and_then(|service_id| {
+                        mappings::get_num_mappings(db, service_id, ContentStatus::Current).ok()
+                    })
+                    .unwrap_or(0);
+
+                vec![UiCommand::Message(
+                    "how boned am I?".to_string(),
+                    format!(
+                        "database version: {version}\nservices: {services}\nfiles with metadata: {files}\ninbox: {inbox}\ntrash: {trash}\nlocal tag mappings: {tags}"
+                    ),
+                )]
+            }
             "pending" => vec![UiCommand::NotifyMessage(
                 "there is no pending upload in this local-only build".to_string(),
             )],
@@ -1812,6 +1886,33 @@ fn collect_import_folder_ids(notebook: &Notebook, ids: &mut Vec<String>) {
             _ => {}
         }
     }
+}
+
+fn pragma_i64(db: &hydrus_core::hydrus_db_base::DBBase, name: &str) -> i64 {
+    db.query_one(&format!("PRAGMA {name}"), &[], |row| row.get(0))
+        .ok()
+        .flatten()
+        .unwrap_or(0)
+}
+
+fn scalar_i64(db: &hydrus_core::hydrus_db_base::DBBase, query: &str) -> i64 {
+    db.query_one(query, &[], |row| row.get(0))
+        .ok()
+        .flatten()
+        .unwrap_or(0)
+}
+
+fn human_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+
+    while value >= 1024.0 && unit + 1 < UNITS.len() {
+        value /= 1024.0;
+        unit += 1;
+    }
+
+    format!("{value:.1} {}", UNITS[unit])
 }
 
 fn placeholder_for(kind: &str) -> (String, String) {

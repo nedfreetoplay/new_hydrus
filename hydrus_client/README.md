@@ -107,7 +107,8 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
   резервными копиями в `sessions/`.
 - media viewer следует настройкам zoom step/recenter/always-on-top/frameless, поддерживает
   поворот и полный набор основных горячих клавиш; database check/vacuum выполняют
-  реальные `PRAGMA quick_check` и `VACUUM`.
+  реальные `PRAGMA quick_check` и `VACUUM`; analyze/optimize, обзор свободных
+  страниц, deferred deletes и статистика «how boned am I?» доступны из меню Database.
 
 ### Что ещё не портировано
 

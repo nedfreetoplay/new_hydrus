@@ -334,14 +334,14 @@ Rust-цели: `gui/app/mod.rs`, `db/maintenance.rs`, `files/maintenance_executo
 - [x] 11.3 Базовые option-флаги maintenance.
 - [ ] 11.4 Backup/restore БД и backup location.
 - [ ] 11.5 Database locations/migration.
-- [ ] 11.6 Analyze database.
-- [ ] 11.7 Review vacuum data.
-- [ ] 11.8 Review deferred delete tables.
+- [x] 11.6 Analyze database.
+- [x] 11.7 Review vacuum data.
+- [x] 11.8 Review deferred delete tables.
 - [ ] 11.9 Job scheduler и file maintenance jobs.
 - [ ] 11.10 Clear orphan files.
 - [ ] 11.11 Fix missing archive times.
 - [ ] 11.12 File history chart.
-- [ ] 11.13 «How boned am I?».
+- [x] 11.13 «How boned am I?».
 - [ ] 11.14 Embedded metadata review.
 - [ ] 11.15 Repair file system.
 - [ ] 11.16 Move media files/physical storage.

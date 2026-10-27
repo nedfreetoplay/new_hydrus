@@ -75,6 +75,10 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
 сессии (`pages`) и app-v2 (`root`). При старте активная страница вычисляется по
 цепочке `current` вложенных notebook'ов; дубликаты id исправляются.
 
+Меню Database вызывает реальные SQLite-операции: `PRAGMA quick_check`, `VACUUM`,
+`PRAGMA optimize` + `ANALYZE`, обзор `page_count`/`freelist_count` и подсчёт
+файлов в trash.
+
 Страницы можно перетаскивать между notebook'ами (`move_page`), дублировать
 (`duplicate_page` с новыми id для всего поддерева) и выбирать через менеджер
 страниц. Навигация хранится в `PageHistory` и доступна через Alt+Left/Right.

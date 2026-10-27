@@ -437,6 +437,7 @@ impl PageNode {
 pub struct ViewerContext {
     pub page_id: String,
     pub hash: Vec<u8>,
+    pub opened_at_ms: i64,
 }
 
 /// A page removed from the tree, kept so the user can restore it with undo.

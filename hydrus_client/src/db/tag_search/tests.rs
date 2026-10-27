@@ -84,6 +84,67 @@ fn predicate_search_dispatches_by_type() {
 }
 
 #[test]
+fn autocomplete_suggests_tags_and_namespaces_with_counts() {
+    let (db, directory) = database();
+    let (_, second, _) = seed(db.db());
+
+    let third = get_hash_id(db.db(), &[3]).unwrap();
+    let blue = get_tag_id(db.db(), "blue sky").unwrap();
+    mappings::add_mappings(db.db(), 1, ContentStatus::Current, third, &[blue]).unwrap();
+
+    let tags = suggest_tags(db.db(), 1, ContentStatus::Current, "blu", 10).unwrap();
+
+    assert_eq!(
+        tags,
+        vec![
+            TagSuggestion {
+                text: "blue eyes".to_string(),
+                count: 1
+            },
+            TagSuggestion {
+                text: "blue sky".to_string(),
+                count: 1
+            }
+        ]
+    );
+
+    let namespaces = suggest_namespaces(db.db(), 1, ContentStatus::Current, "cre", 10).unwrap();
+
+    assert_eq!(
+        namespaces,
+        vec![TagSuggestion {
+            text: "creator".to_string(),
+            count: 1
+        }]
+    );
+
+    assert!(
+        suggest_tags(db.db(), 1, ContentStatus::Current, "zzz", 10)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(second, get_hash_id(db.db(), &[2]).unwrap());
+
+    drop(db);
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn autocomplete_escapes_sql_wildcards() {
+    let (db, directory) = database();
+    seed(db.db());
+
+    assert!(
+        suggest_tags(db.db(), 1, ContentStatus::Current, "%", 10)
+            .unwrap()
+            .is_empty()
+    );
+
+    drop(db);
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn missing_tables_are_empty_results() {
     let (db, directory) = database();
 

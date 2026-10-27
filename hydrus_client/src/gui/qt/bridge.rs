@@ -20,6 +20,7 @@ pub(crate) mod ffi {
         fn hydrus_resize_window(window: Pin<&mut HydrusMainWindow>, width: i32, height: i32);
         fn hydrus_set_menus(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_set_tag_suggestions(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_autocomplete(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_set_status(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_build_pages(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_page(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
@@ -64,6 +65,7 @@ pub(crate) mod ffi {
             title: &str,
             text: &str,
         );
+        fn hydrus_show_or_dialog(window: Pin<&mut HydrusMainWindow>, page_id: &str, initial: &str);
         fn hydrus_pick_files(window: Pin<&mut HydrusMainWindow>);
         fn hydrus_prompt_url(window: Pin<&mut HydrusMainWindow>);
         fn hydrus_open_viewer(window: Pin<&mut HydrusMainWindow>, json: &str);
@@ -177,6 +179,16 @@ pub fn run_application(controller: Arc<Controller>) {
 
     if let Ok(tag) = std::env::var("HYDRUS_QT_ADD_TAG") {
         app::add_tag_for_testing(&tag);
+    }
+
+    if let Ok(views) = std::env::var("HYDRUS_QT_VIEWS") {
+        if let Ok(views) = views.parse::<i64>() {
+            app::add_viewing_stats_for_testing(views);
+        }
+    }
+
+    if let Ok(url) = std::env::var("HYDRUS_QT_URL") {
+        app::add_url_for_testing(&url);
     }
 
     if let Ok(query) = std::env::var("HYDRUS_QT_QUERY") {

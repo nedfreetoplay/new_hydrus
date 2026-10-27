@@ -97,6 +97,13 @@ fn serialise_value(_predicate_type: PredicateType, value: &PredicateValue) -> Va
             date_type,
             values,
         } => json!([operator, date_type, values]),
+        PredicateValue::KnownUrl { rule_type, rule } => json!([rule_type, rule]),
+        PredicateValue::ViewingStats {
+            canvas_types,
+            operator,
+            value,
+            viewtime,
+        } => json!([canvas_types, operator, value, viewtime]),
         PredicateValue::Or(predicates) => Value::Array(
             predicates
                 .iter()

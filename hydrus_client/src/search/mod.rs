@@ -13,7 +13,9 @@ pub use client_number_test::NumberTest;
 pub use client_search_autocomplete::{
     ParsedAutocompleteText, PredicateResultsCache, TagAutocompleteOptions,
 };
-pub use client_search_parse_system_predicates::parse_system_predicate;
+pub use client_search_parse_system_predicates::{
+    parse_system_predicate, parse_system_predicate_with_services,
+};
 pub use client_search_predicate::{Predicate, PredicateCount, PredicateValue};
 pub use client_search_tag_context::TagContext;
 

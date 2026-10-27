@@ -52,18 +52,23 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - файловые страницы: реальный поиск по локальной БД (теги, `-tag`, wildcard,
   namespace, `system:inbox`, `system:archive`, `system:limit=N`) и системные
   предикаты размера, разрешения, ratio, mime, hash, duration, fps, frames,
-  пикселей, слов, числа тегов/URL/заметок, рейтингов и дат; селектор file domain
-  (my files / all local files / trash), автодополнение тегов; избранные поиски
-  сохраняют запрос, домен и tag service и доступны из меню; recent searches и
-  undo/redo поиска хранят историю запросов в `search history.json`;
+  пикселей, слов, числа тегов/URL/заметок, рейтингов и дат; known URL/domain/regex/
+  URL class и file viewing stats/file service; OR-группы `{tag1 | tag2}` с
+  диалогом OR...; выпадающее автодополнение с вкладками tags/namespaces/wildcards/
+  system и счётчиками файлов; селектор file domain (my files / all local files /
+  trash), tag service; избранные поиски сохраняют запрос, домен и tag service и
+  доступны из меню; recent searches и undo/redo поиска хранят историю запросов в
+  `search history.json`;
 - сетка миниатюр, предпросмотр выбранного файла, статус страницы; выделение
   нескольких файлов и archive/inbox/delete для всей группы; сортировка по hash,
   времени импорта, размеру, mime, разрешению, ratio, пикселям, duration, frames и
   словам (по возрастанию/убыванию) с сохранением в сессии; поверх миниатюр
-  рисуются маркеры inbox, dup и рейтинг;
-- медиа-вьюер: зум, панорамирование, поворот, следующая/предыдущая, полная
-  metadata-панель (теги по сервисам, рейтинги, заметки), archive/inbox/delete, F11;
-  GIF/WebP-анимации с pause/play (кнопка и P); open externally, copy hash/url;
+  рисуются маркеры inbox, dup и рейтинг; миниатюры можно перетаскивать в другие
+  страницы или наружу как файлы, а файлы — бросать на страницу для импорта;
+- медиа-вьюер: зум (fit/100%), панорамирование (pan), поворот, следующая/предыдущая,
+  выбор фона (dark/black/mid/light/checkerboard), полная metadata-панель (теги по
+  сервисам, рейтинги, заметки), archive/inbox/delete, F11; GIF/WebP-анимации с
+  pause/play (кнопка и P); open externally, copy hash/url;
   prefetch соседних файлов и восстановление геометрии окна;
 - импорт локальных файлов через меню и drag-and-drop: хэширование, копирование в
   файловое хранилище, `files_info`, сервис файлов, inbox и генерация миниатюр;
@@ -121,7 +126,7 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - расширенные file maintenance jobs (regenerate thumbnails, re-scan file metadata) и
   оставшиеся горячие клавиши Hydrus.
 
-Сейчас проходит 522 unit-теста и 2 integration-теста. Архитектура:
+Сейчас проходит 528 unit-тестов и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). План портирования GUI с
 чек-листами и флагами: [docs/GUI_PORT_PLAN.md](docs/GUI_PORT_PLAN.md).
 

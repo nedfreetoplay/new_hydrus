@@ -19,6 +19,10 @@ pub(super) fn convert(
         return Ok(Predicate::new(predicate_type, PredicateValue::None));
     }
 
+    if let Some(predicate) = super::types::viewing_stats_predicate(&parsed) {
+        return Ok(predicate);
+    }
+
     if let Some(predicate_type) = super::types::numeric_type(&parsed) {
         let number = make_number_test(&parsed)?;
 

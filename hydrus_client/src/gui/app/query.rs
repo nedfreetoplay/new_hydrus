@@ -47,7 +47,7 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
     let service_ids = file_service_ids(controller, &page.location);
     let tag_service_id = tag_service_id_for(controller, &page.tag_service)
         .ok_or_else(|| "no local tag service".to_string())?;
-    let plan = search::plan(db, &page.query)?;
+    let plan = search::plan(db, &controller.services(), &page.query)?;
 
     let mut all: BTreeSet<i64> = BTreeSet::new();
 
@@ -96,6 +96,7 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
     }
 
     if !plan.system.other_system.is_empty()
+        || !plan.system.or_predicates.is_empty()
         || !plan.system.mimes.is_empty()
         || !plan.system.hashes.is_empty()
     {
@@ -103,11 +104,18 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
         let mut filtered = BTreeSet::new();
 
         for hash_id in result {
-            let Some(info) =
-                files_metadata::get_file_info(db, hash_id).map_err(|error| error.to_string())?
-            else {
-                continue;
-            };
+            let info = files_metadata::get_file_info(db, hash_id)
+                .map_err(|error| error.to_string())?
+                .unwrap_or(FileInfo {
+                    size: 0,
+                    mime: hydrus_core::hydrus_constants::Mime::Unknown,
+                    width: None,
+                    height: None,
+                    duration_ms: None,
+                    num_frames: None,
+                    has_audio: false,
+                    num_words: None,
+                });
 
             let Some(hash) = master::get_hash(db, hash_id).map_err(|error| error.to_string())?
             else {
@@ -121,6 +129,27 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
             }
 
             let mut keep = true;
+
+            for predicate in &plan.system.or_predicates {
+                if !search::matches_predicate_hash(
+                    controller,
+                    db,
+                    hash_id,
+                    &info,
+                    tag_service_id,
+                    file_service_id,
+                    predicate,
+                )
+                .map_err(|error| error.to_string())?
+                {
+                    keep = false;
+                    break;
+                }
+            }
+
+            if !keep {
+                continue;
+            }
 
             for predicate in &plan.system.other_system {
                 match search::matches_system(
@@ -490,16 +519,48 @@ pub fn media_json(controller: &Controller, page: &QueryPage) -> Vec<serde_json::
                         .flatten()
                 })
                 .map(|rating| rating.value());
+            let file = file_path(controller, hash)
+                .map(|path| path.display().to_string())
+                .unwrap_or_default();
+            let url = urls_for(controller, hash)
+                .into_iter()
+                .next()
+                .unwrap_or_default();
 
             serde_json::json!({
                 "hash": hex(hash),
                 "thumb": thumb,
+                "file": file,
+                "url": url,
                 "inbox": inbox,
                 "duplicate": duplicate,
                 "rating": rating,
             })
         })
         .collect()
+}
+
+pub fn append_hashes(page: &mut QueryPage, hashes: Vec<Vec<u8>>) {
+    if let Some(fixed) = &mut page.fixed_hashes {
+        for hash in &hashes {
+            if !fixed.contains(hash) {
+                fixed.push(hash.clone());
+            }
+        }
+    }
+
+    for hash in hashes {
+        if !page.hashes.contains(&hash) {
+            page.hashes.push(hash);
+        }
+    }
+
+    page.selected.clear();
+    page.status = match page.hashes.len() {
+        0 => "0 files".to_string(),
+        1 => "1 file".to_string(),
+        count => format!("{count} files"),
+    };
 }
 
 pub fn viewer_position(page: &QueryPage, hash: &[u8]) -> usize {

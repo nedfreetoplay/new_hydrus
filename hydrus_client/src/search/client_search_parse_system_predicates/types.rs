@@ -51,14 +51,6 @@ pub(super) fn numeric_type(parsed: &SystemPredicate) -> Option<PredicateType> {
         ExternalPredicate::Ratio | ExternalPredicate::RatioSpecial => {
             Some(PredicateType::SystemRatio)
         }
-        ExternalPredicate::MediaViews
-        | ExternalPredicate::PreviewViews
-        | ExternalPredicate::AllViews
-        | ExternalPredicate::NewViews
-        | ExternalPredicate::MediaViewtime
-        | ExternalPredicate::PreviewViewtime
-        | ExternalPredicate::AllViewtime
-        | ExternalPredicate::NewViewtime => Some(PredicateType::SystemFileViewingStats),
         ExternalPredicate::Limit => Some(PredicateType::SystemLimit),
         _ => None,
     };
@@ -120,12 +112,104 @@ pub(super) fn value_predicate(parsed: &SystemPredicate) -> HydrusResult<Option<P
             | ExternalPredicate::NoUrlRegex
     ) {
         if let Some(ValueData::AnyString(text)) = &parsed.value {
-            return Ok(Some(Predicate::new(
+            let (rule_type, inclusive) = match parsed.predicate {
+                ExternalPredicate::Url => ("exact_match", true),
+                ExternalPredicate::NoUrl => ("exact_match", false),
+                ExternalPredicate::Domain => ("domain", true),
+                ExternalPredicate::NoDomain => ("domain", false),
+                ExternalPredicate::UrlClass => ("url_class", true),
+                ExternalPredicate::NoUrlClass => ("url_class", false),
+                ExternalPredicate::UrlRegex => ("regex", true),
+                ExternalPredicate::NoUrlRegex => ("regex", false),
+                _ => return Ok(None),
+            };
+
+            let mut predicate = Predicate::new(
                 PredicateType::SystemKnownUrls,
-                PredicateValue::Text(text.clone()),
-            )));
+                PredicateValue::KnownUrl {
+                    rule_type: rule_type.to_string(),
+                    rule: text.clone(),
+                },
+            );
+            predicate.inclusive = inclusive;
+
+            return Ok(Some(predicate));
         }
     }
 
     Ok(None)
+}
+
+/// Converts `media views`, `preview viewtime`, `views in X`, ... into one
+/// viewing-stats predicate with summed canvas types.
+pub(super) fn viewing_stats_predicate(parsed: &SystemPredicate) -> Option<Predicate> {
+    use hydrus_external::system_predicate_parser::{CanvasType, Operator};
+
+    let (default_canvas, viewtime) = match parsed.predicate {
+        ExternalPredicate::MediaViews => ("media", false),
+        ExternalPredicate::PreviewViews => ("preview", false),
+        ExternalPredicate::AllViews | ExternalPredicate::NewViews => ("all", false),
+        ExternalPredicate::MediaViewtime => ("media", true),
+        ExternalPredicate::PreviewViewtime => ("preview", true),
+        ExternalPredicate::AllViewtime | ExternalPredicate::NewViewtime => ("all", true),
+        _ => return None,
+    };
+
+    let (canvas_types, relational) = match &parsed.operator {
+        Some(Operator::Views {
+            canvas_types,
+            relational,
+        }) => (
+            canvas_types
+                .iter()
+                .map(|canvas| match canvas {
+                    CanvasType::Media => "media".to_string(),
+                    CanvasType::Preview => "preview".to_string(),
+                    CanvasType::ClientApi => "client api".to_string(),
+                })
+                .collect(),
+            Some(*relational),
+        ),
+        Some(Operator::Relational(relational)) => (canvas_names(default_canvas), Some(*relational)),
+        _ => (canvas_names(default_canvas), None),
+    };
+
+    let value = match &parsed.value {
+        Some(ValueData::Natural(value)) => *value as f64,
+        Some(ValueData::Integer(value)) => *value as f64,
+        Some(ValueData::TimeInterval {
+            days,
+            hours,
+            minutes,
+            seconds,
+        }) => {
+            ((*days as f64 * 86_400.0)
+                + (*hours as f64 * 3_600.0)
+                + (*minutes as f64 * 60.0)
+                + *seconds as f64)
+                * 1000.0
+        }
+        _ => return None,
+    };
+
+    let operator = relational
+        .map(relational_operator)
+        .unwrap_or(crate::search::client_number_test::NUMBER_TEST_OPERATOR_EQUAL);
+
+    Some(Predicate::new(
+        PredicateType::SystemFileViewingStats,
+        PredicateValue::ViewingStats {
+            canvas_types,
+            operator,
+            value,
+            viewtime,
+        },
+    ))
+}
+
+fn canvas_names(canvas: &str) -> Vec<String> {
+    match canvas {
+        "all" => vec!["media".to_string(), "preview".to_string()],
+        other => vec![other.to_string()],
+    }
 }

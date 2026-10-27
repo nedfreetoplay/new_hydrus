@@ -66,8 +66,11 @@ public:
     void fit_image();
     void reset_zoom();
     void zoom_by(double factor);
+    void zoom_to(double factor);
     void rotate_by(int degrees);
     void set_recenter_on_resize(bool value);
+    void set_background_mode(const QString &mode);
+    void set_pan_mode(bool enabled);
     void toggle_animation();
     bool is_animated() const;
 
@@ -86,6 +89,8 @@ private:
 
 // One media page, laid out like Hydrus: search/preview sidebar on the left and
 // the thumbnail grid on the right.
+class HydrusAutocompletePopup;
+
 class HydrusQueryPage : public QWidget {
 public:
     HydrusQueryPage(HydrusMainWindow *main, const QString &page_id, const QJsonObject &state);
@@ -99,6 +104,8 @@ public:
         const QString &preview_path,
         const QJsonObject &metadata);
     void set_suggestions(const QStringList &suggestions);
+    void show_autocomplete(const QJsonObject &state);
+    void insert_autocomplete(const QString &text);
 
     void focus_hash(const QString &hash);
     void open_focused();
@@ -108,7 +115,12 @@ public:
 
     QString focused_hash() const;
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private:
+    void request_autocomplete();
+
     HydrusMainWindow *main = nullptr;
     QString id;
     QComboBox *location = nullptr;
@@ -117,6 +129,7 @@ private:
     QCheckBox *sort_ascending = nullptr;
     QLineEdit *search = nullptr;
     QCompleter *completer = nullptr;
+    HydrusAutocompletePopup *autocomplete = nullptr;
     QString text_before_completion;
     QPushButton *search_button = nullptr;
     QLabel *status_label = nullptr;
@@ -140,6 +153,10 @@ public:
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    void startDrag(Qt::DropActions supported_actions) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 
 private:
     HydrusMainWindow *main = nullptr;
@@ -169,6 +186,8 @@ private:
     HydrusMetadataPanel *metadata = nullptr;
     QLabel *status = nullptr;
     QPushButton *animation_button = nullptr;
+    QComboBox *background = nullptr;
+    QPushButton *pan_button = nullptr;
     QString file_path;
     QString url;
     double zoom_step = 1.25;
@@ -462,6 +481,7 @@ public:
         const QJsonObject &metadata);
     void set_tag_suggestions(const QStringList &suggestions);
     const QStringList &suggestions() const;
+    void show_autocomplete(const QJsonObject &state);
     void show_page_chooser(const QString &notebook_id);
     void prompt_url();
     void open_viewer(const QJsonObject &state);
@@ -536,6 +556,7 @@ void hydrus_set_title(HydrusMainWindow &window, rust::Str title);
 void hydrus_resize_window(HydrusMainWindow &window, int width, int height);
 void hydrus_set_menus(HydrusMainWindow &window, rust::Str json);
 void hydrus_set_tag_suggestions(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_autocomplete(HydrusMainWindow &window, rust::Str json);
 void hydrus_set_status(HydrusMainWindow &window, rust::Str json);
 void hydrus_build_pages(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_page(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
@@ -569,6 +590,10 @@ void hydrus_confirm_action(
     rust::Str target,
     rust::Str title,
     rust::Str text);
+void hydrus_show_or_dialog(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Str initial);
 void hydrus_pick_files(HydrusMainWindow &window);
 void hydrus_prompt_url(HydrusMainWindow &window);
 void hydrus_open_viewer(HydrusMainWindow &window, rust::Str json);

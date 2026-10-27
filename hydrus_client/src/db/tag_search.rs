@@ -125,6 +125,91 @@ pub fn get_num_files_for_tag(
     Ok(get_hash_ids_for_tag(db, service_id, status, tag)?.len() as i64)
 }
 
+/// One autocomplete entry with the number of files currently mapped to it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TagSuggestion {
+    pub text: String,
+    pub count: i64,
+}
+
+/// Tags whose text starts with `prefix`, most used first. `%` and `_` are
+/// escaped so a user-typed wildcard cannot turn into a broader SQL pattern.
+pub fn suggest_tags(
+    db: &DBBase,
+    service_id: i64,
+    status: ContentStatus,
+    prefix: &str,
+    limit: usize,
+) -> HydrusResult<Vec<TagSuggestion>> {
+    let table = table_name(service_id, status);
+
+    if !db.table_exists(&table)? {
+        return Ok(Vec::new());
+    }
+
+    let pattern = format!("{}%", escape_like(prefix));
+
+    db.query_all(
+        &format!(
+            "SELECT CASE WHEN n.namespace = '' THEN s.subtag
+                         ELSE n.namespace || ':' || s.subtag END AS tag_text,
+                    COUNT(DISTINCT m.hash_id) AS files
+             FROM {table} m
+             JOIN tags t ON m.tag_id = t.tag_id
+             JOIN namespaces n ON t.namespace_id = n.namespace_id
+             JOIN subtags s ON t.subtag_id = s.subtag_id
+             WHERE tag_text LIKE ? ESCAPE '\\'
+             GROUP BY t.tag_id
+             ORDER BY files DESC, tag_text
+             LIMIT ?"
+        ),
+        &[&pattern, &(limit as i64)],
+        |row| {
+            Ok(TagSuggestion {
+                text: row.get(0)?,
+                count: row.get(1)?,
+            })
+        },
+    )
+}
+
+/// Namespaces whose name starts with `prefix`, with file counts.
+pub fn suggest_namespaces(
+    db: &DBBase,
+    service_id: i64,
+    status: ContentStatus,
+    prefix: &str,
+    limit: usize,
+) -> HydrusResult<Vec<TagSuggestion>> {
+    let table = table_name(service_id, status);
+
+    if !db.table_exists(&table)? {
+        return Ok(Vec::new());
+    }
+
+    let pattern = format!("{}%", escape_like(prefix));
+
+    db.query_all(
+        &format!(
+            "SELECT n.namespace, COUNT(DISTINCT m.hash_id)
+             FROM {table} m
+             JOIN tags t ON m.tag_id = t.tag_id
+             JOIN namespaces n ON t.namespace_id = n.namespace_id
+             WHERE n.namespace <> '' AND n.namespace LIKE ? ESCAPE '\\'
+             GROUP BY n.namespace
+             ORDER BY COUNT(DISTINCT m.hash_id) DESC, n.namespace
+             LIMIT ?"
+        ),
+        &[&pattern, &(limit as i64)],
+        |row| {
+            Ok(TagSuggestion {
+                text: row.get(0)?,
+                count: row.get(1)?,
+            })
+        },
+    )
+}
+
 fn table_name(service_id: i64, status: ContentStatus) -> String {
     let prefix = match status {
         ContentStatus::Current => "current_mappings",

@@ -128,6 +128,48 @@ pub(super) fn deserialise_value(
         ));
     }
 
+    if predicate_type == PredicateType::SystemKnownUrls {
+        let values = value
+            .as_array()
+            .ok_or_else(|| serialisation("known url predicate value must be a list"))?;
+
+        return Ok(PredicateValue::KnownUrl {
+            rule_type: values
+                .first()
+                .and_then(Value::as_str)
+                .unwrap_or("exact_match")
+                .to_string(),
+            rule: values
+                .get(1)
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+        });
+    }
+
+    if predicate_type == PredicateType::SystemFileViewingStats {
+        let values = value
+            .as_array()
+            .ok_or_else(|| serialisation("viewing stats predicate value must be a list"))?;
+
+        return Ok(PredicateValue::ViewingStats {
+            canvas_types: values
+                .first()
+                .and_then(Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default(),
+            operator: values.get(1).and_then(Value::as_i64).unwrap_or(2) as i32,
+            value: values.get(2).and_then(Value::as_f64).unwrap_or(0.0),
+            viewtime: values.get(3).and_then(Value::as_bool).unwrap_or(false),
+        });
+    }
+
     if predicate_type == PredicateType::OrContainer {
         let mut predicates = Vec::new();
 

@@ -28,6 +28,7 @@
 #include <QInputDialog>
 #include <QJsonDocument>
 #include <QJsonParseError>
+#include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -69,6 +70,8 @@
 #include <QVBoxLayout>
 
 #include <functional>
+
+void show_or_predicate_dialog(HydrusMainWindow &main, const QString &page_id, const QString &initial);
 
 namespace {
 
@@ -303,6 +306,53 @@ void HydrusCanvas::zoom_by(double factor) {
     scale(factor, factor);
 }
 
+void HydrusCanvas::zoom_to(double factor) {
+    if (pixmap_item == nullptr) {
+        return;
+    }
+
+    fit_mode = false;
+    resetTransform();
+    rotate(rotation);
+    scale(factor, factor);
+    centerOn(scene->sceneRect().center());
+}
+
+void HydrusCanvas::set_background_mode(const QString &mode) {
+    if (mode == QStringLiteral("black")) {
+        setBackgroundBrush(QColor(0, 0, 0));
+        return;
+    }
+
+    if (mode == QStringLiteral("light")) {
+        setBackgroundBrush(QColor(230, 230, 230));
+        return;
+    }
+
+    if (mode == QStringLiteral("mid")) {
+        setBackgroundBrush(QColor(96, 96, 96));
+        return;
+    }
+
+    if (mode == QStringLiteral("checkerboard")) {
+        QPixmap tile(16, 16);
+        tile.fill(QColor(58, 58, 58));
+        QPainter painter(&tile);
+        painter.fillRect(QRect(0, 0, 8, 8), QColor(72, 72, 72));
+        painter.fillRect(QRect(8, 8, 8, 8), QColor(72, 72, 72));
+        painter.end();
+        setBackgroundBrush(QBrush(tile));
+        return;
+    }
+
+    setBackgroundBrush(QColor(52, 52, 52));
+}
+
+void HydrusCanvas::set_pan_mode(bool enabled) {
+    setDragMode(enabled ? QGraphicsView::ScrollHandDrag : QGraphicsView::NoDrag);
+    setCursor(enabled ? Qt::OpenHandCursor : Qt::ArrowCursor);
+}
+
 void HydrusCanvas::rotate_by(int degrees) {
     if (pixmap_item == nullptr) {
         return;
@@ -359,6 +409,9 @@ HydrusThumbnailGrid::HydrusThumbnailGrid(HydrusMainWindow *main_window, HydrusQu
     setIconSize(QSize(150, 125));
     setGridSize(QSize(162, 137));
     setSelectionMode(QAbstractItemView::ExtendedSelection);
+    setDragEnabled(true);
+    setAcceptDrops(true);
+    setDragDropMode(QAbstractItemView::DragDrop);
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setStyleSheet(QStringLiteral(
@@ -435,6 +488,8 @@ void HydrusThumbnailGrid::set_media(const QJsonArray &media) {
 
         auto *item = new QListWidgetItem(this);
         item->setData(Qt::UserRole, hash);
+        item->setData(Qt::UserRole + 1, object.value(QStringLiteral("file")).toString());
+        item->setData(Qt::UserRole + 2, object.value(QStringLiteral("url")).toString());
 
         QStringList badges;
 
@@ -515,6 +570,113 @@ QStringList HydrusThumbnailGrid::selected_hashes() const {
     return hashes;
 }
 
+void HydrusThumbnailGrid::startDrag(Qt::DropActions supported_actions) {
+    Q_UNUSED(supported_actions);
+
+    const QList<QListWidgetItem *> items = selectedItems();
+
+    if (items.isEmpty()) {
+        return;
+    }
+
+    auto *mime = new QMimeData();
+    QList<QUrl> urls;
+    QJsonArray hashes;
+    QPixmap preview;
+
+    for (QListWidgetItem *item : items) {
+        const QString hash = page_hash_from_item(item);
+
+        if (hash.isEmpty()) {
+            continue;
+        }
+
+        hashes.append(hash);
+        const QString file = item->data(Qt::UserRole + 1).toString();
+
+        if (!file.isEmpty()) {
+            urls.append(QUrl::fromLocalFile(file));
+        }
+
+        if (preview.isNull()) {
+            preview = item->icon().pixmap(QSize(96, 80));
+        }
+    }
+
+    if (hashes.isEmpty()) {
+        delete mime;
+        return;
+    }
+
+    mime->setUrls(urls);
+    mime->setData(
+        QStringLiteral("application/x-hydrus-files"),
+        QJsonDocument(hashes).toJson(QJsonDocument::Compact));
+
+    QDrag drag(this);
+    drag.setMimeData(mime);
+
+    if (!preview.isNull()) {
+        drag.setPixmap(preview);
+        drag.setHotSpot(QPoint(preview.width() / 2, preview.height() / 2));
+    }
+
+    drag.exec(Qt::CopyAction);
+}
+
+void HydrusThumbnailGrid::dragEnterEvent(QDragEnterEvent *event) {
+    if (event->mimeData()->hasFormat(QStringLiteral("application/x-hydrus-files"))
+        || event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+        return;
+    }
+
+    QListWidget::dragEnterEvent(event);
+}
+
+void HydrusThumbnailGrid::dragMoveEvent(QDragMoveEvent *event) {
+    if (event->mimeData()->hasFormat(QStringLiteral("application/x-hydrus-files"))
+        || event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+        return;
+    }
+
+    QListWidget::dragMoveEvent(event);
+}
+
+void HydrusThumbnailGrid::dropEvent(QDropEvent *event) {
+    if (event->mimeData()->hasFormat(QStringLiteral("application/x-hydrus-files"))) {
+        const QByteArray payload = event->mimeData()->data(QStringLiteral("application/x-hydrus-files"));
+        main->notify(
+            QStringLiteral("add_hashes_to_page"),
+            page->page_id(),
+            QString::fromUtf8(payload));
+        event->acceptProposedAction();
+        return;
+    }
+
+    if (event->mimeData()->hasUrls()) {
+        QJsonArray paths;
+
+        for (const QUrl &url : event->mimeData()->urls()) {
+            if (url.isLocalFile()) {
+                paths.append(url.toLocalFile());
+            }
+        }
+
+        if (!paths.isEmpty()) {
+            main->notify(
+                QStringLiteral("import_paths"),
+                QString(),
+                QString::fromUtf8(QJsonDocument(paths).toJson(QJsonDocument::Compact)));
+            event->acceptProposedAction();
+            return;
+        }
+    }
+
+    QListWidget::dropEvent(event);
+}
+
 void HydrusThumbnailGrid::wheelEvent(QWheelEvent *event) {
     if (!(event->modifiers() & Qt::ControlModifier)) {
         QListWidget::wheelEvent(event);
@@ -555,8 +717,23 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
 
     QMenu menu(this);
 
+    const QString file = item->data(Qt::UserRole + 1).toString();
+    const QString url = item->data(Qt::UserRole + 2).toString();
+
     QAction *open = menu.addAction(QStringLiteral("open in media viewer"));
+    QAction *external = menu.addAction(QStringLiteral("open externally"));
+    external->setEnabled(!file.isEmpty());
+    QAction *copy_hash = menu.addAction(QStringLiteral("copy hash"));
+    QAction *copy_url = menu.addAction(QStringLiteral("copy url"));
+    copy_url->setEnabled(!url.isEmpty());
+    menu.addSeparator();
     QAction *tags = menu.addAction(QStringLiteral("manage tags..."));
+    QAction *notes = menu.addAction(QStringLiteral("manage notes..."));
+    QAction *timestamps = menu.addAction(QStringLiteral("edit timestamps..."));
+    auto *ratings = menu.addMenu(QStringLiteral("rating"));
+    QAction *like = ratings->addAction(QStringLiteral("like"));
+    QAction *dislike = ratings->addAction(QStringLiteral("dislike"));
+    QAction *clear_rating = ratings->addAction(QStringLiteral("clear"));
     menu.addSeparator();
     QAction *archive = menu.addAction(QStringLiteral("archive"));
     QAction *inbox = menu.addAction(QStringLiteral("inbox"));
@@ -565,6 +742,58 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
     QAction *chosen = menu.exec(event->globalPos());
 
     if (chosen == nullptr) {
+        return;
+    }
+
+    if (chosen == external) {
+        if (!file.isEmpty()) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(file));
+        }
+
+        return;
+    }
+
+    if (chosen == copy_hash) {
+        QApplication::clipboard()->setText(hash);
+        return;
+    }
+
+    if (chosen == copy_url) {
+        if (!url.isEmpty()) {
+            QApplication::clipboard()->setText(url);
+        }
+
+        return;
+    }
+
+    if (chosen == notes) {
+        QJsonObject payload;
+        payload.insert(QStringLiteral("hash"), hash);
+        main->notify(
+            QStringLiteral("notes_manage"),
+            QString(),
+            QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)));
+        return;
+    }
+
+    if (chosen == timestamps) {
+        main->notify(QStringLiteral("edit_timestamps"));
+        return;
+    }
+
+    if (chosen == like || chosen == dislike || chosen == clear_rating) {
+        QJsonObject payload;
+        payload.insert(QStringLiteral("hash"), hash);
+        payload.insert(
+            QStringLiteral("action"),
+            chosen == like ? QStringLiteral("like")
+                           : chosen == dislike ? QStringLiteral("dislike")
+                                               : QStringLiteral("clear"));
+        payload.insert(QStringLiteral("value"), chosen == like ? 1.0 : 0.0);
+        main->notify(
+            QStringLiteral("rating_set"),
+            QString(),
+            QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)));
         return;
     }
 
@@ -964,6 +1193,203 @@ void HydrusMetadataPanel::edit_notes() {
 }
 
 // ---------------------------------------------------------------------------
+// Search autocomplete
+// ---------------------------------------------------------------------------
+
+// Hydrus' AC dropdown groups matches into tabs and shows how many files each
+// predicate selects. The popup keeps focus in the line edit so typing can
+// continue while Arrow keys move through the list.
+class HydrusAutocompletePopup : public QFrame {
+public:
+    HydrusAutocompletePopup(QWidget *anchor, std::function<void(const QString &)> insert)
+        : QFrame(anchor->window()), anchor(anchor), insert(std::move(insert)) {
+        setFrameShape(QFrame::StyledPanel);
+        setFrameShadow(QFrame::Raised);
+
+        auto *layout = new QVBoxLayout(this);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+
+        tabs = new QTabBar(this);
+        tabs->setExpanding(false);
+        tabs->setDrawBase(false);
+        layout->addWidget(tabs);
+
+        list = new QListWidget(this);
+        list->setFocusPolicy(Qt::NoFocus);
+        list->setSelectionMode(QAbstractItemView::SingleSelection);
+        list->setUniformItemSizes(true);
+        layout->addWidget(list, 1);
+
+        connect(tabs, &QTabBar::currentChanged, this, [this](int) { rebuild_list(); });
+        connect(list, &QListWidget::itemClicked, this, [this](QListWidgetItem *item) {
+            if (item != nullptr) {
+                activate(item->data(Qt::UserRole).toString());
+            }
+        });
+    }
+
+    void set_state(const QJsonObject &state) {
+        entries = state.value(QStringLiteral("entries")).toArray();
+        raw = state.value(QStringLiteral("raw")).toString();
+        rebuild_tabs();
+
+        if (entries.isEmpty()) {
+            hide();
+            return;
+        }
+
+        const int width = qMax(320, anchor->width());
+        const int rows = qBound(1, list->count(), 12);
+        resize(width, tabs->sizeHint().height() + rows * 24 + 12);
+
+        const QPoint position = anchor->mapTo(parentWidget(), QPoint(0, anchor->height()));
+        move(position);
+        raise();
+        show();
+        list->setCurrentRow(0);
+    }
+
+    void move_selection(int delta) {
+        if (!isVisible() || list->count() == 0) {
+            return;
+        }
+
+        int row = list->currentRow() + delta;
+
+        if (row < 0) {
+            row = list->count() - 1;
+        } else if (row >= list->count()) {
+            row = 0;
+        }
+
+        list->setCurrentRow(row);
+    }
+
+    QString current_text() const {
+        QListWidgetItem *item = list->currentItem();
+
+        return item == nullptr ? QString() : item->data(Qt::UserRole).toString();
+    }
+
+    QString raw_text() const {
+        return raw;
+    }
+
+    bool is_open() const {
+        return isVisible() && list->count() > 0;
+    }
+
+private:
+    QString category_at(int index) const {
+        return index < 0 ? QString() : tabs->tabData(index).toString();
+    }
+
+    void rebuild_tabs() {
+        const QString previous = category_at(tabs->currentIndex());
+        QSignalBlocker blocker(tabs);
+
+        while (tabs->count() > 0) {
+            tabs->removeTab(0);
+        }
+
+        const QStringList order{
+            QStringLiteral("tags"),
+            QStringLiteral("namespaces"),
+            QStringLiteral("wildcards"),
+            QStringLiteral("system"),
+        };
+
+        for (const QString &category : order) {
+            int count = 0;
+            QString label = category;
+
+            for (const QJsonValue &value : entries) {
+                if (value.toObject().value(QStringLiteral("category")).toString() == category) {
+                    count += 1;
+                }
+            }
+
+            if (count == 0) {
+                continue;
+            }
+
+            if (category == QStringLiteral("tags")) {
+                label = QStringLiteral("tags");
+            } else if (category == QStringLiteral("namespaces")) {
+                label = QStringLiteral("namespaces");
+            } else if (category == QStringLiteral("wildcards")) {
+                label = QStringLiteral("wildcards");
+            } else {
+                label = QStringLiteral("system");
+            }
+
+            const int index = tabs->addTab(QStringLiteral("%1 (%2)").arg(label).arg(count));
+            tabs->setTabData(index, category);
+        }
+
+        int restore = 0;
+
+        for (int index = 0; index < tabs->count(); ++index) {
+            if (category_at(index) == previous) {
+                restore = index;
+                break;
+            }
+        }
+
+        if (tabs->count() > 0) {
+            tabs->setCurrentIndex(restore);
+        }
+
+        rebuild_list();
+    }
+
+    void rebuild_list() {
+        list->clear();
+        const QString category = category_at(tabs->currentIndex());
+
+        for (const QJsonValue &value : entries) {
+            const QJsonObject entry = value.toObject();
+
+            if (entry.value(QStringLiteral("category")).toString() != category) {
+                continue;
+            }
+
+            const QString text = entry.value(QStringLiteral("text")).toString();
+            QString label = text;
+            const QJsonValue count = entry.value(QStringLiteral("count"));
+
+            if (!count.isNull() && count.isDouble()) {
+                label = QStringLiteral("%1  (%2)").arg(text).arg(static_cast<qint64>(count.toDouble()));
+            }
+
+            auto *item = new QListWidgetItem(label, list);
+            item->setData(Qt::UserRole, text);
+            item->setToolTip(text);
+        }
+
+        if (list->count() > 0) {
+            list->setCurrentRow(0);
+        }
+    }
+
+    void activate(const QString &text) {
+        hide();
+
+        if (!text.isEmpty()) {
+            insert(text);
+        }
+    }
+
+    QWidget *anchor = nullptr;
+    QTabBar *tabs = nullptr;
+    QListWidget *list = nullptr;
+    QJsonArray entries;
+    QString raw;
+    std::function<void(const QString &)> insert;
+};
+
+// ---------------------------------------------------------------------------
 // HydrusQueryPage
 // ---------------------------------------------------------------------------
 
@@ -1013,45 +1439,32 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
     search->setPlaceholderText(QStringLiteral("tags: blue eyes, -sky, system:inbox"));
     sidebar_layout->addWidget(search);
 
-    completer = new QCompleter(main->suggestions(), this);
-    completer->setCaseSensitivity(Qt::CaseInsensitive);
-    completer->setFilterMode(Qt::MatchContains);
-    completer->setCompletionMode(QCompleter::PopupCompletion);
-    search->setCompleter(completer);
+    autocomplete = new HydrusAutocompletePopup(search, [this](const QString &text) {
+        insert_autocomplete(text);
+    });
+    search->installEventFilter(this);
 
     connect(search, &QLineEdit::textEdited, this, [this](const QString &text) {
         text_before_completion = text;
-    });
-
-    connect(completer, QOverload<const QString &>::of(&QCompleter::activated), this, [this](const QString &completion) {
-        const QString before = text_before_completion.trimmed();
-        int keep = 0;
-
-        // Find the longest suffix of what was typed that the completion starts
-        // with. This replaces a partially typed multi-word tag while keeping
-        // earlier predicates such as `series:foo blue ey`.
-        for (int index = 0; index < before.size(); ++index) {
-            if (completion.startsWith(before.mid(index), Qt::CaseInsensitive)) {
-                keep = index;
-                break;
-            }
-        }
-
-        QString prefix = before.left(keep);
-
-        if (!prefix.isEmpty() && !prefix.endsWith(QLatin1Char(' '))) {
-            prefix += QLatin1Char(' ');
-        }
-
-        const QString text = prefix + completion + QStringLiteral(" ");
-
-        search->setText(text);
-        text_before_completion = text;
-        search->setFocus();
+        request_autocomplete();
     });
 
     search_button = new QPushButton(QStringLiteral("search"), sidebar);
     sidebar_layout->addWidget(search_button);
+
+    auto *or_button = new QPushButton(QStringLiteral("OR..."), sidebar);
+    or_button->setToolTip(QStringLiteral("Combine tags or system predicates with OR."));
+    sidebar_layout->addWidget(or_button);
+
+    connect(or_button, &QPushButton::clicked, this, [this]() {
+        QStringList seed;
+
+        for (const QString &term : search->text().split(' ', Qt::SkipEmptyParts)) {
+            seed.append(term);
+        }
+
+        show_or_predicate_dialog(*main, id, seed.join(QLatin1Char('\n')));
+    });
 
     sort = new QComboBox(sidebar);
     sort->addItems({
@@ -1138,6 +1551,89 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
 
 const QString &HydrusQueryPage::page_id() const {
     return id;
+}
+
+void HydrusQueryPage::show_autocomplete(const QJsonObject &state) {
+    if (main->building || state.value(QStringLiteral("page_id")).toString() != id) {
+        return;
+    }
+
+    autocomplete->set_state(state);
+}
+
+void HydrusQueryPage::insert_autocomplete(const QString &text) {
+    QString current = search->text();
+    const QString raw = autocomplete == nullptr ? QString() : autocomplete->raw_text();
+
+    if (!raw.isEmpty() && current.endsWith(raw)) {
+        current.chop(raw.size());
+    } else {
+        current.clear();
+    }
+
+    if (!current.isEmpty() && !current.endsWith(QLatin1Char(' '))) {
+        current += QLatin1Char(' ');
+    }
+
+    QString inserted = text;
+
+    if (!inserted.endsWith(QLatin1Char(' ')) && !inserted.endsWith(QLatin1Char(':'))) {
+        inserted += QLatin1Char(' ');
+    }
+
+    search->setText(current + inserted);
+    text_before_completion = search->text();
+    search->setFocus();
+}
+
+void HydrusQueryPage::request_autocomplete() {
+    if (main->building) {
+        return;
+    }
+
+    main->notify(QStringLiteral("autocomplete"), id, search->text());
+}
+
+bool HydrusQueryPage::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == search && event->type() == QEvent::FocusOut && autocomplete != nullptr) {
+        QTimer::singleShot(150, this, [this]() {
+            if (!search->hasFocus()) {
+                autocomplete->hide();
+            }
+        });
+    }
+
+    if (watched == search && autocomplete != nullptr && autocomplete->is_open()
+        && event->type() == QEvent::KeyPress) {
+        auto *key = static_cast<QKeyEvent *>(event);
+
+        if (key->key() == Qt::Key_Down) {
+            autocomplete->move_selection(1);
+            return true;
+        }
+
+        if (key->key() == Qt::Key_Up) {
+            autocomplete->move_selection(-1);
+            return true;
+        }
+
+        if (key->key() == Qt::Key_Escape) {
+            autocomplete->hide();
+            return true;
+        }
+
+        if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
+            const QString text = autocomplete->current_text();
+
+            if (!text.isEmpty()) {
+                insert_autocomplete(text);
+                autocomplete->hide();
+                return true;
+            }
+        }
+    }
+
+    return QWidget::eventFilter(watched, event);
 }
 
 void HydrusQueryPage::update_state(const QJsonObject &state) {
@@ -1248,11 +1744,6 @@ void HydrusQueryPage::set_selection(
 }
 
 void HydrusQueryPage::set_suggestions(const QStringList &suggestions) {
-    if (completer == nullptr) {
-        return;
-    }
-
-    completer->setModel(new QStringListModel(suggestions, completer));
     metadata->set_suggestions(suggestions);
 }
 
@@ -1972,8 +2463,19 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     auto *previous = new QPushButton(QStringLiteral("<"), toolbar);
     auto *next = new QPushButton(QStringLiteral(">"), toolbar);
     auto *fit = new QPushButton(QStringLiteral("fit"), toolbar);
+    auto *actual_size = new QPushButton(QStringLiteral("100%"), toolbar);
     auto *zoom_in = new QPushButton(QStringLiteral("+"), toolbar);
     auto *zoom_out = new QPushButton(QStringLiteral("-"), toolbar);
+    pan_button = new QPushButton(QStringLiteral("pan"), toolbar);
+    pan_button->setCheckable(true);
+    background = new QComboBox(toolbar);
+    background->addItems({
+        QStringLiteral("dark"),
+        QStringLiteral("black"),
+        QStringLiteral("mid"),
+        QStringLiteral("light"),
+        QStringLiteral("checkerboard"),
+    });
     auto *manage = new QPushButton(QStringLiteral("manage tags..."), toolbar);
     animation_button = new QPushButton(QStringLiteral("pause"), toolbar);
     animation_button->setEnabled(false);
@@ -1986,8 +2488,11 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     toolbar_layout->addWidget(next);
     toolbar_layout->addSpacing(12);
     toolbar_layout->addWidget(fit);
+    toolbar_layout->addWidget(actual_size);
     toolbar_layout->addWidget(zoom_out);
     toolbar_layout->addWidget(zoom_in);
+    toolbar_layout->addWidget(pan_button);
+    toolbar_layout->addWidget(background);
     toolbar_layout->addWidget(animation_button);
     toolbar_layout->addStretch(1);
     toolbar_layout->addWidget(external);
@@ -2019,8 +2524,29 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     connect(previous, &QPushButton::clicked, this, [this]() { navigate(QStringLiteral("prev")); });
     connect(next, &QPushButton::clicked, this, [this]() { navigate(QStringLiteral("next")); });
     connect(fit, &QPushButton::clicked, this, [this]() { canvas->fit_image(); });
+    connect(actual_size, &QPushButton::clicked, this, [this]() { canvas->zoom_to(1.0); });
     connect(zoom_in, &QPushButton::clicked, this, [this]() { canvas->zoom_by(zoom_step); });
     connect(zoom_out, &QPushButton::clicked, this, [this]() { canvas->zoom_by(1.0 / zoom_step); });
+    connect(pan_button, &QPushButton::toggled, this, [this](bool enabled) {
+        canvas->set_pan_mode(enabled);
+        QSettings settings;
+        settings.setValue(QStringLiteral("viewer/pan"), enabled);
+    });
+    connect(background, &QComboBox::currentTextChanged, this, [this](const QString &mode) {
+        canvas->set_background_mode(mode);
+        QSettings settings;
+        settings.setValue(QStringLiteral("viewer/background"), mode);
+    });
+
+    {
+        QSettings settings;
+        const QString mode = settings.value(QStringLiteral("viewer/background"), QStringLiteral("dark")).toString();
+        const bool pan = settings.value(QStringLiteral("viewer/pan"), true).toBool();
+        background->setCurrentText(mode);
+        pan_button->setChecked(pan);
+        canvas->set_background_mode(mode);
+        canvas->set_pan_mode(pan);
+    }
     connect(animation_button, &QPushButton::clicked, this, [this]() {
         canvas->toggle_animation();
 
@@ -2699,11 +3225,15 @@ namespace {
 
 struct OptionField {
     QString key;
+    QString label;
     QString type;
     bool noneable = false;
     QCheckBox *boolean = nullptr;
     QSpinBox *integer = nullptr;
     QLineEdit *text = nullptr;
+    QWidget *page = nullptr;
+    QWidget *label_widget = nullptr;
+    QWidget *input_widget = nullptr;
 };
 
 class HydrusOptionsDialog : public QDialog {
@@ -2714,6 +3244,10 @@ public:
         resize(720, 600);
 
         auto *layout = new QVBoxLayout(this);
+        search = new QLineEdit(this);
+        search->setPlaceholderText(QStringLiteral("search options..."));
+        layout->addWidget(search);
+
         auto *tabs = new QTabWidget(this);
         layout->addWidget(tabs, 1);
 
@@ -2731,27 +3265,35 @@ public:
                 entry.key = field.value(QStringLiteral("key")).toString();
                 entry.type = field.value(QStringLiteral("type")).toString();
                 entry.noneable = field.value(QStringLiteral("noneable")).toBool(false);
+                entry.page = page;
 
                 const QString label = field.value(QStringLiteral("label")).toString();
+                entry.label = label;
+                auto *label_widget = new QLabel(label, page);
+                entry.label_widget = label_widget;
                 const QJsonValue value = field.value(QStringLiteral("value"));
 
                 if (entry.type == QStringLiteral("bool")) {
                     entry.boolean = new QCheckBox(page);
                     entry.boolean->setChecked(value.toBool());
-                    form->addRow(label, entry.boolean);
+                    form->addRow(label_widget, entry.boolean);
+                    entry.input_widget = entry.boolean;
                 } else if (entry.type == QStringLiteral("int")) {
                     entry.integer = new QSpinBox(page);
                     entry.integer->setRange(-2'000'000'000, 2'000'000'000);
                     entry.integer->setValue(value.toInt());
-                    form->addRow(label, entry.integer);
+                    form->addRow(label_widget, entry.integer);
+                    entry.input_widget = entry.integer;
                 } else if (entry.type == QStringLiteral("string")) {
                     entry.text = new QLineEdit(page);
                     entry.text->setText(value.toString());
-                    form->addRow(label, entry.text);
+                    form->addRow(label_widget, entry.text);
+                    entry.input_widget = entry.text;
                 } else {
                     auto *readonly = new QLabel(value.toString(), page);
                     readonly->setTextInteractionFlags(Qt::TextSelectableByMouse);
-                    form->addRow(label, readonly);
+                    form->addRow(label_widget, readonly);
+                    entry.input_widget = readonly;
                 }
 
                 fields.append(entry);
@@ -2759,6 +3301,39 @@ public:
 
             tabs->addTab(page, tab.value(QStringLiteral("title")).toString());
         }
+
+        connect(search, &QLineEdit::textChanged, this, [this, tabs](const QString &text) {
+            const QString needle = text.trimmed();
+
+            for (const OptionField &field : fields) {
+                const bool visible = needle.isEmpty()
+                    || field.label.contains(needle, Qt::CaseInsensitive)
+                    || field.key.contains(needle, Qt::CaseInsensitive);
+
+                if (field.label_widget != nullptr) {
+                    field.label_widget->setVisible(visible);
+                }
+                if (field.input_widget != nullptr) {
+                    field.input_widget->setVisible(visible);
+                }
+            }
+
+            for (int index = 0; index < tabs->count(); ++index) {
+                QWidget *page = tabs->widget(index);
+                bool any_visible = false;
+
+                for (const OptionField &field : fields) {
+                    if (field.page == page
+                        && field.input_widget != nullptr
+                        && field.input_widget->isVisible()) {
+                        any_visible = true;
+                        break;
+                    }
+                }
+
+                tabs->setTabVisible(index, any_visible || needle.isEmpty());
+            }
+        });
 
         auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, this);
         connect(buttons, &QDialogButtonBox::accepted, this, [this]() { apply(); });
@@ -2798,6 +3373,7 @@ private:
     }
 
     HydrusMainWindow *main = nullptr;
+    QLineEdit *search = nullptr;
     QVector<OptionField> fields;
 };
 
@@ -4458,6 +5034,15 @@ const QStringList &HydrusMainWindow::suggestions() const {
     return tag_suggestions;
 }
 
+void HydrusMainWindow::show_autocomplete(const QJsonObject &state) {
+    const QString page_id = state.value(QStringLiteral("page_id")).toString();
+    HydrusQueryPage *page = pages.value(page_id, nullptr);
+
+    if (page != nullptr) {
+        page->show_autocomplete(state);
+    }
+}
+
 void HydrusMainWindow::build_pages(const QJsonObject &object) {
     if (root == nullptr) {
         return;
@@ -4695,6 +5280,76 @@ private:
 void show_command_palette(HydrusMainWindow *main) {
     HydrusCommandPalette palette(main);
     palette.exec();
+}
+
+// ---------------------------------------------------------------------------
+// OR predicate editor
+// ---------------------------------------------------------------------------
+
+class HydrusOrDialog : public QDialog {
+public:
+    HydrusOrDialog(const QString &initial, QWidget *parent = nullptr)
+        : QDialog(parent) {
+        setWindowTitle(QStringLiteral("OR predicates"));
+        resize(520, 380);
+
+        auto *layout = new QVBoxLayout(this);
+        auto *help = new QLabel(
+            QStringLiteral("One predicate per line. A file matches if any line matches.\n"
+                           "Tags, wildcards, namespaces and system: predicates are supported."),
+            this);
+        help->setWordWrap(true);
+        layout->addWidget(help);
+
+        editor = new QPlainTextEdit(this);
+        editor->setPlainText(initial);
+        editor->setPlaceholderText(QStringLiteral("blue eyes\nspecies:wolf\nsystem:width > 1000"));
+        layout->addWidget(editor, 1);
+
+        auto *buttons = new QDialogButtonBox(
+            QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+            this);
+        connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+        connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+        layout->addWidget(buttons);
+    }
+
+    QString expression() const {
+        QStringList parts;
+
+        for (const QString &line : editor->toPlainText().split(QLatin1Char('\n'))) {
+            const QString trimmed = line.trimmed();
+
+            if (!trimmed.isEmpty()) {
+                parts.append(trimmed);
+            }
+        }
+
+        if (parts.isEmpty()) {
+            return {};
+        }
+
+        return QStringLiteral("{%1}").arg(parts.join(QStringLiteral(" | ")));
+    }
+
+private:
+    QPlainTextEdit *editor = nullptr;
+};
+
+void show_or_predicate_dialog(HydrusMainWindow &main, const QString &page_id, const QString &initial) {
+    HydrusOrDialog dialog(initial, &main);
+
+    if (dialog.exec() == QDialog::Accepted) {
+        const QString expression = dialog.expression();
+
+        if (!expression.isEmpty()) {
+            main.notify(QStringLiteral("or_insert"), page_id, expression);
+        }
+    }
+}
+
+void hydrus_show_or_dialog(HydrusMainWindow &window, rust::Str page_id, rust::Str initial) {
+    show_or_predicate_dialog(window, to_qstring(page_id), to_qstring(initial));
 }
 
 // ---------------------------------------------------------------------------
@@ -5704,6 +6359,10 @@ void hydrus_set_menus(HydrusMainWindow &window, rust::Str json) {
 
 void hydrus_set_tag_suggestions(HydrusMainWindow &window, rust::Str json) {
     window.set_tag_suggestions(json_to_strings(parse_array(json)));
+}
+
+void hydrus_show_autocomplete(HydrusMainWindow &window, rust::Str json) {
+    window.show_autocomplete(parse_object(json));
 }
 
 void hydrus_set_status(HydrusMainWindow &window, rust::Str json) {

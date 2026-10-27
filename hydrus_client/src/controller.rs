@@ -141,6 +141,14 @@ impl Controller {
         self.services.read().unwrap().clone()
     }
 
+    pub fn url_classes(&self) -> Vec<UrlClass> {
+        self.domain_manager
+            .read()
+            .unwrap()
+            .get_url_classes()
+            .to_vec()
+    }
+
     pub fn files_manager(&self) -> ClientFilesManager {
         self.files_manager.read().unwrap().clone()
     }

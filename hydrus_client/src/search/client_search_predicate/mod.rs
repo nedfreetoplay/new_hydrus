@@ -54,6 +54,16 @@ pub enum PredicateValue {
         date_type: String,
         values: Vec<i32>,
     },
+    KnownUrl {
+        rule_type: String,
+        rule: String,
+    },
+    ViewingStats {
+        canvas_types: Vec<String>,
+        operator: i32,
+        value: f64,
+        viewtime: bool,
+    },
     Or(Vec<Predicate>),
 }
 

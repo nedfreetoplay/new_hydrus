@@ -7,6 +7,7 @@
 pub enum UiCommand {
     Menus(String),
     TagSuggestions(String),
+    Autocomplete(String),
     BuildPages(String),
     UpdatePage(String, String),
     UpdateDownloader(String, String),
@@ -38,6 +39,10 @@ pub enum UiCommand {
         target: String,
         title: String,
         text: String,
+    },
+    PromptOr {
+        page_id: String,
+        initial: String,
     },
     PickFiles,
     PromptUrl,

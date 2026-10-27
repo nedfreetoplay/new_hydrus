@@ -10,7 +10,7 @@ use hydrus_core::hydrus_time;
 use serde_json::{Value, json};
 
 use crate::controller::Controller;
-use crate::db::{files_storage, files_timestamps, mappings, master_tags};
+use crate::db::{files_storage, files_timestamps, files_viewing_stats, mappings, master_tags};
 use crate::gui::qt::bridge::ffi;
 use crate::gui::qt::panels;
 
@@ -86,6 +86,49 @@ pub fn import_for_testing(paths: &[String]) {
         let summary = import::import_paths(&state.controller, &paths);
         state.message = summary.message();
         state.refresh_all();
+    });
+}
+
+/// Development helper: attaches a source URL to the first file of the active page.
+pub fn add_url_for_testing(url: &str) {
+    with_state_mut(|state| {
+        let Some(page) = state.active_query() else {
+            return;
+        };
+        let Some(hash) = page.hashes.first().cloned() else {
+            return;
+        };
+        let Some(hash_id) = query::hash_id_for(&state.controller, &hash) else {
+            return;
+        };
+
+        let _ = crate::db::url_map::add_url(state.controller.db().db(), hash_id, url);
+        state.message = format!("added url {url}");
+    });
+}
+
+/// Development helper: records views on the first file of the active page.
+pub fn add_viewing_stats_for_testing(views: i64) {
+    with_state_mut(|state| {
+        let Some(page) = state.active_query() else {
+            return;
+        };
+        let Some(hash) = page.hashes.first().cloned() else {
+            return;
+        };
+        let Some(hash_id) = query::hash_id_for(&state.controller, &hash) else {
+            return;
+        };
+
+        let _ = files_viewing_stats::add_viewing_stats(
+            state.controller.db().db(),
+            hash_id,
+            0,
+            views,
+            1500,
+            Some(hydrus_time::get_now_ms()),
+        );
+        state.message = format!("recorded {views} views");
     });
 }
 
@@ -458,6 +501,44 @@ impl AppState {
                 commands.extend(self.replace_query_and_refresh(&controller, target));
                 commands
             }
+            "or_dialog" => {
+                let initial = self
+                    .find_query(target)
+                    .map(|page| page.query.clone())
+                    .unwrap_or_default();
+
+                vec![UiCommand::PromptOr {
+                    page_id: target.to_string(),
+                    initial,
+                }]
+            }
+            "or_insert" => {
+                let controller = self.controller.clone();
+
+                if let Some(page) = self.find_query_mut(target) {
+                    let mut query = page.query.trim().to_string();
+
+                    if !query.is_empty() {
+                        query.push(' ');
+                    }
+
+                    query.push_str(payload);
+
+                    if page.query != query {
+                        page.query_undo.push(page.query.clone());
+                        page.query_redo.clear();
+                    }
+
+                    page.query = query;
+                    page.fixed_hashes = None;
+                } else {
+                    return vec![UiCommand::NotifyMessage("no page selected".to_string())];
+                }
+
+                let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
+                commands.extend(self.replace_query_and_refresh(&controller, target));
+                commands
+            }
             "undo_search" => {
                 let controller = self.controller.clone();
                 let page_id = self.page_id_or_active(target);
@@ -547,6 +628,62 @@ impl AppState {
 
                 let controller = self.controller.clone();
                 self.replace_query_and_refresh(&controller, target)
+            }
+            "autocomplete" => {
+                let Some(page) = self.find_query(target) else {
+                    return vec![];
+                };
+
+                let Some(tag_service) =
+                    query::tag_service_id_for(&self.controller, &page.tag_service)
+                else {
+                    return vec![UiCommand::NotifyMessage("no local tag service".to_string())];
+                };
+
+                let tokens: Vec<&str> = payload.split_whitespace().collect();
+                let mut token = String::new();
+                let mut entries = Vec::new();
+
+                for count in (1..=tokens.len().min(3)).rev() {
+                    let candidate = tokens[tokens.len() - count..].join(" ");
+
+                    if candidate.to_ascii_lowercase().starts_with("system:") && count > 1 {
+                        continue;
+                    }
+
+                    let candidate_entries = search::autocomplete_entries(
+                        self.controller.db().db(),
+                        tag_service,
+                        &candidate,
+                        25,
+                    );
+
+                    if !candidate_entries.is_empty() {
+                        token = candidate;
+                        entries = candidate_entries;
+                        break;
+                    }
+                }
+
+                let entries: Vec<Value> = entries
+                    .into_iter()
+                    .map(|entry| {
+                        json!({
+                            "text": entry.text,
+                            "category": entry.category,
+                            "count": entry.count,
+                        })
+                    })
+                    .collect();
+
+                vec![UiCommand::Autocomplete(
+                    json!({
+                        "page_id": page.id,
+                        "raw": token,
+                        "entries": entries,
+                    })
+                    .to_string(),
+                )]
             }
             "set_sort" => {
                 let Ok(request) = serde_json::from_str::<Value>(payload) else {
@@ -655,11 +792,47 @@ impl AppState {
                     self.status_command(),
                 ]
             }
+            "add_hashes_to_page" => {
+                let hashes: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
+                let mut parsed: Vec<Vec<u8>> = hashes
+                    .iter()
+                    .filter_map(|hash| query::unhex(hash))
+                    .collect();
+                parsed.retain(|hash| !hash.is_empty());
+
+                if parsed.is_empty() {
+                    return vec![UiCommand::NotifyMessage(
+                        "no files were dragged".to_string(),
+                    )];
+                }
+
+                let controller = self.controller.clone();
+                let Some(page) = self.find_query_mut(target) else {
+                    return vec![UiCommand::NotifyMessage("page is missing".to_string())];
+                };
+
+                query::append_hashes(page, parsed);
+
+                let json = render::query_state(&controller, page).to_string();
+
+                vec![
+                    UiCommand::UpdatePage(target.to_string(), json),
+                    self.status_command(),
+                ]
+            }
             "focus_hash" => self.focus(target, payload),
             "open_viewer" => self.open_viewer(target, payload),
             "viewer_nav" => self.viewer_nav(target, payload),
             "viewer_close" => {
-                self.viewers.remove(target);
+                if let Some(context) = self.viewers.remove(target) {
+                    record_viewing(
+                        &self.controller,
+                        &context.hash,
+                        hydrus_time::get_now_ms().saturating_sub(context.opened_at_ms),
+                        false,
+                    );
+                }
+
                 vec![]
             }
             "manage_tags" => self.manage_tags(target, payload, false),
@@ -1458,11 +1631,14 @@ impl AppState {
 
         let json = render::viewer_json(&controller, &viewer_id, page, &hash);
 
+        record_viewing(&controller, &hash, 0, true);
+
         self.viewers.insert(
             viewer_id.clone(),
             ViewerContext {
                 page_id: page_id.to_string(),
                 hash: hash.clone(),
+                opened_at_ms: hydrus_time::get_now_ms(),
             },
         );
 
@@ -1492,11 +1668,20 @@ impl AppState {
             return vec![];
         };
 
+        record_viewing(
+            &controller,
+            &context.hash,
+            hydrus_time::get_now_ms().saturating_sub(context.opened_at_ms),
+            false,
+        );
+        record_viewing(&controller, &next, 0, true);
+
         self.viewers.insert(
             viewer_id.to_string(),
             ViewerContext {
                 page_id: context.page_id.clone(),
                 hash: next.clone(),
+                opened_at_ms: hydrus_time::get_now_ms(),
             },
         );
 
@@ -2046,6 +2231,24 @@ fn collect_import_folder_ids(notebook: &Notebook, ids: &mut Vec<String>) {
             _ => {}
         }
     }
+}
+
+fn record_viewing(controller: &Controller, hash: &[u8], viewtime_ms: i64, add_view: bool) {
+    let Some(hash_id) = query::hash_id_for(controller, hash) else {
+        return;
+    };
+
+    let views = i64::from(add_view);
+    let now = hydrus_time::get_now_ms();
+
+    let _ = files_viewing_stats::add_viewing_stats(
+        controller.db().db(),
+        hash_id,
+        0,
+        views,
+        viewtime_ms.max(0),
+        Some(now),
+    );
 }
 
 fn pragma_i64(db: &hydrus_core::hydrus_db_base::DBBase, name: &str) -> i64 {

@@ -86,15 +86,15 @@ Rust-цели: `gui/app/query.rs`, новый `gui/app/search.rs`,
 - [x] 02.2 Простой autocomplete по тегам.
 - [x] 02.3 Модель списка предикатов вместо разбора строки.
 - [x] 02.4 File domain и tag service selector’ы.
-- [ ] 02.5 Autocomplete dropdown с вкладками и счётчиками.
-- [ ] 02.6 OR-предикаты и advanced OR editor.
+- [x] 02.5 Autocomplete dropdown с вкладками и счётчиками.
+- [x] 02.6 OR-предикаты и advanced OR editor.
 - [x] 02.7 Системные предикаты: размер, разрешение, ratio, mime, hash.
 - [x] 02.8 Системные предикаты: duration, fps, frames, num pixels, num words.
 - [x] 02.9 Системные предикаты: рейтинги, число тегов/URL/заметок.
 - [x] 02.10 Системные предикаты: даты импорта/архивации/просмотра/изменения.
-- [ ] 02.11 Системные предикаты: known URL/domain/regex/URL class.
+- [x] 02.11 Системные предикаты: known URL/domain/regex/URL class.
 - [ ] 02.12 Системные предикаты: duplicate relationships, similar files.
-- [ ] 02.13 Системные предикаты: file viewing stats, file service.
+- [x] 02.13 Системные предикаты: file viewing stats, file service.
 - [x] 02.14 Favourite searches и их менеджер.
 - [x] 02.15 История поиска и undo добавления/удаления предикатов.
 - [x] 02.16 Сохранение поискового контекста в странице/сессии.
@@ -120,8 +120,8 @@ Rust-цели: `gui/app/query.rs`, `gui/app/render.rs`, `gui/qt/bridge.*`,
 - [ ] 03.7 Masonry layout, scroll direction, thumbnail sizing options.
 - [ ] 03.8 Loading panel/progress и file count.
 - [x] 03.9 Rating overlays, duplicate indicators, archive/inbox markers.
-- [ ] 03.10 Drag & drop файлов, miniatures между страницами.
-- [ ] 03.11 Полные media menus: copy hash/URL, open externally, file services,
+- [x] 03.10 Drag & drop файлов, miniatures между страницами.
+- [~] 03.11 Полные media menus: copy hash/URL, open externally, file services,
   timestamps, notes, ratings.
 - [x] 03.12 Selection-aware статус-бар и счётчики.
 
@@ -146,7 +146,7 @@ Rust-цели: `gui/qt/bridge.*`, `gui/app/render.rs`, `gui/app/metadata.rs`,
 - [ ] 04.7 Hover frames: top archive/delete/filter, top-right, tags, notes,
   ratings.
 - [ ] 04.8 Duplicate filter canvas.
-- [ ] 04.9 Zoom modes menu, pan modes, background colour/checkerboard.
+- [x] 04.9 Zoom modes menu, pan modes, background colour/checkerboard.
 - [x] 04.10 Prefetch previous/next.
 - [~] 04.11 Open externally и embed button.
 - [x] 04.12 Восстановление размера/позиции viewer.
@@ -365,7 +365,7 @@ Rust-цели: `gui/app/options.rs`, `client_options`, `gui/qt/bridge.*`.
 - [x] 12.6 downloaders.
 - [x] 12.7 network.
 - [x] 12.8 client API.
-- [ ] 12.9 Фреймворк динамических option-панелей с поиском.
+- [x] 12.9 Фреймворк динамических option-панелей с поиском.
 - [ ] 12.10 external programs.
 - [ ] 12.11 open externally.
 - [ ] 12.12 audio.

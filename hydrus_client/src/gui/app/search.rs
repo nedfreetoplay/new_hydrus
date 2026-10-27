@@ -23,7 +23,7 @@ use crate::metadata::Rating;
 use crate::search::client_file_system_predicates::FileSystemPredicates;
 use crate::search::client_number_test::NumberTest;
 use crate::search::client_search_predicate::{Predicate, PredicateValue};
-use crate::search::parse_system_predicate;
+use crate::search::parse_system_predicate_with_services;
 use crate::search::predicate_constants::PredicateType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,11 +90,15 @@ impl SearchPlan {
 /// Parses the search box into the same shape Hydrus gets from autocomplete:
 /// one predicate per entry, with multi-word tags merged when the database
 /// already knows the phrase.
-pub fn plan(db: &DBBase, query: &str) -> Result<SearchPlan, String> {
+pub fn plan(
+    db: &DBBase,
+    services: &crate::services::ServicesManager,
+    query: &str,
+) -> Result<SearchPlan, String> {
     let mut tags = Vec::new();
     let mut predicates = Vec::new();
 
-    for term in split_terms(db, query) {
+    for term in split_terms(db, services, query) {
         let negative = term.starts_with('-') && term.len() > 1;
         let clean = if negative { &term[1..] } else { term.as_str() };
 
@@ -103,8 +107,17 @@ pub fn plan(db: &DBBase, query: &str) -> Result<SearchPlan, String> {
         }
 
         if clean.to_ascii_lowercase().starts_with("system:") {
-            let predicate = parse_system_predicate(clean)
+            let predicate = parse_system_predicate_with_services(clean, services)
                 .map_err(|error| format!("could not parse '{clean}': {error}"))?;
+            predicates.push(predicate);
+            continue;
+        }
+
+        if clean.starts_with('{') && clean.ends_with('}') {
+            let members = parse_or_group(&clean[1..clean.len() - 1], services)?;
+            let mut predicate =
+                Predicate::new(PredicateType::OrContainer, PredicateValue::Or(members));
+            predicate.inclusive = !negative;
             predicates.push(predicate);
             continue;
         }
@@ -141,33 +154,211 @@ pub fn plan(db: &DBBase, query: &str) -> Result<SearchPlan, String> {
     })
 }
 
+/// One candidate in the search autocomplete dropdown.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutocompleteEntry {
+    pub text: String,
+    pub category: &'static str,
+    pub count: Option<i64>,
+}
+
+/// Suggestions for the token currently being typed. Tags and namespaces come
+/// from the tag indexes, so their counts match what a search would return.
+pub fn autocomplete_entries(
+    db: &DBBase,
+    tag_service_id: i64,
+    raw: &str,
+    limit: usize,
+) -> Vec<AutocompleteEntry> {
+    let raw = raw.trim();
+    let mut entries = Vec::new();
+
+    if raw.to_ascii_lowercase().starts_with("system:") {
+        for text in SYSTEM_PREDICATE_SUGGESTIONS {
+            if text.contains(raw) || raw.eq_ignore_ascii_case("system:") {
+                entries.push(AutocompleteEntry {
+                    text: (*text).to_string(),
+                    category: "system",
+                    count: None,
+                });
+            }
+        }
+
+        return entries;
+    }
+
+    if let Some(namespace) = raw.strip_suffix(":*") {
+        let prefix = format!("{namespace}:");
+
+        if let Ok(tags) = crate::db::tag_search::suggest_tags(
+            db,
+            tag_service_id,
+            ContentStatus::Current,
+            &prefix,
+            limit,
+        ) {
+            for tag in tags {
+                entries.push(AutocompleteEntry {
+                    text: tag.text,
+                    category: "tags",
+                    count: Some(tag.count),
+                });
+            }
+        }
+
+        entries.push(AutocompleteEntry {
+            text: format!("{namespace}:*"),
+            category: "wildcards",
+            count: namespace_count(db, tag_service_id, namespace),
+        });
+
+        return entries;
+    }
+
+    if let Some(namespace) = raw.strip_suffix(':') {
+        if let Ok(tags) = crate::db::tag_search::suggest_tags(
+            db,
+            tag_service_id,
+            ContentStatus::Current,
+            &format!("{namespace}:"),
+            limit,
+        ) {
+            for tag in tags {
+                entries.push(AutocompleteEntry {
+                    text: tag.text,
+                    category: "tags",
+                    count: Some(tag.count),
+                });
+            }
+        }
+
+        return entries;
+    }
+
+    if raw.contains('*') {
+        entries.push(AutocompleteEntry {
+            text: raw.to_string(),
+            category: "wildcards",
+            count: crate::db::tag_search::get_hash_ids_for_wildcard(
+                db,
+                tag_service_id,
+                ContentStatus::Current,
+                raw,
+            )
+            .ok()
+            .map(|ids| ids.len() as i64),
+        });
+
+        return entries;
+    }
+
+    if let Ok(tags) =
+        crate::db::tag_search::suggest_tags(db, tag_service_id, ContentStatus::Current, raw, limit)
+    {
+        for tag in tags {
+            entries.push(AutocompleteEntry {
+                text: tag.text,
+                category: "tags",
+                count: Some(tag.count),
+            });
+        }
+    }
+
+    if let Ok(namespaces) = crate::db::tag_search::suggest_namespaces(
+        db,
+        tag_service_id,
+        ContentStatus::Current,
+        raw,
+        limit,
+    ) {
+        for namespace in namespaces {
+            entries.push(AutocompleteEntry {
+                text: format!("{}:", namespace.text),
+                category: "namespaces",
+                count: Some(namespace.count),
+            });
+        }
+    }
+
+    entries
+}
+
+fn namespace_count(db: &DBBase, tag_service_id: i64, namespace: &str) -> Option<i64> {
+    crate::db::tag_search::get_hash_ids_for_namespace(
+        db,
+        tag_service_id,
+        ContentStatus::Current,
+        namespace,
+    )
+    .ok()
+    .map(|ids| ids.len() as i64)
+}
+
+const SYSTEM_PREDICATE_SUGGESTIONS: &[&str] = &[
+    "system:everything",
+    "system:inbox",
+    "system:archive",
+    "system:untagged",
+    "system:has audio",
+    "system:no audio",
+    "system:has duration",
+    "system:no duration",
+    "system:has exif",
+    "system:no exif",
+    "system:has transparency",
+    "system:no transparency",
+    "system:has url",
+    "system:no url",
+    "system:has url matching regex ",
+    "system:has url with domain ",
+    "system:has url with class ",
+    "system:media views > 0",
+    "system:preview views > 0",
+    "system:all views > 0",
+    "system:media viewtime > 0 seconds",
+    "system:file service is currently in my files",
+];
+
 /// Hydrus gets one predicate per autocomplete entry, so a tag such as
 /// `blue eyes` is a single predicate even though it contains a space. The
 /// plain line edit is parsed greedily: adjacent words are joined for as long
 /// as the joined text is a known tag in the database.
-fn split_terms(db: &DBBase, query: &str) -> Vec<String> {
-    let tokens: Vec<&str> = query.split_whitespace().collect();
+fn split_terms(
+    db: &DBBase,
+    services: &crate::services::ServicesManager,
+    query: &str,
+) -> Vec<String> {
+    let tokens = tokenize_query(query);
     let mut terms = Vec::new();
     let mut index = 0;
 
     while index < tokens.len() {
-        let token = tokens[index];
+        let token = tokens[index].as_str();
+
+        if token.trim_start_matches('-').starts_with('{') {
+            terms.push(token.to_string());
+            index += 1;
+            continue;
+        }
 
         if token.to_ascii_lowercase().starts_with("system:") {
             let mut phrase = token.to_string();
-            let mut parsed = parse_system_predicate(&phrase).is_ok();
+            let mut parsed = parse_system_predicate_with_services(&phrase, services).is_ok();
             index += 1;
 
             while index < tokens.len() {
-                let next = tokens[index];
+                let next = tokens[index].as_str();
 
-                if next.starts_with('-') || next.to_ascii_lowercase().starts_with("system:") {
+                if next.starts_with('-')
+                    || next.to_ascii_lowercase().starts_with("system:")
+                    || next.starts_with('{')
+                {
                     break;
                 }
 
                 let candidate = format!("{phrase} {next}");
 
-                if parse_system_predicate(&candidate).is_ok() {
+                if parse_system_predicate_with_services(&candidate, services).is_ok() {
                     phrase = candidate;
                     parsed = true;
                     index += 1;
@@ -195,9 +386,12 @@ fn split_terms(db: &DBBase, query: &str) -> Vec<String> {
 
         if mergeable {
             while index < tokens.len() {
-                let next = tokens[index];
+                let next = tokens[index].as_str();
 
-                if next.starts_with('-') || next.to_ascii_lowercase().starts_with("system:") {
+                if next.starts_with('-')
+                    || next.to_ascii_lowercase().starts_with("system:")
+                    || next.starts_with('{')
+                {
                     break;
                 }
 
@@ -220,6 +414,221 @@ fn split_terms(db: &DBBase, query: &str) -> Vec<String> {
     }
 
     terms
+}
+
+/// Splits on whitespace but keeps `{ a | b }` OR groups together, including
+/// nested groups and spaces inside predicates.
+fn tokenize_query(query: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0usize;
+
+    for character in query.chars() {
+        if character == '{' {
+            depth += 1;
+        } else if character == '}' {
+            depth = depth.saturating_sub(1);
+        }
+
+        if character.is_whitespace() && depth == 0 {
+            if !current.is_empty() {
+                tokens.push(std::mem::take(&mut current));
+            }
+
+            continue;
+        }
+
+        current.push(character);
+    }
+
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    tokens
+}
+
+/// Parses the inside of `{ ... }`. Members are separated by top-level `|`;
+/// each member is one predicate, and a nested `{ ... }` member becomes another
+/// OR group.
+fn parse_or_group(
+    text: &str,
+    services: &crate::services::ServicesManager,
+) -> Result<Vec<Predicate>, String> {
+    let mut members = Vec::new();
+
+    for part in split_top_level(text, '|') {
+        let part = part.trim();
+
+        if part.is_empty() {
+            continue;
+        }
+
+        members.push(parse_or_member(part, services)?);
+    }
+
+    if members.is_empty() {
+        return Err("OR group is empty".to_string());
+    }
+
+    Ok(members)
+}
+
+fn parse_or_member(
+    text: &str,
+    services: &crate::services::ServicesManager,
+) -> Result<Predicate, String> {
+    let negative = text.starts_with('-') && text.len() > 1;
+    let clean = if negative { text[1..].trim() } else { text };
+
+    let mut predicate = if clean.starts_with('{') && clean.ends_with('}') {
+        let members = parse_or_group(&clean[1..clean.len() - 1], services)?;
+        Predicate::new(PredicateType::OrContainer, PredicateValue::Or(members))
+    } else if clean.to_ascii_lowercase().starts_with("system:") {
+        parse_system_predicate_with_services(clean, services)
+            .map_err(|error| format!("could not parse '{clean}': {error}"))?
+    } else if clean.ends_with(":*") {
+        Predicate::namespace(clean.trim_end_matches(":*"))
+    } else if clean.ends_with(':') {
+        Predicate::namespace(clean.trim_end_matches(':'))
+    } else if clean.contains('*') {
+        Predicate::new(
+            PredicateType::Wildcard,
+            PredicateValue::Text(clean.to_string()),
+        )
+    } else {
+        Predicate::tag(clean)
+    };
+
+    predicate.inclusive = !negative;
+
+    Ok(predicate)
+}
+
+fn split_top_level(text: &str, separator: char) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut current = String::new();
+    let mut depth = 0usize;
+
+    for character in text.chars() {
+        if character == '{' {
+            depth += 1;
+        } else if character == '}' {
+            depth = depth.saturating_sub(1);
+        }
+
+        if character == separator && depth == 0 {
+            parts.push(std::mem::take(&mut current));
+            continue;
+        }
+
+        current.push(character);
+    }
+
+    parts.push(current);
+
+    parts
+}
+
+/// Evaluates an OR predicate (and any tag/system predicate inside it) against
+/// one file. Nested groups recurse; unsupported system predicates never match.
+#[allow(clippy::too_many_arguments)]
+pub fn matches_predicate_hash(
+    controller: &Controller,
+    db: &DBBase,
+    hash_id: i64,
+    info: &FileInfo,
+    tag_service_id: i64,
+    file_service_id: Option<i64>,
+    predicate: &Predicate,
+) -> HydrusResult<bool> {
+    if let PredicateValue::Or(members) = &predicate.value {
+        let mut any = false;
+
+        for member in members {
+            if matches_predicate_hash(
+                controller,
+                db,
+                hash_id,
+                info,
+                tag_service_id,
+                file_service_id,
+                member,
+            )? {
+                any = true;
+                break;
+            }
+        }
+
+        return Ok(predicate.inclusive == any);
+    }
+
+    let matched = match predicate.predicate_type {
+        PredicateType::Tag | PredicateType::Namespace | PredicateType::Wildcard => {
+            hash_has_tag_predicate(db, tag_service_id, hash_id, predicate)?
+        }
+        _ => matches_system(
+            controller,
+            db,
+            hash_id,
+            info,
+            tag_service_id,
+            file_service_id,
+            predicate,
+        )?
+        .unwrap_or(false),
+    };
+
+    Ok(predicate.inclusive == matched)
+}
+
+fn hash_has_tag_predicate(
+    db: &DBBase,
+    tag_service_id: i64,
+    hash_id: i64,
+    predicate: &Predicate,
+) -> HydrusResult<bool> {
+    let PredicateValue::Text(text) = &predicate.value else {
+        return Ok(false);
+    };
+
+    let tag_ids = mappings::get_tag_ids(db, tag_service_id, ContentStatus::Current, hash_id)?;
+    let tags = master_tags::get_tags(db, &tag_ids)?;
+
+    let matched = tags.iter().any(|tag| match predicate.predicate_type {
+        PredicateType::Tag => tag.eq_ignore_ascii_case(text),
+        PredicateType::Namespace => tag
+            .split_once(':')
+            .is_some_and(|(namespace, _)| namespace.eq_ignore_ascii_case(text)),
+        PredicateType::Wildcard => wildcard_matches(text, tag),
+        _ => false,
+    });
+
+    Ok(matched)
+}
+
+fn wildcard_matches(pattern: &str, text: &str) -> bool {
+    let pattern: Vec<char> = pattern.to_lowercase().chars().collect();
+    let text: Vec<char> = text.to_lowercase().chars().collect();
+
+    fn walk(pattern: &[char], text: &[char]) -> bool {
+        match pattern.split_first() {
+            None => text.is_empty(),
+            Some(('*', rest)) => {
+                if walk(rest, text) {
+                    return true;
+                }
+
+                !text.is_empty() && walk(pattern, &text[1..])
+            }
+            Some((character, rest)) => match text.split_first() {
+                Some((candidate, remaining)) if candidate == character => walk(rest, remaining),
+                _ => false,
+            },
+        }
+    }
+
+    walk(&pattern, &text)
 }
 
 pub fn hash_ids_for_tag_term(
@@ -270,6 +679,11 @@ pub fn matches_system(
     };
 
     let result = match predicate.predicate_type {
+        PredicateType::SystemEverything => Some(true),
+        PredicateType::SystemInbox => Some(files_storage::is_inbox(db, hash_id).unwrap_or(false)),
+        PredicateType::SystemArchive => {
+            Some(!files_storage::is_inbox(db, hash_id).unwrap_or(false))
+        }
         PredicateType::SystemSize => number.map(|test| test.test(Some(info.size as f64), None)),
         PredicateType::SystemWidth => {
             number.map(|test| test.test(info.width.map(|value| value as f64), None))
@@ -337,6 +751,15 @@ pub fn matches_system(
         | PredicateType::SystemLastViewedTime => {
             Some(date_matches(db, hash_id, file_service_id, predicate)?)
         }
+        PredicateType::SystemKnownUrls => {
+            Some(known_url_matches(controller, db, hash_id, predicate)?)
+        }
+        PredicateType::SystemFileViewingStats => {
+            Some(viewing_stats_matches(db, hash_id, predicate)?)
+        }
+        PredicateType::SystemFileService => {
+            Some(file_service_matches(controller, db, hash_id, predicate)?)
+        }
         PredicateType::SystemRating => Some(rating_matches(controller, db, hash_id, predicate)?),
         _ => None,
     };
@@ -359,6 +782,109 @@ pub fn matches_mime_or_hash(
     }
 
     Ok(true)
+}
+
+pub fn known_url_matches(
+    controller: &Controller,
+    db: &DBBase,
+    hash_id: i64,
+    predicate: &Predicate,
+) -> HydrusResult<bool> {
+    let PredicateValue::KnownUrl { rule_type, rule } = &predicate.value else {
+        return Ok(false);
+    };
+
+    let urls = url_map::get_urls(db, hash_id)?;
+
+    let matched = match rule_type.as_str() {
+        "exact_match" => urls.iter().any(|url| url == rule),
+        "regex" => regex::Regex::new(rule)
+            .map(|regex| urls.iter().any(|url| regex.is_match(url)))
+            .unwrap_or(false),
+        "domain" => {
+            let domain = rule.trim().trim_start_matches("www.").to_lowercase();
+
+            urls.iter().any(|url| {
+                let candidate = url
+                    .split("://")
+                    .nth(1)
+                    .unwrap_or(url)
+                    .split('/')
+                    .next()
+                    .unwrap_or("")
+                    .to_lowercase();
+
+                candidate == domain || candidate.ends_with(&format!(".{domain}"))
+            })
+        }
+        "url_class" => controller
+            .url_classes()
+            .into_iter()
+            .find(|class| class.name == *rule)
+            .map(|class| urls.iter().any(|url| class.matches(url)))
+            .unwrap_or(false),
+        _ => false,
+    };
+
+    Ok(predicate.inclusive == matched)
+}
+
+fn viewing_stats_matches(db: &DBBase, hash_id: i64, predicate: &Predicate) -> HydrusResult<bool> {
+    let PredicateValue::ViewingStats {
+        canvas_types,
+        operator,
+        value,
+        viewtime,
+    } = &predicate.value
+    else {
+        return Ok(false);
+    };
+
+    let mut total_views = 0i64;
+    let mut total_time = 0i64;
+
+    for canvas in canvas_types {
+        let canvas_type = match canvas.as_str() {
+            "preview" => 1,
+            "client api" => 2,
+            _ => 0,
+        };
+        let stats = files_viewing_stats::get_viewing_stats(db, hash_id, canvas_type)?;
+
+        total_views += stats.views;
+        total_time += stats.viewtime_ms;
+    }
+
+    let actual = if *viewtime { total_time } else { total_views };
+    let test = NumberTest::new(*operator, *value, None);
+
+    Ok(predicate.inclusive == test.test(Some(actual as f64), None))
+}
+
+fn file_service_matches(
+    controller: &Controller,
+    db: &DBBase,
+    hash_id: i64,
+    predicate: &Predicate,
+) -> HydrusResult<bool> {
+    let PredicateValue::FileService {
+        is_in,
+        status,
+        service_key,
+    } = &predicate.value
+    else {
+        return Ok(false);
+    };
+
+    let manager = controller.services();
+    let Some(service) = manager.get_service(service_key) else {
+        return Ok(false);
+    };
+
+    let status = ContentStatus::try_from_int(*status as u8).unwrap_or(ContentStatus::Current);
+    let hash_ids = files_storage::get_hash_ids(db, service.service_id, status)?;
+
+    Ok(hash_ids.contains(&hash_id) == *is_in)
 }
 
 pub fn tag_count(

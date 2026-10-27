@@ -20,6 +20,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::TagSuggestions(json) => {
             ffi::hydrus_set_tag_suggestions(window.as_mut(), &json);
         }
+        UiCommand::Autocomplete(json) => {
+            ffi::hydrus_show_autocomplete(window.as_mut(), &json);
+        }
         UiCommand::BuildPages(json) => ffi::hydrus_build_pages(window.as_mut(), &json),
         UiCommand::UpdatePage(page_id, json) => {
             ffi::hydrus_update_page(window.as_mut(), &page_id, &json);
@@ -87,6 +90,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
             text,
         } => {
             ffi::hydrus_confirm_action(window.as_mut(), &action, &target, &title, &text);
+        }
+        UiCommand::PromptOr { page_id, initial } => {
+            ffi::hydrus_show_or_dialog(window.as_mut(), &page_id, &initial);
         }
         UiCommand::PickFiles => ffi::hydrus_pick_files(window.as_mut()),
         UiCommand::PromptUrl => ffi::hydrus_prompt_url(window.as_mut()),

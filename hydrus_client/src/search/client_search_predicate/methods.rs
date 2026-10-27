@@ -142,6 +142,27 @@ impl Predicate {
             (PredicateType::SystemSimilarTo, _) => "similar files".to_string(),
             (PredicateType::SystemTime, _) => "time".to_string(),
             (PredicateType::SystemUrls, _) => "urls".to_string(),
+            (PredicateType::SystemKnownUrls, PredicateValue::KnownUrl { rule_type, rule }) => {
+                format!("known url: {rule_type} = {rule}")
+            }
+            (
+                PredicateType::SystemFileViewingStats,
+                PredicateValue::ViewingStats {
+                    canvas_types,
+                    operator,
+                    value,
+                    viewtime,
+                },
+            ) => {
+                let subject = if *viewtime { "viewtime" } else { "views" };
+                let canvas = canvas_types.join("+");
+
+                format!(
+                    "{canvas} {subject} {} {}",
+                    crate::search::client_number_test::operator_string(*operator),
+                    value
+                )
+            }
             (PredicateType::SystemNotes, _) => "notes".to_string(),
             (PredicateType::OrContainer, PredicateValue::Or(predicates)) => {
                 let inner = predicates

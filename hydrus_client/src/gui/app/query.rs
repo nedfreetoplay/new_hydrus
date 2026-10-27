@@ -7,7 +7,7 @@ use hydrus_core::files::hydrus_file_handling::FileInfo;
 use hydrus_core::hydrus_constants::{ContentStatus, ServiceType};
 
 use crate::controller::Controller;
-use crate::db::{files_metadata, files_storage, mappings, master};
+use crate::db::{files_metadata, files_storage, mappings, master, url_map};
 
 use super::model::QueryPage;
 use super::search;
@@ -400,6 +400,14 @@ pub fn preview_path(controller: &Controller, hash: &[u8]) -> Option<PathBuf> {
     } else {
         thumbnail_path(controller, hash)
     }
+}
+
+pub fn urls_for(controller: &Controller, hash: &[u8]) -> Vec<String> {
+    let Some(hash_id) = hash_id_for(controller, hash) else {
+        return Vec::new();
+    };
+
+    url_map::get_urls(controller.db().db(), hash_id).unwrap_or_default()
 }
 
 pub fn selection_tags(controller: &Controller, hash: &[u8]) -> Vec<String> {

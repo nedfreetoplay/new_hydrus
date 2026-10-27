@@ -168,6 +168,8 @@ private:
     HydrusMetadataPanel *metadata = nullptr;
     QLabel *status = nullptr;
     QPushButton *animation_button = nullptr;
+    QString file_path;
+    QString url;
     double zoom_step = 1.25;
     bool always_on_top = false;
     bool frameless = false;

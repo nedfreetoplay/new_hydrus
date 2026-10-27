@@ -548,6 +548,14 @@ pub fn viewer_json(
         None => "no metadata".to_string(),
     };
 
+    let file_path = query::file_path(controller, hash)
+        .map(|path| path.display().to_string())
+        .unwrap_or_default();
+    let url = query::urls_for(controller, hash)
+        .into_iter()
+        .next()
+        .unwrap_or_default();
+
     let options = controller.options();
     let always_on_top = options.get_boolean("media_viewer_window_always_on_top")
         || options.get_boolean("always_start_media_viewers_always_on_top");
@@ -559,6 +567,8 @@ pub fn viewer_json(
         "hash": query::hex(hash),
         "title": format!("{} - {}/{}", page.title, position + 1, total),
         "path": path,
+        "file_path": file_path,
+        "url": url,
         "tags": query::selection_tags(controller, hash),
         "metadata": super::metadata::metadata_json(controller, hash),
         "info": format!("{info} - file {}/{}", position + 1, total),

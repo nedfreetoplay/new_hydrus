@@ -3,6 +3,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QComboBox>
 #include <QCompleter>
 #include <QCoreApplication>
@@ -1965,6 +1966,9 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     auto *manage = new QPushButton(QStringLiteral("manage tags..."), toolbar);
     animation_button = new QPushButton(QStringLiteral("pause"), toolbar);
     animation_button->setEnabled(false);
+    auto *external = new QPushButton(QStringLiteral("open externally"), toolbar);
+    auto *copy_hash = new QPushButton(QStringLiteral("copy hash"), toolbar);
+    auto *copy_url = new QPushButton(QStringLiteral("copy url"), toolbar);
     auto *close_button = new QPushButton(QStringLiteral("close"), toolbar);
 
     toolbar_layout->addWidget(previous);
@@ -1975,6 +1979,9 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
     toolbar_layout->addWidget(zoom_in);
     toolbar_layout->addWidget(animation_button);
     toolbar_layout->addStretch(1);
+    toolbar_layout->addWidget(external);
+    toolbar_layout->addWidget(copy_hash);
+    toolbar_layout->addWidget(copy_url);
     toolbar_layout->addWidget(manage);
     toolbar_layout->addWidget(close_button);
     layout->addWidget(toolbar);
@@ -2010,6 +2017,19 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const QJso
             animation_button->setText(QStringLiteral("play"));
         } else {
             animation_button->setText(QStringLiteral("pause"));
+        }
+    });
+    connect(external, &QPushButton::clicked, this, [this]() {
+        if (!file_path.isEmpty()) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(file_path));
+        }
+    });
+    connect(copy_hash, &QPushButton::clicked, this, [this]() {
+        QApplication::clipboard()->setText(hash);
+    });
+    connect(copy_url, &QPushButton::clicked, this, [this]() {
+        if (!url.isEmpty()) {
+            QApplication::clipboard()->setText(url);
         }
     });
     connect(manage, &QPushButton::clicked, this, [this]() {
@@ -2081,6 +2101,8 @@ const QString &HydrusViewerWindow::viewer_id() const {
 void HydrusViewerWindow::update_state(const QJsonObject &state) {
     page_id = state.value(QStringLiteral("page_id")).toString();
     hash = state.value(QStringLiteral("hash")).toString();
+    file_path = state.value(QStringLiteral("file_path")).toString();
+    url = state.value(QStringLiteral("url")).toString();
 
     const QString path = state.value(QStringLiteral("path")).toString();
     const QString title = state.value(QStringLiteral("title")).toString();

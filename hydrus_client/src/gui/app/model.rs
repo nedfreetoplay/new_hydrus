@@ -20,6 +20,9 @@ pub struct QueryPage {
     pub location: String,
     /// Local tag service name; empty means the first local tag service.
     pub tag_service: String,
+    /// Sort key used by the results panel, e.g. `hash id`, `size`, `mime`.
+    pub sort: String,
+    pub sort_ascending: bool,
     pub hashes: Vec<Vec<u8>>,
     pub selected: Vec<Vec<u8>>,
     pub focused: Option<Vec<u8>>,
@@ -41,6 +44,8 @@ impl QueryPage {
             query: String::new(),
             location: location.into(),
             tag_service: String::new(),
+            sort: "hash id".to_string(),
+            sort_ascending: true,
             hashes: Vec::new(),
             selected: Vec::new(),
             focused: None,

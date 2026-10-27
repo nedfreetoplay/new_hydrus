@@ -354,6 +354,8 @@ pub fn query_state(controller: &crate::controller::Controller, page: &QueryPage)
         "location": page.location,
         "tag_service": page.tag_service,
         "tag_services": query::local_tag_service_names(controller),
+        "sort": page.sort,
+        "sort_ascending": page.sort_ascending,
         "status": page.status,
         "empty_text": page.empty_text,
         "focused": focused,

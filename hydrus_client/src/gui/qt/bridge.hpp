@@ -108,6 +108,8 @@ private:
     QString id;
     QComboBox *location = nullptr;
     QComboBox *tag_service = nullptr;
+    QComboBox *sort = nullptr;
+    QCheckBox *sort_ascending = nullptr;
     QLineEdit *search = nullptr;
     QCompleter *completer = nullptr;
     QString text_before_completion;

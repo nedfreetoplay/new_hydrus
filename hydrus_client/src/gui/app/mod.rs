@@ -450,6 +450,28 @@ impl AppState {
                 let controller = self.controller.clone();
                 self.replace_query_and_refresh(&controller, target)
             }
+            "set_sort" => {
+                let Ok(request) = serde_json::from_str::<Value>(payload) else {
+                    return vec![UiCommand::NotifyMessage("invalid sort request".to_string())];
+                };
+
+                if let Some(page) = self.find_query_mut(target) {
+                    if let Some(sort) = request.get("sort").and_then(Value::as_str) {
+                        page.sort = sort.to_string();
+                    }
+
+                    if let Some(ascending) = request.get("ascending").and_then(Value::as_bool) {
+                        page.sort_ascending = ascending;
+                    }
+                } else {
+                    return vec![UiCommand::NotifyMessage(
+                        "page is not a file page".to_string(),
+                    )];
+                }
+
+                let controller = self.controller.clone();
+                self.replace_query_and_refresh(&controller, target)
+            }
             "focus_hash" => self.focus(target, payload),
             "open_viewer" => self.open_viewer(target, payload),
             "viewer_nav" => self.viewer_nav(target, payload),

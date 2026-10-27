@@ -114,7 +114,7 @@ Rust-цели: `gui/app/query.rs`, `gui/app/render.rs`, `gui/qt/bridge.*`,
 - [x] 03.1 Сетка миниатюр и превью.
 - [x] 03.2 Ctrl+wheel zoom миниатюр.
 - [x] 03.3 Базовое контекстное меню (open, tags, archive, inbox, delete).
-- [ ] 03.4 Sort/collect controls и сохранение режима.
+- [~] 03.4 Sort/collect controls и сохранение режима.
 - [x] 03.5 Множественное выделение: действия над всеми выбранными файлами.
 - [x] 03.6 Correct focused vs selected file semantics.
 - [ ] 03.7 Masonry layout, scroll direction, thumbnail sizing options.

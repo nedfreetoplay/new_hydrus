@@ -150,15 +150,88 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
         result = filtered;
     }
 
-    let total = result.len();
+    let mut ordered: Vec<i64> = result.into_iter().collect();
+    let total = ordered.len();
 
-    if let Some(limit) = plan.limit() {
-        result = result.into_iter().take(limit).collect();
+    if page.sort != "hash id" {
+        let file_service_id = service_ids.first().copied();
+        let mut keyed: Vec<(Option<f64>, i64)> = Vec::with_capacity(ordered.len());
+
+        for hash_id in ordered {
+            let info =
+                files_metadata::get_file_info(db, hash_id).map_err(|error| error.to_string())?;
+
+            let key = match page.sort.as_str() {
+                "size" => info.as_ref().map(|info| info.size as f64),
+                "width" => info
+                    .as_ref()
+                    .and_then(|info| info.width.map(|value| value as f64)),
+                "height" => info
+                    .as_ref()
+                    .and_then(|info| info.height.map(|value| value as f64)),
+                "ratio" => info
+                    .as_ref()
+                    .and_then(|info| match (info.width, info.height) {
+                        (Some(width), Some(height)) if height > 0 => {
+                            Some(width as f64 / height as f64)
+                        }
+                        _ => None,
+                    }),
+                "mime" => info
+                    .as_ref()
+                    .map(|info| i32::from(info.mime.as_int()) as f64),
+                "duration" => info
+                    .as_ref()
+                    .and_then(|info| info.duration_ms.map(|value| value as f64)),
+                "frames" => info
+                    .as_ref()
+                    .and_then(|info| info.num_frames.map(|value| value as f64)),
+                "pixels" => info
+                    .as_ref()
+                    .and_then(|info| match (info.width, info.height) {
+                        (Some(width), Some(height)) => Some(width as f64 * height as f64),
+                        _ => None,
+                    }),
+                "words" => info
+                    .as_ref()
+                    .and_then(|info| info.num_words.map(|value| value as f64)),
+                "import time" => file_service_id
+                    .and_then(|service_id| {
+                        files_storage::get_timestamp(
+                            db,
+                            service_id,
+                            ContentStatus::Current,
+                            hash_id,
+                        )
+                        .ok()
+                        .flatten()
+                    })
+                    .map(|value| value as f64),
+                _ => None,
+            };
+
+            keyed.push((key, hash_id));
+        }
+
+        keyed.sort_by(|left, right| {
+            left.0
+                .partial_cmp(&right.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        ordered = keyed.into_iter().map(|(_, hash_id)| hash_id).collect();
     }
 
-    let mut hashes = Vec::with_capacity(result.len());
+    if !page.sort_ascending {
+        ordered.reverse();
+    }
 
-    for hash_id in result {
+    if let Some(limit) = plan.limit() {
+        ordered.truncate(limit);
+    }
+
+    let mut hashes = Vec::with_capacity(ordered.len());
+
+    for hash_id in ordered {
         if let Some(hash) = master::get_hash(db, hash_id).map_err(|error| error.to_string())? {
             hashes.push(hash);
         }

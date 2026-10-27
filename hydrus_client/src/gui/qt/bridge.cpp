@@ -951,6 +951,43 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
     search_button = new QPushButton(QStringLiteral("search"), sidebar);
     sidebar_layout->addWidget(search_button);
 
+    sort = new QComboBox(sidebar);
+    sort->addItems({
+        QStringLiteral("hash id"),
+        QStringLiteral("import time"),
+        QStringLiteral("size"),
+        QStringLiteral("mime"),
+        QStringLiteral("width"),
+        QStringLiteral("height"),
+        QStringLiteral("ratio"),
+        QStringLiteral("pixels"),
+        QStringLiteral("duration"),
+        QStringLiteral("frames"),
+        QStringLiteral("words"),
+    });
+    sidebar_layout->addWidget(sort);
+
+    sort_ascending = new QCheckBox(QStringLiteral("ascending"), sidebar);
+    sort_ascending->setChecked(true);
+    sidebar_layout->addWidget(sort_ascending);
+
+    const auto send_sort = [this]() {
+        if (main->building) {
+            return;
+        }
+
+        QJsonObject request;
+        request.insert(QStringLiteral("sort"), sort->currentText());
+        request.insert(QStringLiteral("ascending"), sort_ascending->isChecked());
+        main->notify(
+            QStringLiteral("set_sort"),
+            id,
+            QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact)));
+    };
+
+    connect(sort, &QComboBox::currentTextChanged, this, [send_sort](const QString &) { send_sort(); });
+    connect(sort_ascending, &QCheckBox::toggled, this, [send_sort](bool) { send_sort(); });
+
     status_label = new QLabel(sidebar);
     status_label->setWordWrap(true);
     sidebar_layout->addWidget(status_label);
@@ -1050,6 +1087,24 @@ void HydrusQueryPage::update_state(const QJsonObject &state) {
         if (index >= 0) {
             tag_service->setCurrentIndex(index);
         }
+    }
+
+    const QString sort_value = state.value(QStringLiteral("sort")).toString();
+
+    if (!sort_value.isEmpty() && sort->currentText() != sort_value) {
+        const QSignalBlocker blocker(sort);
+        const int index = sort->findText(sort_value);
+
+        if (index >= 0) {
+            sort->setCurrentIndex(index);
+        }
+    }
+
+    const bool ascending = state.value(QStringLiteral("sort_ascending")).toBool(true);
+
+    if (sort_ascending->isChecked() != ascending) {
+        const QSignalBlocker blocker(sort_ascending);
+        sort_ascending->setChecked(ascending);
     }
 
     QString status = state.value(QStringLiteral("status")).toString();

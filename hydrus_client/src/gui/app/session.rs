@@ -26,6 +26,10 @@ pub struct SessionNode {
     #[serde(default)]
     pub tag_service: Option<String>,
     #[serde(default)]
+    pub sort: Option<String>,
+    #[serde(default)]
+    pub sort_ascending: Option<bool>,
+    #[serde(default)]
     pub message: Option<String>,
     #[serde(default)]
     pub current: Option<String>,
@@ -135,6 +139,8 @@ fn from_notebook(notebook: &Notebook) -> SessionNode {
         query: None,
         location: None,
         tag_service: None,
+        sort: None,
+        sort_ascending: None,
         message: None,
         current: notebook.current.clone(),
         children: notebook.children.iter().map(from_node).collect(),
@@ -164,6 +170,8 @@ fn from_node(node: &PageNode) -> SessionNode {
             query: Some(page.query.clone()),
             location: Some(page.location.clone()),
             tag_service: Some(page.tag_service.clone()),
+            sort: Some(page.sort.clone()),
+            sort_ascending: Some(page.sort_ascending),
             message: None,
             current: None,
             children: Vec::new(),
@@ -194,6 +202,8 @@ fn from_node(node: &PageNode) -> SessionNode {
             query: None,
             location: None,
             tag_service: None,
+            sort: None,
+            sort_ascending: None,
             message: None,
             current: None,
             children: Vec::new(),
@@ -219,6 +229,8 @@ fn from_node(node: &PageNode) -> SessionNode {
             query: None,
             location: None,
             tag_service: None,
+            sort: None,
+            sort_ascending: None,
             message: None,
             current: None,
             children: Vec::new(),
@@ -244,6 +256,8 @@ fn from_node(node: &PageNode) -> SessionNode {
             query: None,
             location: None,
             tag_service: None,
+            sort: None,
+            sort_ascending: None,
             message: None,
             current: None,
             children: Vec::new(),
@@ -269,6 +283,8 @@ fn from_node(node: &PageNode) -> SessionNode {
             query: None,
             location: None,
             tag_service: None,
+            sort: None,
+            sort_ascending: None,
             message: None,
             current: None,
             children: Vec::new(),
@@ -294,6 +310,8 @@ fn from_node(node: &PageNode) -> SessionNode {
             query: None,
             location: None,
             tag_service: None,
+            sort: None,
+            sort_ascending: None,
             message: Some(page.message.clone()),
             current: None,
             children: Vec::new(),
@@ -339,6 +357,8 @@ fn to_node(node: &SessionNode) -> PageNode {
             );
             page.query = node.query.clone().unwrap_or_default();
             page.tag_service = node.tag_service.clone().unwrap_or_default();
+            page.sort = node.sort.clone().unwrap_or_else(|| "hash id".to_string());
+            page.sort_ascending = node.sort_ascending.unwrap_or(true);
 
             let fixed: Vec<Vec<u8>> = node
                 .fixed_hashes

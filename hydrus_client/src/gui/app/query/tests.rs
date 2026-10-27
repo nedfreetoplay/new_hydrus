@@ -133,5 +133,17 @@ fn system_predicates_filter_real_files() {
     assert_eq!(page.hashes.len(), 1);
     assert_eq!(page.hashes[0], vec![0x11; 32]);
 
+    page.query = "system:filetype = png".to_string();
+    page.sort = "size".to_string();
+    page.sort_ascending = false;
+    run_query(&controller, &mut page).unwrap();
+
+    assert_eq!(page.hashes, vec![vec![0x11; 32], vec![0x22; 32]]);
+
+    page.sort_ascending = true;
+    run_query(&controller, &mut page).unwrap();
+
+    assert_eq!(page.hashes, vec![vec![0x22; 32], vec![0x11; 32]]);
+
     let _ = std::fs::remove_dir_all(directory);
 }

@@ -21,9 +21,12 @@ pub enum UiCommand {
     UpdateSubscriptions(String, String),
     UpdateDuplicates(String, String),
     UpdateImportFolders(String, String),
+    UpdateExportFolders(String, String),
     DuplicatesRulesDialog(String),
     TagRelationsDialog(String),
     ImportFolderDialog(String),
+    ExportFolderDialog(String),
+    ExportReviewDialog(String),
     SetSelection {
         page_id: String,
         hash: String,

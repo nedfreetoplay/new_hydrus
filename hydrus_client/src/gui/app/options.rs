@@ -104,6 +104,40 @@ pub fn options_json(state: &AppState) -> String {
     ));
 
     tabs.push(tab(
+        "exporting",
+        "exporting",
+        vec![
+            boolean(
+                &options,
+                "pause_export_folders_sync",
+                "pause export folder synchronisation",
+            ),
+            string(
+                &options,
+                "export_phrase",
+                "default filename phrase",
+            ),
+            noneable_string(&options, "export_path", "default export directory"),
+            integer(
+                &options,
+                "export_filename_character_limit",
+                "filename character limit (0 = 255)",
+            ),
+            boolean(
+                &options,
+                "always_apply_ntfs_export_filename_rules",
+                "always apply NTFS filename rules",
+            ),
+            str_field(
+                "export_phrase_help",
+                "phrase syntax",
+                "{hash} {file_id} {#} {tags} {nn tags} [namespace] (tag)".to_string(),
+                "the filename phrase is used by new export folders; tags become filename parts",
+            ),
+        ],
+    ));
+
+    tabs.push(tab(
         "tags",
         "tag presentation",
         vec![

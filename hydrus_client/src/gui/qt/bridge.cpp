@@ -3459,6 +3459,7 @@ private:
         add_button(QStringLiteral("page of pages"), QStringLiteral("notebook"));
         add_button(QStringLiteral("duplicates processing"), QStringLiteral("duplicates"));
         add_button(QStringLiteral("import folders"), QStringLiteral("import_folders"));
+        add_button(QStringLiteral("export folders"), QStringLiteral("export_folders"));
         add_nav(QStringLiteral("back"), 0);
         page_layout->addStretch(1);
     }
@@ -4828,6 +4829,135 @@ void HydrusImportFoldersPage::update_state(const QJsonObject &state) {
 }
 
 // ---------------------------------------------------------------------------
+// HydrusExportFoldersPage
+// ---------------------------------------------------------------------------
+
+HydrusExportFoldersPage::HydrusExportFoldersPage(HydrusMainWindow *main_window, const QString &page_id, const QJsonObject &state)
+    : QWidget(), main(main_window), id(page_id) {
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(6, 6, 6, 6);
+
+    status = new QLabel(this);
+    status->setWordWrap(true);
+    layout->addWidget(status);
+
+    table = new QTableWidget(this);
+    table->setColumnCount(8);
+    table->setHorizontalHeaderLabels({
+        QStringLiteral("name"),
+        QStringLiteral("destination"),
+        QStringLiteral("search"),
+        QStringLiteral("filename"),
+        QStringLiteral("mode"),
+        QStringLiteral("sidecar"),
+        QStringLiteral("status"),
+        QStringLiteral("last exported")
+    });
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setSelectionMode(QAbstractItemView::SingleSelection);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->verticalHeader()->setVisible(false);
+    layout->addWidget(table, 1);
+
+    auto *buttons = new QHBoxLayout();
+    auto *add = new QPushButton(QStringLiteral("add folder..."), this);
+    auto *edit = new QPushButton(QStringLiteral("edit..."), this);
+    auto *run = new QPushButton(QStringLiteral("run now"), this);
+    auto *review = new QPushButton(QStringLiteral("review files..."), this);
+    auto *toggle = new QPushButton(QStringLiteral("pause/resume"), this);
+    auto *reveal = new QPushButton(QStringLiteral("open folder"), this);
+    auto *remove = new QPushButton(QStringLiteral("remove"), this);
+    buttons->addWidget(add);
+    buttons->addWidget(edit);
+    buttons->addWidget(run);
+    buttons->addWidget(review);
+    buttons->addWidget(toggle);
+    buttons->addWidget(reveal);
+    buttons->addWidget(remove);
+    buttons->addStretch(1);
+    layout->addLayout(buttons);
+
+    connect(add, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("export_folder_edit"), id);
+    });
+    connect(edit, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("export_folder_edit")); });
+    connect(run, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("export_folder_run")); });
+    connect(review, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("export_folder_review")); });
+    connect(toggle, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("export_folder_toggle")); });
+    connect(reveal, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("export_folder_reveal")); });
+    connect(remove, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("export_folder_remove")); });
+
+    update_state(state);
+}
+
+const QString &HydrusExportFoldersPage::page_id() const {
+    return id;
+}
+
+void HydrusExportFoldersPage::with_selected(const QString &action) {
+    const int row = table->currentRow();
+
+    if (row < 0 || table->item(row, 0) == nullptr) {
+        return;
+    }
+
+    main->notify(action, id, table->item(row, 0)->data(Qt::UserRole).toString());
+}
+
+void HydrusExportFoldersPage::update_state(const QJsonObject &state) {
+    status->setText(state.value(QStringLiteral("status")).toString());
+
+    const QJsonArray folders = state.value(QStringLiteral("folders")).toArray();
+    table->setRowCount(folders.size());
+
+    for (int index = 0; index < folders.size(); ++index) {
+        const QJsonObject folder = folders.at(index).toObject();
+
+        for (int column = 0; column < 8; ++column) {
+            if (table->item(index, column) == nullptr) {
+                table->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        auto *name = table->item(index, 0);
+        name->setText(folder.value(QStringLiteral("name")).toString());
+        name->setData(Qt::UserRole, folder.value(QStringLiteral("name")).toString());
+
+        if (folder.value(QStringLiteral("paused")).toBool()) {
+            name->setForeground(QColor(160, 160, 160));
+        } else {
+            name->setForeground(QBrush());
+        }
+
+        const QString query = folder.value(QStringLiteral("query")).toString().trimmed();
+        const QString mode = folder.value(QStringLiteral("export_type")).toString();
+        const QString sidecar = folder.value(QStringLiteral("sidecar_format")).toString();
+
+        QString mode_text = mode == QStringLiteral("synchronise")
+            ? QStringLiteral("synchronise")
+            : QStringLiteral("copy");
+
+        if (folder.value(QStringLiteral("delete_from_client")).toBool()) {
+            mode_text += QStringLiteral(" + delete from client");
+        }
+
+        table->item(index, 1)->setText(folder.value(QStringLiteral("path")).toString());
+        table->item(index, 2)->setText(query.isEmpty() ? QStringLiteral("everything") : query);
+        table->item(index, 3)->setText(folder.value(QStringLiteral("phrase")).toString());
+        table->item(index, 4)->setText(mode_text);
+        table->item(index, 5)->setText(sidecar == QStringLiteral("none") ? QStringLiteral("-") : sidecar);
+        table->item(index, 6)->setText(folder.value(QStringLiteral("status")).toString());
+        table->item(index, 7)->setText(QString::number(folder.value(QStringLiteral("last_exported")).toInt()));
+    }
+
+    table->resizeRowsToContents();
+}
+
+// ---------------------------------------------------------------------------
 // HydrusDuplicatesRulesDialog
 // ---------------------------------------------------------------------------
 
@@ -5306,6 +5436,7 @@ void HydrusMainWindow::build_pages(const QJsonObject &object) {
     subscriptions.clear();
     duplicates.clear();
     import_folders.clear();
+    export_folders.clear();
     notebooks.clear();
     notebooks.insert(QStringLiteral("root"), root);
 
@@ -5362,6 +5493,10 @@ void HydrusMainWindow::populate_notebook(HydrusNotebook *notebook, const QJsonOb
             auto *page = new HydrusImportFoldersPage(this, page_id, child.value(QStringLiteral("state")).toObject());
             import_folders.insert(page_id, page);
             notebook->add_page_widget(page_id, title.isEmpty() ? QStringLiteral("import folders") : title, page);
+        } else if (kind == QStringLiteral("export_folders")) {
+            auto *page = new HydrusExportFoldersPage(this, page_id, child.value(QStringLiteral("state")).toObject());
+            export_folders.insert(page_id, page);
+            notebook->add_page_widget(page_id, title.isEmpty() ? QStringLiteral("export folders") : title, page);
         } else {
             const QString message = child.value(QStringLiteral("state")).toObject().value(QStringLiteral("message")).toString();
             auto *placeholder = new QWidget(notebook);
@@ -5417,6 +5552,12 @@ void HydrusMainWindow::update_import_folders(const QString &page_id, const QJson
     }
 }
 
+void HydrusMainWindow::update_export_folders(const QString &page_id, const QJsonObject &state) {
+    if (HydrusExportFoldersPage *page = export_folders.value(page_id, nullptr)) {
+        page->update_state(state);
+    }
+}
+
 void HydrusMainWindow::set_selection(
     const QString &page_id,
     const QString &hash,
@@ -5460,6 +5601,8 @@ public:
             {QStringLiteral("import files..."), QStringLiteral("import_files")},
             {QStringLiteral("import url..."), QStringLiteral("import_url")},
             {QStringLiteral("import folders..."), QStringLiteral("new_import_folders")},
+            {QStringLiteral("export folders..."), QStringLiteral("new_export_folders")},
+            {QStringLiteral("run all export folders"), QStringLiteral("export_folder_run_all")},
             {QStringLiteral("check all import folders"), QStringLiteral("import_folder_check_all")},
             {QStringLiteral("manage services..."), QStringLiteral("manage_services")},
             {QStringLiteral("manage network..."), QStringLiteral("options_network")},
@@ -6650,6 +6793,282 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
     notify(QStringLiteral("import_folder_save"), active_page, json_payload(payload));
 }
 
+void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
+    const QJsonObject folder = state.value(QStringLiteral("folder")).toObject();
+    const QString original = folder.value(QStringLiteral("name")).toString();
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(original.isEmpty() ? QStringLiteral("add export folder")
+                                             : QStringLiteral("edit export folder '%1'").arg(original));
+    dialog.resize(680, 520);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+
+    auto *name = new QLineEdit(folder.value(QStringLiteral("name")).toString(), &dialog);
+
+    auto *path_row = new QWidget(&dialog);
+    auto *path_layout = new QHBoxLayout(path_row);
+    path_layout->setContentsMargins(0, 0, 0, 0);
+    auto *path = new QLineEdit(folder.value(QStringLiteral("path")).toString(), path_row);
+    auto *browse = new QPushButton(QStringLiteral("browse..."), path_row);
+    path_layout->addWidget(path, 1);
+    path_layout->addWidget(browse);
+
+    auto *query = new QLineEdit(folder.value(QStringLiteral("query")).toString(), &dialog);
+    query->setPlaceholderText(QStringLiteral("tags or system:everything (empty exports every file)"));
+
+    auto *phrase = new QLineEdit(folder.value(QStringLiteral("phrase")).toString(), &dialog);
+    phrase->setPlaceholderText(QStringLiteral("{hash}, [creator], {tags}, {nn tags}, (tag)"));
+
+    auto *export_type = new QComboBox(&dialog);
+    export_type->addItem(QStringLiteral("copy files"), QStringLiteral("copy"));
+    export_type->addItem(QStringLiteral("synchronise folder"), QStringLiteral("synchronise"));
+    const int type_index = export_type->findData(
+        folder.value(QStringLiteral("export_type")).toString());
+    export_type->setCurrentIndex(type_index >= 0 ? type_index : 0);
+
+    auto *sidecar = new QComboBox(&dialog);
+    sidecar->addItem(QStringLiteral("no sidecar"), QStringLiteral("none"));
+    sidecar->addItem(QStringLiteral("tags sidecar (.tags.json)"), QStringLiteral("json"));
+    sidecar->addItem(QStringLiteral("tags sidecar (.tags.txt)"), QStringLiteral("text"));
+    const int sidecar_index = sidecar->findData(
+        folder.value(QStringLiteral("sidecar_format")).toString());
+    sidecar->setCurrentIndex(sidecar_index >= 0 ? sidecar_index : 0);
+
+    auto *overwrite_sidecars = new QCheckBox(
+        QStringLiteral("overwrite existing sidecars"), &dialog);
+    overwrite_sidecars->setChecked(
+        folder.value(QStringLiteral("overwrite_sidecars")).toBool(false));
+
+    auto *delete_from_client = new QCheckBox(
+        QStringLiteral("delete files from the client after export"), &dialog);
+    delete_from_client->setChecked(
+        folder.value(QStringLiteral("delete_from_client")).toBool(false));
+
+    auto *regular = new QCheckBox(QStringLiteral("run this folder regularly"), &dialog);
+    regular->setChecked(folder.value(QStringLiteral("run_regularly")).toBool(true));
+
+    auto *period = new QSpinBox(&dialog);
+    period->setRange(60, 30 * 86400);
+    period->setSingleStep(60);
+    period->setValue(folder.value(QStringLiteral("period")).toInt(3600));
+    period->setSuffix(QStringLiteral(" s"));
+
+    form->addRow(QStringLiteral("name"), name);
+    form->addRow(QStringLiteral("destination"), path_row);
+    form->addRow(QStringLiteral("search"), query);
+    form->addRow(QStringLiteral("filename"), phrase);
+    form->addRow(QStringLiteral("mode"), export_type);
+    form->addRow(QStringLiteral("metadata"), sidecar);
+    form->addRow(overwrite_sidecars);
+    form->addRow(delete_from_client);
+    form->addRow(regular);
+    form->addRow(QStringLiteral("run every"), period);
+    layout->addLayout(form);
+
+    auto *note = new QLabel(
+        QStringLiteral("Phrase terms: {hash}, {file_id}, {#}, {tags}, {nn tags}, "
+                       "[namespace] and (tag). Tags are cleaned before they become filenames.\n"
+                       "Synchronise deletes files in the destination that are no longer in the "
+                       "search result. Delete from client moves exported files to the trash."),
+        &dialog);
+    note->setWordWrap(true);
+    layout->addWidget(note);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, [&dialog, path, phrase]() {
+        if (path->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("export folder"),
+                                 QStringLiteral("Choose a destination folder."));
+            return;
+        }
+
+        if (phrase->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("export folder"),
+                                 QStringLiteral("Enter a filename phrase."));
+            return;
+        }
+
+        dialog.accept();
+    });
+
+    auto sync_options = [regular, period](int) {
+        period->setEnabled(regular->isChecked());
+    };
+    connect(regular, &QCheckBox::toggled, &dialog, sync_options);
+    sync_options(0);
+
+    connect(browse, &QPushButton::clicked, &dialog, [this, &dialog, path]() {
+        const QString chosen = QFileDialog::getExistingDirectory(
+            &dialog, QStringLiteral("choose an export folder"), path->text());
+
+        if (!chosen.isEmpty()) {
+            path->setText(chosen);
+        }
+    });
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("original"), original);
+    payload.insert(QStringLiteral("name"), name->text().trimmed());
+    payload.insert(QStringLiteral("path"), path->text().trimmed());
+    payload.insert(QStringLiteral("query"), query->text().trimmed());
+    payload.insert(QStringLiteral("phrase"), phrase->text().trimmed());
+    payload.insert(QStringLiteral("export_type"), export_type->currentData().toString());
+    payload.insert(QStringLiteral("sidecar_format"), sidecar->currentData().toString());
+    payload.insert(QStringLiteral("overwrite_sidecars"), overwrite_sidecars->isChecked());
+    payload.insert(QStringLiteral("delete_from_client"), delete_from_client->isChecked());
+    payload.insert(QStringLiteral("run_regularly"), regular->isChecked());
+    payload.insert(QStringLiteral("period"), period->value());
+
+    notify(QStringLiteral("export_folder_save"), active_page, json_payload(payload));
+}
+
+void HydrusMainWindow::show_export_review(const QJsonObject &state) {
+    const QString name = state.value(QStringLiteral("name")).toString();
+    const QJsonArray files = state.value(QStringLiteral("files")).toArray();
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("review export folder '%1'").arg(name));
+    dialog.resize(860, 520);
+
+    auto *layout = new QVBoxLayout(&dialog);
+
+    auto *summary = new QLabel(
+        QStringLiteral("%1 -> %2\n%3 files match the search. Uncheck anything you do not want "
+                       "to export this run.")
+            .arg(name, state.value(QStringLiteral("destination")).toString())
+            .arg(files.size()),
+        &dialog);
+    summary->setWordWrap(true);
+    layout->addWidget(summary);
+
+    auto *table = new QTableWidget(&dialog);
+    table->setColumnCount(5);
+    table->setHorizontalHeaderLabels({
+        QStringLiteral("export"),
+        QStringLiteral("file"),
+        QStringLiteral("tags"),
+        QStringLiteral("destination"),
+        QStringLiteral("state")
+    });
+    table->horizontalHeader()->setStretchLastSection(false);
+    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setSelectionMode(QAbstractItemView::SingleSelection);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setTextElideMode(Qt::ElideMiddle);
+    table->verticalHeader()->setVisible(false);
+    table->setRowCount(files.size());
+
+    for (int index = 0; index < files.size(); ++index) {
+        const QJsonObject file = files.at(index).toObject();
+        const QString hash = file.value(QStringLiteral("hash")).toString();
+        const bool safe = file.value(QStringLiteral("safe")).toBool();
+        const bool source_exists = file.value(QStringLiteral("source_exists")).toBool(true);
+        const bool exists = file.value(QStringLiteral("exists")).toBool();
+        const QString destination = file.value(QStringLiteral("destination")).toString();
+        const QString root = state.value(QStringLiteral("destination")).toString();
+        const QString relative = destination.startsWith(root)
+            ? destination.mid(root.size()).replace(QLatin1Char('\\'), QLatin1Char('/'))
+            : destination;
+
+        for (int column = 0; column < 5; ++column) {
+            table->setItem(index, column, new QTableWidgetItem());
+        }
+
+        auto *check = table->item(index, 0);
+        check->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsSelectable);
+        check->setCheckState(safe && source_exists ? Qt::Checked : Qt::Unchecked);
+        check->setData(Qt::UserRole, hash);
+
+        QStringList tags;
+
+        for (const QJsonValue &tag : file.value(QStringLiteral("tags")).toArray()) {
+            tags.append(tag.toString());
+        }
+
+        QString note = QStringLiteral("ready");
+
+        if (!source_exists) {
+            note = QStringLiteral("source missing");
+        } else if (!safe) {
+            note = QStringLiteral("unsafe filename");
+        } else if (exists) {
+            note = QStringLiteral("will be updated");
+        }
+
+        table->item(index, 1)->setText(hash);
+        table->item(index, 2)->setText(tags.join(QStringLiteral(", ")));
+        table->item(index, 3)->setText(relative);
+        table->item(index, 3)->setToolTip(destination);
+        table->item(index, 4)->setText(note);
+    }
+
+    layout->addWidget(table, 1);
+
+    auto *buttons = new QHBoxLayout();
+    auto *check_all = new QPushButton(QStringLiteral("check all"), &dialog);
+    auto *check_none = new QPushButton(QStringLiteral("check none"), &dialog);
+    auto *export_checked = new QPushButton(QStringLiteral("export checked"), &dialog);
+    auto *close = new QPushButton(QStringLiteral("close"), &dialog);
+    buttons->addWidget(check_all);
+    buttons->addWidget(check_none);
+    buttons->addStretch(1);
+    buttons->addWidget(export_checked);
+    buttons->addWidget(close);
+    layout->addLayout(buttons);
+
+    auto set_all = [table](Qt::CheckState value) {
+        for (int index = 0; index < table->rowCount(); ++index) {
+            QTableWidgetItem *item = table->item(index, 0);
+
+            if (item != nullptr && (item->flags() & Qt::ItemIsUserCheckable)) {
+                item->setCheckState(value);
+            }
+        }
+    };
+
+    connect(check_all, &QPushButton::clicked, &dialog, [set_all]() { set_all(Qt::Checked); });
+    connect(check_none, &QPushButton::clicked, &dialog, [set_all]() { set_all(Qt::Unchecked); });
+    connect(close, &QPushButton::clicked, &dialog, &QDialog::reject);
+    connect(export_checked, &QPushButton::clicked, &dialog, [this, &dialog, table, name]() {
+        QJsonArray hashes;
+
+        for (int index = 0; index < table->rowCount(); ++index) {
+            QTableWidgetItem *item = table->item(index, 0);
+
+            if (item != nullptr && item->checkState() == Qt::Checked) {
+                hashes.append(item->data(Qt::UserRole).toString());
+            }
+        }
+
+        if (hashes.isEmpty()) {
+            QMessageBox::information(&dialog, QStringLiteral("export folder"),
+                                     QStringLiteral("No files are checked."));
+            return;
+        }
+
+        QJsonObject payload;
+        payload.insert(QStringLiteral("name"), name);
+        payload.insert(QStringLiteral("hashes"), hashes);
+        notify(QStringLiteral("export_folder_run"), active_page, json_payload(payload));
+        dialog.accept();
+    });
+
+    dialog.exec();
+}
+
 void HydrusMainWindow::show_options(const QJsonObject &state) {
     HydrusOptionsDialog dialog(this, state, this);
     dialog.exec();
@@ -6911,6 +7330,10 @@ void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, r
     window.update_import_folders(to_qstring(page_id), parse_object(json));
 }
 
+void hydrus_update_export_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
+    window.update_export_folders(to_qstring(page_id), parse_object(json));
+}
+
 void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json) {
     window.show_duplicates_rules(parse_object(json));
 }
@@ -6921,6 +7344,14 @@ void hydrus_show_tag_relations(HydrusMainWindow &window, rust::Str json) {
 
 void hydrus_show_import_folder(HydrusMainWindow &window, rust::Str json) {
     window.show_import_folder(parse_object(json));
+}
+
+void hydrus_show_export_folder(HydrusMainWindow &window, rust::Str json) {
+    window.show_export_folder(parse_object(json));
+}
+
+void hydrus_show_export_review(HydrusMainWindow &window, rust::Str json) {
+    window.show_export_review(parse_object(json));
 }
 
 void hydrus_show_notes(HydrusMainWindow &window, rust::Str json) {

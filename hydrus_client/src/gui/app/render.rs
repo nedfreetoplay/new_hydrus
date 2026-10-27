@@ -34,6 +34,7 @@ pub fn menus_json(state: &AppState) -> String {
                 {"label": "import url...", "action": "import_url", "description": "Download one file from a URL and import it."},
                 {"label": "import folders...", "action": "new_import_folders", "description": "Scan folders for new files."},
                 {"label": "import folders", "items": import_folder_menu_items(state)},
+                {"label": "export folders", "items": export_folder_menu_items(state)},
                 {"separator": true},
                 {"label": "open", "items": [
                     {"label": "installation directory", "action": "open_install_dir"},
@@ -183,6 +184,34 @@ fn import_folder_menu_items(state: &AppState) -> Vec<Value> {
 
     if state.import_folders.is_empty() {
         items.push(json!({"label": "no import folders", "action": "", "enabled": false}));
+    }
+
+    items
+}
+
+fn export_folder_menu_items(state: &AppState) -> Vec<Value> {
+    let mut items = vec![
+        json!({"label": "manage export folders...", "action": "new_export_folders"}),
+        json!({
+            "label": "run all export folders",
+            "action": "export_folder_run_all",
+            "enabled": !state.export_folders.is_empty(),
+        }),
+        json!({"separator": true}),
+    ];
+
+    for folder in &state.export_folders {
+        items.push(json!({
+            "label": folder.name,
+            "action": "export_folder_run",
+            "payload": folder.name,
+            "enabled": !folder.running && !folder.paused,
+            "description": folder.status,
+        }));
+    }
+
+    if state.export_folders.is_empty() {
+        items.push(json!({"label": "no export folders", "action": "", "enabled": false}));
     }
 
     items
@@ -382,6 +411,14 @@ fn manager_item(state: &AppState, node: &PageNode) -> Value {
             "active": state.active.as_deref() == Some(page.id.as_str()),
             "children": [],
         }),
+        PageNode::ExportFolders(page) => json!({
+            "id": page.id,
+            "kind": "export_folders",
+            "title": page.title,
+            "count": state.export_folders.len(),
+            "active": state.active.as_deref() == Some(page.id.as_str()),
+            "children": [],
+        }),
         PageNode::Placeholder(page) => json!({
             "id": page.id,
             "kind": "placeholder",
@@ -448,6 +485,13 @@ fn node_json(state: &AppState, node: &PageNode) -> Value {
             "kind": "import_folders",
             "title": page.title,
             "state": serde_json::from_str::<Value>(&super::import_folders::rules_json(state, &page.id))
+                .unwrap_or(Value::Null),
+        }),
+        PageNode::ExportFolders(page) => json!({
+            "id": page.id,
+            "kind": "export_folders",
+            "title": page.title,
+            "state": serde_json::from_str::<Value>(&super::export::folders_json(state, &page.id))
                 .unwrap_or(Value::Null),
         }),
         PageNode::Placeholder(page) => json!({

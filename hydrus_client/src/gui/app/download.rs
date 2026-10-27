@@ -499,6 +499,7 @@ pub fn tick(state: &mut AppState) -> Vec<UiCommand> {
 
     let events = state.runtime.drain();
     let mut commands = super::import_folders::tick(state);
+    commands.extend(super::export::tick(state));
 
     for event in events {
         commands.extend(handle_event(state, event));
@@ -623,6 +624,11 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
             commands.push(UiCommand::Status(render::status_json(state)));
             commands
         }
+        AsyncEvent::ExportFinished {
+            name,
+            result,
+            checked_at,
+        } => super::export::apply_result(state, &name, result, checked_at),
         AsyncEvent::Started { job_id, total } => {
             if let Some(name) = job_id.strip_prefix("sub:") {
                 if let Some(entry) = state

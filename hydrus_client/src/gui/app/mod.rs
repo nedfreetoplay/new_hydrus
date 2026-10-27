@@ -19,6 +19,7 @@ pub mod commands;
 pub mod download;
 pub mod downloader_export;
 pub mod duplicates;
+pub mod export;
 pub mod favourites;
 pub mod import;
 pub mod import_folders;
@@ -536,6 +537,18 @@ impl AppState {
 
                 commands
             }
+            "new_export_folders" | "export_folders" => {
+                let notebook = self.active_notebook_id();
+                export::create_page(self, &notebook)
+            }
+            "export_folder_edit" => export::edit(self, payload),
+            "export_folder_save" => export::save_action(self, payload),
+            "export_folder_remove" => export::remove(self, payload),
+            "export_folder_toggle" => export::toggle(self, payload),
+            "export_folder_run" => export::run_now(self, payload),
+            "export_folder_review" => export::review(self, payload),
+            "export_folder_run_all" => export::run_all(self),
+            "export_folder_reveal" => export::reveal(self, payload),
             "create_page" => self.create_page(target, payload),
             "close_page" => self.close_page(target),
             "close_other_pages" => self.close_other_pages(target),
@@ -1664,6 +1677,8 @@ impl AppState {
             parent.add(PageNode::Subscriptions(SubscriptionsPage::new(id)));
         } else if kind == "import_folders" {
             return import_folders::create_page(self, notebook_id);
+        } else if kind == "export_folders" {
+            return export::create_page(self, notebook_id);
         } else if kind == "duplicates" {
             let id = self.new_id("p");
             page_id = id.clone();
@@ -1963,6 +1978,7 @@ impl AppState {
             PageNode::Subscriptions(page) => page.title = name.to_string(),
             PageNode::Duplicates(page) => page.title = name.to_string(),
             PageNode::ImportFolders(page) => page.title = name.to_string(),
+            PageNode::ExportFolders(page) => page.title = name.to_string(),
             PageNode::Placeholder(page) => page.title = name.to_string(),
         }
 
@@ -2589,6 +2605,7 @@ fn refresh_notebook(
             PageNode::Downloader(_)
             | PageNode::Subscriptions(_)
             | PageNode::ImportFolders(_)
+            | PageNode::ExportFolders(_)
             | PageNode::Placeholder(_) => {}
         }
     }
@@ -2603,6 +2620,7 @@ fn collect_query_ids(notebook: &Notebook, ids: &mut Vec<String>) {
             | PageNode::Subscriptions(_)
             | PageNode::Duplicates(_)
             | PageNode::ImportFolders(_)
+            | PageNode::ExportFolders(_)
             | PageNode::Placeholder(_) => {}
         }
     }
@@ -2623,6 +2641,16 @@ fn collect_import_folder_ids(notebook: &Notebook, ids: &mut Vec<String>) {
         match child {
             PageNode::ImportFolders(page) => ids.push(page.id.clone()),
             PageNode::Notebook(inner) => collect_import_folder_ids(inner, ids),
+            _ => {}
+        }
+    }
+}
+
+fn collect_export_folder_ids(notebook: &Notebook, ids: &mut Vec<String>) {
+    for child in &notebook.children {
+        match child {
+            PageNode::ExportFolders(page) => ids.push(page.id.clone()),
+            PageNode::Notebook(inner) => collect_export_folder_ids(inner, ids),
             _ => {}
         }
     }

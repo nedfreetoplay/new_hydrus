@@ -226,6 +226,19 @@ check regularly, subdirectories, skip recent, расширения, min/max ра
 файлу, поэтому move/delete выполняется только для успешно импортированных файлов.
 Move не перезаписывает существующие имена.
 
+## Export folders
+
+`gui::app::export` хранит entry в `export folders.json`: destination, поисковый
+запрос, filename phrase, copy/synchronise, sidecar json/text, overwrite,
+delete-from-client, период и paused. `execute` на worker-потоке выбирает файлы
+тем же `query::hashes_for`, что и страница поиска, строит имя через
+`[namespace] {hash} {file_id} {#} {tags} {nn tags} (tag)` и никогда не выпускает
+путь за пределы destination. Synchronise удаляет файлы, которых больше нет в
+результате поиска, и пустые каталоги. Review-диалог показывает план экспорта и
+позволяет исключить отдельные файлы; выбранные хеши идут в
+`AsyncJob::ExportFolder`. Ошибки и итог возвращаются через
+`AsyncEvent::ExportFinished` и попадают в статус папки и popup-историю.
+
 ## Что дальше
 
 1. Полный tag display manager (namespace/subtag ordering/decorators).

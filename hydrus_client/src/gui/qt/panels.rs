@@ -50,6 +50,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdateImportFolders(page_id, json) => {
             ffi::hydrus_update_import_folders(window.as_mut(), &page_id, &json);
         }
+        UiCommand::UpdateExportFolders(page_id, json) => {
+            ffi::hydrus_update_export_folders(window.as_mut(), &page_id, &json);
+        }
         UiCommand::DuplicatesRulesDialog(json) => {
             ffi::hydrus_show_duplicates_rules(window.as_mut(), &json);
         }
@@ -58,6 +61,12 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         }
         UiCommand::ImportFolderDialog(json) => {
             ffi::hydrus_show_import_folder(window.as_mut(), &json);
+        }
+        UiCommand::ExportFolderDialog(json) => {
+            ffi::hydrus_show_export_folder(window.as_mut(), &json);
+        }
+        UiCommand::ExportReviewDialog(json) => {
+            ffi::hydrus_show_export_review(window.as_mut(), &json);
         }
         UiCommand::NotesDialog(json) => ffi::hydrus_show_notes(window.as_mut(), &json),
         UiCommand::SetSelection {

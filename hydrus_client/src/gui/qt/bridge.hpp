@@ -45,6 +45,7 @@ class HydrusServicesDialog;
 class HydrusNetworkDialog;
 class HydrusMetadataPanel;
 class HydrusImportFoldersPage;
+class HydrusExportFoldersPage;
 class HydrusDuplicatesRulesDialog;
 class HydrusTagRelationsDialog;
 class QTabBar;
@@ -283,6 +284,23 @@ private:
     QLabel *status = nullptr;
 };
 
+// Export folders manager page.
+class HydrusExportFoldersPage : public QWidget {
+public:
+    HydrusExportFoldersPage(HydrusMainWindow *main, const QString &page_id, const QJsonObject &state);
+
+    const QString &page_id() const;
+    void update_state(const QJsonObject &state);
+
+private:
+    void with_selected(const QString &action);
+
+    HydrusMainWindow *main = nullptr;
+    QString id;
+    QTableWidget *table = nullptr;
+    QLabel *status = nullptr;
+};
+
 // Editor for duplicate auto-resolution rules.
 class HydrusDuplicatesRulesDialog : public QDialog {
 public:
@@ -491,6 +509,7 @@ public:
     void update_subscriptions(const QString &page_id, const QJsonObject &state);
     void update_duplicates(const QString &page_id, const QJsonObject &state);
     void update_import_folders(const QString &page_id, const QJsonObject &state);
+    void update_export_folders(const QString &page_id, const QJsonObject &state);
     void set_selection(
         const QString &page_id,
         const QString &hash,
@@ -513,6 +532,8 @@ public:
     void show_duplicates_rules(const QJsonObject &state);
     void show_tag_relations(const QJsonObject &state);
     void show_import_folder(const QJsonObject &state);
+    void show_export_folder(const QJsonObject &state);
+    void show_export_review(const QJsonObject &state);
     void show_options(const QJsonObject &state);
     void show_services(const QJsonObject &state);
     void update_services(const QJsonObject &state);
@@ -554,6 +575,7 @@ private:
     QHash<QString, HydrusSubscriptionsPage *> subscriptions;
     QHash<QString, HydrusDuplicatesPage *> duplicates;
     QHash<QString, HydrusImportFoldersPage *> import_folders;
+    QHash<QString, HydrusExportFoldersPage *> export_folders;
     QHash<QString, HydrusNotebook *> notebooks;
     QHash<QString, HydrusViewerWindow *> viewers;
     HydrusServicesDialog *services_dialog = nullptr;
@@ -597,9 +619,12 @@ void hydrus_update_downloader(HydrusMainWindow &window, rust::Str page_id, rust:
 void hydrus_update_subscriptions(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
+void hydrus_update_export_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_tag_relations(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_import_folder(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_export_folder(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_export_review(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_notes(HydrusMainWindow &window, rust::Str json);
 void hydrus_set_selection(
     HydrusMainWindow &window,

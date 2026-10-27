@@ -393,6 +393,23 @@ impl ImportFoldersPage {
 }
 
 #[derive(Debug, Clone)]
+pub struct ExportFoldersPage {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+}
+
+impl ExportFoldersPage {
+    pub fn new(id: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            title: "export folders".to_string(),
+            status: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct PlaceholderPage {
     pub id: String,
     pub title: String,
@@ -408,6 +425,7 @@ pub enum PageNode {
     Subscriptions(SubscriptionsPage),
     Duplicates(DuplicatesPage),
     ImportFolders(ImportFoldersPage),
+    ExportFolders(ExportFoldersPage),
     Placeholder(PlaceholderPage),
 }
 
@@ -420,6 +438,7 @@ impl PageNode {
             Self::Subscriptions(page) => &page.id,
             Self::Duplicates(page) => &page.id,
             Self::ImportFolders(page) => &page.id,
+            Self::ExportFolders(page) => &page.id,
             Self::Placeholder(page) => &page.id,
         }
     }
@@ -432,6 +451,7 @@ impl PageNode {
             Self::Subscriptions(page) => &page.title,
             Self::Duplicates(page) => &page.title,
             Self::ImportFolders(page) => &page.title,
+            Self::ExportFolders(page) => &page.title,
             Self::Placeholder(page) => &page.title,
         }
     }
@@ -541,6 +561,7 @@ pub struct AppState {
     pub viewers: std::collections::BTreeMap<String, ViewerContext>,
     pub subscriptions: Vec<SubscriptionEntry>,
     pub import_folders: Vec<super::import_folders::ImportFolderEntry>,
+    pub export_folders: Vec<super::export::ExportFolderEntry>,
     pub auto_rules: Vec<super::auto_resolution::AutoResolutionRule>,
     pub favourites: Vec<super::favourites::FavouriteSearch>,
     pub search_history: Vec<String>,
@@ -567,6 +588,7 @@ impl AppState {
             viewers: Default::default(),
             subscriptions: Vec::new(),
             import_folders: Vec::new(),
+            export_folders: Vec::new(),
             auto_rules: Vec::new(),
             favourites: Vec::new(),
             search_history: Vec::new(),
@@ -595,6 +617,7 @@ impl AppState {
         }
 
         state.import_folders = super::import_folders::load(&db_dir.join("import folders.json"));
+        state.export_folders = super::export::load(&db_dir.join("export folders.json"));
         state.auto_rules = super::auto_resolution::load_rules(
             &db_dir.join("duplicate auto-resolution rules.json"),
         );
@@ -644,6 +667,7 @@ impl AppState {
                     PageNode::Subscriptions(page) => page.id = replacement,
                     PageNode::Duplicates(page) => page.id = replacement,
                     PageNode::ImportFolders(page) => page.id = replacement,
+                    PageNode::ExportFolders(page) => page.id = replacement,
                     PageNode::Placeholder(page) => page.id = replacement,
                 }
             }
@@ -760,6 +784,26 @@ impl AppState {
     pub fn import_folder_page_ids(&self) -> Vec<String> {
         let mut ids = Vec::new();
         super::collect_import_folder_ids(&self.root, &mut ids);
+        ids
+    }
+
+    pub fn find_export_folders(&self, id: &str) -> Option<&ExportFoldersPage> {
+        find_node(&self.root, id).and_then(|node| match node {
+            PageNode::ExportFolders(page) => Some(page),
+            _ => None,
+        })
+    }
+
+    pub fn find_export_folders_mut(&mut self, id: &str) -> Option<&mut ExportFoldersPage> {
+        find_node_mut(&mut self.root, id).and_then(|node| match node {
+            PageNode::ExportFolders(page) => Some(page),
+            _ => None,
+        })
+    }
+
+    pub fn export_folder_page_ids(&self) -> Vec<String> {
+        let mut ids = Vec::new();
+        super::collect_export_folder_ids(&self.root, &mut ids);
         ids
     }
 
@@ -1075,6 +1119,7 @@ impl AppState {
             PageNode::Subscriptions(page) => page.id = new_id,
             PageNode::Duplicates(page) => page.id = new_id,
             PageNode::ImportFolders(page) => page.id = new_id,
+            PageNode::ExportFolders(page) => page.id = new_id,
             PageNode::Placeholder(page) => page.id = new_id,
         }
 

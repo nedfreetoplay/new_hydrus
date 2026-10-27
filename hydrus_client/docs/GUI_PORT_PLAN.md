@@ -36,7 +36,7 @@ Definition of Done для задачи.
 | WS-07 | Загрузчики и парсеры | `[~]` | P1 | XL | WS-06 |
 | WS-08 | Дубликаты | `[~]` | P1 | L | WS-03 |
 | WS-09 | Сервисы, репозитории, API | `[~]` | P1 | XL | — |
-| WS-10 | Экспорт | `[ ]` | P1 | L | WS-06 |
+| WS-10 | Экспорт | `[x]` | P1 | L | WS-06 |
 | WS-11 | Обслуживание файлов и БД | `[~]` | P1 | L | WS-09 |
 | WS-12 | Options framework | `[~]` | P1 | XL | — |
 | WS-13 | UX, уведомления, системная интеграция | `[~]` | P2 | L | WS-01, WS-12 |
@@ -313,12 +313,12 @@ Python: `exporting/ClientGUIExport`, `panels/options/ExportingPanel`.
 
 Rust-цели: новый `gui/app/export.rs`, `gui/qt/bridge.*`, `exporting/*`.
 
-- [ ] 10.1 Export folders: CRUD и периодический запуск.
-- [ ] 10.2 Export file patterns/formats.
-- [ ] 10.3 Review export files и выбор файлов.
-- [ ] 10.4 Sidecar export.
-- [ ] 10.5 Exporting options panel.
-- [ ] 10.6 Меню File → export (run all / run one).
+- [x] 10.1 Export folders: CRUD и периодический запуск.
+- [x] 10.2 Export file patterns/formats.
+- [x] 10.3 Review export files и выбор файлов.
+- [x] 10.4 Sidecar export.
+- [x] 10.5 Exporting options panel.
+- [x] 10.6 Меню File → export (run all / run one).
 
 Выход фазы: экспорт полностью доступен из GUI и покрыт тестами.
 

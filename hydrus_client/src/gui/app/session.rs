@@ -102,6 +102,7 @@ pub fn save(state: &super::model::AppState) -> std::io::Result<()> {
     let path = state.controller.db_dir().join("gui session.json");
 
     let _ = super::import_folders::persist(state);
+    let _ = super::export::persist(state);
     let _ = super::auto_resolution::persist(state);
 
     save_to(state, &path)
@@ -303,6 +304,33 @@ fn from_node(node: &PageNode) -> SessionNode {
             results: Vec::new(),
             fixed_hashes: Vec::new(),
         },
+        PageNode::ExportFolders(page) => SessionNode {
+            id: page.id.clone(),
+            kind: "export_folders".to_string(),
+            title: page.title.clone(),
+            query: None,
+            location: None,
+            tag_service: None,
+            sort: None,
+            sort_ascending: None,
+            message: None,
+            current: None,
+            children: Vec::new(),
+            downloader_kind: None,
+            input: None,
+            url: None,
+            search_query: None,
+            site: None,
+            filter: None,
+            subject: None,
+            paused: None,
+            auto_watch: None,
+            check_period: None,
+            last_check: None,
+            queue: Vec::new(),
+            results: Vec::new(),
+            fixed_hashes: Vec::new(),
+        },
         PageNode::Placeholder(page) => SessionNode {
             id: page.id.clone(),
             kind: "placeholder".to_string(),
@@ -417,6 +445,11 @@ fn to_node(node: &SessionNode) -> PageNode {
             let mut page = super::model::ImportFoldersPage::new(node.id.clone());
             page.title = node.title.clone();
             PageNode::ImportFolders(page)
+        }
+        "export_folders" => {
+            let mut page = super::model::ExportFoldersPage::new(node.id.clone());
+            page.title = node.title.clone();
+            PageNode::ExportFolders(page)
         }
         "placeholder" => {
             let title = node.title.to_ascii_lowercase();

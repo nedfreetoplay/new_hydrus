@@ -25,6 +25,21 @@ pub fn refresh_page(controller: &Controller, page: &mut QueryPage) {
     }
 }
 
+/// Runs a search box query and returns the matching hashes. Export folders use
+/// this so their file selection is exactly the same as a search page.
+pub fn hashes_for(
+    controller: &Controller,
+    query_text: &str,
+    location: &str,
+) -> Result<Vec<Vec<u8>>, String> {
+    let mut page = QueryPage::new("export", "export", location);
+    page.query = query_text.to_string();
+
+    run_query(controller, &mut page)?;
+
+    Ok(page.hashes)
+}
+
 fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String> {
     let db = controller.db().db();
 

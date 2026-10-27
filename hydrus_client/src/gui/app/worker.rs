@@ -52,6 +52,11 @@ pub(crate) enum AsyncJob {
     UpdateOptions(ClientOptions),
     UpdateNetworkHeaders(Vec<(String, String)>),
     UpdatePools(DownloadPoolSettings),
+    ExportFolder {
+        name: String,
+        folder: super::export::ExportFolderEntry,
+        hashes: Option<Vec<Vec<u8>>>,
+    },
 }
 
 #[derive(Debug)]
@@ -101,6 +106,11 @@ pub(crate) enum AsyncEvent {
         folder: Option<String>,
         results: Vec<(PathBuf, bool)>,
     },
+    ExportFinished {
+        name: String,
+        result: super::export::ExportResult,
+        checked_at: i64,
+    },
 }
 
 pub(crate) struct AsyncRuntime {
@@ -112,7 +122,7 @@ impl AsyncRuntime {
     pub(crate) fn new(controller: std::sync::Arc<Controller>) -> Self {
         let (job_sender, job_receiver) = mpsc::channel();
         let (event_sender, event_receiver) = mpsc::channel();
-        let context = WorkerContext::from_controller(&controller);
+        let context = WorkerContext::from_controller(controller.clone());
 
         thread::Builder::new()
             .name("hydrus-import-download".to_string())
@@ -150,6 +160,7 @@ impl AsyncRuntime {
 
 #[derive(Clone)]
 struct WorkerContext {
+    controller: Arc<Controller>,
     db: DBBase,
     files_manager: ClientFilesManager,
     options: ClientOptions,
@@ -160,8 +171,9 @@ struct WorkerContext {
 }
 
 impl WorkerContext {
-    fn from_controller(controller: &Controller) -> Self {
+    fn from_controller(controller: Arc<Controller>) -> Self {
         Self {
+            controller: controller.clone(),
             db: controller.db().db().clone(),
             files_manager: controller.files_manager(),
             options: controller.options(),
@@ -242,6 +254,23 @@ fn worker_loop(mut context: WorkerContext, jobs: Receiver<AsyncJob>, events: Sen
             }
             AsyncJob::UpdatePools(pools) => {
                 context.pools = pools;
+            }
+            AsyncJob::ExportFolder {
+                name,
+                folder,
+                hashes,
+            } => {
+                let result = super::export::execute_selected(
+                    &context.controller,
+                    &folder,
+                    hashes.as_deref(),
+                );
+
+                let _ = events.send(AsyncEvent::ExportFinished {
+                    name,
+                    result,
+                    checked_at: hydrus_core::hydrus_time::get_now(),
+                });
             }
         }
     }

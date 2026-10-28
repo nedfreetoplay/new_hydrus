@@ -452,6 +452,20 @@ impl ArgValue {
                     }
                 }
 
+                if let Some(dictionary) = object
+                    .as_any()
+                    .downcast_ref::<crate::hydrus_serialisable::SerialisableBytesDictionary>()
+                {
+                    let entries = dictionary
+                        .iter()
+                        .filter_map(|(key, value)| {
+                            Some((key.as_bytes()?.to_vec(), value.as_bytes()?.to_vec()))
+                        })
+                        .collect();
+
+                    return ArgValue::BytesDict(entries);
+                }
+
                 ArgValue::Object(ArgValueObject::Serialisable(object))
             }
         }

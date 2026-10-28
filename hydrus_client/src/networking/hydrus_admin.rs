@@ -12,13 +12,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use hydrus_core::hydrus_constants::{Filter, ServiceType, NETWORK_VERSION};
+use hydrus_core::hydrus_serialisable::{create_from_serialisable_tuple, SerialisableObject};
 use hydrus_core::hydrus_tags::TagFilter;
 use hydrus_core::networking::hydrus_network::{
     generate_service, generate_service_from_serialisable_tuple, Account, AccountType, ServerService,
 };
 use hydrus_core::networking::hydrus_network_variable_handling::{
     dump_hydrus_args_to_network_bytes, parse_network_bytes_to_parsed_hydrus_args, ArgValue,
-    ParsedRequestArguments,
+    ArgValueObject, ParsedRequestArguments,
 };
 use serde_json::{json, Value};
 
@@ -51,6 +52,10 @@ pub struct RemoteAccount {
 pub struct RemoteAccountType {
     pub key: String,
     pub title: String,
+    pub permissions: Vec<(u16, Option<u8>)>,
+    pub auto_create: (i64, i64),
+    pub is_null: bool,
+    pub tuple: Value,
 }
 
 #[derive(Debug, Clone)]
@@ -342,12 +347,62 @@ impl HydrusServiceClient {
             types.push(RemoteAccountType {
                 key: hex_encode(account_type.get_account_type_key()),
                 title: account_type.get_title().to_string(),
+                permissions: account_type
+                    .get_permissions()
+                    .iter()
+                    .map(|(content_type, action)| {
+                        (content_type.as_int(), action.map(|action| action.as_int()))
+                    })
+                    .collect(),
+                auto_create: account_type.get_auto_create_account_velocity(),
+                is_null: account_type.is_null_account(),
+                tuple: account_type.get_serialisable_tuple(),
             });
         }
 
         types.sort_by(|left, right| left.title.cmp(&right.title));
 
         Ok(types)
+    }
+
+    /// Replaces the account types of the selected admin/repository service.
+    pub fn save_account_types(
+        &self,
+        types: &[Value],
+        replacements: &[(String, String)],
+    ) -> Result<(), String> {
+        let mut values = Vec::with_capacity(types.len());
+
+        for tuple in types {
+            let object = create_from_serialisable_tuple(tuple, false)
+                .map_err(|error| format!("could not build an account type: {error}"))?;
+            values.push(ArgValue::Object(ArgValueObject::Serialisable(
+                std::sync::Arc::from(object),
+            )));
+        }
+
+        let mut replacements_dictionary =
+            hydrus_core::hydrus_serialisable::SerialisableBytesDictionary::new();
+
+        for (old, new) in replacements {
+            if let (Some(old), Some(new)) = (decode_hex(old), decode_hex(new)) {
+                replacements_dictionary.insert(
+                    hydrus_core::hydrus_serialisable::BytesDictionaryKey::Bytes(old),
+                    hydrus_core::hydrus_serialisable::BytesDictionaryValue::Bytes(new),
+                );
+            }
+        }
+
+        let mut args = ParsedRequestArguments::new();
+        args.insert("account_types", ArgValue::List(values));
+        args.insert(
+            "deletee_account_type_keys_to_new_account_type_keys",
+            ArgValue::object(std::sync::Arc::new(replacements_dictionary)),
+        );
+
+        self.request("POST", "account_types", Some(args))?;
+
+        Ok(())
     }
 
     /// Reads the tag filter rules of a tag repository.

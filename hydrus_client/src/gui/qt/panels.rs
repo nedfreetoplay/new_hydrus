@@ -155,6 +155,12 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdateApiPermissions(json) => {
             ffi::hydrus_update_api_permissions(window.as_mut(), &json)
         }
+        UiCommand::AccountTypesDialog(json) => {
+            ffi::hydrus_show_account_types(window.as_mut(), &json)
+        }
+        UiCommand::UpdateAccountTypes(json) => {
+            ffi::hydrus_update_account_types(window.as_mut(), &json)
+        }
         UiCommand::NetworkDialog(json) => ffi::hydrus_show_network(window.as_mut(), &json),
         UiCommand::NotifyMessage(message) => {
             ffi::hydrus_notify_message(window.as_mut(), &message);

@@ -9,8 +9,10 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use hydrus_core::hydrus_constants::ServiceType;
+use hydrus_core::hydrus_constants::{ContentType, PermissionAction, ServiceType};
 use hydrus_core::hydrus_exceptions::unknown;
+use hydrus_core::hydrus_serialisable::SerialisableObject;
+use hydrus_core::networking::hydrus_network::AccountType;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -762,6 +764,382 @@ pub fn admin_account_action(state: &mut AppState, payload: &str) -> Vec<UiComman
     }
 }
 
+fn selected_client(state: &AppState) -> Result<HydrusServiceClient, String> {
+    let service =
+        selected_service(state).ok_or_else(|| "choose a server service first".to_string())?;
+    let access_key = state
+        .admin
+        .service_keys
+        .get(&service.key)
+        .cloned()
+        .ok_or_else(|| "enter the access key for that service first".to_string())?;
+
+    HydrusServiceClient::new(&state.admin.address, &access_key)
+        .map(|client| client.with_port(service.port))
+}
+
+pub fn account_types_json(state: &AppState) -> String {
+    let mut types: Vec<&RemoteAccountType> = state.admin.account_types.iter().collect();
+    types.sort_by(|left, right| left.title.to_lowercase().cmp(&right.title.to_lowercase()));
+
+    let entries: Vec<Value> = types
+        .iter()
+        .map(|account_type| {
+            json!({
+                "key": account_type.key,
+                "title": account_type.title,
+                "permissions": account_type.permissions,
+                "auto_create_accounts": account_type.auto_create.0,
+                "auto_create_time_delta": account_type.auto_create.1,
+                "is_null": account_type.is_null,
+                "summary": permission_summary(account_type),
+            })
+        })
+        .collect();
+
+    let service_type = selected_service(state)
+        .and_then(|service| u16::try_from(service.type_int).ok())
+        .and_then(ServiceType::try_from_int);
+
+    let possible: Vec<Value> = service_type
+        .map(|service_type| {
+            hydrus_core::networking::hydrus_network::get_possible_permissions(service_type)
+                .into_iter()
+                .map(|(content_type, actions)| {
+                    let actions: Vec<Value> = actions
+                        .into_iter()
+                        .map(|action| {
+                            json!({
+                                "value": action.map(|action| action.as_int()),
+                                "label": action
+                                    .and_then(|action| {
+                                        hydrus_core::hydrus_constants::permission_pair_description(
+                                            content_type,
+                                            Some(action),
+                                        )
+                                    })
+                                    .unwrap_or("no permission"),
+                            })
+                        })
+                        .collect();
+
+                    json!({
+                        "content_type": content_type.as_int(),
+                        "label": content_type.as_str(),
+                        "actions": actions,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    json!({
+        "service_key": state.admin.selected_service,
+        "types": entries,
+        "possible": possible,
+    })
+    .to_string()
+}
+
+fn permission_summary(account_type: &RemoteAccountType) -> String {
+    if account_type.is_null {
+        return "null account".to_string();
+    }
+
+    let labels: Vec<&str> = account_type
+        .permissions
+        .iter()
+        .filter_map(|(content_type, action)| {
+            let content_type = u16::try_from(*content_type)
+                .ok()
+                .and_then(ContentType::try_from_int)?;
+
+            hydrus_core::hydrus_constants::permission_pair_description(
+                content_type,
+                action.and_then(|action| PermissionAction::try_from_int(action)),
+            )
+        })
+        .collect();
+
+    if labels.is_empty() {
+        "no permissions".to_string()
+    } else {
+        labels.join(", ")
+    }
+}
+
+pub fn open_account_types(state: &mut AppState, _payload: &str) -> Vec<UiCommand> {
+    let client = match selected_client(state) {
+        Ok(client) => client,
+        Err(error) => return service_commands(state, error),
+    };
+
+    match client.account_types() {
+        Ok(types) => {
+            state.admin.account_types = types;
+            state.admin.status = format!("{} account type(s)", state.admin.account_types.len());
+            service_commands(state, state.admin.status.clone())
+                .into_iter()
+                .chain([UiCommand::AccountTypesDialog(account_types_json(state))])
+                .collect()
+        }
+        Err(error) => service_commands(state, format!("server error: {error}")),
+    }
+}
+
+pub fn save_account_type(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
+    let Ok(value) = serde_json::from_str::<Value>(payload) else {
+        return service_commands(state, "invalid account type payload");
+    };
+    let key = value
+        .get("account_type_key")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    let title = value
+        .get("title")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    if title.is_empty() {
+        return service_commands(state, "enter an account type title");
+    }
+
+    let permissions = match parse_account_type_permissions(&value) {
+        Ok(permissions) => permissions,
+        Err(error) => return service_commands(state, error),
+    };
+
+    let auto_create = (
+        value
+            .get("auto_create_accounts")
+            .and_then(Value::as_i64)
+            .unwrap_or(0)
+            .max(0),
+        value
+            .get("auto_create_time_delta")
+            .and_then(Value::as_i64)
+            .unwrap_or(86_400)
+            .max(60),
+    );
+
+    let mut tuples: Vec<Value> = state
+        .admin
+        .account_types
+        .iter()
+        .filter(|account_type| account_type.key != key)
+        .map(|account_type| account_type.tuple.clone())
+        .collect();
+
+    let tuple = if key.is_empty() {
+        let account_type = AccountType::new(
+            random_key(),
+            &title,
+            permissions,
+            std::sync::Arc::new(hydrus_core::networking::hydrus_networking::BandwidthRules::new()),
+            auto_create,
+            std::sync::Arc::new(
+                hydrus_core::networking::hydrus_networking::BandwidthTracker::new(),
+            ),
+        );
+
+        account_type.get_serialisable_tuple()
+    } else {
+        let Some(existing) = state
+            .admin
+            .account_types
+            .iter()
+            .find(|account_type| account_type.key == key)
+        else {
+            return service_commands(state, "that account type is missing; refresh the service");
+        };
+
+        if existing.is_null {
+            return service_commands(state, "the null account type cannot be edited");
+        }
+
+        match edit_account_type_tuple(&existing.tuple, &title, permissions, auto_create) {
+            Ok(tuple) => tuple,
+            Err(error) => return service_commands(state, error),
+        }
+    };
+
+    tuples.push(tuple);
+
+    let client = match selected_client(state) {
+        Ok(client) => client,
+        Err(error) => return service_commands(state, error),
+    };
+
+    match client.save_account_types(&tuples, &[]) {
+        Ok(()) => {
+            state.admin.status = format!("account type '{title}' saved");
+            refresh_account_types(state);
+            service_commands(state, state.admin.status.clone())
+                .into_iter()
+                .chain([UiCommand::UpdateAccountTypes(account_types_json(state))])
+                .collect()
+        }
+        Err(error) => service_commands(state, format!("server error: {error}")),
+    }
+}
+
+pub fn delete_account_type(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
+    let Ok(value) = serde_json::from_str::<Value>(payload) else {
+        return service_commands(state, "invalid account type payload");
+    };
+    let key = value
+        .get("account_type_key")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    let replacement = value
+        .get("replacement_account_type_key")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+
+    let Some(existing) = state
+        .admin
+        .account_types
+        .iter()
+        .find(|account_type| account_type.key == key)
+        .cloned()
+    else {
+        return service_commands(state, "that account type is missing");
+    };
+
+    if existing.is_null {
+        return service_commands(state, "the null account type cannot be deleted");
+    }
+
+    if replacement.is_empty() || replacement == key {
+        return service_commands(state, "choose a replacement account type");
+    }
+
+    let tuples: Vec<Value> = state
+        .admin
+        .account_types
+        .iter()
+        .filter(|account_type| account_type.key != key)
+        .map(|account_type| account_type.tuple.clone())
+        .collect();
+
+    let client = match selected_client(state) {
+        Ok(client) => client,
+        Err(error) => return service_commands(state, error),
+    };
+
+    match client.save_account_types(&tuples, &[(key.clone(), replacement)]) {
+        Ok(()) => {
+            state.admin.status = format!("account type '{}' deleted", existing.title);
+            refresh_account_types(state);
+            service_commands(state, state.admin.status.clone())
+                .into_iter()
+                .chain([UiCommand::UpdateAccountTypes(account_types_json(state))])
+                .collect()
+        }
+        Err(error) => service_commands(state, format!("server error: {error}")),
+    }
+}
+
+fn parse_account_type_permissions(
+    value: &Value,
+) -> Result<indexmap::IndexMap<ContentType, Option<PermissionAction>>, String> {
+    let Some(entries) = value.get("permissions").and_then(Value::as_array) else {
+        return Ok(indexmap::IndexMap::new());
+    };
+
+    let mut permissions = indexmap::IndexMap::new();
+
+    for entry in entries {
+        let Some(pair) = entry.as_array() else {
+            return Err("a permission was not a pair".to_string());
+        };
+        let (Some(content_type), Some(action)) = (pair.first(), pair.get(1)) else {
+            return Err("a permission was not a pair".to_string());
+        };
+        let Some(content_type) = content_type
+            .as_u64()
+            .and_then(|value| u16::try_from(value).ok())
+            .and_then(ContentType::try_from_int)
+        else {
+            return Err("unknown permission content type".to_string());
+        };
+
+        let action = if action.is_null() {
+            None
+        } else {
+            let Some(action) = action
+                .as_u64()
+                .and_then(|value| u8::try_from(value).ok())
+                .and_then(PermissionAction::try_from_int)
+            else {
+                return Err("unknown permission action".to_string());
+            };
+
+            Some(action)
+        };
+
+        permissions.insert(content_type, action);
+    }
+
+    Ok(permissions)
+}
+
+fn edit_account_type_tuple(
+    tuple: &Value,
+    title: &str,
+    permissions: indexmap::IndexMap<ContentType, Option<PermissionAction>>,
+    auto_create: (i64, i64),
+) -> Result<Value, String> {
+    let mut tuple = tuple.clone();
+    let Some(items) = tuple.as_array_mut() else {
+        return Err("the account type tuple is malformed".to_string());
+    };
+    let Some(info) = items.get_mut(2).and_then(Value::as_array_mut) else {
+        return Err("the account type info is malformed".to_string());
+    };
+
+    if info.len() < 5 {
+        return Err("the account type info is malformed".to_string());
+    }
+
+    info[1] = json!(title);
+
+    let permission_info: Vec<Value> = permissions
+        .iter()
+        .map(|(content_type, action)| {
+            json!([content_type.as_int(), action.map(|action| action.as_int())])
+        })
+        .collect();
+    info[2] = Value::Array(permission_info);
+    info[4] = json!([auto_create.0, auto_create.1]);
+
+    Ok(tuple)
+}
+
+fn refresh_account_types(state: &mut AppState) {
+    if let Ok(client) = selected_client(state) {
+        if let Ok(types) = client.account_types() {
+            state.admin.account_types = types;
+        }
+    }
+}
+
+fn random_key() -> Vec<u8> {
+    use rand::RngCore;
+
+    let mut key = vec![0u8; 32];
+    rand::thread_rng().fill_bytes(&mut key);
+    key
+}
+
 fn refresh_admin(state: &mut AppState) {
     let Ok(client) = HydrusServiceClient::new(&state.admin.address, &state.admin.access_key) else {
         return;
@@ -947,6 +1325,44 @@ mod tests {
         client.remove_service(&edited, &added.0).unwrap();
         let final_services = client.services().unwrap();
         assert!(!final_services.iter().any(|service| service.key == added.0));
+
+        let types = client.account_types().unwrap();
+        let mut tuples: Vec<Value> = types.iter().map(|kind| kind.tuple.clone()).collect();
+        let new_type = AccountType::new(
+            vec![0x5a; 32],
+            "rust test account type",
+            indexmap::IndexMap::new(),
+            Arc::new(hydrus_core::networking::hydrus_networking::BandwidthRules::new()),
+            (0, 86_400),
+            Arc::new(hydrus_core::networking::hydrus_networking::BandwidthTracker::new()),
+        );
+        tuples.push(new_type.get_serialisable_tuple());
+        client.save_account_types(&tuples, &[]).unwrap();
+
+        let with_type = client.account_types().unwrap();
+        assert!(with_type
+            .iter()
+            .any(|kind| kind.title == "rust test account type"));
+
+        let replacement = with_type
+            .iter()
+            .find(|kind| !kind.is_null && kind.title != "rust test account type")
+            .unwrap()
+            .key
+            .clone();
+        let remaining: Vec<Value> = with_type
+            .iter()
+            .filter(|kind| kind.title != "rust test account type")
+            .map(|kind| kind.tuple.clone())
+            .collect();
+        client
+            .save_account_types(&remaining, &[("5a".repeat(32), replacement)])
+            .unwrap();
+
+        let final_types = client.account_types().unwrap();
+        assert!(!final_types
+            .iter()
+            .any(|kind| kind.title == "rust test account type"));
     }
 
     #[test]
@@ -1060,6 +1476,54 @@ mod tests {
             key,
             "1111111111111111111111111111111111111111111111111111111111111111"
         );
+    }
+
+    #[test]
+    fn account_type_tuples_preserve_bandwidth_when_edited() {
+        let account_type = AccountType::default();
+        let tuple = account_type.get_serialisable_tuple();
+
+        let mut permissions = indexmap::IndexMap::new();
+        permissions.insert(ContentType::Files, Some(PermissionAction::Create));
+
+        let edited = edit_account_type_tuple(&tuple, "renamed", permissions, (5, 3_600)).unwrap();
+        let info = edited[2].as_array().unwrap();
+        let old_info = tuple[2].as_array().unwrap();
+
+        assert_eq!(info[1], json!("renamed"));
+        assert_eq!(info[3], old_info[3]);
+        assert_eq!(info[5], old_info[5]);
+        assert_eq!(info[4], json!([5, 3_600]));
+        assert!(info[2]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry[0] == json!(3) && entry[1] == json!(1)));
+    }
+
+    #[test]
+    fn account_type_permissions_round_trip() {
+        let payload = json!({
+            "permissions": [[3, 1], [9, 2], [10, null]],
+        });
+
+        let permissions = parse_account_type_permissions(&payload).unwrap();
+
+        assert_eq!(
+            permissions.get(&ContentType::Files),
+            Some(&Some(PermissionAction::Create))
+        );
+        assert_eq!(
+            permissions.get(&ContentType::Accounts),
+            Some(&Some(PermissionAction::Moderate))
+        );
+        assert_eq!(permissions.get(&ContentType::Options), Some(&None));
+    }
+
+    #[test]
+    fn invalid_account_type_permissions_are_rejected() {
+        assert!(parse_account_type_permissions(&json!({"permissions": [[3, 99]]})).is_err());
+        assert!(parse_account_type_permissions(&json!({"permissions": [[999, 1]]})).is_err());
     }
 
     #[test]

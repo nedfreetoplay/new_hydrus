@@ -239,10 +239,12 @@ stay in Rust.
 `ParsedRequestArguments` bodies, the `Hydrus-Key` header, and the same
 `ServerService`/`Account` objects as `hydrus_server`. It can list, add, edit and
 delete server services, lock/unlock, regenerate service info, set update and
-nullification periods, and review/modify accounts. A blank access key performs
-the one-time `/access_key` bootstrap through the `init` registration key. Remote
-connections accept the server's self-signed certificate; that exception is
-limited to this client.
+nullification periods, and review/modify accounts. Account types can be added,
+edited and deleted; the editor changes the title, per-content-type permissions
+and auto-creation velocity while preserving bandwidth rules and creation
+history. A blank access key performs the one-time `/access_key` bootstrap
+through the `init` registration key. Remote connections accept the server's
+self-signed certificate; that exception is limited to this client.
 
 Login credentials are persisted in `logins.json` and edited from the logins tab.
 The server connection itself is saved in `server admin.json`, including the

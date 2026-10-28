@@ -1299,6 +1299,9 @@ impl AppState {
             "admin_edit_service" => services::admin_edit_service(self, payload),
             "admin_remove_service" => services::admin_remove_service(self, payload),
             "admin_account_action" => services::admin_account_action(self, payload),
+            "account_types_open" => services::open_account_types(self, payload),
+            "account_type_save" => services::save_account_type(self, payload),
+            "account_type_delete" => services::delete_account_type(self, payload),
             "service_add" | "service_rename" => services::save_service(self, payload),
             "options_network" => vec![UiCommand::NetworkDialog(options::network_json(self))],
             action if action.starts_with("network_") => {

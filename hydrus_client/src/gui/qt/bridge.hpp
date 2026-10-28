@@ -43,6 +43,7 @@ class HydrusSubscriptionsPage;
 class HydrusDuplicatesPage;
 class HydrusServicesDialog;
 class HydrusApiPermissionsDialog;
+class HydrusAccountTypesDialog;
 class HydrusNetworkDialog;
 class HydrusMetadataPanel;
 class HydrusImportFoldersPage;
@@ -475,6 +476,7 @@ private:
     QLineEdit *admin_address = nullptr;
     QLineEdit *admin_key = nullptr;
     QLineEdit *remote_key = nullptr;
+    bool opened_account_types = false;
 };
 
 // Non-modal network manager.
@@ -495,6 +497,24 @@ private:
     QJsonObject data;
     QTableWidget *table = nullptr;
     QLabel *status = nullptr;
+};
+
+// Non-modal account type manager for the selected server service.
+class HydrusAccountTypesDialog : public QDialog {
+public:
+    explicit HydrusAccountTypesDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void add_entry();
+    void edit_selected();
+    void delete_selected();
+    QJsonObject selected_entry() const;
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    QTableWidget *table = nullptr;
 };
 
 class HydrusNetworkDialog : public QDialog {
@@ -579,6 +599,8 @@ public:
     void show_tag_filter(const QJsonObject &state);
     void show_api_permissions(const QJsonObject &state);
     void update_api_permissions(const QJsonObject &state);
+    void show_account_types(const QJsonObject &state);
+    void update_account_types(const QJsonObject &state);
     void show_network(const QJsonObject &state);
     void update_network(const QJsonObject &state);
     void start_tick();
@@ -622,6 +644,7 @@ private:
     QHash<QString, HydrusViewerWindow *> viewers;
     HydrusServicesDialog *services_dialog = nullptr;
     HydrusApiPermissionsDialog *api_permissions_dialog = nullptr;
+    HydrusAccountTypesDialog *account_types_dialog = nullptr;
     HydrusNetworkDialog *network_dialog = nullptr;
     HydrusDuplicatesRulesDialog *duplicates_rules_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
@@ -714,6 +737,8 @@ void hydrus_update_services(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_tag_filter(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_api_permissions(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_api_permissions(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_account_types(HydrusMainWindow &window, rust::Str json);
+void hydrus_update_account_types(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_network(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_network(HydrusMainWindow &window, rust::Str json);
 void hydrus_start_tick(HydrusMainWindow &window);

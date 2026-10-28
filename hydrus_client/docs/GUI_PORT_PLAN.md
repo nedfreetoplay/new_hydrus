@@ -298,8 +298,8 @@ Rust-цели: `gui/app/options.rs`, `services.rs`, `controller.rs`,
   09.8/09.9.
 - [x] 09.5 Server-side services manager: connect, add/edit/delete, lock/unlock,
   regen info и update/nullification periods.
-- [~] 09.6 Accounts: list, ban/unban, expires, message, delete content и
-  назначение типа. Редактор account types (permissions) ещё нет.
+- [x] 09.6 Accounts: list, ban/unban, expires, message, delete content,
+  edit/delete account types, permissions по content type и auto-creation.
 - [~] 09.7 Update/nullification periods настраиваются из GUI; repository sync и
   petitions ещё нет.
 - [~] 09.8 Tag filter: whitelist/blacklist, тест тега, сохранение в сервисе и POST в tag repository; purge tags работает для локального tag-сервиса. Petitions/commit для remote purge ещё нет.

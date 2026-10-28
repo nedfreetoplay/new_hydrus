@@ -74,6 +74,8 @@ pub enum UiCommand {
     TagFilterDialog(String),
     ApiPermissionsDialog(String),
     UpdateApiPermissions(String),
+    AccountTypesDialog(String),
+    UpdateAccountTypes(String),
     NetworkDialog(String),
     NotifyMessage(String),
     SetClipboard(String),

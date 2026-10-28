@@ -995,7 +995,7 @@ pub fn duplicates_json(
     .to_string()
 }
 
-fn duplicate_media_json(controller: &crate::controller::Controller, hash: &[u8]) -> Value {
+pub(crate) fn duplicate_media_json(controller: &crate::controller::Controller, hash: &[u8]) -> Value {
     let info = query::file_info_for(controller, hash);
     let info_text = info
         .as_ref()

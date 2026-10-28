@@ -24,6 +24,7 @@ pub enum UiCommand {
     UpdateExportFolders(String, String),
     DuplicatesRulesDialog(String),
     DuplicatesMergeOptionsDialog(String),
+    DuplicateCustomActionDialog(String),
     DuplicatesRulePreview(String),
     DuplicateReviewDialog(String),
     UpdateDuplicateReview(String),

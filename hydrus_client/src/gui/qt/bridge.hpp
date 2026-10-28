@@ -394,6 +394,29 @@ private:
     QLabel *status = nullptr;
 };
 
+// One page of duplicate content merge options. Both the global merge options
+// dialog and the per-decision custom action dialog share it.
+struct DuplicateMergePage {
+    QComboBox *archive = nullptr;
+    QComboBox *modified_date = nullptr;
+    QComboBox *urls = nullptr;
+    QComboBox *notes = nullptr;
+    QTableWidget *tags = nullptr;
+    QTableWidget *ratings = nullptr;
+};
+
+void build_duplicate_merge_page(
+    QWidget *parent,
+    QTabWidget *tabs,
+    const QJsonObject &data,
+    const QString &title,
+    DuplicateMergePage &page);
+void fill_duplicate_merge_page(
+    DuplicateMergePage &page,
+    const QJsonObject &data,
+    const QJsonObject &options);
+QJsonObject read_duplicate_merge_page(const DuplicateMergePage &page);
+
 // Which metadata a duplicate merge copies from the worse file, for each
 // duplicate action ("this is better" and "same quality").
 class HydrusDuplicateMergeOptionsDialog : public QDialog {
@@ -403,23 +426,31 @@ public:
     void set_state(const QJsonObject &state);
 
 private:
-    struct Page {
-        QComboBox *archive = nullptr;
-        QComboBox *modified_date = nullptr;
-        QComboBox *urls = nullptr;
-        QComboBox *notes = nullptr;
-        QTableWidget *tags = nullptr;
-        QTableWidget *ratings = nullptr;
-    };
-
-    void build_page(QTabWidget *tabs, const QString &key, const QString &title, Page &page);
-    void fill_page(Page &page, const QJsonObject &options);
     void save();
 
     HydrusMainWindow *main = nullptr;
     QJsonObject data;
-    Page better;
-    Page same;
+    DuplicateMergePage better;
+    DuplicateMergePage same;
+};
+
+// Per-decision version of the duplicate action menu: choose the action, which
+// file is better, what to delete, and merge options only for this pair.
+class HydrusDuplicateCustomActionDialog : public QDialog {
+public:
+    explicit HydrusDuplicateCustomActionDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+private:
+    void apply();
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    QComboBox *action = nullptr;
+    QComboBox *better_side = nullptr;
+    QComboBox *delete_mode = nullptr;
+    QTabWidget *tabs = nullptr;
+    DuplicateMergePage better;
+    DuplicateMergePage same;
 };
 
 // A notebook is a page of pages: tabs, a trailing "+" tab, and the usual
@@ -519,6 +550,7 @@ private:
     void act(const QString &action);
     void notify_search_context();
     void update_search_controls();
+    void show_group_actions(const QString &target, const QPoint &global_pos);
 
     HydrusMainWindow *main = nullptr;
     QString id;
@@ -546,9 +578,14 @@ private:
     QListWidget *urls_a = nullptr;
     QListWidget *urls_b = nullptr;
     QPushButton *keep_a = nullptr;
+    QPushButton *keep_a_both = nullptr;
     QPushButton *keep_b = nullptr;
+    QPushButton *keep_b_both = nullptr;
     QPushButton *same = nullptr;
     QPushButton *not_duplicates = nullptr;
+    QPushButton *alternates = nullptr;
+    QPushButton *custom_action = nullptr;
+    QPushButton *group_actions = nullptr;
     QPushButton *skip = nullptr;
     QPushButton *refresh = nullptr;
     QPushButton *delete_both = nullptr;
@@ -742,6 +779,7 @@ public:
     void show_notes(const QJsonObject &state);
     void show_duplicates_rules(const QJsonObject &state);
     void show_duplicate_merge_options(const QJsonObject &state);
+    void show_duplicate_custom_action(const QJsonObject &state);
     void update_auto_resolution_preview(const QJsonObject &state);
     void show_duplicate_review(const QJsonObject &state);
     void update_duplicate_review(const QJsonObject &state);
@@ -810,6 +848,7 @@ private:
     HydrusNetworkDialog *network_dialog = nullptr;
     HydrusDuplicatesRulesDialog *duplicates_rules_dialog = nullptr;
     HydrusDuplicateMergeOptionsDialog *merge_options_dialog = nullptr;
+    HydrusDuplicateCustomActionDialog *duplicate_custom_action_dialog = nullptr;
     HydrusDuplicateReviewDialog *duplicate_review_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
     QTimer *tick_timer = nullptr;
@@ -852,6 +891,7 @@ void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, r
 void hydrus_update_export_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_duplicate_merge_options(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_duplicate_custom_action(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_auto_resolution_preview(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_duplicate_review(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_duplicate_review(HydrusMainWindow &window, rust::Str json);

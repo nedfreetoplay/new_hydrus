@@ -59,6 +59,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::DuplicatesMergeOptionsDialog(json) => {
             ffi::hydrus_show_duplicate_merge_options(window.as_mut(), &json);
         }
+        UiCommand::DuplicateCustomActionDialog(json) => {
+            ffi::hydrus_show_duplicate_custom_action(window.as_mut(), &json);
+        }
         UiCommand::DuplicatesRulePreview(json) => {
             ffi::hydrus_update_auto_resolution_preview(window.as_mut(), &json);
         }

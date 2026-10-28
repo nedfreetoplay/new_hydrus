@@ -287,7 +287,13 @@ Rust-цели: `gui/app/duplicates.rs`, `gui/app/auto_resolution.rs`,
   контекстное меню и Enter открывают выбранные пары в новой странице. Сортировка пар
   (larger/smaller filesize, similarity, random; asc/desc) входит в search context,
   сохраняется в `gui session.json` и применяется до auto-resolution и батча.
-- [ ] 08.10 Полные duplicate actions/menu.
+- [x] 08.10 Полные duplicate actions/menu: this is better with delete/keep both,
+  same quality, related alternates, false positive, delete both, custom action
+  (тип действия, выбор лучшего файла, delete neither/A/B/both и отдельные merge
+  options для пары). Кнопка actions... и контекстное меню на стороне выполняют
+  remove potentials, reset potential search, clear all/internal false positives,
+  remove from duplicate/alternates group и dissolve duplicate/alternates group;
+  очередь перечитывается, результат пишется в статус.
 
 Выход фазы: duplicate filter и auto-resolution настраиваются визуально и
 покрывают пакетные сценарии.

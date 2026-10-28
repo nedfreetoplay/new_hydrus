@@ -57,6 +57,7 @@ pub(crate) mod ffi {
         );
         fn hydrus_show_duplicates_rules(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_duplicate_merge_options(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_duplicate_custom_action(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_auto_resolution_preview(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_duplicate_review(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_duplicate_review(window: Pin<&mut HydrusMainWindow>, json: &str);

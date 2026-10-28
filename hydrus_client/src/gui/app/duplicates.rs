@@ -22,6 +22,7 @@ use crate::gui::app::model::{
     PixelDupesPreference,
 };
 use crate::gui::app::{AppState, UiCommand, query, render};
+use serde_json::{Value, json};
 
 const MIN_BATCH_SIZE: i64 = 5;
 const MAX_BATCH_SIZE: i64 = 1024;
@@ -127,8 +128,14 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
                 }
             }
         }
-        "duplicates_keep_a" | "duplicates_keep_b" | "duplicates_same" => {
+        "duplicates_keep_a"
+        | "duplicates_keep_b"
+        | "duplicates_keep_a_keep"
+        | "duplicates_keep_b_keep"
+        | "duplicates_same" => {
             let Some(pair) = page.current().cloned() else {
+                state.duplicate_review = review;
+
                 return vec![UiCommand::NotifyMessage(
                     "no duplicate pair left".to_string(),
                 )];
@@ -147,6 +154,18 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
                     true,
                     MergeActionKind::Better,
                 ),
+                "duplicates_keep_a_keep" => (
+                    pair.a.clone(),
+                    pair.b.clone(),
+                    false,
+                    MergeActionKind::Better,
+                ),
+                "duplicates_keep_b_keep" => (
+                    pair.b.clone(),
+                    pair.a.clone(),
+                    false,
+                    MergeActionKind::Better,
+                ),
                 _ => (pair.a.clone(), pair.b.clone(), false, MergeActionKind::Same),
             };
             let options = merge_options(&controller, kind);
@@ -154,10 +173,19 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
             match merge_pair(&controller, &keep, &discard, trash, &options) {
                 Ok(()) => {
                     page.remove_current();
-                    page.status = if trash {
-                        format!("kept {}; moved the other file to trash", query::hex(&keep))
-                    } else {
-                        "files marked as duplicates; both kept".to_string()
+                    page.status = match (trash, kind) {
+                        (true, MergeActionKind::Better) => {
+                            format!("kept {}; moved the other file to trash", query::hex(&keep))
+                        }
+                        (true, MergeActionKind::Same) => {
+                            "files marked as duplicates; both kept".to_string()
+                        }
+                        (false, MergeActionKind::Better) => {
+                            format!("kept {}; both files kept", query::hex(&keep))
+                        }
+                        (false, MergeActionKind::Same) => {
+                            "files marked as duplicates; both kept".to_string()
+                        }
                     };
                 }
                 Err(error) => {
@@ -165,8 +193,85 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
                 }
             }
         }
+        "duplicates_alternates" => {
+            let Some(pair) = page.current().cloned() else {
+                state.duplicate_review = review;
+
+                return vec![UiCommand::NotifyMessage(
+                    "no duplicate pair left".to_string(),
+                )];
+            };
+
+            match apply_rule_decision(
+                &controller,
+                AutoDecision::Alternates,
+                false,
+                false,
+                &pair.a,
+                &pair.b,
+            ) {
+                Ok(()) => {
+                    page.remove_current();
+                    page.status = "marked as related alternates".to_string();
+                }
+                Err(error) => {
+                    page.status = format!("could not save the decision: {error}");
+                }
+            }
+        }
+        "duplicates_custom_action" => {
+            let json = custom_action_dialog_json(&controller, page);
+            state.duplicate_review = review;
+
+            return vec![UiCommand::DuplicateCustomActionDialog(json)];
+        }
+        "duplicates_custom" => {
+            let Some(pair) = page.current().cloned() else {
+                state.duplicate_review = review;
+
+                return vec![UiCommand::NotifyMessage(
+                    "no duplicate pair left".to_string(),
+                )];
+            };
+
+            match apply_custom_action(&controller, &pair, payload) {
+                Ok(message) => {
+                    page.remove_current();
+                    page.status = message;
+                }
+                Err(error) => {
+                    page.status = format!("custom action failed: {error}");
+                }
+            }
+        }
+        "duplicates_group_action" => {
+            let Some(pair) = page.current().cloned() else {
+                state.duplicate_review = review;
+
+                return vec![UiCommand::NotifyMessage(
+                    "no duplicate pair left".to_string(),
+                )];
+            };
+
+            match apply_group_action(
+                &controller,
+                &pair,
+                payload,
+                page.search_context.max_distance,
+            ) {
+                Ok(message) => {
+                    queued = load_queue(&controller, page, &rules, &mut review).1;
+                    page.status = format!("{message}; {}", page.status);
+                }
+                Err(error) => {
+                    page.status = format!("duplicate action failed: {error}");
+                }
+            }
+        }
         "duplicates_false" => {
             let Some(pair) = page.current().cloned() else {
+                state.duplicate_review = review;
+
                 return vec![UiCommand::NotifyMessage(
                     "no duplicate pair left".to_string(),
                 )];
@@ -184,6 +289,8 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
         }
         "duplicates_delete_both" => {
             let Some(pair) = page.current().cloned() else {
+                state.duplicate_review = review;
+
                 return vec![UiCommand::NotifyMessage(
                     "no duplicate pair left".to_string(),
                 )];
@@ -596,6 +703,311 @@ pub(crate) fn apply_rule_decision(
     }
 }
 
+fn custom_action_dialog_json(controller: &Controller, page: &DuplicatesPage) -> String {
+    let mut value = merge_options_value(controller);
+    let pair = page.current().map(|pair| {
+        json!({
+            "distance": pair.distance,
+            "a": render::duplicate_media_json(controller, &pair.a),
+            "b": render::duplicate_media_json(controller, &pair.b),
+        })
+    });
+
+    value["page_id"] = json!(page.id);
+    value["pair"] = pair.unwrap_or(Value::Null);
+    value["duplicate_types"] = json!([
+        { "value": "better", "label": "this is better" },
+        { "value": "same", "label": "they are the same quality" },
+        { "value": "alternate", "label": "they are related alternates" },
+        { "value": "false_positive", "label": "they are not related" },
+    ]);
+    value["better_sides"] = json!([
+        { "value": "a", "label": "A is better" },
+        { "value": "b", "label": "B is better" },
+    ]);
+    value["delete_modes"] = json!([
+        { "value": "neither", "label": "delete neither" },
+        { "value": "a", "label": "delete A" },
+        { "value": "b", "label": "delete B" },
+        { "value": "both", "label": "delete both" },
+    ]);
+
+    value.to_string()
+}
+
+fn apply_custom_action(
+    controller: &Controller,
+    pair: &DuplicatePairView,
+    payload: &str,
+) -> Result<String, String> {
+    let value: Value =
+        serde_json::from_str(payload).map_err(|error| format!("invalid custom action: {error}"))?;
+
+    let action = value
+        .get("action")
+        .and_then(Value::as_str)
+        .unwrap_or("better");
+    let better_side = value
+        .get("better_side")
+        .and_then(Value::as_str)
+        .unwrap_or("a");
+    let delete = value
+        .get("delete")
+        .and_then(Value::as_str)
+        .unwrap_or("neither");
+    let delete_a = delete == "a" || delete == "both";
+    let delete_b = delete == "b" || delete == "both";
+
+    match action {
+        "better" => {
+            let options: DuplicateContentMergeOptions = value
+                .get("better")
+                .cloned()
+                .ok_or_else(|| "missing merge options".to_string())
+                .and_then(|value| {
+                    serde_json::from_value(value).map_err(|error| error.to_string())
+                })?;
+
+            let (keep, discard) = if better_side == "b" {
+                (&pair.b, &pair.a)
+            } else {
+                (&pair.a, &pair.b)
+            };
+
+            merge_pair(controller, keep, discard, false, &options)?;
+        }
+        "same" => {
+            let options: DuplicateContentMergeOptions = value
+                .get("same")
+                .cloned()
+                .ok_or_else(|| "missing merge options".to_string())
+                .and_then(|value| {
+                    serde_json::from_value(value).map_err(|error| error.to_string())
+                })?;
+
+            merge_pair(controller, &pair.a, &pair.b, false, &options)?;
+        }
+        "alternate" => {
+            let db = controller.db().db();
+            let a_id = query::hash_id_for(controller, &pair.a)
+                .ok_or_else(|| "first file is missing".to_string())?;
+            let b_id = query::hash_id_for(controller, &pair.b)
+                .ok_or_else(|| "second file is missing".to_string())?;
+
+            duplicates::create_alternate_group(db, &[a_id, b_id])
+                .map_err(|error| error.to_string())?;
+            duplicates::remove_potential_pair(db, a_id.min(b_id), a_id.max(b_id))
+                .map_err(|error| error.to_string())?;
+        }
+        "false_positive" => {
+            mark_false_positive(controller, &pair.a, &pair.b)?;
+        }
+        _ => return Err(format!("unknown duplicate action '{action}'")),
+    }
+
+    if delete_a {
+        trash_file(controller, &pair.a)?;
+    }
+
+    if delete_b {
+        trash_file(controller, &pair.b)?;
+    }
+
+    Ok(match action {
+        "better" => format!(
+            "kept {} better{}",
+            query::hex(if better_side == "b" { &pair.b } else { &pair.a }),
+            if delete_a || delete_b {
+                "; deleted the selected files"
+            } else {
+                "; both files kept"
+            }
+        ),
+        "same" => "files marked as duplicates".to_string(),
+        "alternate" => "marked as related alternates".to_string(),
+        _ => "marked as not duplicates".to_string(),
+    })
+}
+
+fn apply_group_action(
+    controller: &Controller,
+    pair: &DuplicatePairView,
+    payload: &str,
+    max_distance: i64,
+) -> Result<String, String> {
+    let value: Value = serde_json::from_str(payload)
+        .map_err(|error| format!("invalid duplicate action: {error}"))?;
+    let kind = value
+        .get("kind")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "missing action".to_string())?;
+    let target = value
+        .get("target")
+        .and_then(Value::as_str)
+        .unwrap_or("both");
+
+    let hashes: Vec<&[u8]> = match target {
+        "a" => vec![pair.a.as_slice()],
+        "b" => vec![pair.b.as_slice()],
+        _ => vec![pair.a.as_slice(), pair.b.as_slice()],
+    };
+    let ids: Vec<i64> = hashes
+        .iter()
+        .filter_map(|hash| query::hash_id_for(controller, hash))
+        .collect();
+
+    if ids.is_empty() {
+        return Err("the files are not in the database".to_string());
+    }
+
+    let db = controller.db().db();
+
+    match kind {
+        "remove_potentials" => {
+            let removed = duplicates::delete_potentials_for_hashes(db, &ids)
+                .map_err(|error| error.to_string())?;
+
+            Ok(count_message(removed, "potential pair", "removed"))
+        }
+        "reset_potential_search" => {
+            let mut found = 0usize;
+
+            for hash_id in &ids {
+                found += duplicates::reset_potential_search(db, *hash_id, max_distance)
+                    .map_err(|error| error.to_string())?;
+            }
+
+            Ok(count_message(found, "potential pair", "found again"))
+        }
+        "clear_false_positives" => {
+            let expanded = alternate_expanded_ids(db, &ids)?;
+            let removed = duplicates::delete_false_positives_for_hashes(db, &expanded)
+                .map_err(|error| error.to_string())?;
+
+            Ok(count_message(removed, "false positive", "cleared"))
+        }
+        "clear_internal_false_positives" => {
+            let removed = duplicates::delete_internal_false_positives(db, &ids)
+                .map_err(|error| error.to_string())?;
+
+            Ok(count_message(removed, "false positive", "cleared"))
+        }
+        "remove_from_duplicate_group" => {
+            let mut removed = 0usize;
+
+            for hash_id in &ids {
+                removed += duplicates::remove_from_duplicate_group(db, *hash_id)
+                    .map_err(|error| error.to_string())?;
+            }
+
+            Ok(count_message(
+                removed,
+                "duplicate group membership",
+                "removed",
+            ))
+        }
+        "remove_from_alternate_group" => {
+            let mut removed = 0usize;
+
+            for hash_id in &ids {
+                removed += duplicates::remove_from_alternate_group(db, *hash_id)
+                    .map_err(|error| error.to_string())?;
+            }
+
+            Ok(count_message(
+                removed,
+                "alternates group membership",
+                "removed",
+            ))
+        }
+        "dissolve_duplicate_group" => {
+            let mut removed = 0usize;
+
+            for hash_id in &ids {
+                removed += duplicates::remove_from_alternate_group(db, *hash_id)
+                    .map_err(|error| error.to_string())?;
+                duplicates::delete_potentials_for_hashes(db, &[*hash_id])
+                    .map_err(|error| error.to_string())?;
+
+                for media_id in duplicates::get_duplicate_media_ids_for_hash(db, *hash_id)
+                    .map_err(|error| error.to_string())?
+                {
+                    duplicates::delete_duplicate_group(db, media_id)
+                        .map_err(|error| error.to_string())?;
+                    removed += 1;
+                }
+            }
+
+            Ok(count_message(
+                removed,
+                "duplicate relationship",
+                "dissolved",
+            ))
+        }
+        "dissolve_alternate_group" => {
+            let mut group_ids = BTreeSet::new();
+
+            for hash_id in &ids {
+                group_ids.extend(
+                    duplicates::get_alternate_group_ids_for_hash(db, *hash_id)
+                        .map_err(|error| error.to_string())?,
+                );
+            }
+
+            let mut removed = 0usize;
+
+            for group_id in group_ids {
+                let members = duplicates::get_alternate_group_hashes(db, group_id)
+                    .map_err(|error| error.to_string())?;
+
+                for member in &members {
+                    duplicates::remove_from_duplicate_group(db, *member)
+                        .map_err(|error| error.to_string())?;
+                    duplicates::delete_potentials_for_hashes(db, &[*member])
+                        .map_err(|error| error.to_string())?;
+                }
+
+                duplicates::delete_alternate_group(db, group_id)
+                    .map_err(|error| error.to_string())?;
+                removed += 1;
+            }
+
+            Ok(count_message(removed, "alternates group", "dissolved"))
+        }
+        _ => Err(format!("unknown duplicate action '{kind}'")),
+    }
+}
+
+fn alternate_expanded_ids(
+    db: &hydrus_core::hydrus_db_base::DBBase,
+    ids: &[i64],
+) -> Result<Vec<i64>, String> {
+    let mut expanded: BTreeSet<i64> = ids.iter().copied().collect();
+
+    for hash_id in ids {
+        for group_id in duplicates::get_alternate_group_ids_for_hash(db, *hash_id)
+            .map_err(|error| error.to_string())?
+        {
+            expanded.extend(
+                duplicates::get_alternate_group_hashes(db, group_id)
+                    .map_err(|error| error.to_string())?,
+            );
+        }
+    }
+
+    Ok(expanded.into_iter().collect())
+}
+
+fn count_message(count: usize, noun: &str, verb: &str) -> String {
+    if count == 0 {
+        format!("no {noun} to {verb}")
+    } else if count == 1 {
+        format!("1 {noun} {verb}")
+    } else {
+        format!("{count} {noun}s {verb}")
+    }
+}
+
 fn trash_file(controller: &Controller, hash: &[u8]) -> Result<(), String> {
     let db = controller.db().db();
     let trash =
@@ -664,7 +1076,10 @@ fn merge_options_json_for(controller: &Controller, kind: MergeActionKind) -> ser
 }
 
 pub fn merge_options_json(state: &AppState) -> String {
-    let controller = &state.controller;
+    merge_options_value(&state.controller).to_string()
+}
+
+fn merge_options_value(controller: &Controller) -> Value {
     let manager = controller.services();
     let tag_services: Vec<String> = manager
         .get_services(Some(&[ServiceType::LocalTag, ServiceType::TagRepository]))
@@ -689,7 +1104,7 @@ pub fn merge_options_json(state: &AppState) -> String {
     ]
     .into_iter()
     .map(|action| {
-        serde_json::json!({
+        json!({
             "value": action.as_str(),
             "label": action.label(),
         })
@@ -703,14 +1118,14 @@ pub fn merge_options_json(state: &AppState) -> String {
     ]
     .into_iter()
     .map(|action| {
-        serde_json::json!({
+        json!({
             "value": action.as_str(),
             "label": action.label(),
         })
     })
     .collect::<Vec<_>>();
 
-    serde_json::json!({
+    json!({
         "better": merge_options_json_for(controller, MergeActionKind::Better),
         "same": merge_options_json_for(controller, MergeActionKind::Same),
         "tag_services": tag_services,
@@ -722,7 +1137,6 @@ pub fn merge_options_json(state: &AppState) -> String {
             "same": merge_options(controller, MergeActionKind::Same).get_merge_summary(),
         },
     })
-    .to_string()
 }
 
 fn save_merge_options(
@@ -1759,6 +2173,269 @@ mod tests {
         assert_eq!(saved.sync_file_modified_date_action, MergeAction::None);
         assert_eq!(saved.tag_action("local tags"), MergeAction::Copy);
         assert_eq!(saved.rating_action("favourites"), MergeAction::TwoWayMerge);
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    fn action_state(directory: &std::path::Path) -> AppState {
+        let controller = test_controller(directory);
+        let mut state = AppState::new(std::sync::Arc::new(controller));
+        state.root.add(crate::gui::app::model::PageNode::Duplicates(
+            DuplicatesPage::new("dup-actions"),
+        ));
+        state.active = Some("dup-actions".to_string());
+
+        state
+    }
+
+    fn add_note(controller: &Controller, hash: &[u8], name: &str, text: &str) {
+        let hash_id = query::hash_id_for(controller, hash).unwrap();
+        notes::set_note(controller.db().db(), hash_id, name, text).unwrap();
+    }
+
+    #[test]
+    fn keep_both_and_alternates_do_not_trash_files() {
+        let directory = temp_directory("keep-both");
+        let mut state = action_state(&directory);
+        let controller = state.controller.clone();
+        let (_, _, first_id, second_id) = add_sized_pair(&controller, 61, 1_000, 4_000, 2);
+        action(&mut state, "dup-actions", "duplicates_refresh", "");
+        let pair = state
+            .find_duplicates("dup-actions")
+            .unwrap()
+            .current()
+            .cloned()
+            .unwrap();
+
+        let commands = action(&mut state, "dup-actions", "duplicates_keep_a_keep", "");
+        assert!(matches!(
+            commands.first(),
+            Some(UiCommand::UpdateDuplicates(_, _))
+        ));
+
+        let db = controller.db().db();
+        let my_files = query::local_file_service_id(&controller, "my files").unwrap();
+        let trash = query::trash_service_id(&controller).unwrap();
+        let in_my_files =
+            files_storage::get_hash_ids(db, my_files, ContentStatus::Current).unwrap();
+
+        assert!(in_my_files.contains(&first_id));
+        assert!(in_my_files.contains(&second_id));
+        assert!(
+            files_storage::get_hash_ids(db, trash, ContentStatus::Current)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            matches!(
+                duplicates::get_alternate_group_ids_for_hash(db, first_id)
+                    .unwrap()
+                    .as_slice(),
+                [_]
+            ),
+            "a keep-both decision should create one alternates group"
+        );
+        assert!(
+            duplicates::get_candidate_pairs(db, None)
+                .unwrap()
+                .is_empty(),
+            "the decided potential pair should be gone"
+        );
+        assert!(pair.a != pair.b);
+
+        // A second pair can be marked as related alternates without deleting.
+        let (_, _, third_id, fourth_id) = add_sized_pair(&controller, 63, 1_000, 2_000, 1);
+        action(&mut state, "dup-actions", "duplicates_refresh", "");
+        action(&mut state, "dup-actions", "duplicates_alternates", "");
+
+        assert_eq!(
+            duplicates::get_alternate_group_ids_for_hash(db, third_id)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(
+            duplicates::get_alternate_group_ids_for_hash(db, fourth_id)
+                .unwrap()
+                .len(),
+            1
+        );
+        assert!(
+            files_storage::get_hash_ids(db, trash, ContentStatus::Current)
+                .unwrap()
+                .is_empty()
+        );
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn custom_action_uses_per_decision_merge_options_and_delete_choice() {
+        let directory = temp_directory("custom");
+        let mut state = action_state(&directory);
+        let controller = state.controller.clone();
+        let (_, _, _, _) = add_sized_pair(&controller, 71, 1_000, 4_000, 2);
+        action(&mut state, "dup-actions", "duplicates_refresh", "");
+
+        let pair = state
+            .find_duplicates("dup-actions")
+            .unwrap()
+            .current()
+            .cloned()
+            .unwrap();
+        let (a_id, b_id) = (
+            query::hash_id_for(&controller, &pair.a).unwrap(),
+            query::hash_id_for(&controller, &pair.b).unwrap(),
+        );
+
+        add_note(&controller, &pair.a, "note", "from A");
+
+        let mut better = DuplicateContentMergeOptions::better_default();
+        better.sync_notes_action = MergeAction::Copy;
+        let payload = serde_json::json!({
+            "action": "better",
+            "better_side": "b",
+            "delete": "a",
+            "better": serde_json::to_value(better).unwrap(),
+            "same": serde_json::to_value(DuplicateContentMergeOptions::same_default()).unwrap(),
+        })
+        .to_string();
+
+        action(&mut state, "dup-actions", "duplicates_custom", &payload);
+
+        let db = controller.db().db();
+        let my_files = query::local_file_service_id(&controller, "my files").unwrap();
+        let trash = query::trash_service_id(&controller).unwrap();
+        let in_my_files =
+            files_storage::get_hash_ids(db, my_files, ContentStatus::Current).unwrap();
+        let in_trash = files_storage::get_hash_ids(db, trash, ContentStatus::Current).unwrap();
+
+        assert!(in_trash.contains(&a_id), "delete=A should trash A");
+        assert!(in_my_files.contains(&b_id), "B should be kept");
+        assert_eq!(
+            notes::get_note(db, b_id, "note").unwrap().as_deref(),
+            Some("from A"),
+            "the custom better options copied A's note to B"
+        );
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn group_actions_clear_groups_false_positives_and_potentials() {
+        let directory = temp_directory("group-actions");
+        let mut state = action_state(&directory);
+        let controller = state.controller.clone();
+        let (first_hash, _second_hash, first_id, second_id) =
+            add_sized_pair(&controller, 81, 1_000, 2_000, 2);
+        action(&mut state, "dup-actions", "duplicates_refresh", "");
+        let pair = state
+            .find_duplicates("dup-actions")
+            .unwrap()
+            .current()
+            .cloned()
+            .unwrap();
+        let db = controller.db().db();
+
+        duplicates::create_alternate_group(db, &[first_id, second_id]).unwrap();
+        duplicates::add_false_positive(db, first_id.min(second_id), first_id.max(second_id))
+            .unwrap();
+
+        action(
+            &mut state,
+            "dup-actions",
+            "duplicates_group_action",
+            r#"{"kind":"clear_false_positives","target":"both"}"#,
+        );
+
+        assert!(
+            !duplicates::is_false_positive(db, first_id.min(second_id), first_id.max(second_id))
+                .unwrap()
+        );
+
+        action(
+            &mut state,
+            "dup-actions",
+            "duplicates_group_action",
+            r#"{"kind":"remove_from_alternate_group","target":"a"}"#,
+        );
+
+        let remaining = if pair.a == first_hash {
+            second_id
+        } else {
+            first_id
+        };
+        assert!(
+            duplicates::get_alternate_group_ids_for_hash(db, remaining)
+                .unwrap()
+                .len()
+                <= 1
+        );
+
+        // A reset search rebuilds a pair from the stored perceptual hashes.
+        duplicates::remove_potential_pair(db, first_id.min(second_id), first_id.max(second_id))
+            .unwrap();
+        similar_files::set_perceptual_hashes(db, first_id, &[vec![1, 2, 3, 4, 5, 6, 7, 8]])
+            .unwrap();
+        similar_files::set_perceptual_hashes(db, second_id, &[vec![1, 2, 3, 4, 5, 6, 7, 9]])
+            .unwrap();
+        action(
+            &mut state,
+            "dup-actions",
+            "duplicates_group_action",
+            r#"{"kind":"reset_potential_search","target":"both"}"#,
+        );
+
+        assert!(
+            !duplicates::get_candidate_pairs(db, None)
+                .unwrap()
+                .is_empty(),
+            "reset potential search should queue the pair again"
+        );
+
+        action(
+            &mut state,
+            "dup-actions",
+            "duplicates_group_action",
+            r#"{"kind":"remove_potentials","target":"both"}"#,
+        );
+
+        assert!(
+            duplicates::get_candidate_pairs(db, None)
+                .unwrap()
+                .is_empty()
+        );
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn duplicate_group_membership_can_be_removed_dissolved() {
+        let directory = temp_directory("duplicate-groups");
+        let mut state = action_state(&directory);
+        let controller = state.controller.clone();
+        let (_, _, first_id, second_id) = add_sized_pair(&controller, 91, 1_000, 2_000, 1);
+        action(&mut state, "dup-actions", "duplicates_refresh", "");
+        let db = controller.db().db();
+
+        duplicates::set_duplicate_group(db, 10, first_id, &[first_id, second_id]).unwrap();
+        assert_eq!(
+            duplicates::get_duplicate_group_members(db, 10).unwrap(),
+            vec![first_id, second_id]
+        );
+
+        action(
+            &mut state,
+            "dup-actions",
+            "duplicates_group_action",
+            r#"{"kind":"dissolve_duplicate_group","target":"both"}"#,
+        );
+
+        assert!(
+            duplicates::get_duplicate_group_members(db, 10)
+                .unwrap()
+                .is_empty()
+        );
 
         let _ = std::fs::remove_dir_all(directory);
     }

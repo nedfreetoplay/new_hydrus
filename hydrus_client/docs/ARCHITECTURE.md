@@ -71,6 +71,15 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
   Auto-resolution preview и review показывают thumbnail pair list: миниатюры A/B,
   дистанцию и действие, а контекстное меню/Enter открывает выбранные пары в новой
   странице.
+  Панель решений покрывает весь набор duplicate actions: this is better with
+  delete/keep both, same quality, related alternates, false positive, delete both
+  и custom action. Custom action — отдельный диалог с типом действия, выбором
+  «какой файл лучше», delete neither/A/B/both и собственными merge options для
+  этой пары, которые не сохраняются в options. Кнопка actions... и контекстное
+  меню на любой стороне выполняют операции над связями: remove potentials,
+  reset potential search, clear all/internal false positives, remove from
+  duplicate/alternates group, dissolve duplicate/alternates group. Они меняют
+  БД, перечитывают очередь и показывают результат в статусе страницы.
   Auto-resolution правила проверяют пару в обе стороны: selector состоит из
   one-file условий, относительных A/B сравнений, filetype-проверок и AND/OR
   групп; правило может сузить очередь поисковым предикатом (`both`/`either`)

@@ -2647,9 +2647,12 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     header->addWidget(new QLabel(QStringLiteral("batch:"), this));
     header->addWidget(batch);
     header->addWidget(next_batch);
+    group_actions = new QPushButton(QStringLiteral("actions..."), this);
+    group_actions->setToolTip(QStringLiteral("reset potentials, clear false positives, or dissolve duplicate groups"));
     header->addWidget(rules);
     header->addWidget(merge_options);
     header->addWidget(review);
+    header->addWidget(group_actions);
     header->addWidget(refresh_button);
     header->addWidget(delete_both);
     layout->addLayout(header);
@@ -2660,6 +2663,11 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
         auto *side = new QWidget(splitter);
         auto *side_layout = new QVBoxLayout(side);
         side_layout->setContentsMargins(4, 4, 4, 4);
+
+        side->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(side, &QWidget::customContextMenuRequested, this, [this, side, left](const QPoint &pos) {
+            show_group_actions(left ? QStringLiteral("a") : QStringLiteral("b"), side->mapToGlobal(pos));
+        });
 
         auto *hash_label = new QLabel(side);
         hash_label->setWordWrap(true);
@@ -2691,7 +2699,12 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
 
         auto *keep = new QPushButton(QStringLiteral("this is better"), side);
         keep->setStyleSheet(QStringLiteral("font-weight: bold;"));
+        keep->setToolTip(QStringLiteral("this is better, and delete the other"));
         side_layout->addWidget(keep);
+
+        auto *keep_both = new QPushButton(QStringLiteral("this is better, but keep both"), side);
+        keep_both->setToolTip(QStringLiteral("set that this file is better and keep both files"));
+        side_layout->addWidget(keep_both);
 
         if (left) {
             hash_a = hash_label;
@@ -2700,6 +2713,7 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
             tags_a = tags;
             urls_a = urls;
             keep_a = keep;
+            keep_a_both = keep_both;
         } else {
             hash_b = hash_label;
             canvas_b = canvas;
@@ -2707,6 +2721,7 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
             tags_b = tags;
             urls_b = urls;
             keep_b = keep;
+            keep_b_both = keep_both;
         }
     };
 
@@ -2718,18 +2733,26 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
 
     auto *bottom = new QHBoxLayout();
     same = new QPushButton(QStringLiteral("they are the same"), this);
+    alternates = new QPushButton(QStringLiteral("they are related alternates"), this);
+    custom_action = new QPushButton(QStringLiteral("custom action..."), this);
     not_duplicates = new QPushButton(QStringLiteral("not duplicates"), this);
     skip = new QPushButton(QStringLiteral("skip"), this);
     bottom->addStretch(1);
     bottom->addWidget(same);
+    bottom->addWidget(alternates);
+    bottom->addWidget(custom_action);
     bottom->addWidget(not_duplicates);
     bottom->addWidget(skip);
     bottom->addStretch(1);
     layout->addLayout(bottom);
 
     connect(keep_a, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_keep_a")); });
+    connect(keep_a_both, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_keep_a_keep")); });
     connect(keep_b, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_keep_b")); });
+    connect(keep_b_both, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_keep_b_keep")); });
     connect(same, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_same")); });
+    connect(alternates, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_alternates")); });
+    connect(custom_action, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_custom_action")); });
     connect(not_duplicates, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_false")); });
     connect(skip, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_skip")); });
     connect(refresh_button, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_refresh")); });
@@ -2745,6 +2768,9 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     });
     connect(review, &QPushButton::clicked, this, [this]() {
         main->notify(QStringLiteral("duplicates_review"));
+    });
+    connect(group_actions, &QPushButton::clicked, this, [this]() {
+        show_group_actions(QStringLiteral("both"), group_actions->mapToGlobal(QPoint(0, group_actions->height())));
     });
     connect(delete_both, &QPushButton::clicked, this, [this]() {
         if (QMessageBox::question(this, QStringLiteral("delete both"), QStringLiteral("Move both files to the trash?")) == QMessageBox::Yes) {
@@ -2774,6 +2800,16 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     update_search_controls();
 
     update_state(state);
+
+    if (qEnvironmentVariableIsSet("HYDRUS_QT_DUPLICATES_CUSTOM_ACTION")) {
+        QTimer::singleShot(150, this, [this]() { act(QStringLiteral("duplicates_custom_action")); });
+    }
+
+    if (qEnvironmentVariableIsSet("HYDRUS_QT_DUPLICATES_ACTIONS_MENU")) {
+        QTimer::singleShot(150, this, [this]() {
+            show_group_actions(QStringLiteral("both"), mapToGlobal(QPoint(40, 40)));
+        });
+    }
 }
 
 void HydrusDuplicatesPage::notify_search_context() {
@@ -2841,6 +2877,79 @@ void HydrusDuplicatesPage::update_search_controls() {
 
 const QString &HydrusDuplicatesPage::page_id() const {
     return id;
+}
+
+void HydrusDuplicatesPage::show_group_actions(const QString &target, const QPoint &global_pos) {
+    QMenu menu(this);
+    const QString target_label = target == QStringLiteral("a")
+        ? QStringLiteral("file A")
+        : target == QStringLiteral("b") ? QStringLiteral("file B") : QStringLiteral("both files");
+
+    auto add = [&menu](const QString &label, const QString &kind, const QString &tooltip) {
+        QAction *action = menu.addAction(label);
+        action->setData(kind);
+        action->setToolTip(tooltip);
+    };
+
+    add(QStringLiteral("remove all potentials"),
+        QStringLiteral("remove_potentials"),
+        QStringLiteral("Stop these files from appearing in the duplicate filter unless new potentials are found."));
+
+    add(QStringLiteral("reset potential search"),
+        QStringLiteral("reset_potential_search"),
+        QStringLiteral("Search these files for potential duplicates again. Existing pairs are kept."));
+
+    menu.addSeparator();
+
+    add(QStringLiteral("clear all false positives"),
+        QStringLiteral("clear_false_positives"),
+        QStringLiteral("Remove every false-positive relation for these files and their alternates."));
+
+    add(QStringLiteral("clear internal false positives"),
+        QStringLiteral("clear_internal_false_positives"),
+        QStringLiteral("Remove false-positive relations between the selected files."));
+
+    menu.addSeparator();
+
+    add(QStringLiteral("remove from duplicate group"),
+        QStringLiteral("remove_from_duplicate_group"),
+        QStringLiteral("Pull these files out of their duplicate groups."));
+
+    add(QStringLiteral("remove from alternates group"),
+        QStringLiteral("remove_from_alternate_group"),
+        QStringLiteral("Pull these files out of their alternates groups."));
+
+    add(QStringLiteral("dissolve duplicate group"),
+        QStringLiteral("dissolve_duplicate_group"),
+        QStringLiteral("Remove the whole duplicate groups and their alternates relations."));
+
+    add(QStringLiteral("dissolve alternates group"),
+        QStringLiteral("dissolve_alternate_group"),
+        QStringLiteral("Remove every duplicate and alternates relation for the whole alternates groups."));
+
+    QAction *chosen = menu.exec(global_pos);
+
+    if (chosen == nullptr) {
+        return;
+    }
+
+    const QString kind = chosen->data().toString();
+
+    if (kind.isEmpty()) {
+        return;
+    }
+
+    const QString warning = QStringLiteral("%1 for %2?\n\nThis can throw away previous duplicate decisions and cannot be undone.")
+        .arg(chosen->text(), target_label);
+
+    if (QMessageBox::question(this, QStringLiteral("duplicate action"), warning) != QMessageBox::Yes) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("kind"), kind);
+    payload.insert(QStringLiteral("target"), target);
+    main->notify(QStringLiteral("duplicates_group_action"), id, json_payload(payload));
 }
 
 void HydrusDuplicatesPage::act(const QString &action) {
@@ -7365,8 +7474,8 @@ HydrusDuplicateMergeOptionsDialog::HydrusDuplicateMergeOptionsDialog(
     layout->addWidget(help);
 
     auto *tabs = new QTabWidget(this);
-    build_page(tabs, QStringLiteral("better"), QStringLiteral("this is better"), better);
-    build_page(tabs, QStringLiteral("same"), QStringLiteral("same quality"), same);
+    build_duplicate_merge_page(this, tabs, data, QStringLiteral("this is better"), better);
+    build_duplicate_merge_page(this, tabs, data, QStringLiteral("same quality"), same);
     layout->addWidget(tabs, 1);
 
     auto *buttons = new QHBoxLayout();
@@ -7390,15 +7499,17 @@ HydrusDuplicateMergeOptionsDialog::HydrusDuplicateMergeOptionsDialog(
 void HydrusDuplicateMergeOptionsDialog::set_state(const QJsonObject &state) {
     data = state;
 
-    fill_page(better, data.value(QStringLiteral("better")).toObject());
-    fill_page(same, data.value(QStringLiteral("same")).toObject());
+    fill_duplicate_merge_page(better, data, data.value(QStringLiteral("better")).toObject());
+    fill_duplicate_merge_page(same, data, data.value(QStringLiteral("same")).toObject());
 }
 
-void HydrusDuplicateMergeOptionsDialog::build_page(
-    QTabWidget *tabs, const QString &key, const QString &title, Page &page) {
-    Q_UNUSED(key);
-
-    auto *widget = new QWidget(tabs);
+void build_duplicate_merge_page(
+    QWidget *parent,
+    QTabWidget *tabs,
+    const QJsonObject &data,
+    const QString &title,
+    DuplicateMergePage &page) {
+    auto *widget = new QWidget(parent);
     auto *layout = new QVBoxLayout(widget);
 
     auto *form = new QFormLayout();
@@ -7458,7 +7569,10 @@ void HydrusDuplicateMergeOptionsDialog::build_page(
     tabs->addTab(widget, title);
 }
 
-void HydrusDuplicateMergeOptionsDialog::fill_page(Page &page, const QJsonObject &options) {
+void fill_duplicate_merge_page(
+    DuplicateMergePage &page,
+    const QJsonObject &data,
+    const QJsonObject &options) {
     auto select_value = [](QComboBox *combo, const QString &value) {
         const int index = combo->findData(value);
 
@@ -7472,7 +7586,7 @@ void HydrusDuplicateMergeOptionsDialog::fill_page(Page &page, const QJsonObject 
     select_value(page.urls, options.value(QStringLiteral("sync_urls_action")).toString());
     select_value(page.notes, options.value(QStringLiteral("sync_notes_action")).toString());
 
-    auto fill_table = [this](QTableWidget *table, const QJsonArray &services, const QJsonObject &actions) {
+    auto fill_table = [&data](QTableWidget *table, const QJsonArray &services, const QJsonObject &actions) {
         table->setRowCount(0);
 
         for (const QJsonValue &service_value : services) {
@@ -7514,7 +7628,7 @@ void HydrusDuplicateMergeOptionsDialog::fill_page(Page &page, const QJsonObject 
         options.value(QStringLiteral("rating_service_actions")).toObject());
 }
 
-void HydrusDuplicateMergeOptionsDialog::save() {
+QJsonObject read_duplicate_merge_page(const DuplicateMergePage &page) {
     auto read_table = [](QTableWidget *table) {
         QJsonObject values;
 
@@ -7536,25 +7650,141 @@ void HydrusDuplicateMergeOptionsDialog::save() {
         return values;
     };
 
-    auto page_json = [&](const Page &page) {
-        QJsonObject options;
-        options.insert(QStringLiteral("sync_archive_action"), page.archive->currentData().toString());
-        options.insert(QStringLiteral("sync_file_modified_date_action"), page.modified_date->currentData().toString());
-        options.insert(QStringLiteral("sync_urls_action"), page.urls->currentData().toString());
-        options.insert(QStringLiteral("sync_notes_action"), page.notes->currentData().toString());
-        options.insert(QStringLiteral("tag_service_actions"), read_table(page.tags));
-        options.insert(QStringLiteral("rating_service_actions"), read_table(page.ratings));
+    QJsonObject options;
+    options.insert(QStringLiteral("sync_archive_action"), page.archive->currentData().toString());
+    options.insert(QStringLiteral("sync_file_modified_date_action"), page.modified_date->currentData().toString());
+    options.insert(QStringLiteral("sync_urls_action"), page.urls->currentData().toString());
+    options.insert(QStringLiteral("sync_notes_action"), page.notes->currentData().toString());
+    options.insert(QStringLiteral("tag_service_actions"), read_table(page.tags));
+    options.insert(QStringLiteral("rating_service_actions"), read_table(page.ratings));
 
-        return options;
-    };
+    return options;
+}
 
-    for (const auto &[key, page] : std::initializer_list<std::pair<QString, const Page *>>{
+void HydrusDuplicateMergeOptionsDialog::save() {
+    for (const auto &[key, page] : std::initializer_list<std::pair<QString, const DuplicateMergePage *>>{
              {QStringLiteral("better"), &better}, {QStringLiteral("same"), &same}}) {
         QJsonObject payload;
         payload.insert(QStringLiteral("action"), key);
-        payload.insert(QStringLiteral("options"), page_json(*page));
+        payload.insert(QStringLiteral("options"), read_duplicate_merge_page(*page));
         main->notify(QStringLiteral("duplicates_merge_options"), QString(), json_payload(payload));
     }
+
+    close();
+}
+
+HydrusDuplicateCustomActionDialog::HydrusDuplicateCustomActionDialog(
+    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    : QDialog(parent), main(main_window) {
+    setWindowTitle(QStringLiteral("custom duplicate action"));
+    setObjectName(QStringLiteral("hydrus_duplicate_custom_action_dialog"));
+    setAttribute(Qt::WA_DeleteOnClose, true);
+    resize(800, 700);
+
+    data = state;
+
+    auto *layout = new QVBoxLayout(this);
+
+    auto *help = new QLabel(
+        QStringLiteral("Choose one action and customise the merge and delete options for this pair only. "
+                       "Saved merge options are not changed."),
+        this);
+    help->setWordWrap(true);
+    layout->addWidget(help);
+
+    const QJsonObject pair = data.value(QStringLiteral("pair")).toObject();
+
+    if (!pair.isEmpty()) {
+        const QJsonObject a = pair.value(QStringLiteral("a")).toObject();
+        const QJsonObject b = pair.value(QStringLiteral("b")).toObject();
+
+        auto *summary = new QLabel(
+            QStringLiteral("A: %1  %2\nB: %3  %4")
+                .arg(a.value(QStringLiteral("hash")).toString().left(16),
+                     a.value(QStringLiteral("info")).toString(),
+                     b.value(QStringLiteral("hash")).toString().left(16),
+                     b.value(QStringLiteral("info")).toString()),
+            this);
+        summary->setWordWrap(true);
+        summary->setStyleSheet(QStringLiteral("font-family: monospace;"));
+        layout->addWidget(summary);
+    }
+
+    auto *form = new QFormLayout();
+
+    action = new QComboBox(this);
+    for (const QJsonValue &entry : data.value(QStringLiteral("duplicate_types")).toArray()) {
+        const QJsonObject object = entry.toObject();
+        action->addItem(object.value(QStringLiteral("label")).toString(), object.value(QStringLiteral("value")).toString());
+    }
+
+    better_side = new QComboBox(this);
+    for (const QJsonValue &entry : data.value(QStringLiteral("better_sides")).toArray()) {
+        const QJsonObject object = entry.toObject();
+        better_side->addItem(object.value(QStringLiteral("label")).toString(), object.value(QStringLiteral("value")).toString());
+    }
+
+    delete_mode = new QComboBox(this);
+    for (const QJsonValue &entry : data.value(QStringLiteral("delete_modes")).toArray()) {
+        const QJsonObject object = entry.toObject();
+        delete_mode->addItem(object.value(QStringLiteral("label")).toString(), object.value(QStringLiteral("value")).toString());
+    }
+
+    form->addRow(QStringLiteral("action:"), action);
+    form->addRow(QStringLiteral("better file:"), better_side);
+    form->addRow(QStringLiteral("delete:"), delete_mode);
+    layout->addLayout(form);
+
+    tabs = new QTabWidget(this);
+    build_duplicate_merge_page(this, tabs, data, QStringLiteral("this is better"), better);
+    build_duplicate_merge_page(this, tabs, data, QStringLiteral("same quality"), same);
+    fill_duplicate_merge_page(better, data, data.value(QStringLiteral("better")).toObject());
+    fill_duplicate_merge_page(same, data, data.value(QStringLiteral("same")).toObject());
+    layout->addWidget(tabs, 1);
+
+    auto *buttons = new QHBoxLayout();
+    auto *cancel = new QPushButton(QStringLiteral("cancel"), this);
+    auto *apply_button = new QPushButton(QStringLiteral("apply"), this);
+    apply_button->setDefault(true);
+    buttons->addStretch(1);
+    buttons->addWidget(cancel);
+    buttons->addWidget(apply_button);
+    layout->addLayout(buttons);
+
+    auto update_controls = [this]() {
+        const QString kind = action->currentData().toString();
+        const bool better_action = kind == QStringLiteral("better");
+
+        better_side->setEnabled(better_action);
+        tabs->setTabEnabled(0, better_action);
+        tabs->setTabEnabled(1, kind == QStringLiteral("same"));
+
+        if (better_action) {
+            tabs->setCurrentIndex(0);
+        } else if (kind == QStringLiteral("same")) {
+            tabs->setCurrentIndex(1);
+        }
+    };
+
+    connect(action, &QComboBox::currentIndexChanged, this, [update_controls](int) { update_controls(); });
+    connect(cancel, &QPushButton::clicked, this, &QDialog::close);
+    connect(apply_button, &QPushButton::clicked, this, [this]() { apply(); });
+
+    update_controls();
+}
+
+void HydrusDuplicateCustomActionDialog::apply() {
+    QJsonObject payload;
+    payload.insert(QStringLiteral("action"), action->currentData().toString());
+    payload.insert(QStringLiteral("better_side"), better_side->currentData().toString());
+    payload.insert(QStringLiteral("delete"), delete_mode->currentData().toString());
+    payload.insert(QStringLiteral("better"), read_duplicate_merge_page(better));
+    payload.insert(QStringLiteral("same"), read_duplicate_merge_page(same));
+
+    main->notify(
+        QStringLiteral("duplicates_custom"),
+        data.value(QStringLiteral("page_id")).toString(),
+        json_payload(payload));
 
     close();
 }
@@ -7583,6 +7813,17 @@ void HydrusMainWindow::show_duplicate_merge_options(const QJsonObject &state) {
     }
 
     merge_options_dialog->show();
+}
+
+void HydrusMainWindow::show_duplicate_custom_action(const QJsonObject &state) {
+    if (duplicate_custom_action_dialog != nullptr) {
+        duplicate_custom_action_dialog->close();
+        duplicate_custom_action_dialog = nullptr;
+    }
+
+    duplicate_custom_action_dialog = new HydrusDuplicateCustomActionDialog(this, state, this);
+    connect(duplicate_custom_action_dialog, &QObject::destroyed, this, [this]() { duplicate_custom_action_dialog = nullptr; });
+    duplicate_custom_action_dialog->show();
 }
 
 void HydrusMainWindow::update_auto_resolution_preview(const QJsonObject &state) {
@@ -10982,6 +11223,10 @@ void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json) {
 
 void hydrus_show_duplicate_merge_options(HydrusMainWindow &window, rust::Str json) {
     window.show_duplicate_merge_options(parse_object(json));
+}
+
+void hydrus_show_duplicate_custom_action(HydrusMainWindow &window, rust::Str json) {
+    window.show_duplicate_custom_action(parse_object(json));
 }
 
 void hydrus_update_auto_resolution_preview(HydrusMainWindow &window, rust::Str json) {

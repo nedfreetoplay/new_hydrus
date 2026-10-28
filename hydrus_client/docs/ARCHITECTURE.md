@@ -74,6 +74,11 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
   `duplicate auto-resolution pending.json`, fully automatic применяют сразу.
   Preview считает совпадения, не меняя БД; review-диалог показывает
   pending/denied/taken и умеет approve/deny выбранных или всех пар.
+  Duplicate merge options задают, что переносится из худшего файла: архивный статус,
+  urls, notes, modified date и действия copy/move/two-way/none по каждому tag и
+  rating сервису отдельно для «this is better» и «same quality». Они хранятся в
+  options в группе `duplicate_action_options` и используются ручными решениями,
+  auto-resolution и review.
 - `PageNode::ImportFolders` — менеджер папок и периодическое сканирование.
 - `PageNode::Placeholder` — только для старых сессий и неизвестных типов.
 

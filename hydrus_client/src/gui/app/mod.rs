@@ -1270,12 +1270,16 @@ impl AppState {
             "duplicates_rules" => vec![UiCommand::DuplicatesRulesDialog(
                 auto_resolution::dialog_json(self),
             )],
+            "duplicates_merge_options_dialog" => vec![UiCommand::DuplicatesMergeOptionsDialog(
+                duplicates::merge_options_json(self),
+            )],
             "duplicates_rule_add" | "duplicates_rule_save" => {
                 auto_resolution::save_rule(self, payload)
             }
             "duplicates_rule_remove" => auto_resolution::remove_rule(self, payload),
             "duplicates_rule_preview" => auto_resolution::preview_rule(self, payload),
             "duplicates_review" => auto_resolution::review_open(self),
+            "duplicates_merge_options" => duplicates::save_merge_options_action(self, payload),
             "duplicates_review_apply" => auto_resolution::review_apply(self, payload),
             "duplicates_auto_toggle" => {
                 let mut options = self.controller.options();

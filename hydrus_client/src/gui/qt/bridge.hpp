@@ -53,6 +53,7 @@ class HydrusExportFoldersPage;
 class HydrusDuplicatesRulesDialog;
 class HydrusAutoResolutionRuleDialog;
 class HydrusDuplicateReviewDialog;
+class HydrusDuplicateMergeOptionsDialog;
 class HydrusTagRelationsDialog;
 class QTabBar;
 class QCompleter;
@@ -391,6 +392,34 @@ private:
     QLabel *status = nullptr;
 };
 
+// Which metadata a duplicate merge copies from the worse file, for each
+// duplicate action ("this is better" and "same quality").
+class HydrusDuplicateMergeOptionsDialog : public QDialog {
+public:
+    explicit HydrusDuplicateMergeOptionsDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    struct Page {
+        QComboBox *archive = nullptr;
+        QComboBox *modified_date = nullptr;
+        QComboBox *urls = nullptr;
+        QComboBox *notes = nullptr;
+        QTableWidget *tags = nullptr;
+        QTableWidget *ratings = nullptr;
+    };
+
+    void build_page(QTabWidget *tabs, const QString &key, const QString &title, Page &page);
+    void fill_page(Page &page, const QJsonObject &options);
+    void save();
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    Page better;
+    Page same;
+};
+
 // A notebook is a page of pages: tabs, a trailing "+" tab, and the usual
 // close/rename/context-menu behaviour.
 class HydrusNotebook : public QTabWidget {
@@ -520,6 +549,7 @@ private:
     QPushButton *refresh = nullptr;
     QPushButton *delete_both = nullptr;
     QPushButton *rules = nullptr;
+    QPushButton *merge_options = nullptr;
     QSpinBox *batch = nullptr;
     QPushButton *next_batch = nullptr;
 };
@@ -707,6 +737,7 @@ public:
     void show_about(const QJsonObject &state);
     void show_notes(const QJsonObject &state);
     void show_duplicates_rules(const QJsonObject &state);
+    void show_duplicate_merge_options(const QJsonObject &state);
     void update_auto_resolution_preview(const QJsonObject &state);
     void show_duplicate_review(const QJsonObject &state);
     void update_duplicate_review(const QJsonObject &state);
@@ -774,6 +805,7 @@ private:
     HydrusDatabaseBackupDialog *database_backup_dialog = nullptr;
     HydrusNetworkDialog *network_dialog = nullptr;
     HydrusDuplicatesRulesDialog *duplicates_rules_dialog = nullptr;
+    HydrusDuplicateMergeOptionsDialog *merge_options_dialog = nullptr;
     HydrusDuplicateReviewDialog *duplicate_review_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
     QTimer *tick_timer = nullptr;
@@ -815,6 +847,7 @@ void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust:
 void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_export_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_duplicate_merge_options(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_auto_resolution_preview(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_duplicate_review(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_duplicate_review(HydrusMainWindow &window, rust::Str json);

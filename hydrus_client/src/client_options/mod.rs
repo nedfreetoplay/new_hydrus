@@ -219,6 +219,17 @@ impl ClientOptions {
         ))
     }
 
+    /// Reads a named value out of a free-form options group. Used by the
+    /// duplicate merge options, which Python keeps as serialisable objects in
+    /// `duplicate_action_options`.
+    pub fn get_group_value(&self, group: &str, name: &str) -> Option<Value> {
+        self.group(group).and_then(|group| group.get(name)).cloned()
+    }
+
+    pub fn set_group_value(&mut self, group: &str, name: &str, value: Value) {
+        self.group_mut(group).insert(name.to_string(), value);
+    }
+
     pub fn get_media_viewer_tags_scrolling_behaviour(&self) -> i32 {
         self.get_integer("media_viewer_tags_scrolling_behaviour") as i32
     }

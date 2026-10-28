@@ -1,27 +1,115 @@
 //! Duplicate merge options and pair decisions (`ClientDuplicates.py`,
 //! `ClientPotentialDuplicatesPairFactory.py`).
+//!
+//! The options decide what the merged (better, or both "same quality") files
+//! receive from the worse file. Service actions are keyed by service name and
+//! an unlisted service is left untouched, matching the Python default of
+//! "make no change".
 
 use std::collections::BTreeMap;
 
-use hydrus_core::hydrus_constants::ContentMergeAction;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MergeAction {
+    Copy,
+    Move,
+    TwoWayMerge,
+    None,
+}
+
+impl MergeAction {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Copy => "copy",
+            Self::Move => "move",
+            Self::TwoWayMerge => "two_way_merge",
+            Self::None => "none",
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Copy => "copy from worse to better",
+            Self::Move => "move from worse to better",
+            Self::TwoWayMerge => "copy in both directions",
+            Self::None => "make no change",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Self {
+        match value {
+            "move" => Self::Move,
+            "two_way_merge" => Self::TwoWayMerge,
+            "none" => Self::None,
+            _ => Self::Copy,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ArchiveSyncAction {
+    None,
+    #[default]
+    IfOneDoBoth,
+    AlwaysBoth,
+}
+
+impl ArchiveSyncAction {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::IfOneDoBoth => "if_one_do_both",
+            Self::AlwaysBoth => "always_both",
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::None => "make no change",
+            Self::IfOneDoBoth => "if one is archived, archive the other",
+            Self::AlwaysBoth => "always archive both",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Self {
+        match value {
+            "none" => Self::None,
+            "always_both" => Self::AlwaysBoth,
+            _ => Self::IfOneDoBoth,
+        }
+    }
+}
+
+fn default_copy() -> MergeAction {
+    MergeAction::Copy
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DuplicateContentMergeOptions {
-    pub sync_archive_action: ContentMergeAction,
-    pub sync_file_modified_date_action: ContentMergeAction,
-    pub sync_notes_action: ContentMergeAction,
-    pub sync_urls_action: ContentMergeAction,
-    pub tag_service_actions: BTreeMap<Vec<u8>, ContentMergeAction>,
-    pub rating_service_actions: BTreeMap<Vec<u8>, ContentMergeAction>,
+    #[serde(default)]
+    pub sync_archive_action: ArchiveSyncAction,
+    #[serde(default = "default_copy")]
+    pub sync_file_modified_date_action: MergeAction,
+    #[serde(default = "default_copy")]
+    pub sync_notes_action: MergeAction,
+    #[serde(default = "default_copy")]
+    pub sync_urls_action: MergeAction,
+    #[serde(default)]
+    pub tag_service_actions: BTreeMap<String, MergeAction>,
+    #[serde(default)]
+    pub rating_service_actions: BTreeMap<String, MergeAction>,
 }
 
 impl Default for DuplicateContentMergeOptions {
     fn default() -> Self {
         Self {
-            sync_archive_action: ContentMergeAction::Copy,
-            sync_file_modified_date_action: ContentMergeAction::Copy,
-            sync_notes_action: ContentMergeAction::Copy,
-            sync_urls_action: ContentMergeAction::Copy,
+            sync_archive_action: ArchiveSyncAction::IfOneDoBoth,
+            sync_file_modified_date_action: MergeAction::Copy,
+            sync_notes_action: MergeAction::Copy,
+            sync_urls_action: MergeAction::Copy,
             tag_service_actions: BTreeMap::new(),
             rating_service_actions: BTreeMap::new(),
         }
@@ -33,30 +121,74 @@ impl DuplicateContentMergeOptions {
         Self::default()
     }
 
-    pub fn set_tag_service_action(
-        &mut self,
-        service_key: impl Into<Vec<u8>>,
-        action: ContentMergeAction,
-    ) {
-        self.tag_service_actions.insert(service_key.into(), action);
+    /// The defaults the Python client seeds for "this is better".
+    pub fn better_default() -> Self {
+        let mut options = Self {
+            sync_archive_action: ArchiveSyncAction::AlwaysBoth,
+            sync_file_modified_date_action: MergeAction::Copy,
+            sync_notes_action: MergeAction::Copy,
+            sync_urls_action: MergeAction::Copy,
+            tag_service_actions: BTreeMap::new(),
+            rating_service_actions: BTreeMap::new(),
+        };
+
+        options.set_tag_service_action("local tags", MergeAction::Move);
+        options.set_rating_service_action("favourites", MergeAction::Move);
+
+        options
+    }
+
+    /// The defaults the Python client seeds for "same quality".
+    pub fn same_default() -> Self {
+        let mut options = Self {
+            sync_archive_action: ArchiveSyncAction::AlwaysBoth,
+            sync_file_modified_date_action: MergeAction::TwoWayMerge,
+            sync_notes_action: MergeAction::TwoWayMerge,
+            sync_urls_action: MergeAction::TwoWayMerge,
+            tag_service_actions: BTreeMap::new(),
+            rating_service_actions: BTreeMap::new(),
+        };
+
+        options.set_tag_service_action("local tags", MergeAction::TwoWayMerge);
+        options.set_rating_service_action("favourites", MergeAction::TwoWayMerge);
+
+        options
+    }
+
+    pub fn set_tag_service_action(&mut self, service_name: impl Into<String>, action: MergeAction) {
+        self.tag_service_actions.insert(service_name.into(), action);
     }
 
     pub fn set_rating_service_action(
         &mut self,
-        service_key: impl Into<Vec<u8>>,
-        action: ContentMergeAction,
+        service_name: impl Into<String>,
+        action: MergeAction,
     ) {
         self.rating_service_actions
-            .insert(service_key.into(), action);
+            .insert(service_name.into(), action);
+    }
+
+    pub fn tag_action(&self, service_name: &str) -> MergeAction {
+        self.tag_service_actions
+            .get(service_name)
+            .copied()
+            .unwrap_or(MergeAction::None)
+    }
+
+    pub fn rating_action(&self, service_name: &str) -> MergeAction {
+        self.rating_service_actions
+            .get(service_name)
+            .copied()
+            .unwrap_or(MergeAction::None)
     }
 
     pub fn get_merge_summary(&self) -> String {
         format!(
             "archive: {}, modified date: {}, notes: {}, urls: {}",
-            self.sync_archive_action.number_merge_str(),
-            self.sync_file_modified_date_action.number_merge_str(),
-            self.sync_notes_action.number_merge_str(),
-            self.sync_urls_action.number_merge_str()
+            self.sync_archive_action.label(),
+            self.sync_file_modified_date_action.label(),
+            self.sync_notes_action.label(),
+            self.sync_urls_action.label()
         )
     }
 }

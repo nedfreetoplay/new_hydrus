@@ -278,7 +278,10 @@ Rust-цели: `gui/app/duplicates.rs`, `gui/app/auto_resolution.rs`,
   поиска ещё нет.
 - [x] 08.6 Auto-resolution editor: AND/OR, metadata conditions, pair selectors.
 - [x] 08.7 Auto-resolution preview/review и pending/taken/denied списки.
-- [ ] 08.8 Content merge options по tag/rating/file services.
+- [x] 08.8 Content merge options по tag/rating/file services: диалог для решений
+  «this is better» и «same quality», действия copy/move/two-way/none по каждому tag и
+  rating сервису, sync archive/urls/notes/modified date; настройки хранятся в options
+  (`duplicate_action_options`) и применяются в merge, auto-resolution и review.
 - [ ] 08.9 Thumbnail pair list и сортировка.
 - [ ] 08.10 Полные duplicate actions/menu.
 

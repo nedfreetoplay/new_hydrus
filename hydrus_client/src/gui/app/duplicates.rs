@@ -6,10 +6,16 @@
 
 use std::collections::BTreeSet;
 
-use hydrus_core::hydrus_constants::ContentStatus;
+use hydrus_core::hydrus_constants::{ContentStatus, ServiceType, TimestampType};
 
 use crate::controller::Controller;
-use crate::db::{duplicates, files_storage, mappings, master, master_tags, similar_files, url_map};
+use crate::db::{
+    duplicates, files_storage, files_timestamps, mappings, master, notes, ratings, similar_files,
+    url_map,
+};
+use crate::duplicates::merge_options::{
+    ArchiveSyncAction, DuplicateContentMergeOptions, MergeAction,
+};
 use crate::gui::app::auto_resolution::{self, AutoDecision, DuplicateReviewState, PreparedRule};
 use crate::gui::app::model::{
     DupeSearchType, DuplicatePairView, DuplicateSearchContext, DuplicatesPage, PixelDupesPreference,
@@ -127,13 +133,24 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
                 )];
             };
 
-            let (keep, discard, trash) = match action {
-                "duplicates_keep_a" => (pair.a.clone(), pair.b.clone(), true),
-                "duplicates_keep_b" => (pair.b.clone(), pair.a.clone(), true),
-                _ => (pair.a.clone(), pair.b.clone(), false),
+            let (keep, discard, trash, kind) = match action {
+                "duplicates_keep_a" => (
+                    pair.a.clone(),
+                    pair.b.clone(),
+                    true,
+                    MergeActionKind::Better,
+                ),
+                "duplicates_keep_b" => (
+                    pair.b.clone(),
+                    pair.a.clone(),
+                    true,
+                    MergeActionKind::Better,
+                ),
+                _ => (pair.a.clone(), pair.b.clone(), false, MergeActionKind::Same),
             };
+            let options = merge_options(&controller, kind);
 
-            match merge_pair(&controller, &keep, &discard, trash) {
+            match merge_pair(&controller, &keep, &discard, trash, &options) {
                 Ok(()) => {
                     page.remove_current();
                     page.status = if trash {
@@ -441,10 +458,20 @@ pub(crate) fn apply_rule_decision(
     b: &[u8],
 ) -> Result<(), String> {
     match decision {
-        AutoDecision::KeepFirst => merge_pair(controller, a, b, true),
-        AutoDecision::KeepSecond => merge_pair(controller, b, a, true),
+        AutoDecision::KeepFirst => {
+            let options = merge_options(controller, MergeActionKind::Better);
+
+            merge_pair(controller, a, b, true, &options)
+        }
+        AutoDecision::KeepSecond => {
+            let options = merge_options(controller, MergeActionKind::Better);
+
+            merge_pair(controller, b, a, true, &options)
+        }
         AutoDecision::Same => {
-            merge_pair(controller, a, b, false)?;
+            let options = merge_options(controller, MergeActionKind::Same);
+
+            merge_pair(controller, a, b, false, &options)?;
 
             if delete_a {
                 trash_file(controller, a)?;
@@ -507,11 +534,175 @@ fn trash_file(controller: &Controller, hash: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+const MERGE_OPTIONS_GROUP: &str = "duplicate_action_options";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MergeActionKind {
+    Better,
+    Same,
+}
+
+impl MergeActionKind {
+    fn key(self) -> &'static str {
+        match self {
+            Self::Better => "better",
+            Self::Same => "same",
+        }
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Better => "this is better",
+            Self::Same => "same quality",
+        }
+    }
+
+    fn defaults(self) -> DuplicateContentMergeOptions {
+        match self {
+            Self::Better => DuplicateContentMergeOptions::better_default(),
+            Self::Same => DuplicateContentMergeOptions::same_default(),
+        }
+    }
+}
+
+fn merge_options(controller: &Controller, kind: MergeActionKind) -> DuplicateContentMergeOptions {
+    controller
+        .options()
+        .get_group_value(MERGE_OPTIONS_GROUP, kind.key())
+        .and_then(|value| serde_json::from_value(value).ok())
+        .unwrap_or_else(|| kind.defaults())
+}
+
+fn merge_options_json_for(controller: &Controller, kind: MergeActionKind) -> serde_json::Value {
+    serde_json::to_value(merge_options(controller, kind)).unwrap_or_default()
+}
+
+pub fn merge_options_json(state: &AppState) -> String {
+    let controller = &state.controller;
+    let manager = controller.services();
+    let tag_services: Vec<String> = manager
+        .get_services(Some(&[ServiceType::LocalTag, ServiceType::TagRepository]))
+        .into_iter()
+        .map(|service| service.name.clone())
+        .collect();
+    let rating_services: Vec<String> = manager
+        .get_services(Some(&[
+            ServiceType::LocalRatingLike,
+            ServiceType::LocalRatingNumerical,
+            ServiceType::LocalRatingIncDec,
+        ]))
+        .into_iter()
+        .map(|service| service.name.clone())
+        .collect();
+
+    let actions = [
+        MergeAction::Copy,
+        MergeAction::Move,
+        MergeAction::TwoWayMerge,
+        MergeAction::None,
+    ]
+    .into_iter()
+    .map(|action| {
+        serde_json::json!({
+            "value": action.as_str(),
+            "label": action.label(),
+        })
+    })
+    .collect::<Vec<_>>();
+
+    let archive_actions = [
+        ArchiveSyncAction::None,
+        ArchiveSyncAction::IfOneDoBoth,
+        ArchiveSyncAction::AlwaysBoth,
+    ]
+    .into_iter()
+    .map(|action| {
+        serde_json::json!({
+            "value": action.as_str(),
+            "label": action.label(),
+        })
+    })
+    .collect::<Vec<_>>();
+
+    serde_json::json!({
+        "better": merge_options_json_for(controller, MergeActionKind::Better),
+        "same": merge_options_json_for(controller, MergeActionKind::Same),
+        "tag_services": tag_services,
+        "rating_services": rating_services,
+        "actions": actions,
+        "archive_actions": archive_actions,
+        "summary": {
+            "better": merge_options(controller, MergeActionKind::Better).get_merge_summary(),
+            "same": merge_options(controller, MergeActionKind::Same).get_merge_summary(),
+        },
+    })
+    .to_string()
+}
+
+fn save_merge_options(
+    controller: &Controller,
+    kind: MergeActionKind,
+    options: DuplicateContentMergeOptions,
+) {
+    let mut client_options = controller.options();
+    client_options.set_group_value(
+        MERGE_OPTIONS_GROUP,
+        kind.key(),
+        serde_json::to_value(options).unwrap_or_default(),
+    );
+    controller.replace_options(client_options);
+    let _ = controller.save_options();
+}
+
+/// Saves one merge options page from the editor dialog. This runs without an
+/// active duplicates page so the dialog can be opened from anywhere.
+pub fn save_merge_options_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
+    let controller = state.controller.clone();
+
+    let value: serde_json::Value = match serde_json::from_str(payload) {
+        Ok(value) => value,
+        Err(error) => {
+            return vec![UiCommand::NotifyMessage(format!(
+                "could not read the merge options: {error}"
+            ))];
+        }
+    };
+
+    let kind = match value.get("action").and_then(|value| value.as_str()) {
+        Some("same") => MergeActionKind::Same,
+        _ => MergeActionKind::Better,
+    };
+
+    let options = value
+        .get("options")
+        .cloned()
+        .ok_or_else(|| "missing options".to_string())
+        .and_then(|value| {
+            serde_json::from_value::<DuplicateContentMergeOptions>(value)
+                .map_err(|error| error.to_string())
+        });
+
+    match options {
+        Ok(options) => {
+            save_merge_options(&controller, kind, options);
+
+            vec![
+                UiCommand::NotifyMessage(format!("{} merge options saved", kind.label())),
+                UiCommand::Status(render::status_json(state)),
+            ]
+        }
+        Err(error) => vec![UiCommand::NotifyMessage(format!(
+            "could not read the merge options: {error}"
+        ))],
+    }
+}
+
 fn merge_pair(
     controller: &Controller,
     keep: &[u8],
     discard: &[u8],
     trash_discard: bool,
+    options: &DuplicateContentMergeOptions,
 ) -> Result<(), String> {
     let db = controller.db().db();
 
@@ -520,31 +711,36 @@ fn merge_pair(
     let discard_id = query::hash_id_for(controller, discard)
         .ok_or_else(|| "other file is not in the database".to_string())?;
 
-    let tag_service_id =
-        query::tag_service_id(controller).ok_or_else(|| "no local tag service".to_string())?;
+    merge_tag_services(controller, keep_id, discard_id, options);
 
-    let keep_tags =
-        mappings::get_tags(db, tag_service_id, ContentStatus::Current, keep_id).unwrap_or_default();
-    let discard_tags = mappings::get_tags(db, tag_service_id, ContentStatus::Current, discard_id)
-        .unwrap_or_default();
+    for service in controller.services().get_services(Some(&[
+        ServiceType::LocalRatingLike,
+        ServiceType::LocalRatingNumerical,
+        ServiceType::LocalRatingIncDec,
+    ])) {
+        let action = options.rating_action(&service.name);
 
-    for tag in &discard_tags {
-        if !keep_tags.contains(tag) {
-            if let Ok(tag_id) = master_tags::get_tag_id(db, tag) {
-                let _ = mappings::add_mappings(
-                    db,
-                    tag_service_id,
-                    ContentStatus::Current,
-                    keep_id,
-                    &[tag_id],
-                );
-            }
+        if action != MergeAction::None {
+            merge_rating(
+                db,
+                service.service_id,
+                service.service_type,
+                keep_id,
+                discard_id,
+                action,
+            );
         }
     }
 
-    for url in url_map::get_urls(db, discard_id).unwrap_or_default() {
-        let _ = url_map::add_url(db, keep_id, &url);
-    }
+    merge_urls(db, keep_id, discard_id, options.sync_urls_action);
+    merge_notes(db, keep_id, discard_id, options.sync_notes_action);
+    merge_modified_date(
+        db,
+        keep_id,
+        discard_id,
+        options.sync_file_modified_date_action,
+    );
+    merge_archive_status(db, keep_id, discard_id, options.sync_archive_action);
 
     if trash_discard {
         if let Some(trash_service) = query::trash_service_id(controller) {
@@ -569,6 +765,311 @@ fn merge_pair(
     let _ = duplicates::remove_potential_pair(db, keep_id.min(discard_id), keep_id.max(discard_id));
 
     Ok(())
+}
+
+fn merge_tag_services(
+    controller: &Controller,
+    keep_id: i64,
+    discard_id: i64,
+    options: &DuplicateContentMergeOptions,
+) {
+    let db = controller.db().db();
+
+    for service in controller
+        .services()
+        .get_services(Some(&[ServiceType::LocalTag, ServiceType::TagRepository]))
+    {
+        let action = options.tag_action(&service.name);
+
+        if action == MergeAction::None {
+            continue;
+        }
+
+        copy_tags(db, service.service_id, keep_id, discard_id);
+
+        if action != MergeAction::Copy {
+            copy_tags(db, service.service_id, discard_id, keep_id);
+        }
+
+        if action == MergeAction::Move {
+            let discard_tag_ids =
+                mappings::get_tag_ids(db, service.service_id, ContentStatus::Current, discard_id)
+                    .unwrap_or_default();
+            let _ = mappings::remove_mappings(
+                db,
+                service.service_id,
+                ContentStatus::Current,
+                discard_id,
+                &discard_tag_ids,
+            );
+        }
+    }
+}
+
+fn copy_tags(db: &hydrus_core::hydrus_db_base::DBBase, service_id: i64, target: i64, source: i64) {
+    let target_tags: BTreeSet<i64> =
+        mappings::get_tag_ids(db, service_id, ContentStatus::Current, target)
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+    let source_tags =
+        mappings::get_tag_ids(db, service_id, ContentStatus::Current, source).unwrap_or_default();
+    let missing: Vec<i64> = source_tags
+        .into_iter()
+        .filter(|tag_id| !target_tags.contains(tag_id))
+        .collect();
+
+    if !missing.is_empty() {
+        let _ = mappings::add_mappings(db, service_id, ContentStatus::Current, target, &missing);
+    }
+}
+
+fn merge_rating(
+    db: &hydrus_core::hydrus_db_base::DBBase,
+    service_id: i64,
+    service_type: ServiceType,
+    keep_id: i64,
+    discard_id: i64,
+    action: MergeAction,
+) {
+    let keep_rating = ratings::get_rating(db, service_id, keep_id).ok().flatten();
+    let discard_rating = ratings::get_rating(db, service_id, discard_id)
+        .ok()
+        .flatten();
+
+    if service_type == ServiceType::LocalRatingIncDec {
+        let keep_value = keep_rating.map(|rating| rating.value() as i64).unwrap_or(0);
+        let discard_value = discard_rating
+            .map(|rating| rating.value() as i64)
+            .unwrap_or(0);
+
+        match action {
+            MergeAction::Copy | MergeAction::Move => {
+                if discard_value != 0 {
+                    let _ = ratings::set_incdec_rating(
+                        db,
+                        service_id,
+                        keep_id,
+                        keep_value + discard_value,
+                    );
+                }
+            }
+            MergeAction::TwoWayMerge => {
+                if discard_value != 0 {
+                    let _ = ratings::set_incdec_rating(
+                        db,
+                        service_id,
+                        keep_id,
+                        keep_value + discard_value,
+                    );
+                }
+
+                if keep_value != 0 && keep_rating != discard_rating {
+                    let _ = ratings::set_incdec_rating(
+                        db,
+                        service_id,
+                        discard_id,
+                        keep_value + discard_value,
+                    );
+                }
+            }
+            MergeAction::None => {}
+        }
+
+        if action == MergeAction::Move {
+            // The moved value lives on the kept file now.
+            let _ = ratings::delete_rating(db, service_id, discard_id);
+        }
+
+        return;
+    }
+
+    let better = match (keep_rating, discard_rating) {
+        (None, Some(rating)) => Some(rating),
+        (Some(current), Some(rating)) if rating.value() > current.value() => Some(rating),
+        _ => None,
+    };
+
+    if let Some(rating) = better {
+        let _ = ratings::set_rating(db, service_id, keep_id, rating);
+    }
+
+    if action == MergeAction::TwoWayMerge {
+        match (keep_rating, discard_rating) {
+            (Some(current), None) => {
+                let _ = ratings::set_rating(db, service_id, discard_id, current);
+            }
+            (Some(current), Some(rating)) if current.value() > rating.value() => {
+                let _ = ratings::set_rating(db, service_id, discard_id, current);
+            }
+            _ => {}
+        }
+    }
+
+    if action == MergeAction::Move {
+        let _ = ratings::delete_rating(db, service_id, discard_id);
+    }
+}
+
+fn merge_urls(
+    db: &hydrus_core::hydrus_db_base::DBBase,
+    keep_id: i64,
+    discard_id: i64,
+    action: MergeAction,
+) {
+    if action == MergeAction::None {
+        return;
+    }
+
+    let keep_urls: BTreeSet<String> = url_map::get_urls(db, keep_id)
+        .unwrap_or_default()
+        .into_iter()
+        .collect();
+    let discard_urls = url_map::get_urls(db, discard_id).unwrap_or_default();
+
+    for url in &discard_urls {
+        if !keep_urls.contains(url) {
+            let _ = url_map::add_url(db, keep_id, url);
+        }
+    }
+
+    if action == MergeAction::TwoWayMerge {
+        let discard_set: BTreeSet<String> = discard_urls.iter().cloned().collect();
+
+        for url in &keep_urls {
+            if !discard_set.contains(url) {
+                let _ = url_map::add_url(db, discard_id, url);
+            }
+        }
+    }
+
+    if action == MergeAction::Move {
+        for url in &discard_urls {
+            let _ = url_map::delete_url(db, discard_id, url);
+        }
+    }
+}
+
+fn merge_notes(
+    db: &hydrus_core::hydrus_db_base::DBBase,
+    keep_id: i64,
+    discard_id: i64,
+    action: MergeAction,
+) {
+    if action == MergeAction::None {
+        return;
+    }
+
+    let keep_notes = notes::get_notes(db, keep_id).unwrap_or_default();
+    let discard_notes = notes::get_notes(db, discard_id).unwrap_or_default();
+
+    for (name, note) in &discard_notes {
+        if !keep_notes.contains_key(name) {
+            let _ = notes::set_note(db, keep_id, name, note);
+        }
+    }
+
+    if action == MergeAction::TwoWayMerge {
+        for (name, note) in &keep_notes {
+            if !discard_notes.contains_key(name) {
+                let _ = notes::set_note(db, discard_id, name, note);
+            }
+        }
+    }
+
+    if action == MergeAction::Move {
+        for name in discard_notes.keys() {
+            let _ = notes::delete_note(db, discard_id, name);
+        }
+    }
+}
+
+fn merge_modified_date(
+    db: &hydrus_core::hydrus_db_base::DBBase,
+    keep_id: i64,
+    discard_id: i64,
+    action: MergeAction,
+) {
+    if action == MergeAction::None {
+        return;
+    }
+
+    let keep_time = files_timestamps::get_file_timestamp(db, keep_id, TimestampType::ModifiedFile)
+        .ok()
+        .flatten();
+    let discard_time =
+        files_timestamps::get_file_timestamp(db, discard_id, TimestampType::ModifiedFile)
+            .ok()
+            .flatten();
+
+    let Some(discard_time) = discard_time else {
+        return;
+    };
+
+    if action == MergeAction::TwoWayMerge {
+        let earliest = match keep_time {
+            Some(keep_time) => keep_time.min(discard_time),
+            None => discard_time,
+        };
+
+        let _ = files_timestamps::set_file_timestamp(
+            db,
+            keep_id,
+            TimestampType::ModifiedFile,
+            Some(earliest),
+        );
+
+        let _ = files_timestamps::set_file_timestamp(
+            db,
+            discard_id,
+            TimestampType::ModifiedFile,
+            Some(earliest),
+        );
+
+        return;
+    }
+
+    if keep_time.is_none_or(|keep_time| discard_time < keep_time) {
+        let _ = files_timestamps::set_file_timestamp(
+            db,
+            keep_id,
+            TimestampType::ModifiedFile,
+            Some(discard_time),
+        );
+    }
+}
+
+fn merge_archive_status(
+    db: &hydrus_core::hydrus_db_base::DBBase,
+    keep_id: i64,
+    discard_id: i64,
+    action: ArchiveSyncAction,
+) {
+    if action == ArchiveSyncAction::None {
+        return;
+    }
+
+    let keep_archived = !files_storage::is_inbox(db, keep_id).unwrap_or(true);
+    let discard_archived = !files_storage::is_inbox(db, discard_id).unwrap_or(true);
+
+    let archive_both = match action {
+        ArchiveSyncAction::None => false,
+        ArchiveSyncAction::IfOneDoBoth => keep_archived || discard_archived,
+        ArchiveSyncAction::AlwaysBoth => true,
+    };
+
+    if archive_both {
+        let _ = files_storage::set_inbox(db, &[keep_id, discard_id], false);
+        let now = hydrus_core::hydrus_time::get_now();
+        let _ =
+            files_timestamps::set_file_timestamp(db, keep_id, TimestampType::Archived, Some(now));
+        let _ = files_timestamps::set_file_timestamp(
+            db,
+            discard_id,
+            TimestampType::Archived,
+            Some(now),
+        );
+    }
 }
 
 fn mark_false_positive(controller: &Controller, a: &[u8], b: &[u8]) -> Result<(), String> {
@@ -634,7 +1135,8 @@ fn duplicates_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
 mod tests {
     use super::*;
     use crate::db::{
-        duplicates, files_metadata, files_storage, mappings, master_tags, similar_files,
+        duplicates, files_metadata, files_storage, files_timestamps, mappings, master_tags, notes,
+        ratings, similar_files, url_map,
     };
     use crate::gui::app::auto_resolution::{AutoResolutionRule, Comparator};
     use hydrus_core::files::hydrus_file_handling::FileInfo;
@@ -960,6 +1462,179 @@ mod tests {
         refresh_for(&controller, &mut page, &[], &mut review);
         assert_eq!(page.matched, 2);
         assert_eq!(page.pairs.len(), 2);
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn better_merge_follows_content_merge_options() {
+        let directory = temp_directory("merge-options");
+        let controller = test_controller(&directory);
+        let (keep, discard, keep_id, discard_id) = add_sized_pair(&controller, 91, 1_000, 1_000, 2);
+        let db = controller.db().db();
+
+        add_tag(&controller, &keep, "keep tag");
+        add_tag(&controller, &discard, "moved tag");
+        url_map::add_url(db, keep_id, "https://keep.example").unwrap();
+        url_map::add_url(db, discard_id, "https://move.example").unwrap();
+        notes::set_note(db, keep_id, "note", "keep note").unwrap();
+        notes::set_note(db, discard_id, "note", "discard note").unwrap();
+        notes::set_note(db, discard_id, "other", "other note").unwrap();
+        files_timestamps::set_file_timestamp(db, keep_id, TimestampType::ModifiedFile, Some(2_000))
+            .unwrap();
+        files_timestamps::set_file_timestamp(
+            db,
+            discard_id,
+            TimestampType::ModifiedFile,
+            Some(1_000),
+        )
+        .unwrap();
+
+        let favourites = controller
+            .services()
+            .get_service(b"favourites")
+            .unwrap()
+            .service_id;
+        ratings::set_rating(db, favourites, discard_id, crate::metadata::Rating::Like).unwrap();
+
+        let mut options = DuplicateContentMergeOptions::better_default();
+        options.sync_archive_action = ArchiveSyncAction::IfOneDoBoth;
+
+        merge_pair(&controller, &keep, &discard, true, &options).unwrap();
+
+        let tag_service = query::tag_service_id(&controller).unwrap();
+        let keep_tags =
+            mappings::get_tags(db, tag_service, ContentStatus::Current, keep_id).unwrap();
+        let discard_tags =
+            mappings::get_tags(db, tag_service, ContentStatus::Current, discard_id).unwrap();
+
+        assert!(keep_tags.contains(&"moved tag".to_string()));
+        assert!(keep_tags.contains(&"keep tag".to_string()));
+        assert!(discard_tags.is_empty());
+
+        let keep_urls = url_map::get_urls(db, keep_id).unwrap();
+        assert!(keep_urls.contains(&"https://move.example".to_string()));
+
+        let keep_notes = notes::get_notes(db, keep_id).unwrap();
+        assert_eq!(
+            keep_notes.get("note").map(String::as_str),
+            Some("keep note")
+        );
+        assert_eq!(
+            keep_notes.get("other").map(String::as_str),
+            Some("other note")
+        );
+
+        assert_eq!(
+            files_timestamps::get_file_timestamp(db, keep_id, TimestampType::ModifiedFile).unwrap(),
+            Some(1_000)
+        );
+        assert!(
+            ratings::get_rating(db, favourites, keep_id)
+                .unwrap()
+                .is_some()
+        );
+        assert!(
+            ratings::get_rating(db, favourites, discard_id)
+                .unwrap()
+                .is_none()
+        );
+        assert!(!files_storage::is_inbox(db, keep_id).unwrap());
+        assert!(!files_storage::is_inbox(db, discard_id).unwrap());
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn same_quality_merge_copies_in_both_directions() {
+        let directory = temp_directory("merge-same");
+        let controller = test_controller(&directory);
+        let (keep, discard, _keep_id, discard_id) =
+            add_sized_pair(&controller, 101, 1_000, 1_000, 1);
+        let db = controller.db().db();
+
+        add_tag(&controller, &keep, "keep only");
+        add_tag(&controller, &discard, "discard only");
+        url_map::add_url(db, discard_id, "https://discard.example").unwrap();
+
+        let options = DuplicateContentMergeOptions::same_default();
+
+        merge_pair(&controller, &keep, &discard, false, &options).unwrap();
+
+        let tag_service = query::tag_service_id(&controller).unwrap();
+        let keep_tags = mappings::get_tags(
+            db,
+            tag_service,
+            ContentStatus::Current,
+            query::hash_id_for(&controller, &keep).unwrap(),
+        )
+        .unwrap();
+        let discard_tags =
+            mappings::get_tags(db, tag_service, ContentStatus::Current, discard_id).unwrap();
+
+        assert!(keep_tags.contains(&"discard only".to_string()));
+        assert!(discard_tags.contains(&"keep only".to_string()));
+        assert_eq!(
+            url_map::get_urls(db, query::hash_id_for(&controller, &keep).unwrap()).unwrap(),
+            vec!["https://discard.example".to_string()]
+        );
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn saved_merge_options_are_loaded_per_action() {
+        let directory = temp_directory("merge-save");
+        let controller = test_controller(&directory);
+
+        let mut options = DuplicateContentMergeOptions::better_default();
+        options.set_tag_service_action("local tags", MergeAction::TwoWayMerge);
+        options.sync_notes_action = MergeAction::None;
+
+        save_merge_options(&controller, MergeActionKind::Better, options.clone());
+
+        let loaded = merge_options(&controller, MergeActionKind::Better);
+
+        assert_eq!(loaded, options);
+        assert_eq!(loaded.tag_action("local tags"), MergeAction::TwoWayMerge);
+
+        let default_same = merge_options(&controller, MergeActionKind::Same);
+        assert_eq!(default_same.sync_urls_action, MergeAction::TwoWayMerge);
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn merge_options_action_saves_without_an_open_duplicates_page() {
+        let directory = temp_directory("merge-action");
+        let controller = test_controller(&directory);
+        let mut state = AppState::new(std::sync::Arc::new(controller));
+
+        let payload = serde_json::json!({
+            "action": "same",
+            "options": {
+                "sync_archive_action": "always_both",
+                "sync_file_modified_date_action": "none",
+                "sync_notes_action": "two_way_merge",
+                "sync_urls_action": "copy",
+                "tag_service_actions": { "local tags": "copy" },
+                "rating_service_actions": { "favourites": "two_way_merge" }
+            }
+        })
+        .to_string();
+
+        let commands = save_merge_options_action(&mut state, &payload);
+
+        assert!(matches!(
+            commands.first(),
+            Some(UiCommand::NotifyMessage(_))
+        ));
+
+        let saved = merge_options(&state.controller, MergeActionKind::Same);
+        assert_eq!(saved.sync_archive_action, ArchiveSyncAction::AlwaysBoth);
+        assert_eq!(saved.sync_file_modified_date_action, MergeAction::None);
+        assert_eq!(saved.tag_action("local tags"), MergeAction::Copy);
+        assert_eq!(saved.rating_action("favourites"), MergeAction::TwoWayMerge);
 
         let _ = std::fs::remove_dir_all(directory);
     }

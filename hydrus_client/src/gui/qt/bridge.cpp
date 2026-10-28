@@ -2453,8 +2453,15 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     refresh = refresh_button;
     delete_both = new QPushButton(QStringLiteral("delete both"), this);
     rules = new QPushButton(QStringLiteral("auto-resolution..."), this);
+    batch = new QSpinBox(this);
+    batch->setRange(5, 1024);
+    batch->setToolTip(QStringLiteral("maximum pairs prepared in one batch"));
+    next_batch = new QPushButton(QStringLiteral("next batch"), this);
     header->addWidget(status, 1);
     header->addWidget(distance);
+    header->addWidget(new QLabel(QStringLiteral("batch:"), this));
+    header->addWidget(batch);
+    header->addWidget(next_batch);
     header->addWidget(rules);
     header->addWidget(refresh_button);
     header->addWidget(delete_both);
@@ -2539,6 +2546,10 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     connect(not_duplicates, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_false")); });
     connect(skip, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_skip")); });
     connect(refresh_button, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_refresh")); });
+    connect(next_batch, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_next_batch")); });
+    connect(batch, &QSpinBox::valueChanged, this, [this](int value) {
+        main->notify(QStringLiteral("duplicates_batch_size"), id, QString::number(value));
+    });
     connect(rules, &QPushButton::clicked, this, [this]() {
         main->notify(QStringLiteral("duplicates_rules"));
     });
@@ -2567,6 +2578,11 @@ void HydrusDuplicatesPage::update_state(const QJsonObject &state) {
     status->setText(total == 0
         ? page_status
         : QStringLiteral("%1  -  %2/%3").arg(page_status).arg(index).arg(total));
+
+    {
+        const QSignalBlocker blocker(batch);
+        batch->setValue(state.value(QStringLiteral("batch_size")).toInt(100));
+    }
 
     const QJsonValue pair_value = state.value(QStringLiteral("pair"));
 

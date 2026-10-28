@@ -9,7 +9,10 @@ use hydrus_core::hydrus_constants::ContentStatus;
 use crate::controller::Controller;
 use crate::db::{duplicates, files_storage, mappings, master, master_tags, url_map};
 use crate::gui::app::model::{DuplicatePairView, DuplicatesPage};
-use crate::gui::app::{AppState, UiCommand, query, render};
+use crate::gui::app::{query, render, AppState, UiCommand};
+
+const MIN_BATCH_SIZE: i64 = 5;
+const MAX_BATCH_SIZE: i64 = 1024;
 
 pub fn refresh(state: &mut AppState, page_id: &str) -> Vec<UiCommand> {
     let controller = state.controller.clone();
@@ -53,6 +56,25 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
         }
         "duplicates_refresh" => {
             load_queue(&controller, page, &rules);
+        }
+        "duplicates_next_batch" => {
+            load_queue(&controller, page, &rules);
+            page.status = format!("next batch; {}", page.status);
+        }
+        "duplicates_batch_size" => {
+            let Ok(requested) = payload.trim().parse::<i64>() else {
+                return vec![UiCommand::NotifyMessage(
+                    "the batch size must be a number".to_string(),
+                )];
+            };
+            let size = requested.clamp(MIN_BATCH_SIZE, MAX_BATCH_SIZE);
+            let mut options = controller.options();
+            options.set_integer("duplicate_filter_max_batch_size", size);
+            controller.replace_options(options);
+            let _ = controller.save_options();
+
+            load_queue(&controller, page, &rules);
+            page.status = format!("batch size {size}; {}", page.status);
         }
         "duplicates_keep_a" | "duplicates_keep_b" | "duplicates_same" => {
             let Some(pair) = page.current().cloned() else {
@@ -135,10 +157,15 @@ fn load_queue(
         .options()
         .get_integer("similar_files_duplicate_pairs_search_distance");
     let max_distance = (max_distance > 0).then_some(max_distance);
+    let batch_size = controller
+        .options()
+        .get_integer("duplicate_filter_max_batch_size")
+        .clamp(MIN_BATCH_SIZE, MAX_BATCH_SIZE) as usize;
 
     match duplicates::get_candidate_pairs(controller.db().db(), max_distance) {
         Ok(pairs) => {
-            page.searched = pairs.len() as i64;
+            let total = pairs.len();
+            page.searched = total as i64;
             page.pairs = pairs
                 .into_iter()
                 .filter_map(|(smaller_id, larger_id, distance)| {
@@ -151,8 +178,10 @@ fn load_queue(
 
                     Some(DuplicatePairView { a, b, distance })
                 })
+                .take(batch_size)
                 .collect();
             page.index = 0;
+            let batch = page.pairs.len();
 
             let applied = if controller
                 .options()
@@ -163,10 +192,12 @@ fn load_queue(
                 0
             };
 
-            page.status = match page.pairs.len() {
+            page.status = match total {
                 0 => "no potential duplicates".to_string(),
                 1 => "1 potential duplicate pair".to_string(),
-                count => format!("{count} potential duplicate pairs"),
+                count => format!(
+                    "{count} potential duplicate pairs (batch of {batch}, max {batch_size})"
+                ),
             };
 
             if applied > 0 {
@@ -348,4 +379,121 @@ fn duplicates_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
         ),
         UiCommand::Status(render::status_json(state)),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::{duplicates, files_metadata};
+    use hydrus_core::files::hydrus_file_handling::FileInfo;
+    use hydrus_core::hydrus_constants::Mime;
+
+    fn temp_directory(label: &str) -> std::path::PathBuf {
+        let directory = std::env::temp_dir().join(format!(
+            "hydrus_duplicates_{label}_{}_{}",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+        std::fs::create_dir_all(&directory).unwrap();
+
+        directory
+    }
+
+    fn test_controller(directory: &std::path::Path) -> Controller {
+        let _ = crate::client_options::register_serialisable_type();
+        let controller = Controller::new(directory).unwrap();
+        controller.init_model().unwrap();
+
+        controller
+    }
+
+    fn add_pair(controller: &Controller, seed: u8, distance: i64) {
+        let db = controller.db().db();
+        let first = [seed; 32];
+        let second = [seed.wrapping_add(1); 32];
+        let first_id = crate::db::master::get_hash_id(db, &first).unwrap();
+        let second_id = crate::db::master::get_hash_id(db, &second).unwrap();
+
+        for id in [first_id, second_id] {
+            files_metadata::set_file_info(
+                db,
+                id,
+                &FileInfo {
+                    size: 1024,
+                    mime: Mime::Png,
+                    width: Some(640),
+                    height: Some(480),
+                    duration_ms: None,
+                    num_frames: None,
+                    has_audio: false,
+                    num_words: None,
+                },
+            )
+            .unwrap();
+        }
+
+        duplicates::add_potential_pair(
+            db,
+            first_id.min(second_id),
+            first_id.max(second_id),
+            distance,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn batches_are_limited_and_the_size_is_persisted_in_options() {
+        let directory = temp_directory("batch");
+        let controller = test_controller(&directory);
+
+        let mut options = controller.options();
+        options.set_integer("duplicate_filter_max_batch_size", 5);
+        controller.replace_options(options);
+        controller.save_options().unwrap();
+
+        for seed in [1u8, 3, 5, 7, 9, 11] {
+            add_pair(&controller, seed, 2);
+        }
+
+        let mut page = DuplicatesPage::new("dup-batch");
+        refresh_for(&controller, &mut page, &[]);
+
+        assert_eq!(page.searched, 6);
+        assert_eq!(page.pairs.len(), 5);
+        assert!(page.status.contains("batch of 5"), "{}", page.status);
+
+        let value: serde_json::Value =
+            serde_json::from_str(&render::duplicates_json(&controller, &page)).unwrap();
+        assert_eq!(value["batch_size"], 5);
+        assert_eq!(value["total"], 5);
+        assert_eq!(value["searched"], 6);
+
+        // Deciding a pair removes it, so the next preparation shows the rest.
+        let pair = page.pairs[0].clone();
+        let db = controller.db().db();
+        let a = query::hash_id_for(&controller, &pair.a).unwrap();
+        let b = query::hash_id_for(&controller, &pair.b).unwrap();
+        duplicates::remove_potential_pair(db, a.min(b), a.max(b)).unwrap();
+
+        refresh_for(&controller, &mut page, &[]);
+        assert_eq!(page.searched, 5);
+        assert_eq!(page.pairs.len(), 5);
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn the_queue_can_be_empty() {
+        let directory = temp_directory("empty");
+        let controller = test_controller(&directory);
+        let mut page = DuplicatesPage::new("dup-empty");
+
+        refresh_for(&controller, &mut page, &[]);
+
+        assert!(page.pairs.is_empty());
+        assert_eq!(page.searched, 0);
+        assert_eq!(page.status, "no potential duplicates");
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
 }

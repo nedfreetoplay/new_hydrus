@@ -59,7 +59,9 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
 - `PageNode::Downloader` — urls / gallery / watcher / simple downloader: поля,
   очередь URL, статусы, лог, результаты и настройки watcher.
 - `PageNode::Subscriptions` — общий менеджер периодических подписок.
-- `PageNode::Duplicates` — очередь потенциальных пар и решения merge/false-positive.
+- `PageNode::Duplicates` — очередь потенциальных пар и решения merge/false-positive;
+  очередь готовится батчами по `duplicate_filter_max_batch_size`, размер
+  меняется на панели страницы, кнопка next batch перечитывает остаток.
 - `PageNode::ImportFolders` — менеджер папок и периодическое сканирование.
 - `PageNode::Placeholder` — только для старых сессий и неизвестных типов.
 

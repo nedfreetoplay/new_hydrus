@@ -440,6 +440,8 @@ private:
     QPushButton *refresh = nullptr;
     QPushButton *delete_both = nullptr;
     QPushButton *rules = nullptr;
+    QSpinBox *batch = nullptr;
+    QPushButton *next_batch = nullptr;
 };
 
 // Non-modal service manager. It is updated by `ServicesDialog` commands.

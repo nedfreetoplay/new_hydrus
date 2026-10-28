@@ -271,7 +271,9 @@ Rust-цели: `gui/app/duplicates.rs`, `gui/app/auto_resolution.rs`,
 - [x] 08.2 Keep A/B, same, not duplicates, delete both, skip.
 - [x] 08.3 Простые auto-resolution правила.
 - [ ] 08.4 Duplicate filter page/sidebar: search context и пороги.
-- [ ] 08.5 Batch size/preparation panel.
+- [~] 08.5 Batch size/preparation panel: размер батча из `duplicate_filter_max_batch_size`,
+  кнопка следующего батча и статус; auto-commit, проценты подготовки и очередь
+  поиска ещё нет.
 - [ ] 08.6 Auto-resolution editor: AND/OR, metadata conditions, pair selectors.
 - [ ] 08.7 Auto-resolution preview/review и pending/taken/denied списки.
 - [ ] 08.8 Content merge options по tag/rating/file services.

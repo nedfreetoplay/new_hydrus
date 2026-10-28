@@ -971,6 +971,10 @@ pub fn duplicates_json(
         "index": if page.pairs.is_empty() { 0 } else { page.index + 1 },
         "total": page.pairs.len(),
         "searched": page.searched,
+        "batch_size": controller
+            .options()
+            .get_integer("duplicate_filter_max_batch_size")
+            .clamp(5, 1024),
         "pair": pair,
     })
     .to_string()

@@ -7817,6 +7817,7 @@ void HydrusMainWindow::show_duplicate_merge_options(const QJsonObject &state) {
 
 void HydrusMainWindow::show_duplicate_custom_action(const QJsonObject &state) {
     if (duplicate_custom_action_dialog != nullptr) {
+        QObject::disconnect(duplicate_custom_action_dialog, &QObject::destroyed, this, nullptr);
         duplicate_custom_action_dialog->close();
         duplicate_custom_action_dialog = nullptr;
     }

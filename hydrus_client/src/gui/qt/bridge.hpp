@@ -370,6 +370,8 @@ private:
     QCheckBox *delete_a = nullptr;
     QCheckBox *delete_b = nullptr;
     QLabel *preview_label = nullptr;
+    QTableWidget *preview_pass = nullptr;
+    QTableWidget *preview_fail = nullptr;
 };
 
 // Pending, denied and actioned auto-resolution pairs.
@@ -530,6 +532,8 @@ private:
     QLabel *search_row_2_label = nullptr;
     QComboBox *pixel_dupes = nullptr;
     QSpinBox *search_distance = nullptr;
+    QComboBox *sort_type = nullptr;
+    QComboBox *sort_ascending = nullptr;
     QLabel *search_summary = nullptr;
     QLabel *hash_a = nullptr;
     QLabel *hash_b = nullptr;

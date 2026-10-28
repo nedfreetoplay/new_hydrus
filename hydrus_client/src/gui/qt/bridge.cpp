@@ -26,6 +26,7 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QIcon>
 #include <QInputDialog>
 #include <QJsonDocument>
 #include <QJsonParseError>
@@ -52,6 +53,7 @@
 #include <QSettings>
 #include <QShortcut>
 #include <QSignalBlocker>
+#include <QSize>
 #include <QSlider>
 #include <QSpinBox>
 #include <QSplitter>
@@ -124,10 +126,9 @@ QByteArray json_bytes(const QJsonObject &object) {
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }
 
-QPixmap thumbnail_pixmap(const QString &path) {
-    const int width = 150;
-    const int height = 125;
+QString json_payload(const QJsonObject &object);
 
+QPixmap thumbnail_pixmap(const QString &path, int width = 150, int height = 125) {
     QPixmap box(width, height);
     box.fill(QColor(52, 52, 52));
 
@@ -153,8 +154,123 @@ QPixmap thumbnail_pixmap(const QString &path) {
     return box;
 }
 
-QString page_hash_from_item(const QListWidgetItem *item) {
-    if (item == nullptr) {
+// A row item for the thumbnail pair lists. The full hash is kept in UserRole so
+// a context-menu action can open the selected pairs in a new page.
+QTableWidgetItem *pair_hash_item(const QString &hash, const QString &thumb_path) {
+    auto *item = new QTableWidgetItem(hash.left(16));
+    item->setToolTip(hash);
+    item->setData(Qt::UserRole, hash);
+
+    const QPixmap pixmap = thumbnail_pixmap(thumb_path, 110, 90);
+    item->setIcon(QIcon(pixmap));
+
+    return item;
+}
+
+void show_selected_pair_rows(QTableWidget *table, HydrusMainWindow *main) {
+    if (main == nullptr || table->selectionModel() == nullptr) {
+        return;
+    }
+
+    QStringList hashes;
+
+    for (const QModelIndex &index : table->selectionModel()->selectedRows()) {
+        for (int column = 0; column < table->columnCount(); ++column) {
+            const QTableWidgetItem *item = table->item(index.row(), column);
+            const QString hash = item == nullptr ? QString() : item->data(Qt::UserRole).toString();
+
+            if (!hash.isEmpty() && !hashes.contains(hash)) {
+                hashes.append(hash);
+            }
+        }
+    }
+
+    if (hashes.isEmpty()) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("hashes"), QJsonArray::fromStringList(hashes));
+    main->notify(QStringLiteral("duplicates_show_pair"), QString(), json_payload(payload));
+}
+
+void install_pair_list_actions(QTableWidget *table, HydrusMainWindow *main) {
+    table->setContextMenuPolicy(Qt::CustomContextMenu);
+
+    QObject::connect(table, &QTableWidget::customContextMenuRequested, table, [table, main](const QPoint &pos) {
+        if (!table->selectionModel()->hasSelection()) {
+            return;
+        }
+
+        const int num_selected = table->selectionModel()->selectedRows().size();
+        QMenu menu(table);
+        const QString label = num_selected == 1
+            ? QStringLiteral("show selected row in a new page")
+            : QStringLiteral("show %1 rows in a new page").arg(num_selected);
+        QAction *action = menu.addAction(label);
+        action->setToolTip(QStringLiteral("Open a new page and show these pairs, even if deleted"));
+
+        if (menu.exec(table->viewport()->mapToGlobal(pos)) == action) {
+            show_selected_pair_rows(table, main);
+        }
+    });
+
+    QObject::connect(table, &QTableWidget::cellActivated, table, [table, main](int, int) {
+        show_selected_pair_rows(table, main);
+    });
+}
+
+void fill_pair_table(
+    QTableWidget *table,
+    const QJsonArray &rows,
+    int hash_columns,
+    const QStringList &text_columns) {
+    table->setRowCount(rows.size());
+
+    for (int index = 0; index < rows.size(); ++index) {
+        const QJsonObject entry = rows.at(index).toObject();
+        const int text_column = hash_columns;
+        const int column_count = hash_columns + text_columns.size();
+
+        for (int column = 0; column < column_count; ++column) {
+            if (table->item(index, column) == nullptr) {
+                table->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        if (hash_columns >= 1) {
+            table->setItem(index, 0, pair_hash_item(
+                entry.value(QStringLiteral("a")).toString(),
+                entry.value(QStringLiteral("a_thumb")).toString()));
+        }
+
+        if (hash_columns >= 2) {
+            table->setItem(index, 1, pair_hash_item(
+                entry.value(QStringLiteral("b")).toString(),
+                entry.value(QStringLiteral("b_thumb")).toString()));
+        }
+
+        for (int offset = 0; offset < text_columns.size(); ++offset) {
+            const QString value = text_columns.at(offset);
+
+            if (value == QStringLiteral("rule")) {
+                table->item(index, text_column + offset)->setText(entry.value(QStringLiteral("rule")).toString());
+            } else if (value == QStringLiteral("distance")) {
+                table->item(index, text_column + offset)->setText(QString::number(entry.value(QStringLiteral("distance")).toInt()));
+            } else if (value == QStringLiteral("decision")) {
+                table->item(index, text_column + offset)->setText(entry.value(QStringLiteral("decision_label")).toString());
+            } else if (value == QStringLiteral("banned")) {
+                table->item(index, text_column + offset)->setText(entry.value(QStringLiteral("banned")).toBool()
+                    ? QStringLiteral("yes")
+                    : QString());
+            }
+        }
+
+        table->setRowHeight(index, 96);
+    }
+}
+
+QString page_hash_from_item(const QListWidgetItem *item) {    if (item == nullptr) {
         return {};
     }
 
@@ -2481,6 +2597,16 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     search_distance->setToolTip(QStringLiteral(
         "The max hamming distance allowed in the search. Higher distances mean more pairs and more false positives."));
 
+    sort_type = new QComboBox(search_panel);
+    sort_type->addItem(QStringLiteral("sort pairs by: filesize of larger file"), QStringLiteral("max_filesize"));
+    sort_type->addItem(QStringLiteral("sort pairs by: filesize of smaller file"), QStringLiteral("min_filesize"));
+    sort_type->addItem(QStringLiteral("sort pairs by: similarity (distance/filesize ratio)"), QStringLiteral("similarity"));
+    sort_type->addItem(QStringLiteral("sort pairs by: random"), QStringLiteral("random"));
+
+    sort_ascending = new QComboBox(search_panel);
+    sort_ascending->addItem(QStringLiteral("largest first"), false);
+    sort_ascending->addItem(QStringLiteral("smallest first"), true);
+
     search_summary = new QLabel(search_panel);
     search_summary->setWordWrap(true);
 
@@ -2495,7 +2621,9 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     search_layout->addWidget(pixel_dupes, 3, 1);
     search_layout->addWidget(new QLabel(QStringLiteral("max search distance:"), search_panel), 3, 2);
     search_layout->addWidget(search_distance, 3, 3);
-    search_layout->addWidget(search_summary, 4, 0, 1, 4);
+    search_layout->addWidget(sort_type, 4, 0, 1, 3);
+    search_layout->addWidget(sort_ascending, 4, 3);
+    search_layout->addWidget(search_summary, 5, 0, 1, 4);
     search_layout->setColumnStretch(1, 1);
 
     layout->addWidget(search_panel);
@@ -2637,6 +2765,11 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
         notify_search_context();
     });
     connect(search_distance, &QSpinBox::valueChanged, this, [this]() { notify_search_context(); });
+    connect(sort_type, &QComboBox::currentIndexChanged, this, [this]() {
+        update_search_controls();
+        notify_search_context();
+    });
+    connect(sort_ascending, &QComboBox::currentIndexChanged, this, [this]() { notify_search_context(); });
 
     update_search_controls();
 
@@ -2659,6 +2792,8 @@ void HydrusDuplicatesPage::notify_search_context() {
     payload.insert(QStringLiteral("dupe_search_type"), search_type);
     payload.insert(QStringLiteral("pixel_dupes"), pixel_dupes->currentData().toString());
     payload.insert(QStringLiteral("max_distance"), search_distance->value());
+    payload.insert(QStringLiteral("sort_type"), sort_type->currentData().toString());
+    payload.insert(QStringLiteral("sort_ascending"), sort_ascending->currentData().toBool());
 
     main->notify(QStringLiteral("duplicates_search_context"), id, json_payload(payload));
 }
@@ -2671,6 +2806,37 @@ void HydrusDuplicatesPage::update_search_controls() {
     search_location_2->setVisible(different_searches);
 
     search_distance->setEnabled(pixel_dupes->currentData().toString() != QStringLiteral("required"));
+
+    const QString sort = sort_type->currentData().toString();
+    const bool random = sort == QStringLiteral("random");
+    const bool current_asc = sort_ascending->currentData().toBool();
+
+    sort_ascending->setVisible(!random);
+
+    if (random) {
+        return;
+    }
+
+    QString first;
+    QString second;
+
+    if (sort == QStringLiteral("similarity")) {
+        first = QStringLiteral("most similar first");
+        second = QStringLiteral("least similar first");
+    } else {
+        first = QStringLiteral("largest first");
+        second = QStringLiteral("smallest first");
+    }
+
+    const QSignalBlocker blocker(sort_ascending);
+    sort_ascending->setItemText(0, first);
+    sort_ascending->setItemText(1, second);
+
+    const int index = sort_ascending->findData(current_asc);
+
+    if (index >= 0) {
+        sort_ascending->setCurrentIndex(index);
+    }
 }
 
 const QString &HydrusDuplicatesPage::page_id() const {
@@ -2716,6 +2882,18 @@ void HydrusDuplicatesPage::update_state(const QJsonObject &state) {
         search_distance->setValue(search.value(QStringLiteral("max_distance")).toInt(4));
         set_combo_data(dupe_search_type, search.value(QStringLiteral("dupe_search_type")).toString());
         set_combo_data(pixel_dupes, search.value(QStringLiteral("pixel_dupes")).toString());
+
+        {
+            const QSignalBlocker sort_type_blocker(sort_type);
+            const QSignalBlocker sort_asc_blocker(sort_ascending);
+
+            set_combo_data(sort_type, search.value(QStringLiteral("sort_type")).toString());
+            const int sort_index = sort_ascending->findData(search.value(QStringLiteral("sort_ascending")).toBool());
+
+            if (sort_index >= 0) {
+                sort_ascending->setCurrentIndex(sort_index);
+            }
+        }
 
         {
             const QSignalBlocker location_1_blocker(search_location_1);
@@ -6539,9 +6717,54 @@ HydrusAutoResolutionRuleDialog::HydrusAutoResolutionRuleDialog(
     preview_label->setWordWrap(true);
     preview_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
     preview_layout->addWidget(preview_label);
+
+    preview_layout->addWidget(new QLabel(QStringLiteral("pairs that will be actioned"), preview_tab));
+    preview_pass = new QTableWidget(preview_tab);
+    preview_pass->setColumnCount(4);
+    preview_pass->setHorizontalHeaderLabels({
+        QStringLiteral("A"),
+        QStringLiteral("B"),
+        QStringLiteral("distance"),
+        QStringLiteral("action")
+    });
+    preview_pass->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+    preview_pass->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
+    preview_pass->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    preview_pass->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    preview_pass->setColumnWidth(0, 116);
+    preview_pass->setColumnWidth(1, 116);
+    preview_pass->setSelectionBehavior(QAbstractItemView::SelectRows);
+    preview_pass->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    preview_pass->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    preview_pass->verticalHeader()->setVisible(false);
+    preview_pass->setIconSize(QSize(110, 90));
+    preview_layout->addWidget(preview_pass, 1);
+
+    preview_layout->addWidget(new QLabel(QStringLiteral("pairs that will be skipped"), preview_tab));
+    preview_fail = new QTableWidget(preview_tab);
+    preview_fail->setColumnCount(3);
+    preview_fail->setHorizontalHeaderLabels({
+        QStringLiteral("A"),
+        QStringLiteral("B"),
+        QStringLiteral("distance")
+    });
+    preview_fail->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
+    preview_fail->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
+    preview_fail->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    preview_fail->setColumnWidth(0, 116);
+    preview_fail->setColumnWidth(1, 116);
+    preview_fail->setSelectionBehavior(QAbstractItemView::SelectRows);
+    preview_fail->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    preview_fail->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    preview_fail->verticalHeader()->setVisible(false);
+    preview_fail->setIconSize(QSize(110, 90));
+    preview_layout->addWidget(preview_fail, 1);
+
+    install_pair_list_actions(preview_pass, main);
+    install_pair_list_actions(preview_fail, main);
+
     auto *run_preview = new QPushButton(QStringLiteral("test against the queue"), preview_tab);
     preview_layout->addWidget(run_preview, 0, Qt::AlignLeft);
-    preview_layout->addStretch(1);
     tabs->addTab(preview_tab, QStringLiteral("preview"));
 
     layout->addWidget(tabs, 1);
@@ -6682,6 +6905,8 @@ void HydrusAutoResolutionRuleDialog::set_preview(const QJsonObject &preview) {
 
     if (status.isEmpty()) {
         preview_label->setText(QStringLiteral("no preview result"));
+        preview_pass->setRowCount(0);
+        preview_fail->setRowCount(0);
         return;
     }
 
@@ -6698,16 +6923,18 @@ void HydrusAutoResolutionRuleDialog::set_preview(const QJsonObject &preview) {
         lines.append(QStringLiteral("search: %1").arg(search));
     }
 
-    for (const QJsonValue &value : preview.value(QStringLiteral("samples")).toArray()) {
-        const QJsonObject sample = value.toObject();
-        lines.append(QStringLiteral("%1  A=%2  B=%3  -> %4")
-                         .arg(sample.value(QStringLiteral("distance")).toInt())
-                         .arg(sample.value(QStringLiteral("a")).toString().left(16))
-                         .arg(sample.value(QStringLiteral("b")).toString().left(16))
-                         .arg(sample.value(QStringLiteral("decision")).toString()));
-    }
-
     preview_label->setText(lines.join(QLatin1Char('\n')));
+
+    fill_pair_table(
+        preview_pass,
+        preview.value(QStringLiteral("samples")).toArray(),
+        2,
+        {QStringLiteral("distance"), QStringLiteral("decision")});
+    fill_pair_table(
+        preview_fail,
+        preview.value(QStringLiteral("failed_samples")).toArray(),
+        2,
+        {QStringLiteral("distance")});
 }
 
 void HydrusAutoResolutionRuleDialog::save() {
@@ -6986,24 +7213,39 @@ HydrusDuplicateReviewDialog::HydrusDuplicateReviewDialog(HydrusMainWindow *main_
         table->setEditTriggers(QAbstractItemView::NoEditTriggers);
         table->verticalHeader()->setVisible(false);
         table->horizontalHeader()->setStretchLastSection(true);
+        table->setIconSize(QSize(110, 90));
+
+        for (int column = 0; column < 2 && column < table->columnCount(); ++column) {
+            table->horizontalHeader()->setSectionResizeMode(column, QHeaderView::Fixed);
+            table->setColumnWidth(column, 116);
+        }
+
         return table;
     };
 
     pending = make_table({
-        QStringLiteral("rule"),
-        QStringLiteral("distance"),
         QStringLiteral("A"),
         QStringLiteral("B"),
+        QStringLiteral("distance"),
+        QStringLiteral("rule"),
         QStringLiteral("decision")
     });
-    denied = make_table({QStringLiteral("rule"), QStringLiteral("A"), QStringLiteral("B")});
+    denied = make_table({
+        QStringLiteral("A"),
+        QStringLiteral("B"),
+        QStringLiteral("rule")
+    });
     actioned = make_table({
-        QStringLiteral("rule"),
         QStringLiteral("A"),
         QStringLiteral("B"),
         QStringLiteral("decision"),
+        QStringLiteral("rule"),
         QStringLiteral("denied")
     });
+
+    install_pair_list_actions(pending, main);
+    install_pair_list_actions(denied, main);
+    install_pair_list_actions(actioned, main);
 
     tabs->addTab(pending, QStringLiteral("pending"));
     tabs->addTab(denied, QStringLiteral("denied"));
@@ -7036,67 +7278,29 @@ HydrusDuplicateReviewDialog::HydrusDuplicateReviewDialog(HydrusMainWindow *main_
 void HydrusDuplicateReviewDialog::set_state(const QJsonObject &state) {
     status->setText(state.value(QStringLiteral("status")).toString());
 
-    const QJsonArray pending_rows = state.value(QStringLiteral("pending")).toArray();
-    pending->setRowCount(pending_rows.size());
-
-    for (int index = 0; index < pending_rows.size(); ++index) {
-        const QJsonObject entry = pending_rows.at(index).toObject();
-
-        for (int column = 0; column < 5; ++column) {
-            if (pending->item(index, column) == nullptr) {
-                pending->setItem(index, column, new QTableWidgetItem());
-            }
-        }
-
-        pending->item(index, 0)->setText(entry.value(QStringLiteral("rule")).toString());
-        pending->item(index, 1)->setText(QString::number(entry.value(QStringLiteral("distance")).toInt()));
-        pending->item(index, 2)->setText(entry.value(QStringLiteral("a")).toString().left(16));
-        pending->item(index, 2)->setToolTip(entry.value(QStringLiteral("a")).toString());
-        pending->item(index, 3)->setText(entry.value(QStringLiteral("b")).toString().left(16));
-        pending->item(index, 3)->setToolTip(entry.value(QStringLiteral("b")).toString());
-        pending->item(index, 4)->setText(entry.value(QStringLiteral("decision_label")).toString());
-    }
-
-    const QJsonArray denied_rows = state.value(QStringLiteral("denied")).toArray();
-    denied->setRowCount(denied_rows.size());
-
-    for (int index = 0; index < denied_rows.size(); ++index) {
-        const QJsonObject entry = denied_rows.at(index).toObject();
-
-        for (int column = 0; column < 3; ++column) {
-            if (denied->item(index, column) == nullptr) {
-                denied->setItem(index, column, new QTableWidgetItem());
-            }
-        }
-
-        denied->item(index, 0)->setText(entry.value(QStringLiteral("rule")).toString());
-        denied->item(index, 1)->setText(entry.value(QStringLiteral("a")).toString().left(16));
-        denied->item(index, 2)->setText(entry.value(QStringLiteral("b")).toString().left(16));
-    }
-
-    const QJsonArray actioned_rows = state.value(QStringLiteral("actioned")).toArray();
-    actioned->setRowCount(actioned_rows.size());
-
-    for (int index = 0; index < actioned_rows.size(); ++index) {
-        const QJsonObject entry = actioned_rows.at(index).toObject();
-
-        for (int column = 0; column < 5; ++column) {
-            if (actioned->item(index, column) == nullptr) {
-                actioned->setItem(index, column, new QTableWidgetItem());
-            }
-        }
-
-        actioned->item(index, 0)->setText(entry.value(QStringLiteral("rule")).toString());
-        actioned->item(index, 1)->setText(entry.value(QStringLiteral("a")).toString().left(16));
-        actioned->item(index, 2)->setText(entry.value(QStringLiteral("b")).toString().left(16));
-        actioned->item(index, 3)->setText(entry.value(QStringLiteral("decision_label")).toString());
-        actioned->item(index, 4)->setText(entry.value(QStringLiteral("banned")).toBool() ? QStringLiteral("yes")
-                                                                                          : QString());
-    }
-
-    pending->resizeRowsToContents();
-    denied->resizeRowsToContents();
-    actioned->resizeRowsToContents();
+    fill_pair_table(
+        pending,
+        state.value(QStringLiteral("pending")).toArray(),
+        2,
+        {
+            QStringLiteral("distance"),
+            QStringLiteral("rule"),
+            QStringLiteral("decision"),
+        });
+    fill_pair_table(
+        denied,
+        state.value(QStringLiteral("denied")).toArray(),
+        2,
+        {QStringLiteral("rule")});
+    fill_pair_table(
+        actioned,
+        state.value(QStringLiteral("actioned")).toArray(),
+        2,
+        {
+            QStringLiteral("decision"),
+            QStringLiteral("rule"),
+            QStringLiteral("banned"),
+        });
 }
 
 QList<int> HydrusDuplicateReviewDialog::selected_pending_rows() const {

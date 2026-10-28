@@ -126,6 +126,8 @@ fn duplicates_search_context_round_trips() {
         dupe_search_type: "different_searches".to_string(),
         pixel_dupes: "excluded".to_string(),
         max_distance: 12,
+        sort_type: "similarity".to_string(),
+        sort_ascending: true,
     };
     root.add(PageNode::Duplicates(page));
 
@@ -140,6 +142,8 @@ fn duplicates_search_context_round_trips() {
             assert_eq!(page.search_context.dupe_search_type, "different_searches");
             assert_eq!(page.search_context.pixel_dupes, "excluded");
             assert_eq!(page.search_context.max_distance, 12);
+            assert_eq!(page.search_context.sort_type, "similarity");
+            assert!(page.search_context.sort_ascending);
         }
         _ => panic!("duplicates page did not round-trip"),
     }

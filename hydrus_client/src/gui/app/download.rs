@@ -292,7 +292,11 @@ pub fn open_subscription_results(
     open_hashes_page(state, &title, hashes)
 }
 
-fn open_hashes_page(state: &mut AppState, title: &str, hashes: Vec<Vec<u8>>) -> Vec<UiCommand> {
+pub(crate) fn open_hashes_page(
+    state: &mut AppState,
+    title: &str,
+    hashes: Vec<Vec<u8>>,
+) -> Vec<UiCommand> {
     let id = state.new_id("p");
     let mut query = QueryPage::new(id.clone(), title, "my files");
     query.fixed_hashes = Some(hashes);

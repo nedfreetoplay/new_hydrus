@@ -282,7 +282,11 @@ Rust-цели: `gui/app/duplicates.rs`, `gui/app/auto_resolution.rs`,
   «this is better» и «same quality», действия copy/move/two-way/none по каждому tag и
   rating сервису, sync archive/urls/notes/modified date; настройки хранятся в options
   (`duplicate_action_options`) и применяются в merge, auto-resolution и review.
-- [ ] 08.9 Thumbnail pair list и сортировка.
+- [x] 08.9 Thumbnail pair list и сортировка: auto-resolution preview показывает пары с
+  миниатюрами A/B и действиями, review-диалог — pending/denied/taken с миниатюрами;
+  контекстное меню и Enter открывают выбранные пары в новой странице. Сортировка пар
+  (larger/smaller filesize, similarity, random; asc/desc) входит в search context,
+  сохраняется в `gui session.json` и применяется до auto-resolution и батча.
 - [ ] 08.10 Полные duplicate actions/menu.
 
 Выход фазы: duplicate filter и auto-resolution настраиваются визуально и

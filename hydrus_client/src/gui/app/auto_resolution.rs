@@ -14,9 +14,9 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use hydrus_core::hydrus_constants::{general_mimetype_for, Mime, TimestampType};
+use hydrus_core::hydrus_constants::{Mime, TimestampType, general_mimetype_for};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::controller::Controller;
 use crate::db::files_timestamps;
@@ -134,11 +134,7 @@ impl Comparator {
                     return false;
                 };
 
-                if *same {
-                    left == right
-                } else {
-                    left != right
-                }
+                if *same { left == right } else { left != right }
             }
             Comparator::Group { mode, comparators } => {
                 if mode == "any" {
@@ -1018,10 +1014,12 @@ pub fn dialog_json(state: &AppState) -> String {
         state.duplicate_review.pending.len(),
     ))
     .unwrap_or_default();
-    value["enabled"] = json!(state
-        .controller
-        .options()
-        .get_boolean("duplicates_auto_resolution_enabled"));
+    value["enabled"] = json!(
+        state
+            .controller
+            .options()
+            .get_boolean("duplicates_auto_resolution_enabled")
+    );
     value["denied"] = json!(state.duplicate_review.denied.len());
     value["actioned"] = json!(state.duplicate_review.actioned.len());
 
@@ -1140,6 +1138,48 @@ fn unique_name(rules: &[AutoResolutionRule], wanted: &str, original_name: Option
     }
 }
 
+fn pair_sample_json(
+    controller: &Controller,
+    a: &[u8],
+    b: &[u8],
+    distance: i64,
+    action: Option<(&[u8], &[u8], &str)>,
+) -> Value {
+    let file_size = |hash: &[u8]| -> u64 {
+        query::hash_id_for(controller, hash)
+            .and_then(|hash_id| {
+                crate::db::files_metadata::get_file_info(controller.db().db(), hash_id)
+                    .ok()
+                    .flatten()
+            })
+            .map(|file_info| file_info.size)
+            .unwrap_or(0)
+    };
+
+    let mut value = json!({
+        "a": query::hex(a),
+        "b": query::hex(b),
+        "a_thumb": query::thumbnail_path(controller, a)
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
+        "b_thumb": query::thumbnail_path(controller, b)
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
+        "a_size": file_size(a),
+        "b_size": file_size(b),
+        "distance": distance,
+    });
+
+    if let Some((kept, discarded, decision)) = action {
+        value["decision"] = json!(decision);
+        value["decision_label"] = json!(decision);
+        value["kept"] = json!(query::hex(kept));
+        value["discarded"] = json!(query::hex(discarded));
+    }
+
+    value
+}
+
 pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     let Ok(mut value) = serde_json::from_str::<Value>(payload) else {
         return notify(state, "invalid auto-resolution rule");
@@ -1171,23 +1211,47 @@ pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     let mut matched = 0usize;
     let mut failed = 0usize;
     let mut samples = Vec::new();
+    let mut failed_samples = Vec::new();
 
     match crate::db::duplicates::get_candidate_pairs(state.controller.db().db(), max_distance) {
         Ok(pairs) => {
+            let db = state.controller.db().db();
+            let mut candidates: Vec<(Vec<u8>, Vec<u8>, i64)> = Vec::new();
+
             for (smaller, larger, distance) in pairs {
-                let Some(a) = crate::db::master::get_hash(state.controller.db().db(), smaller)
-                    .ok()
-                    .flatten()
-                else {
+                let Some(a) = crate::db::master::get_hash(db, smaller).ok().flatten() else {
                     continue;
                 };
-                let Some(b) = crate::db::master::get_hash(state.controller.db().db(), larger)
-                    .ok()
-                    .flatten()
-                else {
+                let Some(b) = crate::db::master::get_hash(db, larger).ok().flatten() else {
                     continue;
                 };
 
+                candidates.push((a, b, distance));
+            }
+
+            // Python samples and sorts by the smaller file before it tests the rule.
+            let size_for = |hash: &[u8]| -> u64 {
+                query::hash_id_for(&state.controller, hash)
+                    .and_then(|hash_id| {
+                        crate::db::files_metadata::get_file_info(db, hash_id)
+                            .ok()
+                            .flatten()
+                    })
+                    .map(|file_info| file_info.size)
+                    .filter(|size| *size > 0)
+                    .unwrap_or(1)
+            };
+            candidates.sort_by_key(|(a, b, _)| {
+                let a_size = size_for(a);
+                let b_size = size_for(b);
+
+                (
+                    std::cmp::Reverse(a_size.min(b_size)),
+                    std::cmp::Reverse(a_size.max(b_size)),
+                )
+            });
+
+            for (a, b, distance) in candidates {
                 total += 1;
 
                 if let Some(result) = prepared.evaluate(&state.controller, &a, &b, distance) {
@@ -1205,17 +1269,26 @@ pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
                             _ => &a,
                         };
 
-                        samples.push(json!({
-                            "a": query::hex(&a),
-                            "b": query::hex(&b),
-                            "distance": distance,
-                            "decision": result.decision.label(),
-                            "kept": query::hex(kept),
-                            "discarded": query::hex(discarded),
-                        }));
+                        samples.push(pair_sample_json(
+                            &state.controller,
+                            &a,
+                            &b,
+                            distance,
+                            Some((&kept, &discarded, result.decision.label())),
+                        ));
                     }
                 } else {
                     failed += 1;
+
+                    if failed_samples.len() < PREVIEW_SAMPLES {
+                        failed_samples.push(pair_sample_json(
+                            &state.controller,
+                            &a,
+                            &b,
+                            distance,
+                            None,
+                        ));
+                    }
                 }
             }
         }
@@ -1245,6 +1318,7 @@ pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
             "matched": matched,
             "failed": failed,
             "samples": samples,
+            "failed_samples": failed_samples,
             "status": status,
             "error": error,
             "selector": rule.selector_summary(),
@@ -1255,6 +1329,13 @@ pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 }
 
 pub fn review_json(state: &AppState) -> String {
+    let controller = &state.controller;
+    let thumb = |hash: &str| {
+        crate::gui::app::query::unhex(hash)
+            .and_then(|hash| query::thumbnail_path(controller, &hash))
+            .map(|path| path.display().to_string())
+            .unwrap_or_default()
+    };
     let review = &state.duplicate_review;
     let pending: Vec<Value> = review
         .pending
@@ -1264,6 +1345,8 @@ pub fn review_json(state: &AppState) -> String {
                 "rule": entry.rule,
                 "a": entry.a,
                 "b": entry.b,
+                "a_thumb": thumb(&entry.a),
+                "b_thumb": thumb(&entry.b),
                 "distance": entry.distance,
                 "decision": entry.decision,
                 "decision_label": entry.decision.label(),
@@ -1275,7 +1358,15 @@ pub fn review_json(state: &AppState) -> String {
     let denied: Vec<Value> = review
         .denied
         .iter()
-        .map(|entry| json!({"rule": entry.rule, "a": entry.a, "b": entry.b}))
+        .map(|entry| {
+            json!({
+                "rule": entry.rule,
+                "a": entry.a,
+                "b": entry.b,
+                "a_thumb": thumb(&entry.a),
+                "b_thumb": thumb(&entry.b),
+            })
+        })
         .collect();
     let actioned: Vec<Value> = review
         .actioned
@@ -1285,6 +1376,8 @@ pub fn review_json(state: &AppState) -> String {
                 "rule": entry.rule,
                 "a": entry.a,
                 "b": entry.b,
+                "a_thumb": thumb(&entry.a),
+                "b_thumb": thumb(&entry.b),
                 "decision": entry.decision,
                 "decision_label": entry.decision.label(),
                 "banned": entry.banned,
@@ -1307,6 +1400,32 @@ pub fn review_json(state: &AppState) -> String {
 
 pub fn review_open(state: &AppState) -> Vec<UiCommand> {
     vec![UiCommand::DuplicateReviewDialog(review_json(state))]
+}
+
+/// Opens the selected auto-resolution pairs in a new file page. Python offers
+/// the same from the thumbnail pair list context menu and on Enter.
+pub fn show_pair_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
+    let Ok(value) = serde_json::from_str::<Value>(payload) else {
+        return notify(state, "invalid pair selection");
+    };
+
+    let hashes: Vec<Vec<u8>> = value
+        .get("hashes")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_str)
+                .filter_map(query::unhex)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if hashes.is_empty() {
+        return notify(state, "no local files to show");
+    }
+
+    super::download::open_hashes_page(state, "duplicate pairs", hashes)
 }
 
 pub fn review_apply(state: &mut AppState, payload: &str) -> Vec<UiCommand> {

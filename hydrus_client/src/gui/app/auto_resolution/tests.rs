@@ -179,9 +179,11 @@ fn editor_payload_round_trips_and_matches() {
     let second = add_file(&state, 42, 105_000, 650, 480, &[]);
     let prepared = rule.prepare(&state.controller);
 
-    assert!(prepared
-        .evaluate(&state.controller, &first.hash, &second.hash, 1)
-        .is_some());
+    assert!(
+        prepared
+            .evaluate(&state.controller, &first.hash, &second.hash, 1)
+            .is_some()
+    );
 
     let _ = std::fs::remove_dir_all(directory);
 }
@@ -240,9 +242,11 @@ fn relative_selectors_test_both_ways_around() {
             .map(|result| result.decision),
         Some(AutoDecision::KeepSecond)
     );
-    assert!(prepared
-        .evaluate(&state.controller, &small.hash, &small.hash, 2)
-        .is_none());
+    assert!(
+        prepared
+            .evaluate(&state.controller, &small.hash, &small.hash, 2)
+            .is_none()
+    );
 
     let _ = std::fs::remove_dir_all(directory);
 }
@@ -268,12 +272,16 @@ fn one_file_and_or_groups_match_metadata() {
     let rule = rule_with(vec![one_file, group], "better");
     let prepared = rule.prepare(&state.controller);
 
-    assert!(prepared
-        .evaluate(&state.controller, &wide.hash, &tall.hash, 1)
-        .is_some());
-    assert!(prepared
-        .evaluate(&state.controller, &tall.hash, &wide.hash, 1)
-        .is_some());
+    assert!(
+        prepared
+            .evaluate(&state.controller, &wide.hash, &tall.hash, 1)
+            .is_some()
+    );
+    assert!(
+        prepared
+            .evaluate(&state.controller, &tall.hash, &wide.hash, 1)
+            .is_some()
+    );
 
     let impossible = rule_with(
         vec![Comparator::Group {
@@ -293,9 +301,11 @@ fn one_file_and_or_groups_match_metadata() {
     );
     let prepared = impossible.prepare(&state.controller);
 
-    assert!(prepared
-        .evaluate(&state.controller, &wide.hash, &tall.hash, 1)
-        .is_none());
+    assert!(
+        prepared
+            .evaluate(&state.controller, &wide.hash, &tall.hash, 1)
+            .is_none()
+    );
 
     let _ = std::fs::remove_dir_all(directory);
 }
@@ -311,15 +321,19 @@ fn search_context_can_require_both_or_either_file() {
     rule.search_mode = "both".to_string();
 
     let prepared = rule.prepare(&state.controller);
-    assert!(prepared
-        .evaluate(&state.controller, &plain.hash, &tagged.hash, 1)
-        .is_none());
+    assert!(
+        prepared
+            .evaluate(&state.controller, &plain.hash, &tagged.hash, 1)
+            .is_none()
+    );
 
     rule.search_mode = "either".to_string();
     let prepared = rule.prepare(&state.controller);
-    assert!(prepared
-        .evaluate(&state.controller, &plain.hash, &tagged.hash, 1)
-        .is_some());
+    assert!(
+        prepared
+            .evaluate(&state.controller, &plain.hash, &tagged.hash, 1)
+            .is_some()
+    );
 
     let _ = std::fs::remove_dir_all(directory);
 }
@@ -361,10 +375,19 @@ fn preview_reports_matches_without_touching_the_database() {
     let mut state = test_state(&directory);
     let a = add_file(&state, 9, 1_000, 640, 480, &[]);
     let b = add_file(&state, 10, 3_000, 640, 480, &[]);
+    let c = add_file(&state, 11, 2_000, 640, 480, &[]);
+    let d = add_file(&state, 12, 2_000, 640, 480, &[]);
     crate::db::duplicates::add_potential_pair(
         state.controller.db().db(),
         a.id.min(b.id),
         a.id.max(b.id),
+        2,
+    )
+    .unwrap();
+    crate::db::duplicates::add_potential_pair(
+        state.controller.db().db(),
+        c.id.min(d.id),
+        c.id.max(d.id),
         2,
     )
     .unwrap();
@@ -381,10 +404,13 @@ fn preview_reports_matches_without_touching_the_database() {
         .expect("preview");
     let value: Value = serde_json::from_str(&json).unwrap();
 
-    assert_eq!(value["total"], 1);
+    assert_eq!(value["total"], 2);
     assert_eq!(value["matched"], 1);
-    assert_eq!(value["failed"], 0);
+    assert_eq!(value["failed"], 1);
     assert_eq!(value["samples"].as_array().unwrap().len(), 1);
+    assert_eq!(value["failed_samples"].as_array().unwrap().len(), 1);
+    assert!(value["samples"][0]["a_thumb"].is_string());
+    assert!(value["failed_samples"][0]["b_thumb"].is_string());
     assert!(state.duplicate_review.pending.is_empty());
 
     let _ = std::fs::remove_dir_all(directory);
@@ -412,9 +438,11 @@ fn approving_and_denying_pending_pairs_updates_the_queue() {
         delete_b: false,
     };
 
-    assert!(state
-        .duplicate_review
-        .queue(&rule, &large.hash, &small.hash, 1, matched));
+    assert!(
+        state
+            .duplicate_review
+            .queue(&rule, &large.hash, &small.hash, 1, matched)
+    );
 
     // Denying keeps the pair for manual review and remembers the decision.
     let commands = review_apply(
@@ -435,9 +463,11 @@ fn approving_and_denying_pending_pairs_updates_the_queue() {
 
     // Re-queuing the denied pair is refused, but a fresh rule can still take it.
     rule.name = "another rule".to_string();
-    assert!(state
-        .duplicate_review
-        .queue(&rule, &large.hash, &small.hash, 1, matched));
+    assert!(
+        state
+            .duplicate_review
+            .queue(&rule, &large.hash, &small.hash, 1, matched)
+    );
 
     review_apply(
         &mut state,
@@ -480,10 +510,12 @@ fn saved_rules_get_unique_names_and_survive_reload() {
 
     assert_eq!(state.auto_rules.len(), 2);
     assert!(state.auto_rules.iter().any(|rule| rule.name == "test rule"));
-    assert!(state
-        .auto_rules
-        .iter()
-        .any(|rule| rule.name == "test rule (2)"));
+    assert!(
+        state
+            .auto_rules
+            .iter()
+            .any(|rule| rule.name == "test rule (2)")
+    );
 
     let path = directory.join("duplicate auto-resolution rules.json");
     let reloaded = load_rules(&path);

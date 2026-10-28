@@ -346,8 +346,49 @@ impl PixelDupesPreference {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DupePairSort {
+    MaxFilesize,
+    MinFilesize,
+    Similarity,
+    Random,
+}
+
+impl DupePairSort {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::MaxFilesize => "max_filesize",
+            Self::MinFilesize => "min_filesize",
+            Self::Similarity => "similarity",
+            Self::Random => "random",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::MaxFilesize => "filesize of larger file",
+            Self::MinFilesize => "filesize of smaller file",
+            Self::Similarity => "similarity (distance/filesize ratio)",
+            Self::Random => "random",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Self {
+        match value {
+            "min_filesize" => Self::MinFilesize,
+            "similarity" => Self::Similarity,
+            "random" => Self::Random,
+            _ => Self::MaxFilesize,
+        }
+    }
+}
+
 fn default_duplicate_location() -> String {
     "all local files".to_string()
+}
+
+fn default_dupe_pair_sort() -> String {
+    DupePairSort::MaxFilesize.as_str().to_string()
 }
 
 /// The pair search scope of a duplicate filter page, mirroring
@@ -368,6 +409,10 @@ pub struct DuplicateSearchContext {
     pub pixel_dupes: String,
     #[serde(default = "default_duplicate_distance")]
     pub max_distance: i64,
+    #[serde(default = "default_dupe_pair_sort")]
+    pub sort_type: String,
+    #[serde(default)]
+    pub sort_ascending: bool,
 }
 
 fn default_dupe_search_type() -> String {
@@ -392,6 +437,8 @@ impl Default for DuplicateSearchContext {
             dupe_search_type: default_dupe_search_type(),
             pixel_dupes: default_pixel_dupes_preference(),
             max_distance: default_duplicate_distance(),
+            sort_type: default_dupe_pair_sort(),
+            sort_ascending: false,
         }
     }
 }
@@ -408,6 +455,9 @@ impl DuplicateSearchContext {
         let pixel_dupes = PixelDupesPreference::from_str(&self.pixel_dupes);
         self.pixel_dupes = pixel_dupes.as_str().to_string();
 
+        let sort = DupePairSort::from_str(&self.sort_type);
+        self.sort_type = sort.as_str().to_string();
+
         if self.location_1.is_empty() {
             self.location_1 = default_duplicate_location();
         }
@@ -423,6 +473,10 @@ impl DuplicateSearchContext {
 
     pub fn pixel_preference(&self) -> PixelDupesPreference {
         PixelDupesPreference::from_str(&self.pixel_dupes)
+    }
+
+    pub fn pair_sort(&self) -> DupePairSort {
+        DupePairSort::from_str(&self.sort_type)
     }
 
     fn context_summary(location: &str, query: &str) -> String {

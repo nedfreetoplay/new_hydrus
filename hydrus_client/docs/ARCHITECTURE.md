@@ -66,7 +66,11 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
   (query + локальный file domain), режим one file/both files/different searches,
   pixel dupes required/allowed/excluded и max hamming distance. Контекст
   фильтрует очередь до auto-resolution и сохраняется в `gui session.json`
-  вместе со страницей.
+  вместе со страницей. Там же хранится сортировка пар (larger/smaller filesize,
+  similarity, random; asc/desc); она применяется до auto-resolution и батча.
+  Auto-resolution preview и review показывают thumbnail pair list: миниатюры A/B,
+  дистанцию и действие, а контекстное меню/Enter открывает выбранные пары в новой
+  странице.
   Auto-resolution правила проверяют пару в обе стороны: selector состоит из
   one-file условий, относительных A/B сравнений, filetype-проверок и AND/OR
   групп; правило может сузить очередь поисковым предикатом (`both`/`either`)

@@ -10,15 +10,16 @@ use hydrus_core::hydrus_constants::{ContentStatus, ServiceType, TimestampType};
 
 use crate::controller::Controller;
 use crate::db::{
-    duplicates, files_storage, files_timestamps, mappings, master, notes, ratings, similar_files,
-    url_map,
+    duplicates, files_metadata, files_storage, files_timestamps, mappings, master, notes, ratings,
+    similar_files, url_map,
 };
 use crate::duplicates::merge_options::{
     ArchiveSyncAction, DuplicateContentMergeOptions, MergeAction,
 };
 use crate::gui::app::auto_resolution::{self, AutoDecision, DuplicateReviewState, PreparedRule};
 use crate::gui::app::model::{
-    DupeSearchType, DuplicatePairView, DuplicateSearchContext, DuplicatesPage, PixelDupesPreference,
+    DupePairSort, DupeSearchType, DuplicatePairView, DuplicateSearchContext, DuplicatesPage,
+    PixelDupesPreference,
 };
 use crate::gui::app::{AppState, UiCommand, query, render};
 
@@ -296,6 +297,7 @@ fn load_queue(
             let mut applied = 0usize;
             let mut queued = 0usize;
             let mut matched_count = 0i64;
+            let mut candidates: Vec<(Vec<u8>, Vec<u8>, i64)> = Vec::new();
 
             for (smaller_id, larger_id, distance) in pairs {
                 let Some(a) = master::get_hash(controller.db().db(), smaller_id)
@@ -324,6 +326,12 @@ fn load_queue(
                     continue;
                 }
 
+                candidates.push((a, b, distance));
+            }
+
+            sort_pairs(controller, &page.search_context, &mut candidates);
+
+            for (a, b, distance) in candidates {
                 matched_count += 1;
 
                 let matched = prepared.iter().find_map(|prepared_rule| {
@@ -445,6 +453,76 @@ fn pair_matches_pixel_preference(
         PixelDupesPreference::Required => is_pixel_duplicate,
         PixelDupesPreference::Excluded => !is_pixel_duplicate,
         PixelDupesPreference::Allowed => true,
+    }
+}
+
+/// Orders the filtered pairs exactly like `PotentialDuplicateMediaResultPairsAndDistances.Sort`.
+/// Sizes of unknown files count as 1 so a missing file cannot dominate the order.
+fn sort_pairs(
+    controller: &Controller,
+    context: &DuplicateSearchContext,
+    pairs: &mut [(Vec<u8>, Vec<u8>, i64)],
+) {
+    let sort = context.pair_sort();
+
+    if sort == DupePairSort::Random {
+        use rand::seq::SliceRandom;
+
+        pairs.shuffle(&mut rand::thread_rng());
+
+        return;
+    }
+
+    let size_for = |hash: &[u8]| -> u64 {
+        query::hash_id_for(controller, hash)
+            .and_then(|hash_id| {
+                files_metadata::get_file_info(controller.db().db(), hash_id)
+                    .ok()
+                    .flatten()
+            })
+            .map(|file_info| file_info.size)
+            .filter(|size| *size > 0)
+            .unwrap_or(1)
+    };
+
+    match sort {
+        DupePairSort::Similarity => {
+            pairs.sort_by(|first, second| {
+                let sort_key = |(a, b, distance): &(Vec<u8>, Vec<u8>, i64)| {
+                    let a_size = size_for(a);
+                    let b_size = size_for(b);
+
+                    (
+                        *distance,
+                        a_size.max(b_size) as f64 / a_size.min(b_size) as f64,
+                    )
+                };
+
+                sort_key(first)
+                    .partial_cmp(&sort_key(second))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+        }
+        DupePairSort::MinFilesize => {
+            pairs.sort_by_key(|(a, b, _)| {
+                let a_size = size_for(a);
+                let b_size = size_for(b);
+
+                (a_size.min(b_size), a_size.max(b_size))
+            });
+        }
+        DupePairSort::MaxFilesize | DupePairSort::Random => {
+            pairs.sort_by_key(|(a, b, _)| {
+                let a_size = size_for(a);
+                let b_size = size_for(b);
+
+                (a_size.max(b_size), a_size.min(b_size))
+            });
+        }
+    }
+
+    if !context.sort_ascending {
+        pairs.reverse();
     }
 }
 
@@ -1462,6 +1540,44 @@ mod tests {
         refresh_for(&controller, &mut page, &[], &mut review);
         assert_eq!(page.matched, 2);
         assert_eq!(page.pairs.len(), 2);
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn duplicate_pairs_follow_the_sort_choice() {
+        let directory = temp_directory("sort");
+        let controller = test_controller(&directory);
+        let (small_a, _, _, _) = add_sized_pair(&controller, 21, 100, 100, 2);
+        let (medium_a, _, _, _) = add_sized_pair(&controller, 31, 1_000, 1_000, 2);
+        let (large_a, _, _, _) = add_sized_pair(&controller, 41, 5_000, 4_000, 2);
+
+        let mut page = DuplicatesPage::new("dup-sort");
+        let mut review = DuplicateReviewState::default();
+
+        refresh_for(&controller, &mut page, &[], &mut review);
+        assert_eq!(page.pairs.len(), 3);
+        assert_eq!(page.pairs[0].a, large_a);
+        assert_eq!(page.pairs[1].a, medium_a);
+        assert_eq!(page.pairs[2].a, small_a);
+
+        page.search_context.sort_type = "min_filesize".to_string();
+        page.search_context.sort_ascending = true;
+        refresh_for(&controller, &mut page, &[], &mut review);
+        assert_eq!(page.pairs[0].a, small_a);
+        assert_eq!(page.pairs[2].a, large_a);
+
+        page.search_context.sort_type = "max_filesize".to_string();
+        page.search_context.sort_ascending = true;
+        refresh_for(&controller, &mut page, &[], &mut review);
+        assert_eq!(page.pairs[0].a, small_a);
+
+        // An unknown sort from an older session falls back to max filesize.
+        page.search_context.sort_type = "nonsense".to_string();
+        page.search_context.sort_ascending = false;
+        refresh_for(&controller, &mut page, &[], &mut review);
+        assert_eq!(page.search_context.sort_type, "max_filesize");
+        assert_eq!(page.pairs[0].a, large_a);
 
         let _ = std::fs::remove_dir_all(directory);
     }

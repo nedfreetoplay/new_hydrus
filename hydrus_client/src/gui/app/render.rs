@@ -981,6 +981,8 @@ pub fn duplicates_json(
             "dupe_search_type": page.search_context.dupe_search_type,
             "pixel_dupes": page.search_context.pixel_dupes,
             "max_distance": page.search_context.max_distance,
+            "sort_type": page.search_context.sort_type,
+            "sort_ascending": page.search_context.sort_ascending,
             "summary": page.search_context.summary(),
             "matched": page.matched,
         },

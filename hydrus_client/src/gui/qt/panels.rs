@@ -56,6 +56,15 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::DuplicatesRulesDialog(json) => {
             ffi::hydrus_show_duplicates_rules(window.as_mut(), &json);
         }
+        UiCommand::DuplicatesRulePreview(json) => {
+            ffi::hydrus_update_auto_resolution_preview(window.as_mut(), &json);
+        }
+        UiCommand::DuplicateReviewDialog(json) => {
+            ffi::hydrus_show_duplicate_review(window.as_mut(), &json);
+        }
+        UiCommand::UpdateDuplicateReview(json) => {
+            ffi::hydrus_update_duplicate_review(window.as_mut(), &json);
+        }
         UiCommand::TagRelationsDialog(json) => {
             ffi::hydrus_show_tag_relations(window.as_mut(), &json);
         }

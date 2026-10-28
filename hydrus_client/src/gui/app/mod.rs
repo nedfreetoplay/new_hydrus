@@ -441,7 +441,16 @@ impl AppState {
     pub(crate) fn refresh_all(&mut self) {
         let controller = self.controller.clone();
         let rules = self.auto_rules.clone();
-        refresh_notebook(&mut self.root, &controller, &rules);
+        let mut review = std::mem::take(&mut self.duplicate_review);
+        let mut queued = 0usize;
+
+        refresh_notebook(&mut self.root, &controller, &rules, &mut review, &mut queued);
+
+        self.duplicate_review = review;
+
+        if queued > 0 {
+            let _ = auto_resolution::save_state_review(self);
+        }
     }
 
     pub(crate) fn query_ids(&self) -> Vec<String> {
@@ -1261,8 +1270,13 @@ impl AppState {
             "duplicates_rules" => vec![UiCommand::DuplicatesRulesDialog(
                 auto_resolution::dialog_json(self),
             )],
-            "duplicates_rule_add" => auto_resolution::add_rule(self, payload),
+            "duplicates_rule_add" | "duplicates_rule_save" => {
+                auto_resolution::save_rule(self, payload)
+            }
             "duplicates_rule_remove" => auto_resolution::remove_rule(self, payload),
+            "duplicates_rule_preview" => auto_resolution::preview_rule(self, payload),
+            "duplicates_review" => auto_resolution::review_open(self),
+            "duplicates_review_apply" => auto_resolution::review_apply(self, payload),
             "duplicates_auto_toggle" => {
                 let mut options = self.controller.options();
                 let enabled = !options.get_boolean("duplicates_auto_resolution_enabled");
@@ -1715,7 +1729,16 @@ impl AppState {
             let id = self.new_id("p");
             page_id = id.clone();
             let mut page = DuplicatesPage::new(id);
-            duplicates::refresh_for(&controller, &mut page, &self.auto_rules);
+            let (_, queued) = duplicates::refresh_for(
+                &controller,
+                &mut page,
+                &self.auto_rules,
+                &mut self.duplicate_review,
+            );
+
+            if queued > 0 {
+                let _ = auto_resolution::save_state_review(self);
+            }
 
             let Some(parent) = self.find_notebook_mut(notebook_id) else {
                 return vec![UiCommand::NotifyMessage("notebook is missing".to_string())];
@@ -2628,12 +2651,16 @@ fn refresh_notebook(
     notebook: &mut Notebook,
     controller: &Controller,
     rules: &[auto_resolution::AutoResolutionRule],
+    review: &mut auto_resolution::DuplicateReviewState,
+    queued: &mut usize,
 ) {
     for child in &mut notebook.children {
         match child {
             PageNode::Query(page) => query::refresh_page(controller, page),
-            PageNode::Notebook(inner) => refresh_notebook(inner, controller, rules),
-            PageNode::Duplicates(page) => duplicates::refresh_for(controller, page, rules),
+            PageNode::Notebook(inner) => refresh_notebook(inner, controller, rules, review, queued),
+            PageNode::Duplicates(page) => {
+                *queued += duplicates::refresh_for(controller, page, rules, review).1;
+            }
             PageNode::Downloader(_)
             | PageNode::Subscriptions(_)
             | PageNode::ImportFolders(_)

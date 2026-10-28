@@ -56,6 +56,9 @@ pub(crate) mod ffi {
             json: &str,
         );
         fn hydrus_show_duplicates_rules(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_update_auto_resolution_preview(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_duplicate_review(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_update_duplicate_review(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_tag_relations(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_import_folder(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_export_folder(window: Pin<&mut HydrusMainWindow>, json: &str);

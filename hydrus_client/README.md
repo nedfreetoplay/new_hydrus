@@ -94,7 +94,8 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - duplicates processing: пары из `potential_duplicate_pairs`, две стороны с превью,
   тегами и URL, «this is better», «they are the same», «not duplicates», skip,
   удаление обоих файлов; при merge переносятся теги и URL, худший файл уходит в trash;
-  auto-resolution rules (higher resolution/larger/more tags/older) выполняются при
+  auto-resolution редактор поддерживает AND/OR, metadata conditions, поиск по
+  очереди, preview и pending/denied/taken review; правила выполняются при
   включённом флаге;
 - import folders: сканирование папок по периоду, ручная проверка, пауза и удаление,
   команда «check all» и меню всех папок в File, фильтры (расширения, min/max размер,
@@ -147,7 +148,7 @@ Qt-интерфейс больше не заглушка: `hydrus_client/src/gui
 - расширенные file maintenance jobs (regenerate thumbnails, re-scan file metadata) и
   оставшиеся горячие клавиши Hydrus.
 
-Сейчас проходит 583 unit-тестов и 2 integration-теста. Архитектура:
+Сейчас проходит 594 unit-тестов и 2 integration-теста. Архитектура:
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). План портирования GUI с
 чек-листами и флагами: [docs/GUI_PORT_PLAN.md](docs/GUI_PORT_PLAN.md).
 

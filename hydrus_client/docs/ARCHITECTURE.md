@@ -62,6 +62,13 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
 - `PageNode::Duplicates` — очередь потенциальных пар и решения merge/false-positive;
   очередь готовится батчами по `duplicate_filter_max_batch_size`, размер
   меняется на панели страницы, кнопка next batch перечитывает остаток.
+  Auto-resolution правила проверяют пару в обе стороны: selector состоит из
+  one-file условий, относительных A/B сравнений, filetype-проверок и AND/OR
+  групп; правило может сузить очередь поисковым предикатом (`both`/`either`)
+  и максимальной дистанцией. Semi-automatic правила складывают совпадения в
+  `duplicate auto-resolution pending.json`, fully automatic применяют сразу.
+  Preview считает совпадения, не меняя БД; review-диалог показывает
+  pending/denied/taken и умеет approve/deny выбранных или всех пар.
 - `PageNode::ImportFolders` — менеджер папок и периодическое сканирование.
 - `PageNode::Placeholder` — только для старых сессий и неизвестных типов.
 

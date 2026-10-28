@@ -170,6 +170,7 @@ pub fn menus_json(state: &AppState) -> String {
                 {"label": "apply tags to selection...", "action": "apply_tags_selection"},
                 {"separator": true},
                 {"label": "duplicate auto-resolution...", "action": "duplicates_rules"},
+                {"label": "review duplicate pending decisions...", "action": "duplicates_review"},
                 {"separator": true},
                 {"label": "manage tag siblings...", "action": "tag_siblings"},
                 {"label": "manage tag parents...", "action": "tag_parents"}

@@ -14,6 +14,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
+#include <QDoubleSpinBox>
 #include <QDrag>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -72,6 +73,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <functional>
 
 void show_or_predicate_dialog(HydrusMainWindow &main, const QString &page_id, const QString &initial);
@@ -2453,6 +2455,7 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     refresh = refresh_button;
     delete_both = new QPushButton(QStringLiteral("delete both"), this);
     rules = new QPushButton(QStringLiteral("auto-resolution..."), this);
+    auto *review = new QPushButton(QStringLiteral("review pending..."), this);
     batch = new QSpinBox(this);
     batch->setRange(5, 1024);
     batch->setToolTip(QStringLiteral("maximum pairs prepared in one batch"));
@@ -2463,6 +2466,7 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     header->addWidget(batch);
     header->addWidget(next_batch);
     header->addWidget(rules);
+    header->addWidget(review);
     header->addWidget(refresh_button);
     header->addWidget(delete_both);
     layout->addLayout(header);
@@ -2552,6 +2556,9 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     });
     connect(rules, &QPushButton::clicked, this, [this]() {
         main->notify(QStringLiteral("duplicates_rules"));
+    });
+    connect(review, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("duplicates_review"));
     });
     connect(delete_both, &QPushButton::clicked, this, [this]() {
         if (QMessageBox::question(this, QStringLiteral("delete both"), QStringLiteral("Move both files to the trash?")) == QMessageBox::Yes) {
@@ -5995,14 +6002,581 @@ void HydrusExportFoldersPage::update_state(const QJsonObject &state) {
 }
 
 // ---------------------------------------------------------------------------
-// HydrusDuplicatesRulesDialog
+// HydrusDuplicatesRulesDialog and the auto-resolution editors
 // ---------------------------------------------------------------------------
+
+namespace {
+
+QComboBox *catalog_combo(const QJsonObject &catalog, const QString &key, QWidget *parent) {
+    auto *combo = new QComboBox(parent);
+
+    for (const QJsonValue &entry : catalog.value(key).toArray()) {
+        const QJsonObject object = entry.toObject();
+        combo->addItem(object.value(QStringLiteral("label")).toString(),
+                       object.value(QStringLiteral("value")).toString());
+    }
+
+    return combo;
+}
+
+void select_combo(QComboBox *combo, const QString &value) {
+    const int index = combo->findData(value);
+
+    if (index >= 0) {
+        combo->setCurrentIndex(index);
+    }
+}
+
+QString comparator_pretty(const QJsonObject &comparator) {
+    const QString kind = comparator.value(QStringLiteral("kind")).toString();
+
+    if (kind == QLatin1String("group")) {
+        const QString mode = comparator.value(QStringLiteral("mode")).toString();
+        const int count = comparator.value(QStringLiteral("comparators")).toArray().size();
+
+        return QStringLiteral("%1 group (%2 condition(s))")
+            .arg(mode == QLatin1String("any") ? QStringLiteral("OR") : QStringLiteral("AND"))
+            .arg(count);
+    }
+
+    if (kind == QLatin1String("filetype")) {
+        return comparator.value(QStringLiteral("same")).toBool(true)
+                   ? QStringLiteral("A and B have the same filetype")
+                   : QStringLiteral("A and B have different filetypes");
+    }
+
+    const QString property = comparator.value(QStringLiteral("property")).toString();
+    const QString op = comparator.value(QStringLiteral("operator")).toString(QStringLiteral(">"));
+
+    if (kind == QLatin1String("relative")) {
+        const double multiplier = comparator.value(QStringLiteral("multiplier")).toDouble(1.0);
+        const double delta = comparator.value(QStringLiteral("delta")).toDouble(0.0);
+        QString right = QStringLiteral("B");
+
+        if (qAbs(multiplier - 1.0) > 0.000001) {
+            right = QStringLiteral("%1x %2").arg(multiplier).arg(right);
+        }
+
+        if (delta > 0.0) {
+            right += QStringLiteral(" +%1").arg(delta);
+        } else if (delta < 0.0) {
+            right += QStringLiteral(" -%1").arg(-delta);
+        }
+
+        return QStringLiteral("A %1 %2 %3").arg(property, op, right);
+    }
+
+    const QString target = comparator.value(QStringLiteral("looking_at")).toString(QStringLiteral("a"));
+    const QString value = property == QLatin1String("mime")
+                              ? comparator.value(QStringLiteral("text")).toString()
+                              : QString::number(comparator.value(QStringLiteral("value")).toDouble());
+
+    return QStringLiteral("%1 %2 %3 %4")
+        .arg(target == QLatin1String("b") ? QStringLiteral("B")
+             : target == QLatin1String("either") ? QStringLiteral("either")
+                                                 : QStringLiteral("A"),
+             property,
+             op,
+             value);
+}
+
+QJsonObject edit_group_dialog(QWidget *parent, const QJsonObject &initial, const QJsonObject &catalog);
+
+QJsonObject edit_condition_dialog(QWidget *parent, const QJsonObject &initial, const QJsonObject &catalog) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle(QStringLiteral("edit comparison"));
+    dialog.resize(460, 300);
+
+    auto *layout = new QVBoxLayout(&dialog);
+
+    auto *kind = new QComboBox(&dialog);
+    kind->addItem(QStringLiteral("one file condition"), QStringLiteral("one_file"));
+    kind->addItem(QStringLiteral("compare A and B"), QStringLiteral("relative"));
+    kind->addItem(QStringLiteral("filetype check"), QStringLiteral("filetype"));
+    select_combo(kind, initial.value(QStringLiteral("kind")).toString(QStringLiteral("one_file")));
+    layout->addWidget(kind);
+
+    auto *one_file = new QWidget(&dialog);
+    auto *one_form = new QFormLayout(one_file);
+    auto *target = catalog_combo(catalog, QStringLiteral("looking_at"), one_file);
+    auto *property = catalog_combo(catalog, QStringLiteral("properties"), one_file);
+    auto *operator_combo = catalog_combo(catalog, QStringLiteral("operators"), one_file);
+    auto *value = new QLineEdit(one_file);
+    auto *text = new QLineEdit(one_file);
+    text->setPlaceholderText(QStringLiteral("image, video, png, image/jpeg ..."));
+    one_form->addRow(QStringLiteral("test"), target);
+    one_form->addRow(QStringLiteral("property"), property);
+    one_form->addRow(QStringLiteral("operator"), operator_combo);
+    one_form->addRow(QStringLiteral("value"), value);
+    one_form->addRow(QStringLiteral("mime / filetype"), text);
+    layout->addWidget(one_file);
+
+    auto *relative = new QWidget(&dialog);
+    auto *relative_form = new QFormLayout(relative);
+    auto *relative_property = catalog_combo(catalog, QStringLiteral("properties"), relative);
+    auto *relative_operator = catalog_combo(catalog, QStringLiteral("operators"), relative);
+    auto *multiplier = new QDoubleSpinBox(relative);
+    multiplier->setRange(0.0, 1000.0);
+    multiplier->setDecimals(3);
+    multiplier->setValue(1.0);
+    auto *delta = new QDoubleSpinBox(relative);
+    delta->setRange(-1000000000.0, 1000000000.0);
+    delta->setDecimals(2);
+    relative_form->addRow(QStringLiteral("property"), relative_property);
+    relative_form->addRow(QStringLiteral("operator"), relative_operator);
+    relative_form->addRow(QStringLiteral("B multiplier"), multiplier);
+    relative_form->addRow(QStringLiteral("B delta"), delta);
+    layout->addWidget(relative);
+
+    auto *filetype = new QWidget(&dialog);
+    auto *filetype_form = new QFormLayout(filetype);
+    auto *same = new QCheckBox(QStringLiteral("A and B have the same filetype"), filetype);
+    same->setChecked(initial.value(QStringLiteral("same")).toBool(true));
+    filetype_form->addRow(same);
+    layout->addWidget(filetype);
+
+    auto update_kind = [kind, one_file, relative, filetype]() {
+        const QString current = kind->currentData().toString();
+        one_file->setVisible(current == QLatin1String("one_file"));
+        relative->setVisible(current == QLatin1String("relative"));
+        filetype->setVisible(current == QLatin1String("filetype"));
+    };
+    QObject::connect(kind, &QComboBox::currentIndexChanged, &dialog, [update_kind](int) { update_kind(); });
+
+    select_combo(target, initial.value(QStringLiteral("looking_at")).toString(QStringLiteral("a")));
+    select_combo(property, initial.value(QStringLiteral("property")).toString(QStringLiteral("size")));
+    select_combo(relative_property, initial.value(QStringLiteral("property")).toString(QStringLiteral("size")));
+    select_combo(operator_combo, initial.value(QStringLiteral("operator")).toString(QStringLiteral(">")));
+    select_combo(relative_operator, initial.value(QStringLiteral("operator")).toString(QStringLiteral(">")));
+    value->setText(QString::number(initial.value(QStringLiteral("value")).toDouble()));
+    text->setText(initial.value(QStringLiteral("text")).toString());
+    multiplier->setValue(initial.value(QStringLiteral("multiplier")).toDouble(1.0));
+    delta->setValue(initial.value(QStringLiteral("delta")).toDouble(0.0));
+
+    update_kind();
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return {};
+    }
+
+    const QString current = kind->currentData().toString();
+    QJsonObject result;
+    result.insert(QStringLiteral("kind"), current);
+
+    if (current == QLatin1String("one_file")) {
+        result.insert(QStringLiteral("looking_at"), target->currentData().toString());
+        result.insert(QStringLiteral("property"), property->currentData().toString());
+        result.insert(QStringLiteral("operator"), operator_combo->currentData().toString());
+        result.insert(QStringLiteral("value"), value->text().trimmed().toDouble());
+        result.insert(QStringLiteral("text"), text->text().trimmed());
+    } else if (current == QLatin1String("relative")) {
+        result.insert(QStringLiteral("property"), relative_property->currentData().toString());
+        result.insert(QStringLiteral("operator"), relative_operator->currentData().toString());
+        result.insert(QStringLiteral("multiplier"), multiplier->value());
+        result.insert(QStringLiteral("delta"), delta->value());
+    } else {
+        result.insert(QStringLiteral("same"), same->isChecked());
+    }
+
+    return result;
+}
+
+QJsonObject edit_group_dialog(QWidget *parent, const QJsonObject &initial, const QJsonObject &catalog) {
+    QDialog dialog(parent);
+    dialog.setWindowTitle(QStringLiteral("edit comparison group"));
+    dialog.resize(560, 420);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+    auto *mode = catalog_combo(catalog, QStringLiteral("group_modes"), &dialog);
+    select_combo(mode, initial.value(QStringLiteral("mode")).toString(QStringLiteral("all")));
+    form->addRow(QStringLiteral("group mode"), mode);
+    layout->addLayout(form);
+
+    auto *list = new QListWidget(&dialog);
+    layout->addWidget(list, 1);
+
+    QJsonArray comparators = initial.value(QStringLiteral("comparators")).toArray();
+
+    auto refresh = [list, &comparators]() {
+        list->clear();
+
+        for (const QJsonValue &value : comparators) {
+            auto *item = new QListWidgetItem(comparator_pretty(value.toObject()), list);
+            item->setData(Qt::UserRole, QString::fromUtf8(
+                                           QJsonDocument(value.toObject()).toJson(QJsonDocument::Compact)));
+        }
+    };
+
+    auto *buttons_row = new QHBoxLayout();
+    auto *add = new QPushButton(QStringLiteral("add condition"), &dialog);
+    auto *edit = new QPushButton(QStringLiteral("edit"), &dialog);
+    auto *remove = new QPushButton(QStringLiteral("remove"), &dialog);
+    buttons_row->addWidget(add);
+    buttons_row->addWidget(edit);
+    buttons_row->addWidget(remove);
+    buttons_row->addStretch(1);
+    layout->addLayout(buttons_row);
+
+    QObject::connect(add, &QPushButton::clicked, &dialog, [&]() {
+        const QJsonObject condition = edit_condition_dialog(&dialog, QJsonObject(), catalog);
+
+        if (!condition.isEmpty()) {
+            comparators.append(condition);
+            refresh();
+        }
+    });
+
+    QObject::connect(edit, &QPushButton::clicked, &dialog, [&]() {
+        const int row = list->currentRow();
+
+        if (row < 0) {
+            return;
+        }
+
+        const QJsonObject current = comparators.at(row).toObject();
+        const QJsonObject changed = current.value(QStringLiteral("kind")).toString() == QLatin1String("group")
+                                        ? edit_group_dialog(&dialog, current, catalog)
+                                        : edit_condition_dialog(&dialog, current, catalog);
+
+        if (!changed.isEmpty()) {
+            comparators.replace(row, changed);
+            refresh();
+        }
+    });
+
+    QObject::connect(remove, &QPushButton::clicked, &dialog, [&]() {
+        const int row = list->currentRow();
+
+        if (row >= 0) {
+            comparators.removeAt(row);
+            refresh();
+        }
+    });
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    refresh();
+
+    if (dialog.exec() != QDialog::Accepted || comparators.isEmpty()) {
+        return {};
+    }
+
+    QJsonObject result;
+    result.insert(QStringLiteral("kind"), QStringLiteral("group"));
+    result.insert(QStringLiteral("mode"), mode->currentData().toString());
+    result.insert(QStringLiteral("comparators"), comparators);
+
+    return result;
+}
+
+} // namespace
+
+HydrusAutoResolutionRuleDialog::HydrusAutoResolutionRuleDialog(
+    HydrusMainWindow *main_window,
+    HydrusDuplicatesRulesDialog *rules,
+    const QJsonObject &rule,
+    const QJsonObject &rule_catalog,
+    QWidget *parent)
+    : QDialog(parent), main(main_window), rules_dialog(rules), catalog(rule_catalog) {
+    setWindowTitle(QStringLiteral("edit auto-resolution rule"));
+    setObjectName(QStringLiteral("hydrus_auto_resolution_rule_dialog"));
+    setAttribute(Qt::WA_DeleteOnClose, true);
+    resize(820, 680);
+
+    original_name = rule.value(QStringLiteral("name")).toString();
+    selector = rule.value(QStringLiteral("pair_selector")).toArray();
+
+    auto *layout = new QVBoxLayout(this);
+
+    auto *warning = new QLabel(
+        QStringLiteral("Rules test both ways around. Every comparator in the comparison list must match "
+                       "(AND); add a group to mix AND/OR conditions. Preview before enabling automatic actions."),
+        this);
+    warning->setWordWrap(true);
+    layout->addWidget(warning);
+
+    auto *form = new QFormLayout();
+    name = new QLineEdit(rule.value(QStringLiteral("name")).toString(), this);
+    paused = new QCheckBox(QStringLiteral("paused"), this);
+    paused->setChecked(rule.value(QStringLiteral("paused")).toBool());
+    operation = catalog_combo(catalog, QStringLiteral("operation_modes"), this);
+    select_combo(operation, rule.value(QStringLiteral("operation_mode")).toString(QStringLiteral("semi-automatic")));
+    max_pending = new QSpinBox(this);
+    max_pending->setRange(1, 10000);
+    max_pending->setValue(rule.value(QStringLiteral("max_pending_pairs")).toInt(500));
+    max_pending->setToolTip(QStringLiteral("semi-automatic queue cap for this rule"));
+    form->addRow(QStringLiteral("name"), name);
+    form->addRow(QStringLiteral("paused"), paused);
+    form->addRow(QStringLiteral("operation"), operation);
+    form->addRow(QStringLiteral("max pending pairs"), max_pending);
+    layout->addLayout(form);
+
+    auto *tabs = new QTabWidget(this);
+
+    auto *search_tab = new QWidget(tabs);
+    auto *search_form = new QFormLayout(search_tab);
+    search_query = new QLineEdit(rule.value(QStringLiteral("search_query")).toString(), search_tab);
+    search_query->setPlaceholderText(QStringLiteral("e.g. system:filetype = image, or leave empty for every pair"));
+    search_mode = catalog_combo(catalog, QStringLiteral("search_modes"), search_tab);
+    if (search_mode->count() == 0) {
+        search_mode->addItem(QStringLiteral("both files match"), QStringLiteral("both"));
+        search_mode->addItem(QStringLiteral("either file matches"), QStringLiteral("either"));
+    }
+    select_combo(search_mode, rule.value(QStringLiteral("search_mode")).toString(QStringLiteral("both")));
+    max_distance = new QSpinBox(search_tab);
+    max_distance->setRange(0, 1000);
+    max_distance->setValue(rule.value(QStringLiteral("max_distance")).toInt(0));
+    max_distance->setSpecialValueText(QStringLiteral("use the page/global distance"));
+    search_form->addRow(QStringLiteral("search predicate"), search_query);
+    search_form->addRow(QStringLiteral("files must"), search_mode);
+    search_form->addRow(QStringLiteral("maximum distance"), max_distance);
+    tabs->addTab(search_tab, QStringLiteral("search"));
+
+    auto *comparison_tab = new QWidget(tabs);
+    auto *comparison_layout = new QVBoxLayout(comparison_tab);
+    auto *comparison_help = new QLabel(
+        QStringLiteral("The pair must satisfy every row. A single row may be a one-file condition, "
+                       "an A/B comparison or an AND/OR group."),
+        comparison_tab);
+    comparison_help->setWordWrap(true);
+    comparison_layout->addWidget(comparison_help);
+    comparators = new QListWidget(comparison_tab);
+    comparison_layout->addWidget(comparators, 1);
+    auto *comparison_buttons = new QHBoxLayout();
+    auto *add_condition = new QPushButton(QStringLiteral("add condition..."), comparison_tab);
+    auto *add_group = new QPushButton(QStringLiteral("add group..."), comparison_tab);
+    auto *edit_condition = new QPushButton(QStringLiteral("edit"), comparison_tab);
+    auto *remove_condition = new QPushButton(QStringLiteral("remove"), comparison_tab);
+    comparison_buttons->addWidget(add_condition);
+    comparison_buttons->addWidget(add_group);
+    comparison_buttons->addWidget(edit_condition);
+    comparison_buttons->addWidget(remove_condition);
+    comparison_buttons->addStretch(1);
+    comparison_layout->addLayout(comparison_buttons);
+    tabs->addTab(comparison_tab, QStringLiteral("comparison"));
+
+    auto *action_tab = new QWidget(tabs);
+    auto *action_form = new QFormLayout(action_tab);
+    action = catalog_combo(catalog, QStringLiteral("actions"), action_tab);
+    select_combo(action, rule.value(QStringLiteral("action")).toString(QStringLiteral("better")));
+    delete_a = new QCheckBox(QStringLiteral("also delete A after the action"), action_tab);
+    delete_b = new QCheckBox(QStringLiteral("also delete B after the action"), action_tab);
+    delete_a->setChecked(rule.value(QStringLiteral("delete_a")).toBool());
+    delete_b->setChecked(rule.value(QStringLiteral("delete_b")).toBool());
+    action_form->addRow(QStringLiteral("action"), action);
+    action_form->addRow(delete_a);
+    action_form->addRow(delete_b);
+    tabs->addTab(action_tab, QStringLiteral("action"));
+
+    auto *preview_tab = new QWidget(tabs);
+    auto *preview_layout = new QVBoxLayout(preview_tab);
+    auto *preview_help = new QLabel(
+        QStringLiteral("Test this rule against the current duplicate queue. Nothing is changed."),
+        preview_tab);
+    preview_help->setWordWrap(true);
+    preview_layout->addWidget(preview_help);
+    preview_label = new QLabel(QStringLiteral("not tested yet"), preview_tab);
+    preview_label->setWordWrap(true);
+    preview_label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    preview_layout->addWidget(preview_label);
+    auto *run_preview = new QPushButton(QStringLiteral("test against the queue"), preview_tab);
+    preview_layout->addWidget(run_preview, 0, Qt::AlignLeft);
+    preview_layout->addStretch(1);
+    tabs->addTab(preview_tab, QStringLiteral("preview"));
+
+    layout->addWidget(tabs, 1);
+
+    auto *footer = new QHBoxLayout();
+    auto *cancel = new QPushButton(QStringLiteral("cancel"), this);
+    auto *save = new QPushButton(QStringLiteral("save rule"), this);
+    footer->addStretch(1);
+    footer->addWidget(cancel);
+    footer->addWidget(save);
+    layout->addLayout(footer);
+
+    QObject::connect(add_condition, &QPushButton::clicked, this, [this]() { add_comparator(); });
+    QObject::connect(add_group, &QPushButton::clicked, this, [this]() { this->add_group(); });
+    QObject::connect(edit_condition, &QPushButton::clicked, this, [this]() { edit_selected_comparator(); });
+    QObject::connect(remove_condition, &QPushButton::clicked, this, [this]() { remove_selected_comparator(); });
+    QObject::connect(comparators, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *) {
+        edit_selected_comparator();
+    });
+    QObject::connect(run_preview, &QPushButton::clicked, this, [this]() { this->run_preview(); });
+    QObject::connect(save, &QPushButton::clicked, this, [this]() { this->save(); });
+    QObject::connect(cancel, &QPushButton::clicked, this, &QDialog::close);
+    QObject::connect(operation, &QComboBox::currentIndexChanged, this, [this](int) {
+        max_pending->setEnabled(operation->currentData().toString() != QLatin1String("fully automatic"));
+    });
+
+    max_pending->setEnabled(operation->currentData().toString() != QLatin1String("fully automatic"));
+    refresh_comparators();
+
+    if (qEnvironmentVariableIsSet("HYDRUS_QT_DUPLICATES_RULE_PREVIEW")) {
+        tabs->setCurrentIndex(3);
+        QTimer::singleShot(250, this, [this]() { this->run_preview(); });
+    }
+
+    const QString tab = qEnvironmentVariable("HYDRUS_QT_DUPLICATES_RULE_TAB");
+    if (tab == QStringLiteral("comparison")) {
+        tabs->setCurrentIndex(1);
+    } else if (tab == QStringLiteral("action")) {
+        tabs->setCurrentIndex(2);
+    } else if (tab == QStringLiteral("preview")) {
+        tabs->setCurrentIndex(3);
+    }
+}
+
+void HydrusAutoResolutionRuleDialog::refresh_comparators() {
+    comparators->clear();
+
+    for (const QJsonValue &value : selector) {
+        comparators->addItem(comparator_pretty(value.toObject()));
+    }
+}
+
+void HydrusAutoResolutionRuleDialog::add_comparator() {
+    QJsonObject initial;
+    initial.insert(QStringLiteral("kind"), QStringLiteral("one_file"));
+    initial.insert(QStringLiteral("looking_at"), QStringLiteral("a"));
+    initial.insert(QStringLiteral("property"), QStringLiteral("size"));
+    initial.insert(QStringLiteral("operator"), QStringLiteral(">"));
+    initial.insert(QStringLiteral("value"), 0.0);
+
+    const QJsonObject result = edit_condition_dialog(this, initial, catalog);
+
+    if (!result.isEmpty()) {
+        selector.append(result);
+        refresh_comparators();
+    }
+}
+
+void HydrusAutoResolutionRuleDialog::add_group() {
+    const QJsonObject result = edit_group_dialog(this, QJsonObject(), catalog);
+
+    if (!result.isEmpty()) {
+        selector.append(result);
+        refresh_comparators();
+    }
+}
+
+void HydrusAutoResolutionRuleDialog::edit_selected_comparator() {
+    const int row = comparators->currentRow();
+
+    if (row < 0 || row >= selector.size()) {
+        return;
+    }
+
+    const QJsonObject current = selector.at(row).toObject();
+    const QJsonObject result =
+        current.value(QStringLiteral("kind")).toString() == QLatin1String("group")
+            ? edit_group_dialog(this, current, catalog)
+            : edit_condition_dialog(this, current, catalog);
+
+    if (!result.isEmpty()) {
+        selector.replace(row, result);
+        refresh_comparators();
+    }
+}
+
+void HydrusAutoResolutionRuleDialog::remove_selected_comparator() {
+    const int row = comparators->currentRow();
+
+    if (row >= 0 && row < selector.size()) {
+        selector.removeAt(row);
+        refresh_comparators();
+    }
+}
+
+QJsonObject HydrusAutoResolutionRuleDialog::rule_json() const {
+    QJsonObject result;
+    result.insert(QStringLiteral("name"), name->text().trimmed());
+    result.insert(QStringLiteral("paused"), paused->isChecked());
+    result.insert(QStringLiteral("operation_mode"), operation->currentData().toString());
+    result.insert(QStringLiteral("max_pending_pairs"), max_pending->value());
+    result.insert(QStringLiteral("search_query"), search_query->text().trimmed());
+    result.insert(QStringLiteral("search_mode"), search_mode->currentData().toString());
+    result.insert(QStringLiteral("max_distance"), max_distance->value());
+    result.insert(QStringLiteral("pair_selector"), selector);
+    result.insert(QStringLiteral("action"), action->currentData().toString());
+    result.insert(QStringLiteral("delete_a"), delete_a->isChecked());
+    result.insert(QStringLiteral("delete_b"), delete_b->isChecked());
+
+    return result;
+}
+
+void HydrusAutoResolutionRuleDialog::run_preview() {
+    if (name->text().trimmed().isEmpty()) {
+        QMessageBox::warning(this, QStringLiteral("auto-resolution"), QStringLiteral("Give the rule a name first."));
+        return;
+    }
+
+    preview_label->setText(QStringLiteral("testing..."));
+
+    QJsonObject payload = rule_json();
+    payload.insert(QStringLiteral("original_name"), original_name);
+    main->notify(QStringLiteral("duplicates_rule_preview"), QString(), json_payload(payload));
+}
+
+void HydrusAutoResolutionRuleDialog::set_preview(const QJsonObject &preview) {
+    const QString status = preview.value(QStringLiteral("status")).toString();
+
+    if (status.isEmpty()) {
+        preview_label->setText(QStringLiteral("no preview result"));
+        return;
+    }
+
+    QStringList lines;
+    lines.append(status);
+
+    const QString selector = preview.value(QStringLiteral("selector")).toString();
+    if (!selector.isEmpty()) {
+        lines.append(QStringLiteral("selector: %1").arg(selector));
+    }
+
+    const QString search = preview.value(QStringLiteral("search")).toString();
+    if (!search.isEmpty()) {
+        lines.append(QStringLiteral("search: %1").arg(search));
+    }
+
+    for (const QJsonValue &value : preview.value(QStringLiteral("samples")).toArray()) {
+        const QJsonObject sample = value.toObject();
+        lines.append(QStringLiteral("%1  A=%2  B=%3  -> %4")
+                         .arg(sample.value(QStringLiteral("distance")).toInt())
+                         .arg(sample.value(QStringLiteral("a")).toString().left(16))
+                         .arg(sample.value(QStringLiteral("b")).toString().left(16))
+                         .arg(sample.value(QStringLiteral("decision")).toString()));
+    }
+
+    preview_label->setText(lines.join(QLatin1Char('\n')));
+}
+
+void HydrusAutoResolutionRuleDialog::save() {
+    if (name->text().trimmed().isEmpty()) {
+        QMessageBox::warning(this, QStringLiteral("auto-resolution"), QStringLiteral("Give the rule a name first."));
+        return;
+    }
+
+    QJsonObject payload = rule_json();
+    payload.insert(QStringLiteral("original_name"), original_name);
+    main->notify(QStringLiteral("duplicates_rule_save"), QString(), json_payload(payload));
+    close();
+}
 
 HydrusDuplicatesRulesDialog::HydrusDuplicatesRulesDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("duplicate auto-resolution"));
+    setObjectName(QStringLiteral("hydrus_duplicates_rules_dialog"));
     setAttribute(Qt::WA_DeleteOnClose, true);
-    resize(700, 460);
+    resize(980, 540);
 
     auto *layout = new QVBoxLayout(this);
 
@@ -6010,20 +6584,27 @@ HydrusDuplicatesRulesDialog::HydrusDuplicatesRulesDialog(HydrusMainWindow *main_
     layout->addWidget(enabled);
 
     auto *help = new QLabel(
-        QStringLiteral("Rules are checked in order. The first matching rule resolves the pair.\n"
-                       "An empty rule list leaves every pair for manual review."),
+        QStringLiteral("Rules are tested in alphabetical order; the first matching rule decides the pair. "
+                       "Semi-automatic rules queue matches for review. Fully automatic rules apply immediately. "
+                       "Run a preview before trusting a new rule."),
         this);
     help->setWordWrap(true);
     layout->addWidget(help);
 
     table = new QTableWidget(this);
-    table->setColumnCount(3);
+    table->setColumnCount(5);
     table->setHorizontalHeaderLabels({
         QStringLiteral("name"),
-        QStringLiteral("comparator"),
+        QStringLiteral("operation"),
+        QStringLiteral("search"),
+        QStringLiteral("comparison"),
         QStringLiteral("action")
     });
-    table->horizontalHeader()->setStretchLastSection(true);
+    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setSelectionMode(QAbstractItemView::SingleSelection);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -6032,90 +6613,167 @@ HydrusDuplicatesRulesDialog::HydrusDuplicatesRulesDialog(HydrusMainWindow *main_
 
     auto *buttons = new QHBoxLayout();
     auto *add = new QPushButton(QStringLiteral("add rule..."), this);
+    auto *edit = new QPushButton(QStringLiteral("edit..."), this);
+    auto *duplicate = new QPushButton(QStringLiteral("duplicate"), this);
     auto *remove = new QPushButton(QStringLiteral("remove"), this);
+    auto *review = new QPushButton(QStringLiteral("review pending..."), this);
     auto *close = new QPushButton(QStringLiteral("close"), this);
     buttons->addWidget(add);
+    buttons->addWidget(edit);
+    buttons->addWidget(duplicate);
     buttons->addWidget(remove);
+    buttons->addWidget(review);
     buttons->addStretch(1);
     buttons->addWidget(close);
     layout->addLayout(buttons);
 
-    connect(enabled, &QCheckBox::clicked, this, [this](bool) {
+    QObject::connect(enabled, &QCheckBox::clicked, this, [this](bool) {
         main->notify(QStringLiteral("duplicates_auto_toggle"));
     });
-    connect(add, &QPushButton::clicked, this, [this]() { add_rule(); });
-    connect(remove, &QPushButton::clicked, this, [this]() { remove_selected(); });
-    connect(close, &QPushButton::clicked, this, &QDialog::close);
+    QObject::connect(add, &QPushButton::clicked, this, [this]() { add_rule(); });
+    QObject::connect(edit, &QPushButton::clicked, this, [this]() { edit_selected(); });
+    QObject::connect(duplicate, &QPushButton::clicked, this, [this]() { duplicate_selected(); });
+    QObject::connect(remove, &QPushButton::clicked, this, [this]() { remove_selected(); });
+    QObject::connect(review, &QPushButton::clicked, this, [this]() { open_review(); });
+    QObject::connect(close, &QPushButton::clicked, this, &QDialog::close);
+    QObject::connect(table, &QTableWidget::cellDoubleClicked, this, [this](int, int) { edit_selected(); });
 
     set_state(state);
+
+    const QString edit_key = qEnvironmentVariable("HYDRUS_QT_DUPLICATES_RULE_EDIT");
+
+    if (!edit_key.isEmpty()) {
+        const QString key = edit_key;
+        QTimer::singleShot(150, this, [this, key]() {
+            if (key == QStringLiteral("new")) {
+                add_rule();
+                return;
+            }
+
+            for (int row = 0; row < table->rowCount(); ++row) {
+                if (table->item(row, 0) != nullptr
+                    && table->item(row, 0)->text().compare(key, Qt::CaseInsensitive) == 0) {
+                    table->selectRow(row);
+                    edit_selected();
+                    break;
+                }
+            }
+        });
+    }
 }
 
 void HydrusDuplicatesRulesDialog::set_state(const QJsonObject &state) {
     data = state;
 
     const QJsonArray rules = state.value(QStringLiteral("rules")).toArray();
+    const int previous_row = table->currentRow();
     table->setRowCount(rules.size());
 
     for (int index = 0; index < rules.size(); ++index) {
         const QJsonObject rule = rules.at(index).toObject();
 
-        for (int column = 0; column < 3; ++column) {
+        for (int column = 0; column < 5; ++column) {
             if (table->item(index, column) == nullptr) {
                 table->setItem(index, column, new QTableWidgetItem());
             }
         }
 
+        QString operation_label = rule.value(QStringLiteral("operation_label")).toString();
+        if (rule.value(QStringLiteral("paused")).toBool()) {
+            operation_label += QStringLiteral(" - paused");
+        }
+
         table->item(index, 0)->setText(rule.value(QStringLiteral("name")).toString());
-        table->item(index, 0)->setData(Qt::UserRole, rule.value(QStringLiteral("name")).toString());
-        table->item(index, 1)->setText(rule.value(QStringLiteral("comparator")).toString());
-        table->item(index, 2)->setText(rule.value(QStringLiteral("action")).toString());
+        table->item(index, 0)->setData(
+            Qt::UserRole,
+            QString::fromUtf8(QJsonDocument(rule).toJson(QJsonDocument::Compact)));
+        table->item(index, 1)->setText(operation_label);
+        table->item(index, 2)->setText(rule.value(QStringLiteral("search_summary")).toString());
+        table->item(index, 3)->setText(rule.value(QStringLiteral("selector_summary")).toString());
+        table->item(index, 4)->setText(rule.value(QStringLiteral("action_summary")).toString());
+    }
+
+    if (previous_row >= 0 && previous_row < table->rowCount()) {
+        table->selectRow(previous_row);
     }
 
     QSignalBlocker blocker(enabled);
     enabled->setChecked(state.value(QStringLiteral("enabled")).toBool());
 
+    const int pending = state.value(QStringLiteral("pending")).toInt(0);
+    setToolTip(pending > 0 ? QStringLiteral("%1 pair(s) are waiting for review").arg(pending) : QString());
+
     table->resizeRowsToContents();
 }
 
+void HydrusDuplicatesRulesDialog::set_preview(const QJsonObject &preview) {
+    if (rule_editor != nullptr) {
+        rule_editor->set_preview(preview);
+    }
+}
+
 void HydrusDuplicatesRulesDialog::add_rule() {
-    QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("add auto-resolution rule"));
-    auto *layout = new QVBoxLayout(&dialog);
-    auto *form = new QFormLayout();
-    auto *name = new QLineEdit(&dialog);
-    auto *comparator = new QComboBox(&dialog);
-    auto *action = new QComboBox(&dialog);
+    QJsonObject rule;
+    rule.insert(QStringLiteral("name"), QStringLiteral("new rule"));
+    rule.insert(QStringLiteral("paused"), false);
+    rule.insert(QStringLiteral("operation_mode"), QStringLiteral("semi-automatic"));
+    rule.insert(QStringLiteral("max_pending_pairs"), 500);
+    rule.insert(QStringLiteral("search_query"), QString());
+    rule.insert(QStringLiteral("search_mode"), QStringLiteral("both"));
+    rule.insert(QStringLiteral("max_distance"), 0);
+    rule.insert(QStringLiteral("action"), QStringLiteral("better"));
+    rule.insert(QStringLiteral("delete_a"), false);
+    rule.insert(QStringLiteral("delete_b"), false);
 
-    for (const QJsonValue &value : data.value(QStringLiteral("comparators")).toArray()) {
-        const QJsonObject entry = value.toObject();
-        comparator->addItem(entry.value(QStringLiteral("label")).toString(), entry.value(QStringLiteral("value")).toString());
-    }
+    QJsonObject relative;
+    relative.insert(QStringLiteral("kind"), QStringLiteral("relative"));
+    relative.insert(QStringLiteral("property"), QStringLiteral("num_pixels"));
+    relative.insert(QStringLiteral("operator"), QStringLiteral(">"));
+    relative.insert(QStringLiteral("multiplier"), 1.0);
+    relative.insert(QStringLiteral("delta"), 0.0);
 
-    for (const QJsonValue &value : data.value(QStringLiteral("actions")).toArray()) {
-        const QJsonObject entry = value.toObject();
-        action->addItem(entry.value(QStringLiteral("label")).toString(), entry.value(QStringLiteral("value")).toString());
-    }
+    QJsonArray selector;
+    selector.append(relative);
+    rule.insert(QStringLiteral("pair_selector"), selector);
 
-    form->addRow(QStringLiteral("name"), name);
-    form->addRow(QStringLiteral("comparator"), comparator);
-    form->addRow(QStringLiteral("action"), action);
-    layout->addLayout(form);
+    edit_rule(rule);
+}
 
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons);
+void HydrusDuplicatesRulesDialog::edit_selected() {
+    const int row = table->currentRow();
 
-    if (dialog.exec() != QDialog::Accepted || name->text().trimmed().isEmpty()) {
+    if (row < 0 || table->item(row, 0) == nullptr) {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("name"), name->text().trimmed());
-    payload.insert(QStringLiteral("comparator"), comparator->currentData().toString());
-    payload.insert(QStringLiteral("action"), action->currentData().toString());
+    QJsonParseError error{};
+    const QJsonDocument document = QJsonDocument::fromJson(
+        table->item(row, 0)->data(Qt::UserRole).toString().toUtf8(), &error);
 
-    main->notify(QStringLiteral("duplicates_rule_add"), QString(), json_payload(payload));
+    if (error.error == QJsonParseError::NoError && document.isObject()) {
+        edit_rule(document.object());
+    }
+}
+
+void HydrusDuplicatesRulesDialog::duplicate_selected() {
+    const int row = table->currentRow();
+
+    if (row < 0 || table->item(row, 0) == nullptr) {
+        return;
+    }
+
+    QJsonParseError error{};
+    const QJsonDocument document = QJsonDocument::fromJson(
+        table->item(row, 0)->data(Qt::UserRole).toString().toUtf8(), &error);
+
+    if (error.error != QJsonParseError::NoError || !document.isObject()) {
+        return;
+    }
+
+    QJsonObject copy = document.object();
+    copy.insert(QStringLiteral("name"), copy.value(QStringLiteral("name")).toString() + QStringLiteral(" copy"));
+    copy.insert(QStringLiteral("paused"), true);
+    edit_rule(copy);
 }
 
 void HydrusDuplicatesRulesDialog::remove_selected() {
@@ -6125,10 +6783,247 @@ void HydrusDuplicatesRulesDialog::remove_selected() {
         return;
     }
 
-    main->notify(
-        QStringLiteral("duplicates_rule_remove"),
-        QString(),
-        table->item(row, 0)->data(Qt::UserRole).toString());
+    const QString name = table->item(row, 0)->text();
+
+    if (QMessageBox::question(this, QStringLiteral("delete auto-resolution rule"),
+                              QStringLiteral("Delete rule \"%1\" and its pending review pairs?").arg(name))
+        != QMessageBox::Yes) {
+        return;
+    }
+
+    main->notify(QStringLiteral("duplicates_rule_remove"), QString(), name);
+}
+
+void HydrusDuplicatesRulesDialog::open_review() {
+    main->notify(QStringLiteral("duplicates_review"));
+}
+
+void HydrusDuplicatesRulesDialog::edit_rule(const QJsonObject &rule) {
+    if (rule_editor != nullptr) {
+        rule_editor->close();
+        rule_editor = nullptr;
+    }
+
+    rule_editor = new HydrusAutoResolutionRuleDialog(main, this, rule, data, this);
+    QObject::connect(rule_editor, &QObject::destroyed, this, [this]() { rule_editor = nullptr; });
+    rule_editor->show();
+    rule_editor->raise();
+    rule_editor->activateWindow();
+}
+
+HydrusDuplicateReviewDialog::HydrusDuplicateReviewDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    : QDialog(parent), main(main_window) {
+    setWindowTitle(QStringLiteral("duplicate auto-resolution review"));
+    setObjectName(QStringLiteral("hydrus_duplicate_review_dialog"));
+    setAttribute(Qt::WA_DeleteOnClose, true);
+    resize(900, 520);
+
+    auto *layout = new QVBoxLayout(this);
+
+    status = new QLabel(this);
+    status->setWordWrap(true);
+    layout->addWidget(status);
+
+    tabs = new QTabWidget(this);
+
+    auto make_table = [this](const QStringList &headers) {
+        auto *table = new QTableWidget(this);
+        table->setColumnCount(headers.size());
+        table->setHorizontalHeaderLabels(headers);
+        table->setSelectionBehavior(QAbstractItemView::SelectRows);
+        table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+        table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        table->verticalHeader()->setVisible(false);
+        table->horizontalHeader()->setStretchLastSection(true);
+        return table;
+    };
+
+    pending = make_table({
+        QStringLiteral("rule"),
+        QStringLiteral("distance"),
+        QStringLiteral("A"),
+        QStringLiteral("B"),
+        QStringLiteral("decision")
+    });
+    denied = make_table({QStringLiteral("rule"), QStringLiteral("A"), QStringLiteral("B")});
+    actioned = make_table({
+        QStringLiteral("rule"),
+        QStringLiteral("A"),
+        QStringLiteral("B"),
+        QStringLiteral("decision"),
+        QStringLiteral("denied")
+    });
+
+    tabs->addTab(pending, QStringLiteral("pending"));
+    tabs->addTab(denied, QStringLiteral("denied"));
+    tabs->addTab(actioned, QStringLiteral("taken"));
+    layout->addWidget(tabs, 1);
+
+    auto *buttons = new QHBoxLayout();
+    auto *approve_selected = new QPushButton(QStringLiteral("approve selected"), this);
+    auto *deny_selected = new QPushButton(QStringLiteral("deny selected"), this);
+    auto *approve_all = new QPushButton(QStringLiteral("approve all"), this);
+    auto *deny_all = new QPushButton(QStringLiteral("deny all"), this);
+    auto *close = new QPushButton(QStringLiteral("close"), this);
+    buttons->addWidget(approve_selected);
+    buttons->addWidget(deny_selected);
+    buttons->addWidget(approve_all);
+    buttons->addWidget(deny_all);
+    buttons->addStretch(1);
+    buttons->addWidget(close);
+    layout->addLayout(buttons);
+
+    QObject::connect(approve_selected, &QPushButton::clicked, this, [this]() { apply_selected(true); });
+    QObject::connect(deny_selected, &QPushButton::clicked, this, [this]() { apply_selected(false); });
+    QObject::connect(approve_all, &QPushButton::clicked, this, [this]() { apply_all(true); });
+    QObject::connect(deny_all, &QPushButton::clicked, this, [this]() { apply_all(false); });
+    QObject::connect(close, &QPushButton::clicked, this, &QDialog::close);
+
+    set_state(state);
+}
+
+void HydrusDuplicateReviewDialog::set_state(const QJsonObject &state) {
+    status->setText(state.value(QStringLiteral("status")).toString());
+
+    const QJsonArray pending_rows = state.value(QStringLiteral("pending")).toArray();
+    pending->setRowCount(pending_rows.size());
+
+    for (int index = 0; index < pending_rows.size(); ++index) {
+        const QJsonObject entry = pending_rows.at(index).toObject();
+
+        for (int column = 0; column < 5; ++column) {
+            if (pending->item(index, column) == nullptr) {
+                pending->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        pending->item(index, 0)->setText(entry.value(QStringLiteral("rule")).toString());
+        pending->item(index, 1)->setText(QString::number(entry.value(QStringLiteral("distance")).toInt()));
+        pending->item(index, 2)->setText(entry.value(QStringLiteral("a")).toString().left(16));
+        pending->item(index, 2)->setToolTip(entry.value(QStringLiteral("a")).toString());
+        pending->item(index, 3)->setText(entry.value(QStringLiteral("b")).toString().left(16));
+        pending->item(index, 3)->setToolTip(entry.value(QStringLiteral("b")).toString());
+        pending->item(index, 4)->setText(entry.value(QStringLiteral("decision_label")).toString());
+    }
+
+    const QJsonArray denied_rows = state.value(QStringLiteral("denied")).toArray();
+    denied->setRowCount(denied_rows.size());
+
+    for (int index = 0; index < denied_rows.size(); ++index) {
+        const QJsonObject entry = denied_rows.at(index).toObject();
+
+        for (int column = 0; column < 3; ++column) {
+            if (denied->item(index, column) == nullptr) {
+                denied->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        denied->item(index, 0)->setText(entry.value(QStringLiteral("rule")).toString());
+        denied->item(index, 1)->setText(entry.value(QStringLiteral("a")).toString().left(16));
+        denied->item(index, 2)->setText(entry.value(QStringLiteral("b")).toString().left(16));
+    }
+
+    const QJsonArray actioned_rows = state.value(QStringLiteral("actioned")).toArray();
+    actioned->setRowCount(actioned_rows.size());
+
+    for (int index = 0; index < actioned_rows.size(); ++index) {
+        const QJsonObject entry = actioned_rows.at(index).toObject();
+
+        for (int column = 0; column < 5; ++column) {
+            if (actioned->item(index, column) == nullptr) {
+                actioned->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        actioned->item(index, 0)->setText(entry.value(QStringLiteral("rule")).toString());
+        actioned->item(index, 1)->setText(entry.value(QStringLiteral("a")).toString().left(16));
+        actioned->item(index, 2)->setText(entry.value(QStringLiteral("b")).toString().left(16));
+        actioned->item(index, 3)->setText(entry.value(QStringLiteral("decision_label")).toString());
+        actioned->item(index, 4)->setText(entry.value(QStringLiteral("banned")).toBool() ? QStringLiteral("yes")
+                                                                                          : QString());
+    }
+
+    pending->resizeRowsToContents();
+    denied->resizeRowsToContents();
+    actioned->resizeRowsToContents();
+}
+
+QList<int> HydrusDuplicateReviewDialog::selected_pending_rows() const {
+    QList<int> rows;
+
+    for (const QModelIndex &index : pending->selectionModel()->selectedRows()) {
+        if (!rows.contains(index.row())) {
+            rows.append(index.row());
+        }
+    }
+
+    std::sort(rows.begin(), rows.end());
+
+    return rows;
+}
+
+void HydrusDuplicateReviewDialog::apply_selected(bool approve) {
+    const QList<int> rows = selected_pending_rows();
+
+    if (rows.isEmpty()) {
+        QMessageBox::information(this, QStringLiteral("duplicate review"),
+                                 QStringLiteral("Select at least one pending pair first."));
+        return;
+    }
+
+    QJsonArray indices;
+    for (int row : rows) {
+        indices.append(row);
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("indices"), indices);
+    payload.insert(QStringLiteral("approve"), approve);
+    main->notify(QStringLiteral("duplicates_review_apply"), QString(), json_payload(payload));
+}
+
+void HydrusDuplicateReviewDialog::apply_all(bool approve) {
+    QJsonObject payload;
+    payload.insert(QStringLiteral("all"), true);
+    payload.insert(QStringLiteral("approve"), approve);
+    main->notify(QStringLiteral("duplicates_review_apply"), QString(), json_payload(payload));
+}
+
+void HydrusMainWindow::show_duplicates_rules(const QJsonObject &state) {
+    if (duplicates_rules_dialog == nullptr) {
+        duplicates_rules_dialog = new HydrusDuplicatesRulesDialog(this, state, this);
+        connect(duplicates_rules_dialog, &QObject::destroyed, this, [this]() { duplicates_rules_dialog = nullptr; });
+    } else {
+        duplicates_rules_dialog->set_state(state);
+        duplicates_rules_dialog->raise();
+        duplicates_rules_dialog->activateWindow();
+    }
+
+    duplicates_rules_dialog->show();
+}
+
+void HydrusMainWindow::update_auto_resolution_preview(const QJsonObject &state) {
+    if (duplicates_rules_dialog != nullptr) {
+        duplicates_rules_dialog->set_preview(state);
+    }
+}
+
+void HydrusMainWindow::show_duplicate_review(const QJsonObject &state) {
+    if (duplicate_review_dialog == nullptr) {
+        duplicate_review_dialog = new HydrusDuplicateReviewDialog(this, state, this);
+        connect(duplicate_review_dialog, &QObject::destroyed, this, [this]() { duplicate_review_dialog = nullptr; });
+        duplicate_review_dialog->show();
+    } else {
+        duplicate_review_dialog->set_state(state);
+        duplicate_review_dialog->raise();
+        duplicate_review_dialog->activateWindow();
+    }
+}
+
+void HydrusMainWindow::update_duplicate_review(const QJsonObject &state) {
+    if (duplicate_review_dialog != nullptr) {
+        duplicate_review_dialog->set_state(state);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -6644,6 +7539,7 @@ public:
             {QStringLiteral("manage services..."), QStringLiteral("manage_services")},
             {QStringLiteral("client api permissions..."), QStringLiteral("api_permissions")},
             {QStringLiteral("clear orphan files..."), QStringLiteral("orphan_files_scan")},
+            {QStringLiteral("review duplicate pending decisions..."), QStringLiteral("duplicates_review")},
             {QStringLiteral("back up database..."), QStringLiteral("db_backup_open")},
             {QStringLiteral("manage network..."), QStringLiteral("options_network")},
             {QStringLiteral("save session as..."), QStringLiteral("session_save_as")},
@@ -7649,23 +8545,6 @@ void HydrusMainWindow::show_notes(const QJsonObject &state) {
     payload.insert(QStringLiteral("notes"), values);
 
     notify(QStringLiteral("notes_save"), QString(), json_payload(payload));
-}
-
-void HydrusMainWindow::show_duplicates_rules(const QJsonObject &state) {
-    if (duplicates_rules_dialog == nullptr) {
-        duplicates_rules_dialog = new HydrusDuplicatesRulesDialog(this, state, this);
-        connect(duplicates_rules_dialog, &QObject::destroyed, this, [this]() {
-            duplicates_rules_dialog = nullptr;
-        });
-        duplicates_rules_dialog->show();
-        duplicates_rules_dialog->raise();
-        duplicates_rules_dialog->activateWindow();
-        return;
-    }
-
-    duplicates_rules_dialog->set_state(state);
-    duplicates_rules_dialog->raise();
-    duplicates_rules_dialog->activateWindow();
 }
 
 void HydrusMainWindow::show_tag_relations(const QJsonObject &state) {
@@ -9516,6 +10395,18 @@ void hydrus_update_export_folders(HydrusMainWindow &window, rust::Str page_id, r
 
 void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json) {
     window.show_duplicates_rules(parse_object(json));
+}
+
+void hydrus_update_auto_resolution_preview(HydrusMainWindow &window, rust::Str json) {
+    window.update_auto_resolution_preview(parse_object(json));
+}
+
+void hydrus_show_duplicate_review(HydrusMainWindow &window, rust::Str json) {
+    window.show_duplicate_review(parse_object(json));
+}
+
+void hydrus_update_duplicate_review(HydrusMainWindow &window, rust::Str json) {
+    window.update_duplicate_review(parse_object(json));
 }
 
 void hydrus_show_tag_relations(HydrusMainWindow &window, rust::Str json) {

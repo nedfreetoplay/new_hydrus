@@ -51,7 +51,7 @@ pub fn get_file_info(db: &DBBase, hash_id: i64) -> HydrusResult<Option<FileInfo>
                 height: row.get::<_, Option<i64>>(3)?.map(|value| value as u32),
                 duration_ms: row.get(4)?,
                 num_frames: row.get::<_, Option<i64>>(5)?.map(|value| value as u32),
-                has_audio: row.get(6)?,
+                has_audio: row.get::<_, Option<bool>>(6)?.unwrap_or(false),
                 num_words: row.get(7)?,
             })
         },

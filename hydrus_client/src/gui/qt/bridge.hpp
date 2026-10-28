@@ -51,6 +51,8 @@ class HydrusMetadataPanel;
 class HydrusImportFoldersPage;
 class HydrusExportFoldersPage;
 class HydrusDuplicatesRulesDialog;
+class HydrusAutoResolutionRuleDialog;
+class HydrusDuplicateReviewDialog;
 class HydrusTagRelationsDialog;
 class QTabBar;
 class QCompleter;
@@ -311,15 +313,82 @@ public:
     explicit HydrusDuplicatesRulesDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
 
     void set_state(const QJsonObject &state);
+    void set_preview(const QJsonObject &preview);
 
 private:
     void add_rule();
+    void edit_selected();
+    void duplicate_selected();
     void remove_selected();
+    void open_review();
+    void edit_rule(const QJsonObject &rule);
 
     HydrusMainWindow *main = nullptr;
     QTableWidget *table = nullptr;
     QCheckBox *enabled = nullptr;
     QJsonObject data;
+    HydrusAutoResolutionRuleDialog *rule_editor = nullptr;
+};
+
+// Edit one duplicate auto-resolution rule: search, comparison and action.
+class HydrusAutoResolutionRuleDialog : public QDialog {
+public:
+    HydrusAutoResolutionRuleDialog(
+        HydrusMainWindow *main,
+        HydrusDuplicatesRulesDialog *rules_dialog,
+        const QJsonObject &rule,
+        const QJsonObject &catalog,
+        QWidget *parent = nullptr);
+
+    void set_preview(const QJsonObject &preview);
+
+private:
+    QJsonObject rule_json() const;
+    void refresh_comparators();
+    void add_comparator();
+    void add_group();
+    void edit_selected_comparator();
+    void remove_selected_comparator();
+    void run_preview();
+    void save();
+
+    HydrusMainWindow *main = nullptr;
+    HydrusDuplicatesRulesDialog *rules_dialog = nullptr;
+    QJsonObject catalog;
+    QString original_name;
+    QJsonArray selector;
+    QLineEdit *name = nullptr;
+    QCheckBox *paused = nullptr;
+    QComboBox *operation = nullptr;
+    QSpinBox *max_pending = nullptr;
+    QLineEdit *search_query = nullptr;
+    QComboBox *search_mode = nullptr;
+    QSpinBox *max_distance = nullptr;
+    QListWidget *comparators = nullptr;
+    QComboBox *action = nullptr;
+    QCheckBox *delete_a = nullptr;
+    QCheckBox *delete_b = nullptr;
+    QLabel *preview_label = nullptr;
+};
+
+// Pending, denied and actioned auto-resolution pairs.
+class HydrusDuplicateReviewDialog : public QDialog {
+public:
+    explicit HydrusDuplicateReviewDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void apply_selected(bool approve);
+    void apply_all(bool approve);
+    QList<int> selected_pending_rows() const;
+
+    HydrusMainWindow *main = nullptr;
+    QTabWidget *tabs = nullptr;
+    QTableWidget *pending = nullptr;
+    QTableWidget *denied = nullptr;
+    QTableWidget *actioned = nullptr;
+    QLabel *status = nullptr;
 };
 
 // A notebook is a page of pages: tabs, a trailing "+" tab, and the usual
@@ -627,6 +696,9 @@ public:
     void show_about(const QJsonObject &state);
     void show_notes(const QJsonObject &state);
     void show_duplicates_rules(const QJsonObject &state);
+    void update_auto_resolution_preview(const QJsonObject &state);
+    void show_duplicate_review(const QJsonObject &state);
+    void update_duplicate_review(const QJsonObject &state);
     void show_tag_relations(const QJsonObject &state);
     void show_import_folder(const QJsonObject &state);
     void show_export_folder(const QJsonObject &state);
@@ -691,6 +763,7 @@ private:
     HydrusDatabaseBackupDialog *database_backup_dialog = nullptr;
     HydrusNetworkDialog *network_dialog = nullptr;
     HydrusDuplicatesRulesDialog *duplicates_rules_dialog = nullptr;
+    HydrusDuplicateReviewDialog *duplicate_review_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
     QTimer *tick_timer = nullptr;
     QSystemTrayIcon *tray = nullptr;
@@ -731,6 +804,9 @@ void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust:
 void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_export_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json);
+void hydrus_update_auto_resolution_preview(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_duplicate_review(HydrusMainWindow &window, rust::Str json);
+void hydrus_update_duplicate_review(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_tag_relations(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_import_folder(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_export_folder(HydrusMainWindow &window, rust::Str json);

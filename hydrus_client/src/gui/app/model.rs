@@ -563,6 +563,7 @@ pub struct AppState {
     pub import_folders: Vec<super::import_folders::ImportFolderEntry>,
     pub export_folders: Vec<super::export::ExportFolderEntry>,
     pub auto_rules: Vec<super::auto_resolution::AutoResolutionRule>,
+    pub duplicate_review: super::auto_resolution::DuplicateReviewState,
     pub favourites: Vec<super::favourites::FavouriteSearch>,
     pub search_history: Vec<String>,
     pub notifications: super::notifications::NotificationLog,
@@ -591,6 +592,7 @@ impl AppState {
             import_folders: Vec::new(),
             export_folders: Vec::new(),
             auto_rules: Vec::new(),
+            duplicate_review: Default::default(),
             favourites: Vec::new(),
             search_history: Vec::new(),
             notifications: super::notifications::NotificationLog::default(),
@@ -622,6 +624,9 @@ impl AppState {
         state.export_folders = super::export::load(&db_dir.join("export folders.json"));
         state.auto_rules = super::auto_resolution::load_rules(
             &db_dir.join("duplicate auto-resolution rules.json"),
+        );
+        state.duplicate_review = super::auto_resolution::load_review(
+            &db_dir.join("duplicate auto-resolution pending.json"),
         );
         state.favourites = super::favourites::load(&db_dir.join("favourite searches.json"));
         state.search_history = super::search_history::load(&db_dir.join("search history.json"));

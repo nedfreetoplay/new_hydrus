@@ -1,6 +1,6 @@
 use super::*;
-use crate::db::ClientDB;
 use crate::db::master::get_hash_id;
+use crate::db::ClientDB;
 
 fn database() -> (ClientDB, std::path::PathBuf) {
     let directory = std::env::temp_dir().join(format!(
@@ -30,6 +30,41 @@ fn metadata_flags_round_trip() {
 
     set_metadata_flag(db.db(), hash_id, MetadataFlag::Exif, false).unwrap();
     assert!(!has_metadata_flag(db.db(), hash_id, MetadataFlag::Exif).unwrap());
+
+    drop(db);
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn null_has_audio_reads_as_false() {
+    let (db, directory) = database();
+    let hash_id = get_hash_id(db.db(), &[3]).unwrap();
+
+    db.db()
+        .execute(
+            "INSERT INTO files_info
+             ( hash_id, size, mime, width, height, duration, num_frames, has_audio, num_words )
+             VALUES ( ?, ?, ?, ?, ?, ?, ?, ?, ? )",
+            &[
+                &hash_id,
+                &1024i64,
+                &(Mime::Png.as_int() as i64),
+                &640i64,
+                &480i64,
+                &rusqlite::types::Null,
+                &rusqlite::types::Null,
+                &rusqlite::types::Null,
+                &rusqlite::types::Null,
+            ],
+        )
+        .unwrap();
+
+    let info = get_file_info(db.db(), hash_id).unwrap().unwrap();
+
+    assert_eq!(info.size, 1024);
+    assert_eq!(info.mime, Mime::Png);
+    assert!(!info.has_audio);
+    assert_eq!(info.width, Some(640));
 
     drop(db);
     let _ = std::fs::remove_dir_all(directory);

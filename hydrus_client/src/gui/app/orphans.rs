@@ -470,7 +470,7 @@ mod tests {
     #[test]
     fn scanning_finds_only_unknown_hashes() {
         let directory = temp_directory("scan");
-        let mut state = test_state(&directory);
+        let state = test_state(&directory);
 
         let known = write_known_file(&state, [0x11; 32]);
         let root = storage_root(&state);
@@ -502,7 +502,7 @@ mod tests {
     #[test]
     fn deleting_removes_orphans_and_keeps_everything_else() {
         let directory = temp_directory("delete");
-        let mut state = test_state(&directory);
+        let state = test_state(&directory);
 
         let known = write_known_file(&state, [0x22; 32]);
         let root = storage_root(&state);
@@ -525,7 +525,7 @@ mod tests {
     #[test]
     fn paths_outside_the_storage_are_rejected() {
         let directory = temp_directory("outside");
-        let mut state = test_state(&directory);
+        let state = test_state(&directory);
 
         let outside = directory.join(format!("{}.png", "99".repeat(32)));
         std::fs::write(&outside, b"not storage").unwrap();
@@ -544,7 +544,7 @@ mod tests {
     #[test]
     fn moving_sorts_files_and_thumbnails_into_subdirectories() {
         let directory = temp_directory("move");
-        let mut state = test_state(&directory);
+        let state = test_state(&directory);
 
         let root = storage_root(&state);
         let orphan = root.join(format!("{}.png", "77".repeat(32)));

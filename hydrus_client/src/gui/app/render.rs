@@ -114,6 +114,8 @@ pub fn menus_json(state: &AppState) -> String {
             "items": [
                 {"label": "database directory", "action": "open_db_dir"},
                 {"label": "show database info", "action": "db_info"},
+                {"label": "back up database...", "action": "db_backup_open",
+                 "description": "Copy client.db to the configured backup directory."},
                 {"separator": true},
                 {"label": "maintenance", "items": [
                     {"label": "check database", "action": "db_check"},

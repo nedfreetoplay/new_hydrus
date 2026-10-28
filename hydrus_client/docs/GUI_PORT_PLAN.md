@@ -342,7 +342,9 @@ Rust-цели: `gui/app/mod.rs`, `db/maintenance.rs`, `files/maintenance_executo
 - [x] 11.1 `PRAGMA quick_check`.
 - [x] 11.2 `VACUUM`.
 - [x] 11.3 Базовые option-флаги maintenance.
-- [ ] 11.4 Backup/restore БД и backup location.
+- [~] 11.4 Backup/restore БД и backup location: backup через `VACUUM INTO`,
+  `backup_path`/`last_backup_time` в options; restore пока вручную заменой
+  `client.db` при закрытом клиенте.
 - [ ] 11.5 Database locations/migration.
 - [x] 11.6 Analyze database.
 - [x] 11.7 Review vacuum data.

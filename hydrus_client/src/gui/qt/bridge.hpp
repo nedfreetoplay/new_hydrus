@@ -45,6 +45,7 @@ class HydrusServicesDialog;
 class HydrusApiPermissionsDialog;
 class HydrusAccountTypesDialog;
 class HydrusOrphanFilesDialog;
+class HydrusDatabaseBackupDialog;
 class HydrusNetworkDialog;
 class HydrusMetadataPanel;
 class HydrusImportFoldersPage;
@@ -536,6 +537,22 @@ private:
     QLabel *status = nullptr;
 };
 
+// Non-modal database backup dialog.
+class HydrusDatabaseBackupDialog : public QDialog {
+public:
+    explicit HydrusDatabaseBackupDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void choose_path();
+
+    HydrusMainWindow *main = nullptr;
+    QLineEdit *path = nullptr;
+    QLabel *last_backup = nullptr;
+    QLabel *status = nullptr;
+};
+
 class HydrusNetworkDialog : public QDialog {
 public:
     explicit HydrusNetworkDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
@@ -622,6 +639,8 @@ public:
     void update_account_types(const QJsonObject &state);
     void show_orphan_files(const QJsonObject &state);
     void update_orphan_files(const QJsonObject &state);
+    void show_database_backup(const QJsonObject &state);
+    void update_database_backup(const QJsonObject &state);
     void show_network(const QJsonObject &state);
     void update_network(const QJsonObject &state);
     void start_tick();
@@ -667,6 +686,7 @@ private:
     HydrusApiPermissionsDialog *api_permissions_dialog = nullptr;
     HydrusAccountTypesDialog *account_types_dialog = nullptr;
     HydrusOrphanFilesDialog *orphan_files_dialog = nullptr;
+    HydrusDatabaseBackupDialog *database_backup_dialog = nullptr;
     HydrusNetworkDialog *network_dialog = nullptr;
     HydrusDuplicatesRulesDialog *duplicates_rules_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
@@ -763,6 +783,8 @@ void hydrus_show_account_types(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_account_types(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_orphan_files(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_orphan_files(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_database_backup(HydrusMainWindow &window, rust::Str json);
+void hydrus_update_database_backup(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_network(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_network(HydrusMainWindow &window, rust::Str json);
 void hydrus_start_tick(HydrusMainWindow &window);

@@ -167,6 +167,12 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdateOrphanFiles(json) => {
             ffi::hydrus_update_orphan_files(window.as_mut(), &json)
         }
+        UiCommand::DatabaseBackupDialog(json) => {
+            ffi::hydrus_show_database_backup(window.as_mut(), &json)
+        }
+        UiCommand::UpdateDatabaseBackup(json) => {
+            ffi::hydrus_update_database_backup(window.as_mut(), &json)
+        }
         UiCommand::NetworkDialog(json) => ffi::hydrus_show_network(window.as_mut(), &json),
         UiCommand::NotifyMessage(message) => {
             ffi::hydrus_notify_message(window.as_mut(), &message);

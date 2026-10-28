@@ -78,6 +78,8 @@ pub enum UiCommand {
     UpdateAccountTypes(String),
     OrphanFilesDialog(String),
     UpdateOrphanFiles(String),
+    DatabaseBackupDialog(String),
+    UpdateDatabaseBackup(String),
     NetworkDialog(String),
     NotifyMessage(String),
     SetClipboard(String),

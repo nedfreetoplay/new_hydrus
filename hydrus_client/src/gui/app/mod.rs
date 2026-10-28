@@ -16,6 +16,7 @@ use crate::gui::qt::panels;
 
 pub mod api_permissions;
 pub mod auto_resolution;
+pub mod backup;
 pub mod commands;
 pub mod download;
 pub mod downloader_export;
@@ -1369,6 +1370,9 @@ impl AppState {
             "orphan_files_scan" => orphans::open(self),
             "orphan_files_delete" => orphans::delete(self, payload),
             "orphan_files_move" => orphans::move_to(self, payload),
+            "db_backup_open" => backup::open(self),
+            "db_backup_set_path" => backup::set_path(self, payload),
+            "db_backup_run" => backup::run(self),
             "db_check" => {
                 let result =
                     self.controller

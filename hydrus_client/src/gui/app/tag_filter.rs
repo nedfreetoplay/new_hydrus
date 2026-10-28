@@ -408,7 +408,7 @@ fn rules_from_dictionary(dictionary: &Value) -> Vec<(String, String)> {
     rules
 }
 
-fn parse_rules(value: &Value) -> Result<Vec<(String, String)>, String> {
+pub(super) fn parse_rules(value: &Value) -> Result<Vec<(String, String)>, String> {
     let Some(entries) = value.get("rules").and_then(Value::as_array) else {
         return Ok(Vec::new());
     };
@@ -437,7 +437,7 @@ fn parse_rules(value: &Value) -> Result<Vec<(String, String)>, String> {
     Ok(rules)
 }
 
-fn filter_from_rules(rules: &[(String, String)]) -> TagFilter {
+pub(super) fn filter_from_rules(rules: &[(String, String)]) -> TagFilter {
     let mut filter = TagFilter::new();
 
     for (slice, rule) in rules {
@@ -453,7 +453,7 @@ fn filter_from_rules(rules: &[(String, String)]) -> TagFilter {
     filter
 }
 
-fn display_slice(tag_slice: &str) -> String {
+pub(super) fn display_slice(tag_slice: &str) -> String {
     match tag_slice {
         "" => ALL_UNNAMESPACED_TOKEN.to_string(),
         ":" => ALL_NAMESPACED_TOKEN.to_string(),

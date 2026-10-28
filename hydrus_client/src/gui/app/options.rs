@@ -354,7 +354,17 @@ pub fn options_json(state: &AppState) -> String {
         vec![
             boolean(&options, "api_enabled", "run the local Client API"),
             integer(&options, "api_port", "api port"),
-            string(&options, "api_access_key", "access key (64 hex characters)"),
+            str_field(
+                "api_permissions",
+                "access keys",
+                format!("{} key(s)", controller.api_permissions().len()),
+                "manage them from services > client api permissions...",
+            ),
+            string(
+                &options,
+                "api_access_key",
+                "legacy access key (used only until permissions are saved)",
+            ),
             str_field(
                 "api_status",
                 "api status",

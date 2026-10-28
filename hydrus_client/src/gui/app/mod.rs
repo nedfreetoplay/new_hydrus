@@ -14,6 +14,7 @@ use crate::db::{files_storage, files_timestamps, files_viewing_stats, mappings, 
 use crate::gui::qt::bridge::ffi;
 use crate::gui::qt::panels;
 
+pub mod api_permissions;
 pub mod auto_resolution;
 pub mod commands;
 pub mod download;
@@ -1285,6 +1286,9 @@ impl AppState {
             "options" => vec![UiCommand::OptionsDialog(options::options_json(self))],
             "options_apply" => options::apply_options(self, payload),
             "manage_services" => vec![UiCommand::ServicesDialog(services::services_json(self))],
+            "api_permissions" => api_permissions::open(self),
+            "api_permissions_save" => api_permissions::save(self, payload),
+            "api_permissions_delete" => api_permissions::delete(self, payload),
             "service_save" => services::save_service(self, payload),
             "service_delete" => services::delete_service(self, payload),
             "login_save" => services::login_save(self, payload),

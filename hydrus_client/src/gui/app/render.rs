@@ -47,6 +47,11 @@ pub fn menus_json(state: &AppState) -> String {
         "action": "manage_services",
         "description": "local services are managed here"
     }));
+    service_entries.push(json!({
+        "label": "client api permissions...",
+        "action": "api_permissions",
+        "description": "manage Client API access keys and permissions"
+    }));
 
     let menus = json!([
         {

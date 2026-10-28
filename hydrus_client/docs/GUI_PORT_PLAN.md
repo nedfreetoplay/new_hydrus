@@ -304,7 +304,7 @@ Rust-цели: `gui/app/options.rs`, `services.rs`, `controller.rs`,
   petitions ещё нет.
 - [~] 09.8 Tag filter: whitelist/blacklist, тест тега, сохранение в сервисе и POST в tag repository; purge tags работает для локального tag-сервиса. Petitions/commit для remote purge ещё нет.
 - [ ] 09.9 IPFS и local booru shares.
-- [ ] 09.10 API permissions capture/edit.
+- [x] 09.10 API permissions: список access keys с именами, basic permissions и search tag filter, хранение в `api permissions.json`, проверки на `/get_files/*` и `/add_tags/*`.
 - [~] 09.11 Credentials manager (`logins.json`) есть; login scripts и
   использование credentials в network engine ещё нет.
 - [ ] 09.12 Pending commit/forget и petition UI.

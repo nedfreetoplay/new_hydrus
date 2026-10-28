@@ -18,7 +18,15 @@ impl ApiBackend for MockBackend {
     fn file_metadata(&self, file_ids: &[i64]) -> Vec<Value> {
         file_ids
             .iter()
-            .map(|file_id| json!({"file_id": file_id, "hash": "ab"}))
+            .map(|file_id| {
+                let tag = if *file_id == 1 {
+                    "character:samus"
+                } else {
+                    "species:human"
+                };
+
+                json!({"file_id": file_id, "hash": "ab", "tags": {"local tags": [tag]}})
+            })
             .collect()
     }
 
@@ -125,4 +133,89 @@ fn access_key_is_checked_when_configured() {
         manager.handle(&ApiRequest::get("/api_version").with_query("access_key", "secret"));
 
     assert_eq!(allowed.status, 200);
+}
+
+#[test]
+fn restricted_permissions_gate_endpoints_and_search_tags() {
+    let mut permissions = ApiPermissions::new("restricted", "secret");
+    permissions.permits_everything = false;
+    permissions.basic_permissions = vec![PERMISSION_SEARCH_FILES];
+    permissions.search_tag_filter = vec![
+        (String::new(), "blacklist".to_string()),
+        (":".to_string(), "blacklist".to_string()),
+        ("character:".to_string(), "whitelist".to_string()),
+    ];
+
+    let manager = ApiManager::with_permissions(MockBackend, vec![permissions]);
+
+    let no_key = manager.handle(&ApiRequest::get("/get_files/search_files"));
+    assert_eq!(no_key.status, 401);
+
+    let no_tags = manager
+        .handle(&ApiRequest::get("/get_files/search_files").with_query("access_key", "secret"));
+    assert_eq!(no_tags.status, 403);
+
+    let disallowed = manager.handle(
+        &ApiRequest::get("/get_files/search_files")
+            .with_query("access_key", "secret")
+            .with_query("tags", "species:human"),
+    );
+    assert_eq!(disallowed.status, 403);
+
+    let allowed = manager.handle(
+        &ApiRequest::get("/get_files/search_files")
+            .with_query("access_key", "secret")
+            .with_query("tags", "character:samus"),
+    );
+    assert_eq!(allowed.status, 200);
+    assert_eq!(allowed.body["file_ids"], json!([1]));
+
+    let hidden_file = manager.handle(
+        &ApiRequest::get("/get_files/file")
+            .with_query("access_key", "secret")
+            .with_query("file_id", "2"),
+    );
+    assert_eq!(hidden_file.status, 403);
+
+    let tags = manager.handle(&ApiRequest::post(
+        "/add_tags/add_tags",
+        json!({"file_ids": [1], "service_names_to_tags": {"local tags": ["x"]}})
+            .to_string()
+            .into_bytes(),
+    ));
+    assert_eq!(tags.status, 401);
+
+    let tags = manager.handle(
+        &ApiRequest::post(
+            "/add_tags/add_tags",
+            json!({"file_ids": [1], "service_names_to_tags": {"local tags": ["x"]}})
+                .to_string()
+                .into_bytes(),
+        )
+        .with_query("access_key", "secret"),
+    );
+    assert_eq!(tags.status, 403);
+}
+
+#[test]
+fn permissions_round_trip_through_the_side_file() {
+    let directory = std::env::temp_dir().join(format!(
+        "hydrus_api_permissions_{}_{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("api permissions.json");
+
+    let mut permissions = ApiPermissions::new("restricted", "abcd");
+    permissions.permits_everything = false;
+    permissions.basic_permissions = vec![PERMISSION_SEARCH_FILES, PERMISSION_ADD_TAGS];
+    permissions.search_tag_filter = vec![("character:".to_string(), "whitelist".to_string())];
+
+    save_permissions(&path, std::slice::from_ref(&permissions)).unwrap();
+    let loaded = load_permissions(&path);
+
+    assert_eq!(loaded, vec![permissions]);
+
+    let _ = std::fs::remove_dir_all(directory);
 }

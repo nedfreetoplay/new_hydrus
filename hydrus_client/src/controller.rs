@@ -22,7 +22,7 @@ use crate::gui::session::{GuiSession, UnifiedSession};
 use crate::gui::shortcuts::ShortcutSet;
 use crate::gui::style::ClientGUIStyle;
 use crate::networking::client_networking_bandwidth::{
-    BandwidthRuleEntry, NetworkBandwidthManager, default_rule_entries,
+    default_rule_entries, BandwidthRuleEntry, NetworkBandwidthManager,
 };
 use crate::networking::client_networking_domain::DomainManager;
 use crate::networking::client_networking_url_class::UrlClass;
@@ -32,6 +32,7 @@ use crate::services::ServicesManager;
 const OPTIONS_NAME: &str = "client options";
 const SESSION_FILENAME: &str = "gui session.json";
 const NETWORK_FILENAME: &str = "network settings.json";
+const API_PERMISSIONS_FILENAME: &str = "api permissions.json";
 
 #[derive(Debug, Serialize, Deserialize)]
 struct NetworkSettingsFile {
@@ -425,7 +426,11 @@ impl Controller {
         }
     }
 
-    pub fn start_api(&self, port: u16, access_key: &str) -> HydrusResult<String> {
+    pub fn start_api(
+        &self,
+        port: u16,
+        permissions: Vec<crate::api::ApiPermissions>,
+    ) -> HydrusResult<String> {
         self.stop_api();
 
         let backend = ClientApiBackend::new(
@@ -433,7 +438,7 @@ impl Controller {
             self.files_manager(),
             crate::db::services::get_services(self.db.db())?,
         );
-        let manager = Arc::new(ApiManager::with_access_key(backend, access_key));
+        let manager = Arc::new(ApiManager::with_permissions(backend, permissions));
         let server = ApiServer::bind(("127.0.0.1", port), manager)?;
         let handle = server.start()?;
         let address = handle.address.to_string();
@@ -441,6 +446,22 @@ impl Controller {
         *self.api_server.lock().unwrap() = Some(handle);
 
         Ok(address)
+    }
+
+    pub fn api_permissions_path(&self) -> std::path::PathBuf {
+        self.db_dir.join(API_PERMISSIONS_FILENAME)
+    }
+
+    pub fn api_permissions(&self) -> Vec<crate::api::ApiPermissions> {
+        crate::api::load_permissions(&self.api_permissions_path())
+    }
+
+    pub fn save_api_permissions(
+        &self,
+        permissions: &[crate::api::ApiPermissions],
+    ) -> HydrusResult<()> {
+        crate::api::save_permissions(&self.api_permissions_path(), permissions)
+            .map_err(|error| hydrus_core::hydrus_exceptions::unknown(error.to_string()))
     }
 
     /// Starts or stops the API according to the saved options and returns the
@@ -461,18 +482,31 @@ impl Controller {
             45869
         };
 
-        let mut key = options.get_string("api_access_key");
+        let mut permissions = self.api_permissions();
+        let path = self.api_permissions_path();
 
-        if key.len() != 64 {
-            key = random_hex_32();
+        if permissions.is_empty() {
+            if path.exists() {
+                self.stop_api();
+                return Ok("api disabled: no access keys".to_string());
+            }
 
-            let mut options = options;
-            options.set_string("api_access_key", &key);
-            self.replace_options(options);
-            let _ = self.save_options();
+            let mut key = options.get_string("api_access_key");
+
+            if key.len() != 64 {
+                key = random_hex_32();
+
+                let mut options = options;
+                options.set_string("api_access_key", &key);
+                self.replace_options(options);
+                let _ = self.save_options();
+            }
+
+            permissions = vec![crate::api::ApiPermissions::new("default", key)];
+            let _ = self.save_api_permissions(&permissions);
         }
 
-        match self.start_api(port, &key) {
+        match self.start_api(port, permissions) {
             Ok(address) => Ok(format!("api listening at http://{address}")),
             Err(error) => Ok(format!("api failed: {error}")),
         }

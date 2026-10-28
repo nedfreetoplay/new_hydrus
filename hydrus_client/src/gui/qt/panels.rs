@@ -149,6 +149,12 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::ServicesDialog(json) => ffi::hydrus_show_services(window.as_mut(), &json),
         UiCommand::UpdateServices(json) => ffi::hydrus_update_services(window.as_mut(), &json),
         UiCommand::TagFilterDialog(json) => ffi::hydrus_show_tag_filter(window.as_mut(), &json),
+        UiCommand::ApiPermissionsDialog(json) => {
+            ffi::hydrus_show_api_permissions(window.as_mut(), &json)
+        }
+        UiCommand::UpdateApiPermissions(json) => {
+            ffi::hydrus_update_api_permissions(window.as_mut(), &json)
+        }
         UiCommand::NetworkDialog(json) => ffi::hydrus_show_network(window.as_mut(), &json),
         UiCommand::NotifyMessage(message) => {
             ffi::hydrus_notify_message(window.as_mut(), &message);

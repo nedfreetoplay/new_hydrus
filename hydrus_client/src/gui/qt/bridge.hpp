@@ -42,6 +42,7 @@ class HydrusDownloaderPage;
 class HydrusSubscriptionsPage;
 class HydrusDuplicatesPage;
 class HydrusServicesDialog;
+class HydrusApiPermissionsDialog;
 class HydrusNetworkDialog;
 class HydrusMetadataPanel;
 class HydrusImportFoldersPage;
@@ -477,6 +478,25 @@ private:
 };
 
 // Non-modal network manager.
+// Non-modal Client API permission manager.
+class HydrusApiPermissionsDialog : public QDialog {
+public:
+    explicit HydrusApiPermissionsDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void add_entry();
+    void edit_selected();
+    void delete_selected();
+    QJsonObject selected_entry() const;
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    QTableWidget *table = nullptr;
+    QLabel *status = nullptr;
+};
+
 class HydrusNetworkDialog : public QDialog {
 public:
     explicit HydrusNetworkDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
@@ -557,6 +577,8 @@ public:
     void show_services(const QJsonObject &state);
     void update_services(const QJsonObject &state);
     void show_tag_filter(const QJsonObject &state);
+    void show_api_permissions(const QJsonObject &state);
+    void update_api_permissions(const QJsonObject &state);
     void show_network(const QJsonObject &state);
     void update_network(const QJsonObject &state);
     void start_tick();
@@ -599,6 +621,7 @@ private:
     QHash<QString, HydrusNotebook *> notebooks;
     QHash<QString, HydrusViewerWindow *> viewers;
     HydrusServicesDialog *services_dialog = nullptr;
+    HydrusApiPermissionsDialog *api_permissions_dialog = nullptr;
     HydrusNetworkDialog *network_dialog = nullptr;
     HydrusDuplicatesRulesDialog *duplicates_rules_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
@@ -689,6 +712,8 @@ void hydrus_show_options(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_services(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_services(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_tag_filter(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_api_permissions(HydrusMainWindow &window, rust::Str json);
+void hydrus_update_api_permissions(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_network(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_network(HydrusMainWindow &window, rust::Str json);
 void hydrus_start_tick(HydrusMainWindow &window);

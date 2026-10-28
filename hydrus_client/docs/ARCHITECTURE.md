@@ -255,6 +255,14 @@ tag services and offline repositories keep them; tag repositories additionally
 receive a `POST /tag_filter`. The same dialog can purge tags from a local tag
 service, deleting its current and pending mappings.
 
+Client API access keys and their permissions are stored in
+`api permissions.json` and edited from services → client api permissions. Each
+entry carries a name, 64 hex key, optional basic permissions and a search tag
+filter. The API server reloads the file whenever an entry changes; `/api_version`
+and `/get_services` need only a valid key, while file search/fetch and tag edits
+check their specific permission and the search filter hides files whose tags do
+not pass.
+
 ## Export folders
 
 `gui::app::export` хранит entry в `export folders.json`: destination, поисковый

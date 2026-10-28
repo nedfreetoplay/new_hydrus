@@ -147,6 +147,7 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         }
         UiCommand::OptionsDialog(json) => ffi::hydrus_show_options(window.as_mut(), &json),
         UiCommand::ServicesDialog(json) => ffi::hydrus_show_services(window.as_mut(), &json),
+        UiCommand::UpdateServices(json) => ffi::hydrus_update_services(window.as_mut(), &json),
         UiCommand::NetworkDialog(json) => ffi::hydrus_show_network(window.as_mut(), &json),
         UiCommand::NotifyMessage(message) => {
             ffi::hydrus_notify_message(window.as_mut(), &message);

@@ -31,6 +31,7 @@ pub mod query;
 pub mod render;
 pub mod search;
 pub mod search_history;
+pub mod services;
 pub mod session;
 pub mod sessions;
 pub mod tag_relations;
@@ -1282,10 +1283,18 @@ impl AppState {
             }
             "options" => vec![UiCommand::OptionsDialog(options::options_json(self))],
             "options_apply" => options::apply_options(self, payload),
-            "manage_services" => vec![UiCommand::ServicesDialog(options::services_json(self))],
-            "service_add" | "service_rename" | "service_delete" => {
-                options::service_action(self, action, payload)
-            }
+            "manage_services" => vec![UiCommand::ServicesDialog(services::services_json(self))],
+            "service_save" => services::save_service(self, payload),
+            "service_delete" => services::delete_service(self, payload),
+            "login_save" => services::login_save(self, payload),
+            "login_remove" => services::login_remove(self, payload),
+            "admin_connect" => services::admin_connect(self, payload),
+            "admin_service_action" => services::admin_service_action(self, payload),
+            "admin_add_service" => services::admin_add_service(self, payload),
+            "admin_edit_service" => services::admin_edit_service(self, payload),
+            "admin_remove_service" => services::admin_remove_service(self, payload),
+            "admin_account_action" => services::admin_account_action(self, payload),
+            "service_add" | "service_rename" => services::save_service(self, payload),
             "options_network" => vec![UiCommand::NetworkDialog(options::network_json(self))],
             action if action.starts_with("network_") => {
                 options::network_action(self, action, payload)

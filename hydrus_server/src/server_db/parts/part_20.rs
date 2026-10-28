@@ -47,13 +47,15 @@ impl ServerDB {
         self.db.force_a_commit()
     }
 
-    /// Save a service's serialisable dictionary back to the services table.
+    /// Save a service's name, port and serialisable dictionary back to the
+    /// services table.
     pub fn save_service(&self, service: &ServerService) -> HydrusResult<()> {
-        let (service_key, _, _, _, dictionary) = service.to_tuple()?;
+        let (service_key, _, name, port, dictionary) = service.to_tuple()?;
 
         self.db.db_base()?.execute(
-            "UPDATE services SET dictionary_string = ? WHERE service_key = ?;",
-            &[&dictionary.dump_to_string(), &service_key],
+            "UPDATE services SET name = ?, port = ?, dictionary_string = ?
+             WHERE service_key = ?;",
+            &[&name, &i64::from(port), &dictionary.dump_to_string(), &service_key],
         )?;
 
         service.set_clean();

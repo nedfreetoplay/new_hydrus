@@ -2373,7 +2373,7 @@ void HydrusSubscriptionsPage::add_subscription() {
     layout->addLayout(form);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
 
     if (dialog.exec() != QDialog::Accepted) {
@@ -3796,51 +3796,476 @@ private:
 
 } // namespace
 
+namespace {
+
+QJsonObject service_type_entry(const QJsonObject &data, int value) {
+    for (const QJsonValue &entry : data.value(QStringLiteral("types")).toArray()) {
+        const QJsonObject object = entry.toObject();
+
+        if (object.value(QStringLiteral("value")).toInt() == value) {
+            return object;
+        }
+    }
+
+    return {};
+}
+
+QString service_family(const QJsonObject &data, int value) {
+    return service_type_entry(data, value).value(QStringLiteral("family")).toString();
+}
+
+void build_service_editor(HydrusMainWindow *main, QWidget *parent, const QJsonObject &data, const QJsonObject &service) {
+    const QString original = service.value(QStringLiteral("original")).toString();
+    const QJsonObject dictionary = service.value(QStringLiteral("dictionary")).toObject();
+
+    QDialog dialog(parent);
+    dialog.setWindowTitle(original.isEmpty() ? QStringLiteral("add service")
+                                             : QStringLiteral("edit service"));
+    dialog.resize(620, 520);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+
+    auto *name = new QLineEdit(service.value(QStringLiteral("name")).toString(), &dialog);
+    auto *type = new QComboBox(&dialog);
+
+    for (const QJsonValue &entry : data.value(QStringLiteral("types")).toArray()) {
+        const QJsonObject object = entry.toObject();
+        type->addItem(object.value(QStringLiteral("label")).toString(),
+                      object.value(QStringLiteral("value")).toInt());
+    }
+
+    const int type_index = type->findData(service.value(QStringLiteral("type_int")).toInt());
+    type->setCurrentIndex(type_index >= 0 ? type_index : 0);
+
+    auto *host = new QLineEdit(dictionary.value(QStringLiteral("host")).toString(), &dialog);
+    host->setPlaceholderText(QStringLiteral("127.0.0.1"));
+    auto *port = new QSpinBox(&dialog);
+    port->setRange(1, 65535);
+    port->setValue(dictionary.value(QStringLiteral("port")).toInt(45871));
+    auto *access_key = new QLineEdit(dictionary.value(QStringLiteral("access_key")).toString(), &dialog);
+    access_key->setPlaceholderText(QStringLiteral("hex access key from the server administrator"));
+
+    auto *update_period = new QSpinBox(&dialog);
+    update_period->setRange(0, 365 * 86400);
+    update_period->setValue(dictionary.value(QStringLiteral("update_period")).toInt(86400));
+    update_period->setSuffix(QStringLiteral(" s"));
+    auto *nullification_period = new QSpinBox(&dialog);
+    nullification_period->setRange(0, 365 * 86400);
+    nullification_period->setValue(dictionary.value(QStringLiteral("nullification_period")).toInt(90 * 86400));
+    nullification_period->setSuffix(QStringLiteral(" s"));
+
+    auto *max_storage = new QSpinBox(&dialog);
+    max_storage->setRange(0, 1000000000);
+    max_storage->setValue(dictionary.value(QStringLiteral("max_storage")).toInt());
+    max_storage->setSuffix(QStringLiteral(" MB"));
+    auto *log_uploader_ips = new QCheckBox(QStringLiteral("log uploader IPs"), &dialog);
+    log_uploader_ips->setChecked(dictionary.value(QStringLiteral("log_uploader_ips")).toBool(false));
+
+    form->addRow(QStringLiteral("name"), name);
+    form->addRow(QStringLiteral("type"), type);
+    form->addRow(QStringLiteral("host"), host);
+    form->addRow(QStringLiteral("port"), port);
+    form->addRow(QStringLiteral("access key"), access_key);
+    form->addRow(QStringLiteral("update period"), update_period);
+    form->addRow(QStringLiteral("nullification period"), nullification_period);
+    form->addRow(QStringLiteral("max storage"), max_storage);
+    form->addRow(log_uploader_ips);
+    layout->addLayout(form);
+
+    auto *note = new QLabel(
+        QStringLiteral("Local services need only a name. Repository and administration "
+                       "services also store the host, port and access key the client uses to "
+                       "contact them."),
+        &dialog);
+    note->setWordWrap(true);
+    layout->addWidget(note);
+
+    auto sync_fields = [&]() {
+        const int value = type->currentData().toInt();
+        const QString family = service_family(data, value);
+        const bool remote = family == QStringLiteral("remote");
+        const bool repository = service_type_entry(data, value)
+                                    .value(QStringLiteral("label"))
+                                    .toString()
+                                    .contains(QStringLiteral("repository"));
+
+        host->setEnabled(remote);
+        port->setEnabled(remote);
+        access_key->setEnabled(remote);
+        update_period->setEnabled(repository);
+        nullification_period->setEnabled(repository);
+        max_storage->setEnabled(value == 1);
+        log_uploader_ips->setEnabled(value == 1);
+    };
+
+    QObject::connect(type, &QComboBox::currentIndexChanged, &dialog, [&](int) { sync_fields(); });
+    sync_fields();
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addWidget(buttons);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, [&]() {
+        if (name->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("service"), QStringLiteral("Enter a name."));
+            return;
+        }
+
+        const QString family = service_family(data, type->currentData().toInt());
+
+        if (family == QStringLiteral("remote") && access_key->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("service"),
+                                 QStringLiteral("Remote services need an access key."));
+            return;
+        }
+
+        if (family == QStringLiteral("remote") && host->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("service"),
+                                 QStringLiteral("Remote services need a host."));
+            return;
+        }
+
+        dialog.accept();
+    });
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("original"), original);
+    payload.insert(QStringLiteral("name"), name->text().trimmed());
+    payload.insert(QStringLiteral("type_int"), type->currentData().toInt());
+
+    QJsonObject next_dictionary;
+    const QString family = service_family(data, type->currentData().toInt());
+    const bool repository = type->currentText().contains(QStringLiteral("repository"));
+
+    if (family == QStringLiteral("remote")) {
+        next_dictionary.insert(QStringLiteral("host"), host->text().trimmed());
+        next_dictionary.insert(QStringLiteral("port"), port->value());
+        next_dictionary.insert(QStringLiteral("access_key"),
+                               access_key->text().trimmed().toLower());
+    }
+
+    if (repository) {
+        next_dictionary.insert(QStringLiteral("update_period"), update_period->value());
+        next_dictionary.insert(QStringLiteral("nullification_period"), nullification_period->value());
+    }
+
+    if (type->currentData().toInt() == 1) {
+        next_dictionary.insert(QStringLiteral("max_storage"), max_storage->value());
+        next_dictionary.insert(QStringLiteral("log_uploader_ips"), log_uploader_ips->isChecked());
+    }
+
+    payload.insert(QStringLiteral("dictionary"), next_dictionary);
+    main->notify(QStringLiteral("service_save"), QString(), json_payload(payload));
+}
+
+QString cell_value(QTableWidget *table, int row, int column) {
+    QTableWidgetItem *item = table->item(row, column);
+
+    return item == nullptr ? QString() : item->text();
+}
+
+QString cell_key(QTableWidget *table, int row) {
+    QTableWidgetItem *item = table->item(row, 0);
+
+    return item == nullptr ? QString() : item->data(Qt::UserRole + 1).toString();
+}
+
+} // namespace
+
 HydrusServicesDialog::HydrusServicesDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("manage services"));
     setObjectName(QStringLiteral("hydrus_services_dialog"));
     setAttribute(Qt::WA_DeleteOnClose, true);
-    resize(760, 480);
+    resize(980, 720);
 
     auto *layout = new QVBoxLayout(this);
+    tabs = new QTabWidget(this);
+    layout->addWidget(tabs, 1);
 
-    table = new QTableWidget(this);
-    table->setColumnCount(4);
+    // Local service manager -------------------------------------------------
+    auto *local = new QWidget(tabs);
+    auto *local_layout = new QVBoxLayout(local);
+
+    table = new QTableWidget(local);
+    table->setColumnCount(5);
     table->setHorizontalHeaderLabels({
         QStringLiteral("name"),
         QStringLiteral("type"),
         QStringLiteral("service key"),
-        QStringLiteral("id")
+        QStringLiteral("port"),
+        QStringLiteral("settings")
     });
-    table->horizontalHeader()->setStretchLastSection(true);
     table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setSelectionMode(QAbstractItemView::SingleSelection);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->verticalHeader()->setVisible(false);
-    layout->addWidget(table, 1);
+    local_layout->addWidget(table, 1);
 
     auto *buttons = new QHBoxLayout();
-    auto *add = new QPushButton(QStringLiteral("add local service..."), this);
-    auto *rename = new QPushButton(QStringLiteral("rename..."), this);
-    auto *remove = new QPushButton(QStringLiteral("delete"), this);
-    auto *close = new QPushButton(QStringLiteral("close"), this);
+    auto *add = new QPushButton(QStringLiteral("add service..."), local);
+    auto *edit = new QPushButton(QStringLiteral("edit..."), local);
+    auto *remove = new QPushButton(QStringLiteral("delete"), local);
+    auto *specifier = new QPushButton(QStringLiteral("service specifier..."), local);
     buttons->addWidget(add);
-    buttons->addWidget(rename);
+    buttons->addWidget(edit);
     buttons->addWidget(remove);
+    buttons->addWidget(specifier);
     buttons->addStretch(1);
-    buttons->addWidget(close);
-    layout->addLayout(buttons);
+    local_layout->addLayout(buttons);
 
     connect(add, &QPushButton::clicked, this, [this]() { add_service(); });
-    connect(rename, &QPushButton::clicked, this, [this]() { rename_selected(); });
+    connect(edit, &QPushButton::clicked, this, [this]() { edit_selected(); });
     connect(remove, &QPushButton::clicked, this, [this]() { delete_selected(); });
+    connect(specifier, &QPushButton::clicked, this, [this]() { show_specifier(); });
+    connect(table, &QTableWidget::cellDoubleClicked, this, [this](int, int) { edit_selected(); });
+
+    tabs->addTab(local, QStringLiteral("services"));
+
+    // Remote server ---------------------------------------------------------
+    auto *server = new QWidget(tabs);
+    auto *server_layout = new QVBoxLayout(server);
+
+    auto *connection = new QHBoxLayout();
+    admin_address = new QLineEdit(server);
+    admin_address->setPlaceholderText(QStringLiteral("https://127.0.0.1:45870"));
+    admin_key = new QLineEdit(server);
+    admin_key->setPlaceholderText(QStringLiteral("administration access key"));
+    auto *connect_button = new QPushButton(QStringLiteral("connect"), server);
+    connection->addWidget(new QLabel(QStringLiteral("address"), server));
+    connection->addWidget(admin_address, 2);
+    connection->addWidget(new QLabel(QStringLiteral("key"), server));
+    connection->addWidget(admin_key, 2);
+    connection->addWidget(connect_button);
+    server_layout->addLayout(connection);
+
+    admin_status = new QLabel(server);
+    admin_status->setWordWrap(true);
+    server_layout->addWidget(admin_status);
+
+    server_layout->addWidget(new QLabel(QStringLiteral("server services"), server));
+    remote_services = new QTableWidget(server);
+    remote_services->setColumnCount(5);
+    remote_services->setHorizontalHeaderLabels({
+        QStringLiteral("name"),
+        QStringLiteral("type"),
+        QStringLiteral("port"),
+        QStringLiteral("service key"),
+        QStringLiteral("access key")
+    });
+    remote_services->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    remote_services->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    remote_services->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    remote_services->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    remote_services->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
+    remote_services->setSelectionBehavior(QAbstractItemView::SelectRows);
+    remote_services->setSelectionMode(QAbstractItemView::SingleSelection);
+    remote_services->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    remote_services->verticalHeader()->setVisible(false);
+    server_layout->addWidget(remote_services, 1);
+
+    auto *remote_buttons = new QHBoxLayout();
+    remote_key = new QLineEdit(server);
+    remote_key->setPlaceholderText(QStringLiteral("selected service access key"));
+    auto *use = new QPushButton(QStringLiteral("review accounts"), server);
+    auto *add_remote = new QPushButton(QStringLiteral("add service..."), server);
+    auto *edit_remote = new QPushButton(QStringLiteral("edit service..."), server);
+    auto *remove_remote = new QPushButton(QStringLiteral("delete service"), server);
+    auto *lock = new QPushButton(QStringLiteral("lock"), server);
+    auto *unlock = new QPushButton(QStringLiteral("unlock"), server);
+    auto *regen = new QPushButton(QStringLiteral("regen info"), server);
+    auto *info = new QPushButton(QStringLiteral("service info..."), server);
+    auto *update_period = new QPushButton(QStringLiteral("update period..."), server);
+    auto *nullification_period = new QPushButton(QStringLiteral("nullification..."), server);
+    remote_buttons->addWidget(remote_key, 1);
+    remote_buttons->addWidget(use);
+    remote_buttons->addWidget(add_remote);
+    remote_buttons->addWidget(edit_remote);
+    remote_buttons->addWidget(remove_remote);
+    server_layout->addLayout(remote_buttons);
+
+    auto *period_buttons = new QHBoxLayout();
+    period_buttons->addWidget(lock);
+    period_buttons->addWidget(unlock);
+    period_buttons->addWidget(regen);
+    period_buttons->addWidget(info);
+    period_buttons->addWidget(update_period);
+    period_buttons->addWidget(nullification_period);
+    period_buttons->addStretch(1);
+    server_layout->addLayout(period_buttons);
+
+    server_layout->addWidget(new QLabel(QStringLiteral("accounts on the selected service"), server));
+    accounts = new QTableWidget(server);
+    accounts->setColumnCount(6);
+    accounts->setHorizontalHeaderLabels({
+        QStringLiteral("account key"),
+        QStringLiteral("type"),
+        QStringLiteral("created"),
+        QStringLiteral("expires"),
+        QStringLiteral("banned"),
+        QStringLiteral("message")
+    });
+    accounts->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    accounts->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    accounts->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    accounts->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    accounts->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    accounts->horizontalHeader()->setSectionResizeMode(5, QHeaderView::Stretch);
+    accounts->setSelectionBehavior(QAbstractItemView::SelectRows);
+    accounts->setSelectionMode(QAbstractItemView::SingleSelection);
+    accounts->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    accounts->verticalHeader()->setVisible(false);
+    server_layout->addWidget(accounts, 1);
+
+    auto *account_buttons = new QHBoxLayout();
+    auto *ban = new QPushButton(QStringLiteral("ban..."), server);
+    auto *unban = new QPushButton(QStringLiteral("unban"), server);
+    auto *expires = new QPushButton(QStringLiteral("expires..."), server);
+    auto *message = new QPushButton(QStringLiteral("message..."), server);
+    auto *delete_content = new QPushButton(QStringLiteral("delete content"), server);
+    auto *account_type = new QPushButton(QStringLiteral("account type..."), server);
+    account_buttons->addWidget(ban);
+    account_buttons->addWidget(unban);
+    account_buttons->addWidget(expires);
+    account_buttons->addWidget(message);
+    account_buttons->addWidget(delete_content);
+    account_buttons->addWidget(account_type);
+    account_buttons->addStretch(1);
+    server_layout->addLayout(account_buttons);
+
+    connect(connect_button, &QPushButton::clicked, this, [this]() { connect_admin(); });
+    connect(use, &QPushButton::clicked, this, [this]() { select_remote_service(); });
+    connect(add_remote, &QPushButton::clicked, this, [this]() { add_remote_service(); });
+    connect(edit_remote, &QPushButton::clicked, this, [this]() { edit_remote_service(); });
+    connect(remove_remote, &QPushButton::clicked, this, [this]() { remove_remote_service(); });
+    connect(lock, &QPushButton::clicked, this, [this]() { remote_service_action(); });
+    connect(unlock, &QPushButton::clicked, this, [this]() { remote_service_action(); });
+    connect(regen, &QPushButton::clicked, this, [this]() { remote_service_action(); });
+    connect(update_period, &QPushButton::clicked, this, [this]() { remote_service_action(); });
+    connect(nullification_period, &QPushButton::clicked, this, [this]() { remote_service_action(); });
+    connect(info, &QPushButton::clicked, this, [this]() {
+        const QJsonObject admin = data.value(QStringLiteral("admin")).toObject();
+
+        QDialog dialog(this);
+        dialog.setWindowTitle(QStringLiteral("service review"));
+        dialog.resize(720, 520);
+        auto *layout = new QVBoxLayout(&dialog);
+        auto *text = new QTextEdit(&dialog);
+        text->setReadOnly(true);
+
+        QJsonObject review;
+        review.insert(QStringLiteral("options"), admin.value(QStringLiteral("options")));
+        review.insert(QStringLiteral("service_info"), admin.value(QStringLiteral("service_info")));
+        text->setPlainText(QString::fromUtf8(
+            QJsonDocument(review).toJson(QJsonDocument::Indented)));
+
+        layout->addWidget(text, 1);
+        auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+        layout->addWidget(buttons);
+        connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+        dialog.exec();
+    });
+    connect(ban, &QPushButton::clicked, this, [this]() { account_action(); });
+    connect(unban, &QPushButton::clicked, this, [this]() { account_action(); });
+    connect(expires, &QPushButton::clicked, this, [this]() { account_action(); });
+    connect(message, &QPushButton::clicked, this, [this]() { account_action(); });
+    connect(delete_content, &QPushButton::clicked, this, [this]() { account_action(); });
+    connect(account_type, &QPushButton::clicked, this, [this]() { account_action(); });
+    connect(remote_services, &QTableWidget::itemSelectionChanged, this, [this]() {
+        const int row = remote_services->currentRow();
+
+        if (row >= 0) {
+            remote_key->setText(cell_value(remote_services, row, 4));
+        }
+    });
+
+    tabs->addTab(server, QStringLiteral("server"));
+
+    // Credentials -----------------------------------------------------------
+    auto *credentials = new QWidget(tabs);
+    auto *credentials_layout = new QVBoxLayout(credentials);
+    logins = new QTableWidget(credentials);
+    logins->setColumnCount(5);
+    logins->setHorizontalHeaderLabels({
+        QStringLiteral("domain"),
+        QStringLiteral("username"),
+        QStringLiteral("password"),
+        QStringLiteral("access key"),
+        QStringLiteral("expires")
+    });
+    logins->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    logins->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    logins->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    logins->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
+    logins->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    logins->setSelectionBehavior(QAbstractItemView::SelectRows);
+    logins->setSelectionMode(QAbstractItemView::SingleSelection);
+    logins->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    logins->verticalHeader()->setVisible(false);
+    credentials_layout->addWidget(logins, 1);
+
+    auto *login_buttons = new QHBoxLayout();
+    auto *add_login = new QPushButton(QStringLiteral("add credentials..."), credentials);
+    auto *edit_login_button = new QPushButton(QStringLiteral("edit..."), credentials);
+    auto *remove_login_button = new QPushButton(QStringLiteral("remove"), credentials);
+    login_buttons->addWidget(add_login);
+    login_buttons->addWidget(edit_login_button);
+    login_buttons->addWidget(remove_login_button);
+    login_buttons->addStretch(1);
+    credentials_layout->addLayout(login_buttons);
+    connect(add_login, &QPushButton::clicked, this, [this]() { this->edit_login(); });
+    connect(edit_login_button, &QPushButton::clicked, this, [this]() { this->edit_login(); });
+    connect(remove_login_button, &QPushButton::clicked, this, [this]() { this->remove_login(); });
+    connect(logins, &QTableWidget::cellDoubleClicked, this, [this](int, int) { this->edit_login(); });
+
+    tabs->addTab(credentials, QStringLiteral("logins"));
+
+    auto *close = new QPushButton(QStringLiteral("close"), this);
+    auto *footer = new QHBoxLayout();
+    footer->addStretch(1);
+    footer->addWidget(close);
+    layout->addLayout(footer);
     connect(close, &QPushButton::clicked, this, &QDialog::close);
 
     set_state(state);
+
+    const QString requested_tab = qEnvironmentVariable("HYDRUS_QT_SERVICES_TAB");
+
+    if (!requested_tab.isEmpty()) {
+        for (int index = 0; index < tabs->count(); ++index) {
+            if (tabs->tabText(index) == requested_tab) {
+                tabs->setCurrentIndex(index);
+                break;
+            }
+        }
+    }
+
+    const QString edit_key = qEnvironmentVariable("HYDRUS_QT_SERVICES_EDIT");
+
+    if (edit_key == QStringLiteral("new")) {
+        add_service();
+    } else if (!edit_key.isEmpty()) {
+        for (int row = 0; row < table->rowCount(); ++row) {
+            if (cell_key(table, row).compare(edit_key, Qt::CaseInsensitive) == 0) {
+                table->selectRow(row);
+                edit_selected();
+                break;
+            }
+        }
+    }
+
+    if (qEnvironmentVariableIsSet("HYDRUS_QT_SERVICES_SPECIFIER")) {
+        show_specifier();
+    }
 }
 
 void HydrusServicesDialog::set_state(const QJsonObject &state) {
@@ -3852,26 +4277,141 @@ void HydrusServicesDialog::set_state(const QJsonObject &state) {
     for (int index = 0; index < services.size(); ++index) {
         const QJsonObject service = services.at(index).toObject();
 
-        for (int column = 0; column < 4; ++column) {
+        for (int column = 0; column < 5; ++column) {
             if (table->item(index, column) == nullptr) {
                 table->setItem(index, column, new QTableWidgetItem());
             }
         }
 
+        const QJsonObject dictionary = service.value(QStringLiteral("dictionary")).toObject();
+
         auto *name_item = table->item(index, 0);
         name_item->setText(service.value(QStringLiteral("name")).toString());
-        name_item->setData(Qt::UserRole, service.value(QStringLiteral("key")).toString());
+        name_item->setData(Qt::UserRole, service);
+        name_item->setData(Qt::UserRole + 1, service.value(QStringLiteral("key")).toString());
 
         if (service.value(QStringLiteral("builtin")).toBool()) {
             name_item->setForeground(QColor(120, 150, 190));
+        } else {
+            name_item->setForeground(QBrush());
         }
 
         table->item(index, 1)->setText(service.value(QStringLiteral("type_short")).toString());
         table->item(index, 2)->setText(service.value(QStringLiteral("key")).toString());
-        table->item(index, 3)->setText(QString::number(service.value(QStringLiteral("service_id")).toInt()));
+        table->item(index, 3)->setText(dictionary.contains(QStringLiteral("port"))
+                                            ? QString::number(dictionary.value(QStringLiteral("port")).toInt())
+                                            : QStringLiteral("-"));
+
+        QString summary = QStringLiteral("-");
+
+        if (!dictionary.isEmpty()) {
+            summary = QStringLiteral("%1:%2")
+                          .arg(dictionary.value(QStringLiteral("host")).toString())
+                          .arg(dictionary.value(QStringLiteral("port")).toInt());
+
+            if (dictionary.contains(QStringLiteral("update_period"))) {
+                summary += QStringLiteral(" | update every %1 s")
+                               .arg(dictionary.value(QStringLiteral("update_period")).toInt());
+            }
+
+            if (dictionary.contains(QStringLiteral("nullification_period"))) {
+                summary += QStringLiteral(" | nullify every %1 s")
+                               .arg(dictionary.value(QStringLiteral("nullification_period")).toInt());
+            }
+        }
+
+        table->item(index, 4)->setText(summary);
     }
 
     table->resizeRowsToContents();
+
+    const QJsonObject admin = state.value(QStringLiteral("admin")).toObject();
+    admin_address->setText(admin.value(QStringLiteral("address")).toString());
+    admin_key->setText(admin.value(QStringLiteral("access_key")).toString());
+    admin_status->setText(admin.value(QStringLiteral("status")).toString());
+
+    const QJsonArray remote = admin.value(QStringLiteral("services")).toArray();
+    remote_services->setRowCount(remote.size());
+
+    for (int index = 0; index < remote.size(); ++index) {
+        const QJsonObject service = remote.at(index).toObject();
+
+        for (int column = 0; column < 5; ++column) {
+            if (remote_services->item(index, column) == nullptr) {
+                remote_services->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        auto *name_item = remote_services->item(index, 0);
+        name_item->setText(service.value(QStringLiteral("name")).toString());
+        name_item->setData(Qt::UserRole, service);
+        remote_services->item(index, 1)->setText(service.value(QStringLiteral("type")).toString());
+        remote_services->item(index, 2)->setText(QString::number(service.value(QStringLiteral("port")).toInt()));
+        remote_services->item(index, 3)->setText(service.value(QStringLiteral("key")).toString());
+        remote_services->item(index, 4)->setText(service.value(QStringLiteral("access_key")).toString());
+
+        if (service.value(QStringLiteral("selected")).toBool()) {
+            remote_services->selectRow(index);
+        }
+    }
+
+    remote_services->resizeRowsToContents();
+
+    const QJsonArray account_list = admin.value(QStringLiteral("accounts")).toArray();
+    accounts->setRowCount(account_list.size());
+
+    for (int index = 0; index < account_list.size(); ++index) {
+        const QJsonObject account = account_list.at(index).toObject();
+
+        for (int column = 0; column < 6; ++column) {
+            if (accounts->item(index, column) == nullptr) {
+                accounts->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        auto *key_item = accounts->item(index, 0);
+        key_item->setText(account.value(QStringLiteral("key")).toString());
+        key_item->setData(Qt::UserRole, account);
+
+        const QJsonValue expires = account.value(QStringLiteral("expires"));
+        accounts->item(index, 1)->setText(account.value(QStringLiteral("type")).toString());
+        accounts->item(index, 2)->setText(QString::number(account.value(QStringLiteral("created")).toInt()));
+        accounts->item(index, 3)->setText(expires.isNull() ? QStringLiteral("never")
+                                                           : QString::number(expires.toInt()));
+        accounts->item(index, 4)->setText(account.value(QStringLiteral("banned")).toBool()
+                                              ? account.value(QStringLiteral("banned_reason")).toString()
+                                              : QStringLiteral("-"));
+        accounts->item(index, 5)->setText(account.value(QStringLiteral("message")).toString());
+    }
+
+    accounts->resizeRowsToContents();
+
+    const QJsonArray login_list = state.value(QStringLiteral("logins")).toArray();
+    logins->setRowCount(login_list.size());
+
+    for (int index = 0; index < login_list.size(); ++index) {
+        const QJsonObject login = login_list.at(index).toObject();
+
+        for (int column = 0; column < 5; ++column) {
+            if (logins->item(index, column) == nullptr) {
+                logins->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        auto *domain_item = logins->item(index, 0);
+        domain_item->setText(login.value(QStringLiteral("domain")).toString());
+        domain_item->setData(Qt::UserRole, login);
+        logins->item(index, 1)->setText(login.value(QStringLiteral("username")).toString());
+        logins->item(index, 2)->setText(login.value(QStringLiteral("password")).toString().isEmpty()
+                                            ? QStringLiteral("-")
+                                            : QStringLiteral("********"));
+        logins->item(index, 3)->setText(login.value(QStringLiteral("access_key")).toString());
+        const QJsonValue expires = login.value(QStringLiteral("expires"));
+        logins->item(index, 4)->setText(expires.isNull() ? QStringLiteral("never")
+                                                         : QString::number(expires.toInt()));
+    }
+
+    logins->resizeRowsToContents();
 }
 
 QString HydrusServicesDialog::selected_key() const {
@@ -3881,71 +4421,44 @@ QString HydrusServicesDialog::selected_key() const {
         return {};
     }
 
-    QTableWidgetItem *item = table->item(row, 0);
+    return cell_key(table, row);
+}
 
-    return item == nullptr ? QString() : item->data(Qt::UserRole).toString();
+QJsonObject HydrusServicesDialog::selected_remote_service() const {
+    const int row = remote_services->currentRow();
+
+    if (row < 0 || remote_services->item(row, 0) == nullptr) {
+        return {};
+    }
+
+    return remote_services->item(row, 0)->data(Qt::UserRole).toJsonObject();
+}
+
+QString HydrusServicesDialog::selected_remote_key() const {
+    const QJsonObject service = selected_remote_service();
+
+    return service.value(QStringLiteral("key")).toString();
 }
 
 void HydrusServicesDialog::add_service() {
-    QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("add local service"));
-    auto *layout = new QVBoxLayout(&dialog);
-    auto *form = new QFormLayout();
+    QJsonObject service;
+    service.insert(QStringLiteral("name"), QString());
+    service.insert(QStringLiteral("type_int"), 2);
+    service.insert(QStringLiteral("dictionary"), QJsonObject());
 
-    auto *name = new QLineEdit(&dialog);
-    auto *type = new QComboBox(&dialog);
-
-    for (const QJsonValue &value : data.value(QStringLiteral("types")).toArray()) {
-        const QJsonObject entry = value.toObject();
-        type->addItem(entry.value(QStringLiteral("label")).toString(), entry.value(QStringLiteral("value")).toInt());
-    }
-
-    form->addRow(QStringLiteral("name"), name);
-    form->addRow(QStringLiteral("type"), type);
-    layout->addLayout(form);
-
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    layout->addWidget(buttons);
-
-    if (dialog.exec() != QDialog::Accepted || name->text().trimmed().isEmpty()) {
-        return;
-    }
-
-    QJsonObject payload;
-    payload.insert(QStringLiteral("name"), name->text().trimmed());
-    payload.insert(QStringLiteral("type"), type->currentData().toInt());
-
-    main->notify(QStringLiteral("service_add"), QString(), json_payload(payload));
+    build_service_editor(main, this, data, service);
 }
 
-void HydrusServicesDialog::rename_selected() {
-    const QString key = selected_key();
-
-    if (key.isEmpty()) {
-        return;
-    }
-
+void HydrusServicesDialog::edit_selected() {
     const int row = table->currentRow();
-    bool ok = false;
-    const QString name = QInputDialog::getText(
-        this,
-        QStringLiteral("rename service"),
-        QStringLiteral("name"),
-        QLineEdit::Normal,
-        table->item(row, 0)->text(),
-        &ok);
 
-    if (!ok || name.trimmed().isEmpty()) {
+    if (row < 0 || table->item(row, 0) == nullptr) {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("key"), key);
-    payload.insert(QStringLiteral("name"), name.trimmed());
-
-    main->notify(QStringLiteral("service_rename"), QString(), json_payload(payload));
+    QJsonObject service = table->item(row, 0)->data(Qt::UserRole).toJsonObject();
+    service.insert(QStringLiteral("original"), selected_key());
+    build_service_editor(main, this, data, service);
 }
 
 void HydrusServicesDialog::delete_selected() {
@@ -3967,6 +4480,468 @@ void HydrusServicesDialog::delete_selected() {
     payload.insert(QStringLiteral("key"), key);
 
     main->notify(QStringLiteral("service_delete"), QString(), json_payload(payload));
+}
+
+void HydrusServicesDialog::show_specifier() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("service specifier"));
+    dialog.resize(460, 360);
+
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *type = new QComboBox(&dialog);
+    type->addItem(QStringLiteral("file domains"), QStringLiteral("local file domain"));
+    type->addItem(QStringLiteral("tag domains"), QStringLiteral("local tag domain"));
+    type->addItem(QStringLiteral("notes"), QStringLiteral("notes"));
+    type->addItem(QStringLiteral("ratings"), QStringLiteral("ratings"));
+    type->addItem(QStringLiteral("tag repositories"), QStringLiteral("tag repository"));
+    type->addItem(QStringLiteral("file repositories"), QStringLiteral("file repository"));
+    layout->addWidget(type);
+
+    auto *list = new QListWidget(&dialog);
+    layout->addWidget(list, 1);
+
+    auto *status = new QLabel(&dialog);
+    status->setWordWrap(true);
+    layout->addWidget(status);
+
+    auto refresh = [this, list, type, status]() {
+        list->clear();
+        const QString wanted = type->currentData().toString();
+
+        for (const QJsonValue &entry : data.value(QStringLiteral("services")).toArray()) {
+            const QJsonObject service = entry.toObject();
+            const QString short_type = service.value(QStringLiteral("type_short")).toString();
+
+            const bool matches = wanted == QStringLiteral("ratings")
+                ? short_type.contains(QStringLiteral("rating"))
+                : short_type == wanted;
+
+            if (matches) {
+                auto *item = new QListWidgetItem(service.value(QStringLiteral("name")).toString(), list);
+                item->setData(Qt::UserRole, service.value(QStringLiteral("key")).toString());
+            }
+        }
+
+        status->setText(list->count() == 0 ? QStringLiteral("no services of that type")
+                                           : QStringLiteral("%1 service(s) available").arg(list->count()));
+    };
+
+    connect(type, &QComboBox::currentIndexChanged, &dialog, [refresh](int) { refresh(); });
+    refresh();
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    auto *copy = new QPushButton(QStringLiteral("copy key"), &dialog);
+    buttons->addButton(copy, QDialogButtonBox::ActionRole);
+    layout->addWidget(buttons);
+    connect(copy, &QPushButton::clicked, &dialog, [list, status]() {
+        QListWidgetItem *item = list->currentItem();
+
+        if (item == nullptr) {
+            status->setText(QStringLiteral("select a service first"));
+            return;
+        }
+
+        QApplication::clipboard()->setText(item->data(Qt::UserRole).toString());
+        status->setText(QStringLiteral("service key copied to the clipboard"));
+    });
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    dialog.exec();
+}
+
+void HydrusServicesDialog::edit_login() {
+    QJsonObject existing;
+    const int row = logins->currentRow();
+
+    if (row >= 0 && logins->item(row, 0) != nullptr) {
+        existing = logins->item(row, 0)->data(Qt::UserRole).toJsonObject();
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(existing.isEmpty() ? QStringLiteral("add credentials")
+                                             : QStringLiteral("edit credentials"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+
+    auto *domain = new QLineEdit(existing.value(QStringLiteral("domain")).toString(), &dialog);
+    auto *username = new QLineEdit(existing.value(QStringLiteral("username")).toString(), &dialog);
+    auto *password = new QLineEdit(existing.value(QStringLiteral("password")).toString(), &dialog);
+    password->setEchoMode(QLineEdit::Password);
+    auto *access_key = new QLineEdit(existing.value(QStringLiteral("access_key")).toString(), &dialog);
+    auto *expires = new QSpinBox(&dialog);
+    expires->setRange(0, 3650);
+    expires->setSpecialValueText(QStringLiteral("never"));
+    expires->setSuffix(QStringLiteral(" days"));
+
+    form->addRow(QStringLiteral("domain"), domain);
+    form->addRow(QStringLiteral("username"), username);
+    form->addRow(QStringLiteral("password"), password);
+    form->addRow(QStringLiteral("access key"), access_key);
+    form->addRow(QStringLiteral("expires"), expires);
+    layout->addLayout(form);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, [&]() {
+        if (domain->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("credentials"),
+                                 QStringLiteral("Enter a domain."));
+            return;
+        }
+
+        dialog.accept();
+    });
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("domain"), domain->text().trimmed());
+    payload.insert(QStringLiteral("username"), username->text());
+    payload.insert(QStringLiteral("password"), password->text());
+    payload.insert(QStringLiteral("access_key"), access_key->text().trimmed());
+
+    if (expires->value() > 0) {
+        payload.insert(QStringLiteral("expires"),
+                       QDateTime::currentSecsSinceEpoch() + static_cast<qint64>(expires->value()) * 86400);
+    }
+
+    main->notify(QStringLiteral("login_save"), QString(), json_payload(payload));
+}
+
+void HydrusServicesDialog::remove_login() {
+    const int row = logins->currentRow();
+
+    if (row < 0) {
+        return;
+    }
+
+    const QString domain = cell_value(logins, row, 0);
+
+    if (domain.isEmpty()) {
+        return;
+    }
+
+    main->notify(QStringLiteral("login_remove"), QString(), domain);
+}
+
+void HydrusServicesDialog::connect_admin() {
+    QJsonObject payload;
+    payload.insert(QStringLiteral("address"), admin_address->text().trimmed());
+    payload.insert(QStringLiteral("access_key"), admin_key->text().trimmed());
+
+    main->notify(QStringLiteral("admin_connect"), QString(), json_payload(payload));
+}
+
+void HydrusServicesDialog::select_remote_service() {
+    const QString key = selected_remote_key();
+
+    if (key.isEmpty()) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("service_key"), key);
+    payload.insert(QStringLiteral("access_key"), remote_key->text().trimmed());
+
+    main->notify(QStringLiteral("admin_service_action"), QString(),
+                 json_payload([&]() {
+                     QJsonObject with_action = payload;
+                     with_action.insert(QStringLiteral("action"), QStringLiteral("select"));
+                     return with_action;
+                 }()));
+}
+
+void HydrusServicesDialog::add_remote_service() {
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("add server service"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+
+    auto *name = new QLineEdit(&dialog);
+    auto *type = new QComboBox(&dialog);
+    type->addItem(QStringLiteral("tag repository"), 0);
+    type->addItem(QStringLiteral("file repository"), 1);
+    auto *port = new QSpinBox(&dialog);
+    port->setRange(1, 65535);
+    port->setValue(45871);
+
+    form->addRow(QStringLiteral("name"), name);
+    form->addRow(QStringLiteral("type"), type);
+    form->addRow(QStringLiteral("port"), port);
+    layout->addLayout(form);
+
+    auto *note = new QLabel(
+        QStringLiteral("The server returns a new access key for every service it creates; "
+                       "it is stored here and used for account and option management."),
+        &dialog);
+    note->setWordWrap(true);
+    layout->addWidget(note);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, [&]() {
+        if (name->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("service"),
+                                 QStringLiteral("Enter a service name."));
+            return;
+        }
+
+        dialog.accept();
+    });
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("name"), name->text().trimmed());
+    payload.insert(QStringLiteral("type_int"), type->currentData().toInt());
+    payload.insert(QStringLiteral("port"), port->value());
+
+    main->notify(QStringLiteral("admin_add_service"), QString(), json_payload(payload));
+}
+
+void HydrusServicesDialog::edit_remote_service() {
+    const QJsonObject service = selected_remote_service();
+
+    if (service.isEmpty()) {
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(QStringLiteral("edit server service"));
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *form = new QFormLayout();
+    auto *name = new QLineEdit(service.value(QStringLiteral("name")).toString(), &dialog);
+    auto *port = new QSpinBox(&dialog);
+    port->setRange(1, 65535);
+    port->setValue(service.value(QStringLiteral("port")).toInt());
+    form->addRow(QStringLiteral("name"), name);
+    form->addRow(QStringLiteral("port"), port);
+    layout->addLayout(form);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    layout->addWidget(buttons);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, [&]() {
+        if (name->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("service"),
+                                 QStringLiteral("Enter a service name."));
+            return;
+        }
+
+        dialog.accept();
+    });
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("service_key"), service.value(QStringLiteral("key")).toString());
+    payload.insert(QStringLiteral("name"), name->text().trimmed());
+    payload.insert(QStringLiteral("port"), port->value());
+
+    main->notify(QStringLiteral("admin_edit_service"), QString(), json_payload(payload));
+}
+
+void HydrusServicesDialog::remove_remote_service() {
+    const QString key = selected_remote_key();
+
+    if (key.isEmpty()) {
+        return;
+    }
+
+    if (QMessageBox::question(this, QStringLiteral("delete service"),
+                              QStringLiteral("Delete this service from the server? All of its "
+                                             "content will be removed."))
+        != QMessageBox::Yes) {
+        return;
+    }
+
+    main->notify(QStringLiteral("admin_remove_service"), QString(), key);
+}
+
+void HydrusServicesDialog::remote_service_action() {
+    const QString key = selected_remote_key();
+
+    if (key.isEmpty()) {
+        return;
+    }
+
+    auto *button = qobject_cast<QPushButton *>(sender());
+
+    if (button == nullptr) {
+        return;
+    }
+
+    QString action;
+    const QString text = button->text();
+
+    if (text.startsWith(QStringLiteral("lock"))) {
+        action = QStringLiteral("lock_on");
+    } else if (text.startsWith(QStringLiteral("unlock"))) {
+        action = QStringLiteral("lock_off");
+    } else if (text.startsWith(QStringLiteral("regen"))) {
+        action = QStringLiteral("regen_info");
+    } else if (text.startsWith(QStringLiteral("update"))) {
+        action = QStringLiteral("update_period");
+    } else if (text.startsWith(QStringLiteral("nullification"))) {
+        action = QStringLiteral("nullification_period");
+    }
+
+    if (action.isEmpty()) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("action"), action);
+    payload.insert(QStringLiteral("service_key"), key);
+    payload.insert(QStringLiteral("access_key"), remote_key->text().trimmed());
+
+    if (action.endsWith(QStringLiteral("period"))) {
+        bool ok = false;
+        const int seconds = QInputDialog::getInt(
+            this, QStringLiteral("service period"), QStringLiteral("seconds"),
+            action.startsWith(QStringLiteral("update")) ? 86400 : 90 * 86400, 0,
+            365 * 86400, 60, &ok);
+
+        if (!ok) {
+            return;
+        }
+
+        payload.insert(QStringLiteral("period"), seconds);
+    }
+
+    main->notify(QStringLiteral("admin_service_action"), QString(), json_payload(payload));
+}
+
+void HydrusServicesDialog::account_action() {
+    const int row = accounts->currentRow();
+
+    if (row < 0 || accounts->item(row, 0) == nullptr) {
+        return;
+    }
+
+    auto *button = qobject_cast<QPushButton *>(sender());
+
+    if (button == nullptr) {
+        return;
+    }
+
+    const QJsonObject account = accounts->item(row, 0)->data(Qt::UserRole).toJsonObject();
+    const QString account_key = account.value(QStringLiteral("key")).toString();
+    const QString text = button->text();
+    QString action;
+
+    if (text.startsWith(QStringLiteral("ban"))) {
+        action = QStringLiteral("ban");
+    } else if (text.startsWith(QStringLiteral("unban"))) {
+        action = QStringLiteral("unban");
+    } else if (text.startsWith(QStringLiteral("expires"))) {
+        action = QStringLiteral("expires");
+    } else if (text.startsWith(QStringLiteral("message"))) {
+        action = QStringLiteral("message");
+    } else if (text.startsWith(QStringLiteral("delete"))) {
+        if (QMessageBox::question(this, QStringLiteral("delete content"),
+                                  QStringLiteral("Delete all content this account uploaded?"))
+            != QMessageBox::Yes) {
+            return;
+        }
+
+        action = QStringLiteral("delete_all_content");
+    } else if (text.startsWith(QStringLiteral("account type"))) {
+        action = QStringLiteral("account_type");
+    }
+
+    if (action.isEmpty()) {
+        return;
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("action"), action);
+    payload.insert(QStringLiteral("subject_account_key"), account_key);
+
+    if (action == QStringLiteral("ban")) {
+        bool ok = false;
+        const QString reason = QInputDialog::getText(
+            this, QStringLiteral("ban account"), QStringLiteral("reason"),
+            QLineEdit::Normal, QStringLiteral("banned by admin"), &ok);
+
+        if (!ok) {
+            return;
+        }
+
+        payload.insert(QStringLiteral("reason"), reason);
+    } else if (action == QStringLiteral("expires")) {
+        bool ok = false;
+        const int days = QInputDialog::getInt(
+            this, QStringLiteral("account expiry"),
+            QStringLiteral("days from now (0 = never)"), 30, 0, 36500, 1, &ok);
+
+        if (!ok) {
+            return;
+        }
+
+        if (days > 0) {
+            payload.insert(QStringLiteral("expires"),
+                           QDateTime::currentSecsSinceEpoch() + static_cast<qint64>(days) * 86400);
+        } else {
+            payload.insert(QStringLiteral("expires"), QJsonValue::Null);
+        }
+    } else if (action == QStringLiteral("message")) {
+        bool ok = false;
+        const QString message = QInputDialog::getText(
+            this, QStringLiteral("account message"), QStringLiteral("message"),
+            QLineEdit::Normal, account.value(QStringLiteral("message")).toString(), &ok);
+
+        if (!ok) {
+            return;
+        }
+
+        payload.insert(QStringLiteral("message"), message);
+    } else if (action == QStringLiteral("account_type")) {
+        const QJsonArray types = data.value(QStringLiteral("admin"))
+                                     .toObject()
+                                     .value(QStringLiteral("account_types"))
+                                     .toArray();
+        QStringList titles;
+
+        for (const QJsonValue &entry : types) {
+            titles.append(entry.toObject().value(QStringLiteral("title")).toString());
+        }
+
+        if (titles.isEmpty()) {
+            QMessageBox::information(this, QStringLiteral("account type"),
+                                     QStringLiteral("Review the service first."));
+            return;
+        }
+
+        bool ok = false;
+        const QString title = QInputDialog::getItem(
+            this, QStringLiteral("account type"), QStringLiteral("type"), titles,
+            titles.indexOf(account.value(QStringLiteral("type")).toString()), false, &ok);
+
+        if (!ok) {
+            return;
+        }
+
+        for (const QJsonValue &entry : types) {
+            const QJsonObject object = entry.toObject();
+
+            if (object.value(QStringLiteral("title")).toString() == title) {
+                payload.insert(QStringLiteral("account_type_key"),
+                               object.value(QStringLiteral("key")).toString());
+                break;
+            }
+        }
+    }
+
+    main->notify(QStringLiteral("admin_account_action"), QString(), json_payload(payload));
 }
 
 HydrusNetworkDialog::HydrusNetworkDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
@@ -4290,7 +5265,7 @@ void HydrusNetworkDialog::add_header() {
     layout->addLayout(form);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
 
     if (dialog.exec() != QDialog::Accepted || name->text().trimmed().isEmpty()) {
@@ -4384,7 +5359,7 @@ void HydrusNetworkDialog::add_pool() {
     layout->addLayout(form);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
 
     if (dialog.exec() != QDialog::Accepted || domain->text().trimmed().isEmpty()) {
@@ -4441,7 +5416,7 @@ void HydrusNetworkDialog::add_bandwidth_rule() {
     layout->addWidget(hint);
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
 
     connect(bandwidth_type, QOverload<int>::of(&QComboBox::currentIndexChanged), &dialog, [maximum, bandwidth_type](int) {
@@ -4655,7 +5630,7 @@ void HydrusTagRelationsDialog::add_relation() {
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
 
     if (dialog.exec() != QDialog::Accepted) {
@@ -5066,7 +6041,7 @@ void HydrusDuplicatesRulesDialog::add_rule() {
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
 
     if (dialog.exec() != QDialog::Accepted || name->text().trimmed().isEmpty()) {
@@ -6432,7 +7407,7 @@ void HydrusMainWindow::show_about(const QJsonObject &state) {
     layout->addWidget(title);
 
     auto *subtitle = new QLabel(
-        QStringLiteral("Rust/Qt client · software v%1 · network v%2")
+        QStringLiteral("Rust/Qt client Р В РІР‚в„ўР вЂ™Р’В· software v%1 Р В РІР‚в„ўР вЂ™Р’В· network v%2")
             .arg(state.value(QStringLiteral("software_version")).toInt())
             .arg(state.value(QStringLiteral("network_version")).toInt()),
         &dialog);
@@ -6730,7 +7705,7 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     layout->addWidget(buttons);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, [&dialog, path, action, action_path]() {
         if (path->text().trimmed().isEmpty()) {
             QMessageBox::warning(&dialog, QStringLiteral("import folder"), QStringLiteral("Choose a folder to import from."));
@@ -6878,7 +7853,7 @@ void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     layout->addWidget(buttons);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, [&dialog, path, phrase]() {
         if (path->text().trimmed().isEmpty()) {
             QMessageBox::warning(&dialog, QStringLiteral("export folder"),
@@ -6978,9 +7953,9 @@ void HydrusMainWindow::show_export_review(const QJsonObject &state) {
         const bool source_exists = file.value(QStringLiteral("source_exists")).toBool(true);
         const bool exists = file.value(QStringLiteral("exists")).toBool();
         const QString destination = file.value(QStringLiteral("destination")).toString();
-        const QString root = state.value(QStringLiteral("destination")).toString();
-        const QString relative = destination.startsWith(root)
-            ? destination.mid(root.size()).replace(QLatin1Char('\\'), QLatin1Char('/'))
+        const QString root_dir = state.value(QStringLiteral("destination")).toString();
+        const QString relative = destination.startsWith(root_dir)
+            ? destination.mid(root_dir.size()).replace(QLatin1Char('\\'), QLatin1Char('/'))
             : destination;
 
         for (int column = 0; column < 5; ++column) {

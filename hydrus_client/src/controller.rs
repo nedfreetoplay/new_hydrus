@@ -253,6 +253,46 @@ impl Controller {
         Ok(())
     }
 
+    /// Saves the name and serialised dictionary of an existing service.
+    pub fn update_service(
+        &self,
+        service_key_hex: &str,
+        name: &str,
+        dictionary_string: &str,
+    ) -> HydrusResult<()> {
+        let Some(key) = decode_hex(service_key_hex) else {
+            return Err(hydrus_core::hydrus_exceptions::unknown(
+                "invalid service key",
+            ));
+        };
+
+        let name = name.trim();
+
+        if name.is_empty() {
+            return Err(hydrus_core::hydrus_exceptions::unknown(
+                "a service needs a name",
+            ));
+        }
+
+        let manager = self.services();
+        let current_name = manager.get_name(&key);
+        let duplicate = manager
+            .names()
+            .iter()
+            .any(|existing| *existing == name && *existing != current_name);
+
+        if duplicate {
+            return Err(hydrus_core::hydrus_exceptions::unknown(
+                "a service with that name already exists",
+            ));
+        }
+
+        crate::db::services::update_service(self.db.db(), &key, name, dictionary_string)?;
+        self.reload_services()?;
+
+        Ok(())
+    }
+
     pub fn delete_service(&self, service_key_hex: &str) -> HydrusResult<()> {
         let Some(key) = decode_hex(service_key_hex) else {
             return Err(hydrus_core::hydrus_exceptions::unknown(

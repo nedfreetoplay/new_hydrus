@@ -30,6 +30,8 @@ impl ServerDB {
             }
         }
 
+        self.db.force_a_commit()?;
+
         Ok(service_keys_to_access_keys)
     }
 

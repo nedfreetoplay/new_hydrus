@@ -70,6 +70,7 @@ pub enum UiCommand {
     NotesDialog(String),
     OptionsDialog(String),
     ServicesDialog(String),
+    UpdateServices(String),
     NetworkDialog(String),
     NotifyMessage(String),
     SetClipboard(String),

@@ -447,14 +447,33 @@ public:
 
 private:
     void add_service();
-    void rename_selected();
+    void edit_selected();
     void delete_selected();
+    void show_specifier();
+    void edit_login();
+    void remove_login();
+    void connect_admin();
+    void select_remote_service();
+    void add_remote_service();
+    void edit_remote_service();
+    void remove_remote_service();
+    void remote_service_action();
+    void account_action();
     QString selected_key() const;
+    QJsonObject selected_remote_service() const;
+    QString selected_remote_key() const;
 
     HydrusMainWindow *main = nullptr;
     QJsonObject data;
+    QTabWidget *tabs = nullptr;
     QTableWidget *table = nullptr;
-    QComboBox *type_combo = nullptr;
+    QTableWidget *remote_services = nullptr;
+    QTableWidget *accounts = nullptr;
+    QTableWidget *logins = nullptr;
+    QLabel *admin_status = nullptr;
+    QLineEdit *admin_address = nullptr;
+    QLineEdit *admin_key = nullptr;
+    QLineEdit *remote_key = nullptr;
 };
 
 // Non-modal network manager.

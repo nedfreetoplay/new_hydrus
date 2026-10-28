@@ -293,16 +293,23 @@ Rust-цели: `gui/app/options.rs`, `services.rs`, `controller.rs`,
 - [x] 09.1 Менеджер локальных сервисов: add/rename/delete.
 - [x] 09.2 Локальные file/tag/rating/notes services.
 - [x] 09.3 Client API server и access key.
-- [ ] 09.4 Client service editor со всеми sub-panels.
-- [ ] 09.5 Server-side services manager.
-- [ ] 09.6 Accounts и account types.
-- [ ] 09.7 Repository sync, update periods, petitions.
+- [~] 09.4 Client service editor: локальные типы, remote host/port/key,
+  repository periods и file-repository storage. Tag filter/IPFS панели ждут
+  09.8/09.9.
+- [x] 09.5 Server-side services manager: connect, add/edit/delete, lock/unlock,
+  regen info и update/nullification periods.
+- [~] 09.6 Accounts: list, ban/unban, expires, message, delete content и
+  назначение типа. Редактор account types (permissions) ещё нет.
+- [~] 09.7 Update/nullification periods настраиваются из GUI; repository sync и
+  petitions ещё нет.
 - [ ] 09.8 Tag filter и purge tags.
 - [ ] 09.9 IPFS и local booru shares.
 - [ ] 09.10 API permissions capture/edit.
-- [ ] 09.11 Login credentials/scripts.
+- [~] 09.11 Credentials manager (`logins.json`) есть; login scripts и
+  использование credentials в network engine ещё нет.
 - [ ] 09.12 Pending commit/forget и petition UI.
-- [ ] 09.13 Service specifier и review panels.
+- [x] 09.13 Service specifier и review panels: выбор сервиса по типу,
+  копирование ключа, review options/service info и accounts.
 
 Выход фазы: сервисы и репозитории управляются из GUI, API-права настраиваются,
 petitions доступны.

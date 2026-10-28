@@ -165,6 +165,9 @@ fn allowed_methods(kind: ServerResourceKind) -> &'static [&'static str] {
         | ServerResourceKind::RestrictedVacuum => &["POST"],
         ServerResourceKind::RestrictedRepositoryFile => &["GET", "POST"],
         ServerResourceKind::RestrictedTagFilter => &["GET", "POST"],
+        ServerResourceKind::RestrictedServices | ServerResourceKind::RestrictedUpdate => {
+            &["GET", "POST"]
+        }
         _ => &["GET"],
     }
 }

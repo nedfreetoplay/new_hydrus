@@ -566,6 +566,7 @@ pub struct AppState {
     pub favourites: Vec<super::favourites::FavouriteSearch>,
     pub search_history: Vec<String>,
     pub notifications: super::notifications::NotificationLog,
+    pub admin: super::services::AdminState,
     pub import_queue: ImportQueueState,
     pub history: PageHistory,
     pub closed_pages: Vec<ClosedPage>,
@@ -593,6 +594,7 @@ impl AppState {
             favourites: Vec::new(),
             search_history: Vec::new(),
             notifications: super::notifications::NotificationLog::default(),
+            admin: super::services::AdminState::default(),
             import_queue: ImportQueueState::default(),
             history: PageHistory::default(),
             closed_pages: Vec::new(),
@@ -623,6 +625,7 @@ impl AppState {
         );
         state.favourites = super::favourites::load(&db_dir.join("favourite searches.json"));
         state.search_history = super::search_history::load(&db_dir.join("search history.json"));
+        state.admin = super::services::load_admin(&db_dir.join("server admin.json"));
 
         state.reindex();
         state.active = restored_active

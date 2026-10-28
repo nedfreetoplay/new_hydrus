@@ -3,7 +3,6 @@
 //! The Qt layer renders these dictionaries as ordinary Hydrus-style dialogs;
 //! all validation and persistence stays here.
 
-use hydrus_core::hydrus_constants::ServiceType;
 use serde_json::{Value, json};
 
 use crate::client_options::ClientOptions;
@@ -418,104 +417,6 @@ pub fn apply_options(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     commands
 }
 
-pub fn services_json(state: &AppState) -> String {
-    let manager = state.controller.services();
-
-    let services: Vec<Value> = manager
-        .get_services(None)
-        .into_iter()
-        .map(|service| {
-            json!({
-                "service_id": service.service_id,
-                "key": hex(&service.service_key),
-                "name": service.name,
-                "type": service.service_type.as_str(),
-                "type_short": service.service_type.short_str(),
-                "type_int": service.service_type.as_int(),
-                "builtin": matches!(service.name.as_str(), "my files" | "local tags" | "trash"),
-            })
-        })
-        .collect();
-
-    json!({
-        "services": services,
-        "types": [
-            {"label": "local file domain", "value": ServiceType::LocalFileDomain.as_int(), "short": "local file domain"},
-            {"label": "local tag domain", "value": ServiceType::LocalTag.as_int(), "short": "local tag domain"},
-            {"label": "local notes", "value": ServiceType::LocalNotes.as_int(), "short": "local file notes service"},
-            {"label": "inc/dec ratings", "value": ServiceType::LocalRatingIncDec.as_int(), "short": "local inc/dec rating service"},
-            {"label": "numerical ratings", "value": ServiceType::LocalRatingNumerical.as_int(), "short": "local numerical rating service"},
-            {"label": "like/dislike ratings", "value": ServiceType::LocalRatingLike.as_int(), "short": "local like/dislike rating service"}
-        ]
-    })
-    .to_string()
-}
-
-pub fn service_action(state: &mut AppState, action: &str, payload: &str) -> Vec<UiCommand> {
-    let Ok(value) = serde_json::from_str::<Value>(payload) else {
-        state.message = "invalid service payload".to_string();
-        return service_commands(state);
-    };
-
-    let result = match action {
-        "service_add" => {
-            let name = value
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            let service_type = value
-                .get("type")
-                .and_then(Value::as_u64)
-                .and_then(|value| u16::try_from(value).ok())
-                .and_then(ServiceType::try_from_int);
-
-            match service_type {
-                Some(service_type) => state
-                    .controller
-                    .add_service(name, service_type)
-                    .map(|_| format!("service '{name}' created")),
-                None => Err(hydrus_core::hydrus_exceptions::unknown(
-                    "unknown service type",
-                )),
-            }
-        }
-        "service_rename" => {
-            let key = value.get("key").and_then(Value::as_str).unwrap_or_default();
-            let name = value
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-
-            state
-                .controller
-                .rename_service(key, name)
-                .map(|_| format!("service renamed to '{name}'"))
-        }
-        "service_delete" => {
-            let key = value.get("key").and_then(Value::as_str).unwrap_or_default();
-
-            state
-                .controller
-                .delete_service(key)
-                .map(|_| "service deleted".to_string())
-        }
-        _ => Err(hydrus_core::hydrus_exceptions::unknown(
-            "unknown service action",
-        )),
-    };
-
-    state.message = match result {
-        Ok(message) => message,
-        Err(error) => format!("service error: {error}"),
-    };
-
-    if state.controller.api_status().is_some() {
-        let _ = state.controller.refresh_api();
-    }
-
-    service_commands(state)
-}
-
 pub fn network_json(state: &AppState) -> String {
     let controller = &state.controller;
     let options = controller.options();
@@ -881,14 +782,6 @@ fn network_commands(state: &AppState) -> Vec<UiCommand> {
     ]
 }
 
-fn service_commands(state: &AppState) -> Vec<UiCommand> {
-    vec![
-        UiCommand::ServicesDialog(services_json(state)),
-        UiCommand::Menus(render::menus_json(state)),
-        UiCommand::Status(render::status_json(state)),
-        UiCommand::NotifyMessage(state.message.clone()),
-    ]
-}
 
 fn apply_maps(options: &mut ClientOptions, value: &Value) {
     if let Some(map) = value.get("booleans").and_then(Value::as_object) {
@@ -978,10 +871,6 @@ fn str_field(key: &str, label: &str, value: String, note: &str) -> Value {
         "value": value,
         "note": note,
     })
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn random_hex_32() -> String {

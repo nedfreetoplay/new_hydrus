@@ -226,6 +226,29 @@ check regularly, subdirectories, skip recent, расширения, min/max ра
 файлу, поэтому move/delete выполняется только для успешно импортированных файлов.
 Move не перезаписывает существующие имена.
 
+## Services, server administration and logins
+
+`gui::app::services` owns the extended service dialog. Local service entries
+keep their type and dictionary in the client DB; remote repository and
+administration services store `host`, `port`, `access_key`, repository periods
+and file-repository storage limits in the same dictionary. The service editor
+and the service specifier are rendered by Qt, while validation and persistence
+stay in Rust.
+
+`networking::hydrus_admin` speaks the Hydrus server protocol: compressed
+`ParsedRequestArguments` bodies, the `Hydrus-Key` header, and the same
+`ServerService`/`Account` objects as `hydrus_server`. It can list, add, edit and
+delete server services, lock/unlock, regenerate service info, set update and
+nullification periods, and review/modify accounts. A blank access key performs
+the one-time `/access_key` bootstrap through the `init` registration key. Remote
+connections accept the server's self-signed certificate; that exception is
+limited to this client.
+
+Login credentials are persisted in `logins.json` and edited from the logins tab.
+The server connection itself is saved in `server admin.json`, including the
+access keys returned when a service is created. Account actions and service
+options are only cached in memory and refreshed on demand.
+
 ## Export folders
 
 `gui::app::export` хранит entry в `export folders.json`: destination, поисковый

@@ -556,6 +556,7 @@ public:
     void show_options(const QJsonObject &state);
     void show_services(const QJsonObject &state);
     void update_services(const QJsonObject &state);
+    void show_tag_filter(const QJsonObject &state);
     void show_network(const QJsonObject &state);
     void update_network(const QJsonObject &state);
     void start_tick();
@@ -687,6 +688,7 @@ void hydrus_show_timestamps(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_options(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_services(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_services(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_tag_filter(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_network(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_network(HydrusMainWindow &window, rust::Str json);
 void hydrus_start_tick(HydrusMainWindow &window);

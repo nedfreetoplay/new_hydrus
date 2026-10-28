@@ -34,6 +34,7 @@ pub mod search_history;
 pub mod services;
 pub mod session;
 pub mod sessions;
+pub mod tag_filter;
 pub mod tag_relations;
 pub mod worker;
 
@@ -1344,6 +1345,13 @@ impl AppState {
                         "service '{name}' is missing"
                     ))],
                 }
+            }
+            "tag_filter_open" => tag_filter::open(self, payload),
+            "tag_filter_save" => tag_filter::save(self, payload),
+            "tag_filter_test" => tag_filter::test(self, payload),
+            "purge_tags" => tag_filter::purge(self, payload),
+            other if other.starts_with("tag_filter:") => {
+                tag_filter::open(self, other.trim_start_matches("tag_filter:"))
             }
             "pause_network" => options::network_action(self, "network_pause", ""),
             "tag_siblings" => tag_relations::show(self, tag_relations::SIBLINGS),

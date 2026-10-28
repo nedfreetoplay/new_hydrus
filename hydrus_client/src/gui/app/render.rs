@@ -1,6 +1,8 @@
 //! JSON rendering of application state for the Qt layer.
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
+
+use hydrus_core::hydrus_constants::ServiceType;
 
 use super::model::{AppState, DownloaderPage, DuplicatesPage, PageNode, QueryPage};
 use super::query;
@@ -18,6 +20,26 @@ pub fn menus_json(state: &AppState) -> String {
             })
         })
         .collect();
+
+    let tag_filter_entries: Vec<Value> = services
+        .get_services(Some(&[ServiceType::TagRepository, ServiceType::LocalTag]))
+        .into_iter()
+        .map(|service| {
+            json!({
+                "label": service.name,
+                "action": format!("tag_filter:{}", query::hex(&service.service_key)),
+                "description": "edit the tag filter and purge tags",
+            })
+        })
+        .collect();
+
+    if !tag_filter_entries.is_empty() {
+        service_entries.push(json!({"separator": true}));
+        service_entries.push(json!({
+            "label": "tag filters",
+            "items": tag_filter_entries,
+        }));
+    }
 
     service_entries.push(json!({"separator": true}));
     service_entries.push(json!({

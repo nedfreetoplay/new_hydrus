@@ -249,6 +249,12 @@ The server connection itself is saved in `server admin.json`, including the
 access keys returned when a service is created. Account actions and service
 options are only cached in memory and refreshed on demand.
 
+Tag filters are edited from the services dialog, the tags menu or the
+services menu. Rules live in the service dictionary as `tag_filter` so local
+tag services and offline repositories keep them; tag repositories additionally
+receive a `POST /tag_filter`. The same dialog can purge tags from a local tag
+service, deleting its current and pending mappings.
+
 ## Export folders
 
 `gui::app::export` хранит entry в `export folders.json`: destination, поисковый

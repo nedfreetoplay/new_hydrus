@@ -71,6 +71,7 @@ pub enum UiCommand {
     OptionsDialog(String),
     ServicesDialog(String),
     UpdateServices(String),
+    TagFilterDialog(String),
     NetworkDialog(String),
     NotifyMessage(String),
     SetClipboard(String),

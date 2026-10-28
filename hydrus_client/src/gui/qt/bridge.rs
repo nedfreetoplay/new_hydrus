@@ -103,6 +103,7 @@ pub(crate) mod ffi {
         fn hydrus_show_options(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_services(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_services(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_tag_filter(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_network(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_network(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_start_tick(window: Pin<&mut HydrusMainWindow>);

@@ -302,7 +302,7 @@ Rust-цели: `gui/app/options.rs`, `services.rs`, `controller.rs`,
   назначение типа. Редактор account types (permissions) ещё нет.
 - [~] 09.7 Update/nullification periods настраиваются из GUI; repository sync и
   petitions ещё нет.
-- [ ] 09.8 Tag filter и purge tags.
+- [~] 09.8 Tag filter: whitelist/blacklist, тест тега, сохранение в сервисе и POST в tag repository; purge tags работает для локального tag-сервиса. Petitions/commit для remote purge ещё нет.
 - [ ] 09.9 IPFS и local booru shares.
 - [ ] 09.10 API permissions capture/edit.
 - [~] 09.11 Credentials manager (`logins.json`) есть; login scripts и

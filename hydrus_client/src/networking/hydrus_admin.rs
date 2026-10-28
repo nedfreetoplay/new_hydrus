@@ -8,9 +8,11 @@
 //! The server object model is shared with the server crate through
 //! `hydrus_core::networking::hydrus_network`.
 
+use std::sync::Arc;
 use std::time::Duration;
 
-use hydrus_core::hydrus_constants::{ServiceType, NETWORK_VERSION};
+use hydrus_core::hydrus_constants::{Filter, ServiceType, NETWORK_VERSION};
+use hydrus_core::hydrus_tags::TagFilter;
 use hydrus_core::networking::hydrus_network::{
     generate_service, generate_service_from_serialisable_tuple, Account, AccountType, ServerService,
 };
@@ -346,6 +348,47 @@ impl HydrusServiceClient {
         types.sort_by(|left, right| left.title.cmp(&right.title));
 
         Ok(types)
+    }
+
+    /// Reads the tag filter rules of a tag repository.
+    pub fn tag_filter(&self) -> Result<Vec<(String, String)>, String> {
+        let args = self.request("GET", "tag_filter", None)?;
+        let value = args
+            .get("tag_filter")
+            .ok_or_else(|| "the server returned no tag filter".to_string())?;
+        let filter = value
+            .downcast_object::<TagFilter>()
+            .ok_or_else(|| "the server returned an unreadable tag filter".to_string())?;
+
+        Ok(filter
+            .get_tag_slices_to_rules()
+            .iter()
+            .map(|(tag_slice, rule)| (tag_slice.clone(), rule.as_str().to_string()))
+            .collect())
+    }
+
+    /// Replaces the tag filter of a tag repository.
+    pub fn set_tag_filter(&self, rules: &[(String, String)]) -> Result<(), String> {
+        let mut filter = TagFilter::new();
+
+        for (tag_slice, rule) in rules {
+            let rule = match rule.as_str() {
+                "whitelist" => Filter::Whitelist,
+                "blacklist" => Filter::Blacklist,
+                other => return Err(format!("'{other}' is not a tag filter rule")),
+            };
+
+            filter.set_rule(tag_slice, rule);
+        }
+
+        filter.clean_rules();
+
+        let mut args = ParsedRequestArguments::new();
+        args.insert("tag_filter", ArgValue::object(Arc::new(filter)));
+
+        self.request("POST", "tag_filter", Some(args))?;
+
+        Ok(())
     }
 
     pub fn options(&self) -> Result<Value, String> {
@@ -772,5 +815,121 @@ mod tests {
         assert_eq!(remote.created, 1_000);
         assert_eq!(remote.expires, Some(2_000));
         assert!(!remote.banned);
+    }
+
+    fn read_http_request(stream: &mut std::net::TcpStream) -> (String, Vec<u8>) {
+        use std::io::Read;
+
+        let mut data = Vec::new();
+        let mut buffer = [0u8; 8192];
+
+        loop {
+            let read = stream.read(&mut buffer).unwrap();
+
+            if read == 0 {
+                break;
+            }
+
+            data.extend_from_slice(&buffer[..read]);
+
+            let Some(position) = data.windows(4).position(|window| window == b"\r\n\r\n") else {
+                continue;
+            };
+
+            let head = String::from_utf8_lossy(&data[..position]).to_string();
+            let content_length = head
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    (name.eq_ignore_ascii_case("content-length"))
+                        .then(|| value.trim().parse::<usize>().ok())
+                        .flatten()
+                })
+                .unwrap_or(0);
+
+            if data.len() >= position + 4 + content_length {
+                return (
+                    head,
+                    data[position + 4..position + 4 + content_length].to_vec(),
+                );
+            }
+        }
+
+        (String::new(), Vec::new())
+    }
+
+    fn http_reply(stream: &mut std::net::TcpStream, body: &[u8]) {
+        use std::io::Write;
+
+        let header = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+
+        stream.write_all(header.as_bytes()).unwrap();
+        stream.write_all(body).unwrap();
+        stream.flush().unwrap();
+    }
+
+    #[test]
+    fn tag_filters_are_read_and_written_over_the_network() {
+        use std::sync::{Arc, Mutex};
+
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let address = format!("http://{}", listener.local_addr().unwrap());
+        let stored: Arc<Mutex<Vec<(String, String)>>> = Arc::new(Mutex::new(Vec::new()));
+        let server_stored = Arc::clone(&stored);
+
+        std::thread::spawn(move || {
+            for _ in 0..2 {
+                let Ok((mut stream, _)) = listener.accept() else {
+                    return;
+                };
+                let (head, body) = read_http_request(&mut stream);
+                let path = head.split_whitespace().nth(1).unwrap_or("/");
+
+                if path.starts_with("/tag_filter") && head.starts_with("POST") {
+                    let parsed = parse_network_bytes_to_parsed_hydrus_args(&body).unwrap();
+                    let value = parsed.get_required("tag_filter").unwrap();
+                    let filter = value.downcast_object::<TagFilter>().unwrap();
+                    *server_stored.lock().unwrap() = filter
+                        .get_tag_slices_to_rules()
+                        .iter()
+                        .map(|(slice, rule)| (slice.clone(), rule.as_str().to_string()))
+                        .collect();
+                    http_reply(&mut stream, &[]);
+                } else {
+                    let mut filter = TagFilter::new();
+                    filter.set_rule(":", Filter::Blacklist);
+                    filter.set_rule("character:", Filter::Whitelist);
+                    let mut args = ParsedRequestArguments::new();
+                    args.insert("tag_filter", ArgValue::object(Arc::new(filter)));
+                    let body = dump_hydrus_args_to_network_bytes(&args).unwrap();
+                    http_reply(&mut stream, &body);
+                }
+            }
+        });
+
+        let client = HydrusServiceClient::new(&address, "abcd").unwrap();
+
+        let filter = client.tag_filter().unwrap();
+        assert!(filter
+            .iter()
+            .any(|(slice, rule)| slice == "character:" && rule == "whitelist"));
+        assert!(filter
+            .iter()
+            .any(|(slice, rule)| slice == ":" && rule == "blacklist"));
+
+        client
+            .set_tag_filter(&[
+                ("*".to_string(), "blacklist".to_string()),
+                ("creator:".to_string(), "whitelist".to_string()),
+            ])
+            .unwrap();
+
+        let read = stored.lock().unwrap().clone();
+        assert!(read
+            .iter()
+            .any(|(slice, rule)| slice == "creator:" && rule == "whitelist"));
     }
 }

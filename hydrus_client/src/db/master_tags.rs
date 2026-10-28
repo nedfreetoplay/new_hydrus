@@ -31,6 +31,20 @@ pub fn get_tag_id(db: &DBBase, tag: &str) -> HydrusResult<i64> {
     .ok_or_else(|| hydrus_core::hydrus_exceptions::data_missing("tag_id disappeared"))
 }
 
+/// Looks up a tag id without creating missing namespace/subtag/tag rows.
+pub fn get_tag_id_if_exists(db: &DBBase, tag: &str) -> HydrusResult<Option<i64>> {
+    let (namespace, subtag) = hydrus_tags::split_tag(tag);
+
+    Ok(db.query_one(
+        "SELECT tags.tag_id FROM tags
+         JOIN namespaces ON tags.namespace_id = namespaces.namespace_id
+         JOIN subtags ON tags.subtag_id = subtags.subtag_id
+         WHERE namespaces.namespace = ? AND subtags.subtag = ?",
+        &[&namespace, &subtag],
+        |row| row.get(0),
+    )?)
+}
+
 pub fn get_tag(db: &DBBase, tag_id: i64) -> HydrusResult<Option<String>> {
     let row: Option<(String, String)> = db.query_one(
         "SELECT namespaces.namespace, subtags.subtag FROM tags

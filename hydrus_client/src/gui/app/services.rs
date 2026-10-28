@@ -112,11 +112,11 @@ fn persist_admin(state: &AppState) {
     );
 }
 
-fn service_dictionary(service: &crate::db::services::Service) -> Value {
+pub(super) fn service_dictionary(service: &crate::db::services::Service) -> Value {
     serde_json::from_str(&service.dictionary_string).unwrap_or_else(|_| json!({}))
 }
 
-fn hex_encode(bytes: &[u8]) -> String {
+pub(super) fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 

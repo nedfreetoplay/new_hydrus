@@ -77,6 +77,23 @@ pub fn remove_mappings(
     Ok(())
 }
 
+/// Deletes every mapping of one master tag from a service/status table.
+/// Returns the number of rows removed.
+pub fn remove_tag_from_service(
+    db: &DBBase,
+    service_id: i64,
+    status: ContentStatus,
+    tag_id: i64,
+) -> HydrusResult<usize> {
+    let table = table_name(service_id, status);
+
+    if !db.table_exists(&table)? {
+        return Ok(0);
+    }
+
+    db.execute(&format!("DELETE FROM {table} WHERE tag_id = ?"), &[&tag_id])
+}
+
 pub fn get_tag_ids(
     db: &DBBase,
     service_id: i64,

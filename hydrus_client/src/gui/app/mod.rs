@@ -28,6 +28,7 @@ pub mod metadata;
 pub mod model;
 pub mod notifications;
 pub mod options;
+pub mod orphans;
 pub mod query;
 pub mod render;
 pub mod search;
@@ -1365,6 +1366,9 @@ impl AppState {
             "tag_parents" => tag_relations::show(self, tag_relations::PARENTS),
             "tag_relations_add" => tag_relations::action(self, payload, true),
             "tag_relations_remove" => tag_relations::action(self, payload, false),
+            "orphan_files_scan" => orphans::open(self),
+            "orphan_files_delete" => orphans::delete(self, payload),
+            "orphan_files_move" => orphans::move_to(self, payload),
             "db_check" => {
                 let result =
                     self.controller

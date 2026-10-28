@@ -108,6 +108,10 @@ CLIENT_API_VERSION, db version, SQLite/Qt/Rust, пути и счётчики с�
 `PRAGMA optimize` + `ANALYZE`, обзор `page_count`/`freelist_count` и подсчёт
 файлов в trash. `fix missing archive times` проходит по архивным файлам
 «my files» без записи в `archive_timestamps` и проставляет текущее время.
+`clear orphan files` обходит файловые и thumbnail-хранилища, находит имена с
+хэшем, которого нет в `master`, и позволяет удалить их или перенести в
+выбранный каталог; перед каждым действием путь и отсутствие записи
+перепроверяются, а файлы с обычными именами не трогаются.
 
 После импорта в очередь `FilesMaintenanceManager` ставятся задания modified time и
 transparency. `maintenance_tick` выполняет до двух заданий за тик (если включены

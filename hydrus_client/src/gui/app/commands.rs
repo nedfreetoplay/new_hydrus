@@ -76,6 +76,8 @@ pub enum UiCommand {
     UpdateApiPermissions(String),
     AccountTypesDialog(String),
     UpdateAccountTypes(String),
+    OrphanFilesDialog(String),
+    UpdateOrphanFiles(String),
     NetworkDialog(String),
     NotifyMessage(String),
     SetClipboard(String),

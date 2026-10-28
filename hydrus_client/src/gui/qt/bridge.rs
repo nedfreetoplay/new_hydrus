@@ -108,6 +108,8 @@ pub(crate) mod ffi {
         fn hydrus_update_api_permissions(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_account_types(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_account_types(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_orphan_files(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_update_orphan_files(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_network(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_network(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_start_tick(window: Pin<&mut HydrusMainWindow>);

@@ -126,6 +126,8 @@ pub fn menus_json(state: &AppState) -> String {
                     {"label": "review file maintenance jobs", "action": "db_file_maintenance"},
                     {"label": "run file maintenance jobs", "action": "db_run_file_maintenance"},
                     {"separator": true},
+                    {"label": "clear orphan files...", "action": "orphan_files_scan"},
+                    {"separator": true},
                     {"label": "how boned am I?", "action": "db_stats"}
                 ]}
             ]

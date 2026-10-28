@@ -44,6 +44,7 @@ class HydrusDuplicatesPage;
 class HydrusServicesDialog;
 class HydrusApiPermissionsDialog;
 class HydrusAccountTypesDialog;
+class HydrusOrphanFilesDialog;
 class HydrusNetworkDialog;
 class HydrusMetadataPanel;
 class HydrusImportFoldersPage;
@@ -517,6 +518,24 @@ private:
     QTableWidget *table = nullptr;
 };
 
+// Non-modal surplus file cleaner for the media storage.
+class HydrusOrphanFilesDialog : public QDialog {
+public:
+    explicit HydrusOrphanFilesDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void delete_selected(bool all);
+    void move_selected(bool all);
+    QStringList selected_paths(bool all) const;
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    QTableWidget *table = nullptr;
+    QLabel *status = nullptr;
+};
+
 class HydrusNetworkDialog : public QDialog {
 public:
     explicit HydrusNetworkDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
@@ -601,6 +620,8 @@ public:
     void update_api_permissions(const QJsonObject &state);
     void show_account_types(const QJsonObject &state);
     void update_account_types(const QJsonObject &state);
+    void show_orphan_files(const QJsonObject &state);
+    void update_orphan_files(const QJsonObject &state);
     void show_network(const QJsonObject &state);
     void update_network(const QJsonObject &state);
     void start_tick();
@@ -645,6 +666,7 @@ private:
     HydrusServicesDialog *services_dialog = nullptr;
     HydrusApiPermissionsDialog *api_permissions_dialog = nullptr;
     HydrusAccountTypesDialog *account_types_dialog = nullptr;
+    HydrusOrphanFilesDialog *orphan_files_dialog = nullptr;
     HydrusNetworkDialog *network_dialog = nullptr;
     HydrusDuplicatesRulesDialog *duplicates_rules_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
@@ -739,6 +761,8 @@ void hydrus_show_api_permissions(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_api_permissions(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_account_types(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_account_types(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_orphan_files(HydrusMainWindow &window, rust::Str json);
+void hydrus_update_orphan_files(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_network(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_network(HydrusMainWindow &window, rust::Str json);
 void hydrus_start_tick(HydrusMainWindow &window);

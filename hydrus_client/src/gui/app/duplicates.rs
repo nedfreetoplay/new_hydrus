@@ -2177,6 +2177,29 @@ mod tests {
         let _ = std::fs::remove_dir_all(directory);
     }
 
+    #[test]
+    fn custom_action_dialog_exposes_pair_and_options() {
+        let directory = temp_directory("custom-dialog");
+        let mut state = action_state(&directory);
+        let controller = state.controller.clone();
+        add_sized_pair(&controller, 101, 1_000, 2_000, 1);
+        action(&mut state, "dup-actions", "duplicates_refresh", "");
+
+        let page = state.find_duplicates("dup-actions").unwrap();
+        let value: Value =
+            serde_json::from_str(&custom_action_dialog_json(&controller, page)).unwrap();
+
+        assert_eq!(value["page_id"], "dup-actions");
+        assert!(value["pair"]["a"]["hash"].is_string());
+        assert!(value["pair"]["b"]["thumb"].is_string());
+        assert_eq!(value["duplicate_types"].as_array().unwrap().len(), 4);
+        assert_eq!(value["delete_modes"].as_array().unwrap().len(), 4);
+        assert!(value["better"].is_object());
+        assert!(value["tag_services"].is_array());
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
     fn action_state(directory: &std::path::Path) -> AppState {
         let controller = test_controller(directory);
         let mut state = AppState::new(std::sync::Arc::new(controller));

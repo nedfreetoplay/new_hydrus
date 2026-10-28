@@ -270,7 +270,9 @@ Rust-цели: `gui/app/duplicates.rs`, `gui/app/auto_resolution.rs`,
 - [x] 08.1 Очередь пар и просмотр двух файлов.
 - [x] 08.2 Keep A/B, same, not duplicates, delete both, skip.
 - [x] 08.3 Простые auto-resolution правила.
-- [ ] 08.4 Duplicate filter page/sidebar: search context и пороги.
+- [x] 08.4 Duplicate filter page/sidebar: search context и пороги: два file search context
+  (теги + локальный file domain), one file/both files/different searches, pixel dupes
+  required/allowed/excluded, max hamming distance; контекст сохраняется в `gui session.json`.
 - [~] 08.5 Batch size/preparation panel: размер батча из `duplicate_filter_max_batch_size`,
   кнопка следующего батча и статус; auto-commit, проценты подготовки и очередь
   поиска ещё нет.

@@ -2447,6 +2447,59 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     layout->setContentsMargins(6, 6, 6, 6);
     layout->setSpacing(6);
 
+    auto *search_panel = new QGroupBox(QStringLiteral("potential duplicate pairs search"), this);
+    auto *search_layout = new QGridLayout(search_panel);
+
+    dupe_search_type = new QComboBox(search_panel);
+    dupe_search_type->addItem(QStringLiteral("at least one file matches the search"), QStringLiteral("one_file"));
+    dupe_search_type->addItem(QStringLiteral("both files match the search"), QStringLiteral("both_files"));
+    dupe_search_type->addItem(QStringLiteral("the two files match different searches"), QStringLiteral("different_searches"));
+
+    search_query_1 = new QLineEdit(search_panel);
+    search_query_1->setPlaceholderText(QStringLiteral("tags and system predicates for the first file"));
+    search_location_1 = new QComboBox(search_panel);
+    search_location_1->addItem(QStringLiteral("my files"));
+    search_location_1->addItem(QStringLiteral("all local files"));
+    search_location_1->addItem(QStringLiteral("trash"));
+
+    search_query_2 = new QLineEdit(search_panel);
+    search_query_2->setPlaceholderText(QStringLiteral("tags and system predicates for the second file"));
+    search_location_2 = new QComboBox(search_panel);
+    search_location_2->addItem(QStringLiteral("my files"));
+    search_location_2->addItem(QStringLiteral("all local files"));
+    search_location_2->addItem(QStringLiteral("trash"));
+    search_row_2_label = new QLabel(QStringLiteral("search 2:"), search_panel);
+
+    pixel_dupes = new QComboBox(search_panel);
+    pixel_dupes->addItem(QStringLiteral("can be pixel dupes"), QStringLiteral("allowed"));
+    pixel_dupes->addItem(QStringLiteral("must be pixel dupes"), QStringLiteral("required"));
+    pixel_dupes->addItem(QStringLiteral("must not be pixel dupes"), QStringLiteral("excluded"));
+
+    search_distance = new QSpinBox(search_panel);
+    search_distance->setRange(0, 64);
+    search_distance->setSingleStep(2);
+    search_distance->setToolTip(QStringLiteral(
+        "The max hamming distance allowed in the search. Higher distances mean more pairs and more false positives."));
+
+    search_summary = new QLabel(search_panel);
+    search_summary->setWordWrap(true);
+
+    search_layout->addWidget(dupe_search_type, 0, 0, 1, 4);
+    search_layout->addWidget(new QLabel(QStringLiteral("search 1:"), search_panel), 1, 0);
+    search_layout->addWidget(search_query_1, 1, 1);
+    search_layout->addWidget(search_location_1, 1, 2, 1, 2);
+    search_layout->addWidget(search_row_2_label, 2, 0);
+    search_layout->addWidget(search_query_2, 2, 1);
+    search_layout->addWidget(search_location_2, 2, 2, 1, 2);
+    search_layout->addWidget(new QLabel(QStringLiteral("pixel dupes:"), search_panel), 3, 0);
+    search_layout->addWidget(pixel_dupes, 3, 1);
+    search_layout->addWidget(new QLabel(QStringLiteral("max search distance:"), search_panel), 3, 2);
+    search_layout->addWidget(search_distance, 3, 3);
+    search_layout->addWidget(search_summary, 4, 0, 1, 4);
+    search_layout->setColumnStretch(1, 1);
+
+    layout->addWidget(search_panel);
+
     auto *header = new QHBoxLayout();
     status = new QLabel(this);
     distance = new QLabel(this);
@@ -2566,7 +2619,53 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
         }
     });
 
+    connect(dupe_search_type, &QComboBox::currentIndexChanged, this, [this]() {
+        update_search_controls();
+        notify_search_context();
+    });
+    connect(search_location_1, &QComboBox::currentTextChanged, this, [this]() { notify_search_context(); });
+    connect(search_location_2, &QComboBox::currentTextChanged, this, [this]() { notify_search_context(); });
+    connect(search_query_1, &QLineEdit::editingFinished, this, [this]() { notify_search_context(); });
+    connect(search_query_2, &QLineEdit::editingFinished, this, [this]() { notify_search_context(); });
+    connect(pixel_dupes, &QComboBox::currentIndexChanged, this, [this]() {
+        update_search_controls();
+        notify_search_context();
+    });
+    connect(search_distance, &QSpinBox::valueChanged, this, [this]() { notify_search_context(); });
+
+    update_search_controls();
+
     update_state(state);
+}
+
+void HydrusDuplicatesPage::notify_search_context() {
+    const QString search_type = dupe_search_type->currentData().toString();
+
+    if (search_type != QStringLiteral("different_searches")) {
+        const QSignalBlocker blocker(search_location_2);
+        search_location_2->setCurrentText(search_location_1->currentText());
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("query_1"), search_query_1->text());
+    payload.insert(QStringLiteral("location_1"), search_location_1->currentText());
+    payload.insert(QStringLiteral("query_2"), search_query_2->text());
+    payload.insert(QStringLiteral("location_2"), search_location_2->currentText());
+    payload.insert(QStringLiteral("dupe_search_type"), search_type);
+    payload.insert(QStringLiteral("pixel_dupes"), pixel_dupes->currentData().toString());
+    payload.insert(QStringLiteral("max_distance"), search_distance->value());
+
+    main->notify(QStringLiteral("duplicates_search_context"), id, json_payload(payload));
+}
+
+void HydrusDuplicatesPage::update_search_controls() {
+    const bool different_searches = dupe_search_type->currentData().toString() == QStringLiteral("different_searches");
+
+    search_row_2_label->setVisible(different_searches);
+    search_query_2->setVisible(different_searches);
+    search_location_2->setVisible(different_searches);
+
+    search_distance->setEnabled(pixel_dupes->currentData().toString() != QStringLiteral("required"));
 }
 
 const QString &HydrusDuplicatesPage::page_id() const {
@@ -2590,6 +2689,53 @@ void HydrusDuplicatesPage::update_state(const QJsonObject &state) {
         const QSignalBlocker blocker(batch);
         batch->setValue(state.value(QStringLiteral("batch_size")).toInt(100));
     }
+
+    const QJsonObject search = state.value(QStringLiteral("search")).toObject();
+
+    if (!search.isEmpty()) {
+        auto set_combo_data = [](QComboBox *combo, const QString &value) {
+            const int index = combo->findData(value);
+
+            if (index >= 0) {
+                const QSignalBlocker blocker(combo);
+                combo->setCurrentIndex(index);
+            }
+        };
+
+        const QSignalBlocker query_1_blocker(search_query_1);
+        const QSignalBlocker query_2_blocker(search_query_2);
+        const QSignalBlocker distance_blocker(search_distance);
+
+        search_query_1->setText(search.value(QStringLiteral("query_1")).toString());
+        search_query_2->setText(search.value(QStringLiteral("query_2")).toString());
+        search_distance->setValue(search.value(QStringLiteral("max_distance")).toInt(4));
+        set_combo_data(dupe_search_type, search.value(QStringLiteral("dupe_search_type")).toString());
+        set_combo_data(pixel_dupes, search.value(QStringLiteral("pixel_dupes")).toString());
+
+        {
+            const QSignalBlocker location_1_blocker(search_location_1);
+            const QSignalBlocker location_2_blocker(search_location_2);
+            const QString location_1 = search.value(QStringLiteral("location_1")).toString();
+            const QString location_2 = search.value(QStringLiteral("location_2")).toString();
+
+            if (!location_1.isEmpty()) {
+                search_location_1->setCurrentText(location_1);
+            }
+
+            if (!location_2.isEmpty()) {
+                search_location_2->setCurrentText(location_2);
+            }
+        }
+
+        const int matched = search.value(QStringLiteral("matched")).toInt();
+        const int searched = state.value(QStringLiteral("searched")).toInt();
+        search_summary->setText(QStringLiteral("%1 of %2 pairs match  -  %3")
+            .arg(matched)
+            .arg(searched)
+            .arg(search.value(QStringLiteral("summary")).toString()));
+    }
+
+    update_search_controls();
 
     const QJsonValue pair_value = state.value(QStringLiteral("pair"));
 

@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use crate::gui::session::{GuiSession, UnifiedSession};
 
 use super::model::{
-    DownloadItem, DownloaderKind, DownloaderPage, DuplicatesPage, Notebook, PageNode,
-    PlaceholderPage, QueryPage, SubscriptionEntry, SubscriptionsPage,
+    DownloadItem, DownloaderKind, DownloaderPage, DuplicateSearchContext, DuplicatesPage, Notebook,
+    PageNode, PlaceholderPage, QueryPage, SubscriptionEntry, SubscriptionsPage,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,6 +63,8 @@ pub struct SessionNode {
     pub results: Vec<String>,
     #[serde(default)]
     pub fixed_hashes: Vec<String>,
+    #[serde(default)]
+    pub duplicate_search: Option<DuplicateSearchContext>,
 }
 
 pub struct LoadedSession {
@@ -159,6 +161,7 @@ fn from_notebook(notebook: &Notebook) -> SessionNode {
         queue: Vec::new(),
         results: Vec::new(),
         fixed_hashes: Vec::new(),
+        duplicate_search: None,
     }
 }
 
@@ -181,6 +184,7 @@ fn from_node(node: &PageNode) -> SessionNode {
                 .as_ref()
                 .map(|hashes| hashes.iter().map(|hash| hex(hash)).collect())
                 .unwrap_or_default(),
+            duplicate_search: None,
             queue: Vec::new(),
             results: Vec::new(),
             downloader_kind: None,
@@ -222,6 +226,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             queue: page.queue.clone(),
             results: page.results.iter().map(|hash| hex(hash)).collect(),
             fixed_hashes: Vec::new(),
+            duplicate_search: None,
         },
         PageNode::Subscriptions(page) => SessionNode {
             id: page.id.clone(),
@@ -249,6 +254,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             queue: Vec::new(),
             results: Vec::new(),
             fixed_hashes: Vec::new(),
+            duplicate_search: None,
         },
         PageNode::Duplicates(page) => SessionNode {
             id: page.id.clone(),
@@ -276,6 +282,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             queue: Vec::new(),
             results: Vec::new(),
             fixed_hashes: Vec::new(),
+            duplicate_search: Some(page.search_context.clone()),
         },
         PageNode::ImportFolders(page) => SessionNode {
             id: page.id.clone(),
@@ -303,6 +310,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             queue: Vec::new(),
             results: Vec::new(),
             fixed_hashes: Vec::new(),
+            duplicate_search: None,
         },
         PageNode::ExportFolders(page) => SessionNode {
             id: page.id.clone(),
@@ -330,6 +338,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             queue: Vec::new(),
             results: Vec::new(),
             fixed_hashes: Vec::new(),
+            duplicate_search: None,
         },
         PageNode::Placeholder(page) => SessionNode {
             id: page.id.clone(),
@@ -357,6 +366,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             queue: Vec::new(),
             results: Vec::new(),
             fixed_hashes: Vec::new(),
+            duplicate_search: None,
         },
     }
 }
@@ -439,6 +449,10 @@ fn to_node(node: &SessionNode) -> PageNode {
         "duplicates" => {
             let mut page = DuplicatesPage::new(node.id.clone());
             page.title = node.title.clone();
+            if let Some(mut context) = node.duplicate_search.clone() {
+                context.normalise();
+                page.search_context = context;
+            }
             PageNode::Duplicates(page)
         }
         "import_folders" => {

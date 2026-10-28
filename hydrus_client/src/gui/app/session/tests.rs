@@ -1,7 +1,8 @@
 use super::*;
 use crate::gui::app::model::{
-    DownloadItem, DownloadItemStatus, DownloaderKind, DownloaderPage, Notebook, PageNode,
-    PlaceholderPage, QueryPage, SubscriptionEntry, SubscriptionsPage,
+    DownloadItem, DownloadItemStatus, DownloaderKind, DownloaderPage, DuplicateSearchContext,
+    DuplicatesPage, Notebook, PageNode, PlaceholderPage, QueryPage, SubscriptionEntry,
+    SubscriptionsPage,
 };
 use crate::gui::session::UnifiedSession;
 
@@ -111,6 +112,37 @@ fn import_folder_pages_round_trip() {
     let restored = round_trip(&root);
 
     assert!(matches!(restored.children[0], PageNode::ImportFolders(_)));
+}
+
+#[test]
+fn duplicates_search_context_round_trips() {
+    let mut root = Notebook::new("root", "top page notebook");
+    let mut page = DuplicatesPage::new("p5");
+    page.search_context = DuplicateSearchContext {
+        query_1: "blue eyes".to_string(),
+        location_1: "my files".to_string(),
+        query_2: "red hair".to_string(),
+        location_2: "trash".to_string(),
+        dupe_search_type: "different_searches".to_string(),
+        pixel_dupes: "excluded".to_string(),
+        max_distance: 12,
+    };
+    root.add(PageNode::Duplicates(page));
+
+    let restored = round_trip(&root);
+
+    match &restored.children[0] {
+        PageNode::Duplicates(page) => {
+            assert_eq!(page.search_context.query_1, "blue eyes");
+            assert_eq!(page.search_context.location_1, "my files");
+            assert_eq!(page.search_context.query_2, "red hair");
+            assert_eq!(page.search_context.location_2, "trash");
+            assert_eq!(page.search_context.dupe_search_type, "different_searches");
+            assert_eq!(page.search_context.pixel_dupes, "excluded");
+            assert_eq!(page.search_context.max_distance, 12);
+        }
+        _ => panic!("duplicates page did not round-trip"),
+    }
 }
 
 #[test]

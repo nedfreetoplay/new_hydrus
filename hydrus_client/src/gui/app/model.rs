@@ -296,6 +296,179 @@ impl SubscriptionsPage {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DupeSearchType {
+    OneFile,
+    BothFiles,
+    DifferentSearches,
+}
+
+impl DupeSearchType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OneFile => "one_file",
+            Self::BothFiles => "both_files",
+            Self::DifferentSearches => "different_searches",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Self {
+        match value {
+            "both_files" => Self::BothFiles,
+            "different_searches" => Self::DifferentSearches,
+            _ => Self::OneFile,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PixelDupesPreference {
+    Required,
+    Allowed,
+    Excluded,
+}
+
+impl PixelDupesPreference {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Required => "required",
+            Self::Allowed => "allowed",
+            Self::Excluded => "excluded",
+        }
+    }
+
+    pub fn from_str(value: &str) -> Self {
+        match value {
+            "required" => Self::Required,
+            "excluded" => Self::Excluded,
+            _ => Self::Allowed,
+        }
+    }
+}
+
+fn default_duplicate_location() -> String {
+    "all local files".to_string()
+}
+
+/// The pair search scope of a duplicate filter page, mirroring
+/// `ClientPotentialDuplicatesSearchContext.PotentialDuplicatesSearchContext`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DuplicateSearchContext {
+    #[serde(default)]
+    pub query_1: String,
+    #[serde(default = "default_duplicate_location")]
+    pub location_1: String,
+    #[serde(default)]
+    pub query_2: String,
+    #[serde(default = "default_duplicate_location")]
+    pub location_2: String,
+    #[serde(default = "default_dupe_search_type")]
+    pub dupe_search_type: String,
+    #[serde(default = "default_pixel_dupes_preference")]
+    pub pixel_dupes: String,
+    #[serde(default = "default_duplicate_distance")]
+    pub max_distance: i64,
+}
+
+fn default_dupe_search_type() -> String {
+    DupeSearchType::OneFile.as_str().to_string()
+}
+
+fn default_pixel_dupes_preference() -> String {
+    PixelDupesPreference::Allowed.as_str().to_string()
+}
+
+fn default_duplicate_distance() -> i64 {
+    4
+}
+
+impl Default for DuplicateSearchContext {
+    fn default() -> Self {
+        Self {
+            query_1: String::new(),
+            location_1: default_duplicate_location(),
+            query_2: String::new(),
+            location_2: default_duplicate_location(),
+            dupe_search_type: default_dupe_search_type(),
+            pixel_dupes: default_pixel_dupes_preference(),
+            max_distance: default_duplicate_distance(),
+        }
+    }
+}
+
+impl DuplicateSearchContext {
+    /// Keeps a context loaded from a session or dialog inside the bounds the
+    /// Python controls enforce.
+    pub fn normalise(&mut self) {
+        self.max_distance = self.max_distance.clamp(0, 64);
+
+        let search_type = DupeSearchType::from_str(&self.dupe_search_type);
+        self.dupe_search_type = search_type.as_str().to_string();
+
+        let pixel_dupes = PixelDupesPreference::from_str(&self.pixel_dupes);
+        self.pixel_dupes = pixel_dupes.as_str().to_string();
+
+        if self.location_1.is_empty() {
+            self.location_1 = default_duplicate_location();
+        }
+
+        if search_type != DupeSearchType::DifferentSearches || self.location_2.is_empty() {
+            self.location_2 = self.location_1.clone();
+        }
+    }
+
+    pub fn search_type(&self) -> DupeSearchType {
+        DupeSearchType::from_str(&self.dupe_search_type)
+    }
+
+    pub fn pixel_preference(&self) -> PixelDupesPreference {
+        PixelDupesPreference::from_str(&self.pixel_dupes)
+    }
+
+    fn context_summary(location: &str, query: &str) -> String {
+        let query = query.trim();
+
+        if query.is_empty() {
+            location.to_string()
+        } else {
+            format!("{location}: {query}")
+        }
+    }
+
+    /// Mirrors `PotentialDuplicatesSearchContext.GetSummary`.
+    pub fn summary(&self) -> String {
+        let mut components = Vec::new();
+
+        match self.pixel_preference() {
+            PixelDupesPreference::Required => components.push("pixel duplicates".to_string()),
+            PixelDupesPreference::Excluded => components.push("not pixel duplicates".to_string()),
+            PixelDupesPreference::Allowed => {}
+        }
+
+        match self.search_type() {
+            DupeSearchType::DifferentSearches => components.push(format!(
+                "files matching [{}] and [{}]",
+                Self::context_summary(&self.location_1, &self.query_1),
+                Self::context_summary(&self.location_2, &self.query_2)
+            )),
+            DupeSearchType::BothFiles => components.push(format!(
+                "both files matching [{}]",
+                Self::context_summary(&self.location_1, &self.query_1)
+            )),
+            DupeSearchType::OneFile => components.push(format!(
+                "one file matching [{}]",
+                Self::context_summary(&self.location_1, &self.query_1)
+            )),
+        }
+
+        if self.pixel_preference() != PixelDupesPreference::Required {
+            components.push(format!("max search distance: {}", self.max_distance));
+        }
+
+        components.join(", ")
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DuplicatePairView {
     pub a: Vec<u8>,
@@ -311,6 +484,8 @@ pub struct DuplicatesPage {
     pub index: usize,
     pub status: String,
     pub searched: i64,
+    pub matched: i64,
+    pub search_context: DuplicateSearchContext,
 }
 
 impl DuplicatesPage {
@@ -322,6 +497,8 @@ impl DuplicatesPage {
             index: 0,
             status: String::new(),
             searched: 0,
+            matched: 0,
+            search_context: DuplicateSearchContext::default(),
         }
     }
 

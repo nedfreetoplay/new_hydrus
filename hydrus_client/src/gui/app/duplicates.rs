@@ -4,13 +4,17 @@
 //! the stored potential pairs into a filter queue and applies the user's merge,
 //! false-positive and skip decisions.
 
+use std::collections::BTreeSet;
+
 use hydrus_core::hydrus_constants::ContentStatus;
 
 use crate::controller::Controller;
-use crate::db::{duplicates, files_storage, mappings, master, master_tags, url_map};
+use crate::db::{duplicates, files_storage, mappings, master, master_tags, similar_files, url_map};
 use crate::gui::app::auto_resolution::{self, AutoDecision, DuplicateReviewState, PreparedRule};
-use crate::gui::app::model::{DuplicatePairView, DuplicatesPage};
-use crate::gui::app::{query, render, AppState, UiCommand};
+use crate::gui::app::model::{
+    DupeSearchType, DuplicatePairView, DuplicateSearchContext, DuplicatesPage, PixelDupesPreference,
+};
+use crate::gui::app::{AppState, UiCommand, query, render};
 
 const MIN_BATCH_SIZE: i64 = 5;
 const MAX_BATCH_SIZE: i64 = 1024;
@@ -100,6 +104,22 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
             queued = load_queue(&controller, page, &rules, &mut review).1;
             page.status = format!("batch size {size}; {}", page.status);
         }
+        "duplicates_search_context" => {
+            match serde_json::from_str::<DuplicateSearchContext>(payload) {
+                Ok(mut context) => {
+                    context.normalise();
+                    page.search_context = context;
+                    queued = load_queue(&controller, page, &rules, &mut review).1;
+                }
+                Err(error) => {
+                    state.duplicate_review = review;
+
+                    return vec![UiCommand::NotifyMessage(format!(
+                        "could not read the duplicate search context: {error}"
+                    ))];
+                }
+            }
+        }
         "duplicates_keep_a" | "duplicates_keep_b" | "duplicates_same" => {
             let Some(pair) = page.current().cloned() else {
                 return vec![UiCommand::NotifyMessage(
@@ -184,10 +204,11 @@ fn load_queue(
     rules: &[super::auto_resolution::AutoResolutionRule],
     review: &mut DuplicateReviewState,
 ) -> (usize, usize) {
-    let max_distance = controller
-        .options()
-        .get_integer("similar_files_duplicate_pairs_search_distance");
-    let max_distance = (max_distance > 0).then_some(max_distance);
+    page.search_context.normalise();
+
+    let max_distance = page.search_context.max_distance;
+    let search_type = page.search_context.search_type();
+    let pixel_preference = page.search_context.pixel_preference();
     let batch_size = controller
         .options()
         .get_integer("duplicate_filter_max_batch_size")
@@ -211,7 +232,44 @@ fn load_queue(
             errors
         });
 
-    match duplicates::get_candidate_pairs(controller.db().db(), max_distance) {
+    let search_1 = match hash_set_for(
+        controller,
+        &page.search_context.query_1,
+        &page.search_context.location_1,
+    ) {
+        Ok(hashes) => hashes,
+        Err(error) => {
+            page.pairs.clear();
+            page.index = 0;
+            page.searched = 0;
+            page.matched = 0;
+            page.status = format!("duplicate search failed: {error}");
+
+            return (0, 0);
+        }
+    };
+    let search_2 = if search_type == DupeSearchType::DifferentSearches {
+        match hash_set_for(
+            controller,
+            &page.search_context.query_2,
+            &page.search_context.location_2,
+        ) {
+            Ok(hashes) => hashes,
+            Err(error) => {
+                page.pairs.clear();
+                page.index = 0;
+                page.searched = 0;
+                page.matched = 0;
+                page.status = format!("duplicate search failed: {error}");
+
+                return (0, 0);
+            }
+        }
+    } else {
+        search_1.clone()
+    };
+
+    match duplicates::get_candidate_pairs(controller.db().db(), Some(max_distance)) {
         Ok(pairs) => {
             let total = pairs.len();
             page.searched = total as i64;
@@ -220,6 +278,7 @@ fn load_queue(
 
             let mut applied = 0usize;
             let mut queued = 0usize;
+            let mut matched_count = 0i64;
 
             for (smaller_id, larger_id, distance) in pairs {
                 let Some(a) = master::get_hash(controller.db().db(), smaller_id)
@@ -234,6 +293,21 @@ fn load_queue(
                 else {
                     continue;
                 };
+
+                if !pair_matches_search(search_type, &search_1, &search_2, &a, &b) {
+                    continue;
+                }
+
+                if !pair_matches_pixel_preference(
+                    controller,
+                    pixel_preference,
+                    smaller_id,
+                    larger_id,
+                ) {
+                    continue;
+                }
+
+                matched_count += 1;
 
                 let matched = prepared.iter().find_map(|prepared_rule| {
                     let result = prepared_rule.evaluate(controller, &a, &b, distance)?;
@@ -268,6 +342,8 @@ fn load_queue(
                 }
             }
 
+            page.matched = matched_count;
+
             let batch = page.pairs.len();
             page.status = match total {
                 0 => "no potential duplicates".to_string(),
@@ -276,6 +352,10 @@ fn load_queue(
                     "{count} potential duplicate pairs (batch of {batch}, max {batch_size})"
                 ),
             };
+
+            if total > 0 {
+                page.status = format!("{}; {matched_count} match", page.status);
+            }
 
             if applied > 0 {
                 page.status = format!("{}; {applied} auto-resolved", page.status);
@@ -294,10 +374,60 @@ fn load_queue(
         Err(error) => {
             page.pairs.clear();
             page.index = 0;
+            page.matched = 0;
             page.status = format!("could not load the duplicate queue: {error}");
 
             (0, 0)
         }
+    }
+}
+
+fn hash_set_for(
+    controller: &Controller,
+    query_text: &str,
+    location: &str,
+) -> Result<BTreeSet<Vec<u8>>, String> {
+    query::hashes_for(controller, query_text, location).map(|hashes| hashes.into_iter().collect())
+}
+
+fn pair_matches_search(
+    search_type: DupeSearchType,
+    search_1: &BTreeSet<Vec<u8>>,
+    search_2: &BTreeSet<Vec<u8>>,
+    a: &[u8],
+    b: &[u8],
+) -> bool {
+    let a_1 = search_1.contains(a);
+    let b_1 = search_1.contains(b);
+
+    match search_type {
+        DupeSearchType::OneFile => a_1 || b_1,
+        DupeSearchType::BothFiles => a_1 && b_1,
+        DupeSearchType::DifferentSearches => {
+            (a_1 && search_2.contains(b)) || (search_2.contains(a) && b_1)
+        }
+    }
+}
+
+fn pair_matches_pixel_preference(
+    controller: &Controller,
+    preference: PixelDupesPreference,
+    a_id: i64,
+    b_id: i64,
+) -> bool {
+    if preference == PixelDupesPreference::Allowed {
+        return true;
+    }
+
+    let db = controller.db().db();
+    let a_pixel = similar_files::get_pixel_hash(db, a_id).ok().flatten();
+    let b_pixel = similar_files::get_pixel_hash(db, b_id).ok().flatten();
+    let is_pixel_duplicate = matches!((a_pixel, b_pixel), (Some(a), Some(b)) if a == b);
+
+    match preference {
+        PixelDupesPreference::Required => is_pixel_duplicate,
+        PixelDupesPreference::Excluded => !is_pixel_duplicate,
+        PixelDupesPreference::Allowed => true,
     }
 }
 
@@ -503,7 +633,9 @@ fn duplicates_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::{duplicates, files_metadata, files_storage};
+    use crate::db::{
+        duplicates, files_metadata, files_storage, mappings, master_tags, similar_files,
+    };
     use crate::gui::app::auto_resolution::{AutoResolutionRule, Comparator};
     use hydrus_core::files::hydrus_file_handling::FileInfo;
     use hydrus_core::hydrus_constants::Mime;
@@ -581,6 +713,26 @@ mod tests {
         .unwrap();
 
         (first.to_vec(), second.to_vec(), first_id, second_id)
+    }
+
+    fn add_tag(controller: &Controller, hash: &[u8], tag: &str) {
+        let db = controller.db().db();
+        let tag_service_id = query::tag_service_id(controller).unwrap();
+        let hash_id = query::hash_id_for(controller, hash).unwrap();
+        let tag_id = master_tags::get_tag_id(db, tag).unwrap();
+
+        mappings::add_mappings(
+            db,
+            tag_service_id,
+            ContentStatus::Current,
+            hash_id,
+            &[tag_id],
+        )
+        .unwrap();
+    }
+
+    fn set_pixel_hash(controller: &Controller, hash_id: i64, pixel_hash: &[u8]) {
+        similar_files::set_pixel_hash(controller.db().db(), hash_id, pixel_hash).unwrap();
     }
 
     #[test]
@@ -683,9 +835,11 @@ mod tests {
 
         assert_eq!((applied, queued), (1, 0));
         assert!(review.pending.is_empty());
-        assert!(duplicates::get_candidate_pairs(controller.db().db(), None)
-            .unwrap()
-            .is_empty());
+        assert!(
+            duplicates::get_candidate_pairs(controller.db().db(), None)
+                .unwrap()
+                .is_empty()
+        );
         assert!(page.pairs.is_empty());
 
         // The worse file moved to trash; the better one stayed in my files.
@@ -728,6 +882,84 @@ mod tests {
                 .len(),
             1
         );
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn search_context_filters_by_distance_and_tags() {
+        let directory = temp_directory("search-context");
+        let controller = test_controller(&directory);
+        let (first_a, first_b, _, _) = add_sized_pair(&controller, 41, 1_000, 1_000, 2);
+        let _ = add_sized_pair(&controller, 61, 1_000, 1_000, 2);
+        let _ = add_sized_pair(&controller, 51, 1_000, 1_000, 10);
+
+        add_tag(&controller, &first_a, "blue eyes");
+        add_tag(&controller, &first_b, "red hair");
+
+        let mut page = DuplicatesPage::new("dup-search");
+        page.search_context.max_distance = 4;
+        page.search_context.query_1 = "blue eyes".to_string();
+
+        let mut review = DuplicateReviewState::default();
+        refresh_for(&controller, &mut page, &[], &mut review);
+
+        assert_eq!(page.searched, 2);
+        assert_eq!(page.matched, 1);
+        assert_eq!(page.pairs.len(), 1);
+        assert_eq!(page.pairs[0].a, first_a);
+
+        // Both files must match the one search.
+        page.search_context.dupe_search_type = "both_files".to_string();
+        refresh_for(&controller, &mut page, &[], &mut review);
+        assert_eq!(page.matched, 0);
+        assert!(page.pairs.is_empty());
+
+        // The two files may instead match different searches.
+        page.search_context.dupe_search_type = "different_searches".to_string();
+        page.search_context.query_2 = "red hair".to_string();
+        refresh_for(&controller, &mut page, &[], &mut review);
+        assert_eq!(page.matched, 1);
+        assert_eq!(page.pairs[0].a, first_a);
+        assert_eq!(page.pairs[0].b, first_b);
+
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn pixel_preference_requires_excludes_or_allows_pixel_dupes() {
+        let directory = temp_directory("pixel-dupes");
+        let controller = test_controller(&directory);
+        let (pixel_a, pixel_b, pixel_a_id, pixel_b_id) =
+            add_sized_pair(&controller, 71, 1_000, 1_000, 1);
+        let (other_a, other_b, other_a_id, other_b_id) =
+            add_sized_pair(&controller, 81, 1_000, 1_000, 1);
+
+        let same_pixel_hash = vec![0xAA; 16];
+        set_pixel_hash(&controller, pixel_a_id, &same_pixel_hash);
+        set_pixel_hash(&controller, pixel_b_id, &same_pixel_hash);
+        set_pixel_hash(&controller, other_a_id, &vec![0xBB; 16]);
+        set_pixel_hash(&controller, other_b_id, &vec![0xCC; 16]);
+
+        let mut page = DuplicatesPage::new("dup-pixel");
+        let mut review = DuplicateReviewState::default();
+
+        page.search_context.pixel_dupes = "required".to_string();
+        refresh_for(&controller, &mut page, &[], &mut review);
+        assert_eq!(page.matched, 1);
+        assert_eq!(page.pairs[0].a, pixel_a);
+        assert_eq!(page.pairs[0].b, pixel_b);
+
+        page.search_context.pixel_dupes = "excluded".to_string();
+        refresh_for(&controller, &mut page, &[], &mut review);
+        assert_eq!(page.matched, 1);
+        assert_eq!(page.pairs[0].a, other_a);
+        assert_eq!(page.pairs[0].b, other_b);
+
+        page.search_context.pixel_dupes = "allowed".to_string();
+        refresh_for(&controller, &mut page, &[], &mut review);
+        assert_eq!(page.matched, 2);
+        assert_eq!(page.pairs.len(), 2);
 
         let _ = std::fs::remove_dir_all(directory);
     }

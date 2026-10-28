@@ -1,6 +1,6 @@
 //! JSON rendering of application state for the Qt layer.
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use hydrus_core::hydrus_constants::ServiceType;
 
@@ -972,6 +972,18 @@ pub fn duplicates_json(
         "index": if page.pairs.is_empty() { 0 } else { page.index + 1 },
         "total": page.pairs.len(),
         "searched": page.searched,
+        "matched": page.matched,
+        "search": {
+            "query_1": page.search_context.query_1,
+            "location_1": page.search_context.location_1,
+            "query_2": page.search_context.query_2,
+            "location_2": page.search_context.location_2,
+            "dupe_search_type": page.search_context.dupe_search_type,
+            "pixel_dupes": page.search_context.pixel_dupes,
+            "max_distance": page.search_context.max_distance,
+            "summary": page.search_context.summary(),
+            "matched": page.matched,
+        },
         "batch_size": controller
             .options()
             .get_integer("duplicate_filter_max_batch_size")

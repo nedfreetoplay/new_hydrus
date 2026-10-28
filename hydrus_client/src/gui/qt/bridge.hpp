@@ -486,11 +486,22 @@ public:
 
 private:
     void act(const QString &action);
+    void notify_search_context();
+    void update_search_controls();
 
     HydrusMainWindow *main = nullptr;
     QString id;
     QLabel *status = nullptr;
     QLabel *distance = nullptr;
+    QComboBox *dupe_search_type = nullptr;
+    QLineEdit *search_query_1 = nullptr;
+    QLineEdit *search_query_2 = nullptr;
+    QComboBox *search_location_1 = nullptr;
+    QComboBox *search_location_2 = nullptr;
+    QLabel *search_row_2_label = nullptr;
+    QComboBox *pixel_dupes = nullptr;
+    QSpinBox *search_distance = nullptr;
+    QLabel *search_summary = nullptr;
     QLabel *hash_a = nullptr;
     QLabel *hash_b = nullptr;
     QLabel *info_a = nullptr;

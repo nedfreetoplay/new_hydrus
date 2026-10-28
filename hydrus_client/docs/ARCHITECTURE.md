@@ -62,6 +62,11 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
 - `PageNode::Duplicates` — очередь потенциальных пар и решения merge/false-positive;
   очередь готовится батчами по `duplicate_filter_max_batch_size`, размер
   меняется на панели страницы, кнопка next batch перечитывает остаток.
+  `DuplicateSearchContext` задаёт область поиска: два file search context
+  (query + локальный file domain), режим one file/both files/different searches,
+  pixel dupes required/allowed/excluded и max hamming distance. Контекст
+  фильтрует очередь до auto-resolution и сохраняется в `gui session.json`
+  вместе со страницей.
   Auto-resolution правила проверяют пару в обе стороны: selector состоит из
   one-file условий, относительных A/B сравнений, filetype-проверок и AND/OR
   групп; правило может сузить очередь поисковым предикатом (`both`/`either`)

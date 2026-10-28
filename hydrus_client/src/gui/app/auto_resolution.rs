@@ -11,7 +11,7 @@
 //! review file also remembers denied and actioned pairs so a refresh does not
 //! keep offering the same work.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use hydrus_core::hydrus_constants::{Mime, TimestampType, general_mimetype_for};
@@ -1230,17 +1230,25 @@ pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
             }
 
             // Python samples and sorts by the smaller file before it tests the rule.
-            let size_for = |hash: &[u8]| -> u64 {
-                query::hash_id_for(&state.controller, hash)
-                    .and_then(|hash_id| {
-                        crate::db::files_metadata::get_file_info(db, hash_id)
-                            .ok()
-                            .flatten()
-                    })
-                    .map(|file_info| file_info.size)
-                    .filter(|size| *size > 0)
-                    .unwrap_or(1)
-            };
+            let mut sizes: BTreeMap<Vec<u8>, u64> = BTreeMap::new();
+
+            for (a, b, _) in candidates.iter() {
+                for hash in [a.as_slice(), b.as_slice()] {
+                    sizes.entry(hash.to_vec()).or_insert_with(|| {
+                        query::hash_id_for(&state.controller, hash)
+                            .and_then(|hash_id| {
+                                crate::db::files_metadata::get_file_info(db, hash_id)
+                                    .ok()
+                                    .flatten()
+                            })
+                            .map(|file_info| file_info.size)
+                            .filter(|size| *size > 0)
+                            .unwrap_or(1)
+                    });
+                }
+            }
+
+            let size_for = |hash: &[u8]| -> u64 { sizes.get(hash).copied().unwrap_or(1) };
             candidates.sort_by_key(|(a, b, _)| {
                 let a_size = size_for(a);
                 let b_size = size_for(b);

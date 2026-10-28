@@ -4,7 +4,7 @@
 //! the stored potential pairs into a filter queue and applies the user's merge,
 //! false-positive and skip decisions.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use hydrus_core::hydrus_constants::{ContentStatus, ServiceType, TimestampType};
 
@@ -473,17 +473,25 @@ fn sort_pairs(
         return;
     }
 
-    let size_for = |hash: &[u8]| -> u64 {
-        query::hash_id_for(controller, hash)
-            .and_then(|hash_id| {
-                files_metadata::get_file_info(controller.db().db(), hash_id)
-                    .ok()
-                    .flatten()
-            })
-            .map(|file_info| file_info.size)
-            .filter(|size| *size > 0)
-            .unwrap_or(1)
-    };
+    let mut sizes: BTreeMap<Vec<u8>, u64> = BTreeMap::new();
+
+    for (a, b, _) in pairs.iter() {
+        for hash in [a.as_slice(), b.as_slice()] {
+            sizes.entry(hash.to_vec()).or_insert_with(|| {
+                query::hash_id_for(controller, hash)
+                    .and_then(|hash_id| {
+                        files_metadata::get_file_info(controller.db().db(), hash_id)
+                            .ok()
+                            .flatten()
+                    })
+                    .map(|file_info| file_info.size)
+                    .filter(|size| *size > 0)
+                    .unwrap_or(1)
+            });
+        }
+    }
+
+    let size_for = |hash: &[u8]| -> u64 { sizes.get(hash).copied().unwrap_or(1) };
 
     match sort {
         DupePairSort::Similarity => {

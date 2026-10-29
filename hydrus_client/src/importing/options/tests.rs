@@ -29,6 +29,18 @@ fn general_mime_classes_match_their_members() {
 }
 
 #[test]
+fn animated_gif_size_limit_is_enforced() {
+    let options = FileFilteringImportOptions {
+        max_gif_size: Some(100),
+        ..Default::default()
+    };
+
+    assert!(options.check_file_is_valid(100, Mime::AnimationGif, None, None));
+    assert!(!options.check_file_is_valid(101, Mime::AnimationGif, None, None));
+    assert!(options.check_file_is_valid(101, Mime::Png, None, None));
+}
+
+#[test]
 fn resolution_requires_dimensions() {
     let options = FileFilteringImportOptions {
         min_resolution: Some((100, 100)),

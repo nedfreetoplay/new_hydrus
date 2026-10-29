@@ -247,6 +247,16 @@ impl FileFilteringImportOptions {
             }
         }
 
+        if let Some(max_gif_size) = self.max_gif_size {
+            if matches!(
+                mime,
+                Mime::AnimationGif | Mime::StaticGif | Mime::UndeterminedGif
+            ) && size > max_gif_size
+            {
+                return false;
+            }
+        }
+
         if let Some((min_width, min_height)) = self.min_resolution {
             match (width, height) {
                 (Some(width), Some(height)) if width >= min_width && height >= min_height => {}

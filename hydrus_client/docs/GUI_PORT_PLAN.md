@@ -82,13 +82,32 @@ Definition of Done для задачи.
   `manage tags`/viewer). Сетка миниатюр стала белой с рамками Hydrus и голубым
   выделением, статус пустой страницы — `no search done yet`.
   Скриншот: `docs/images/main_window.png`.
-  Осталось: иконки Hydrus, сворачивание панели `search`, полноценные
-  file/tag domain селекторы вместо простых combobox, точная ширина вкладок.
+  Осталось (снято следующей сверкой): иконки Hydrus, сворачивание панели
+  `search`, полноценные file/tag domain селекторы, точная ширина вкладок.
 - 2026-10-29 — Python-клиент v692 запущен локально: venv собран через
   `setup_venv.py -i a` (Python 3.14.7, PySide6 6.11.1, dev-зависимости). Снят
   реальный скриншот главного окна `docs/images/python_main_window.png`; теперь
   эталон можно переснимать на любой странице, а не полагаться только на старые
   картинки из `hydrus_python/docs/images`. Инструкция — skill `hydrus-python-run`.
+- 2026-10-29 — главное окно сверено с живым Python v692 в одинаковом окне
+  (1296x839, клиентская область 1280x800). Светлая тема переведена с Fusion и
+  самодельного белого QSS на нативный `windowsvista` + `default_hydrus.qss`
+  (зелёные/красные `HydrusOnOffButton`); заголовок окна стал
+  `main - hydrus client 689` (application display name, как в Python).
+  Sidebar: `sort by file: filesize` / `smallest first` кнопками с меню, `no
+  collections` + шестерёнка; `search` — раскрывающийся `StaticBox` с полем
+  предикатов, голубым полем ввода и иконками paste/star/clear/lock, кнопками
+  `include current tags` / `include pending tags`, `searching immediately` / `OR`,
+  `my files` / `all known tags`, вкладками `results` / `favourites` / `children`
+  и списком system-предикатов. `selection tags` показывается при сворачивании
+  `search`, как в Python. Пустой статус — `no search done yet`, после поиска —
+  `no files found for this search`; центрированный текст с холста убран, в
+  статус-баре `0B` и `idle`. Панель preview белая и показывается только при
+  высокой клиентской области. Скриншоты: `docs/images/main_window.png` (Rust,
+  полное окно) и `docs/images/python_main_window_1280.png` (Python, то же окно).
+  Осталось: точный набор иконок Hydrus вместо нарисованных приближений, полные
+  меню file/tag domain, sort и collect, поведение `favourites`/`children` и
+  drop-down автодополнения, пиксельная ширина сплиттера.
 
 ## Текущий статус
 

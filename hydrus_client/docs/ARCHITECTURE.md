@@ -64,6 +64,12 @@ Python-клиент v692 запускается локально из `hydrus_py
 `setup_venv.py`, skill `hydrus-python-run`), поэтому эталонный скриншот снимается с
 живого окна на тестовой БД, а не только из старых `docs/images`.
 
+Светлая тема — это нативный Qt-стиль `windowsvista` (как `windows11`/`windowsvista`
+в `ClientGUIStyle.py`) и только базовые правила `default_hydrus.qss`
+(`HydrusOnOffButton` и т.п.); произвольный `QWidget { background: white }` поверх
+нативного стиля не используется. Тёмная тема остаётся отдельным QSS в
+`gui/style.rs`.
+
 ## Страницы
 
 - `PageNode::Query` — файловая страница: запрос, хэши, фокус, статус. Страницы,

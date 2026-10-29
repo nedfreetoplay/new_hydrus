@@ -712,11 +712,11 @@ pub fn status_json(state: &AppState) -> String {
         String::new()
     };
 
-    let mut bandwidth = String::new();
-
-    if state.controller.network_paused() {
-        bandwidth = "network paused".to_string();
-    }
+    let bandwidth = if state.controller.network_paused() {
+        "network paused".to_string()
+    } else {
+        "0B".to_string()
+    };
 
     json!({
         "message": state.message,
@@ -1010,7 +1010,10 @@ pub fn duplicates_json(
     .to_string()
 }
 
-pub(crate) fn duplicate_media_json(controller: &crate::controller::Controller, hash: &[u8]) -> Value {
+pub(crate) fn duplicate_media_json(
+    controller: &crate::controller::Controller,
+    hash: &[u8],
+) -> Value {
     let info = query::file_info_for(controller, hash);
     let info_text = info
         .as_ref()

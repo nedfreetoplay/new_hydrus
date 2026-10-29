@@ -315,7 +315,7 @@ pub fn run_application(controller: Arc<Controller>) {
 
     panels::execute_commands(window.pin_mut(), commands);
 
-    ffi::hydrus_set_title(window.pin_mut(), "Hydrus Client");
+    ffi::hydrus_set_title(window.pin_mut(), "main");
     ffi::hydrus_resize_window(window.pin_mut(), 1280, 800);
     ffi::show_hydrus_main_window(window.pin_mut());
     ffi::hydrus_start_tick(window.pin_mut());

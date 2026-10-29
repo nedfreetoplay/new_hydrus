@@ -8,6 +8,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
+#include <QFrame>
 #include <QGraphicsPixmapItem>
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -22,6 +23,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QResizeEvent>
+#include <QScrollArea>
 #include <QSpinBox>
 #include <QSplashScreen>
 #include <QString>
@@ -29,6 +31,7 @@
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTimer>
+#include <QToolButton>
 #include <QWheelEvent>
 #include <QWidget>
 #include <memory>
@@ -135,20 +138,42 @@ private:
 
     HydrusMainWindow *main = nullptr;
     QString id;
-    QComboBox *sort = nullptr;
-    QComboBox *sort_direction = nullptr;
+    QString location_value;
+    QString tag_service_value;
+    QStringList tag_services;
+    QString sort_value;
+    bool sort_ascending_value = true;
+    QPushButton *sort_type = nullptr;
+    QPushButton *sort_order = nullptr;
     QComboBox *collect = nullptr;
-    QComboBox *location = nullptr;
-    QComboBox *tag_service = nullptr;
+    QToolButton *collect_cog = nullptr;
+    QScrollArea *sidebar_scroll = nullptr;
+    QWidget *sidebar_content = nullptr;
+    QPushButton *location = nullptr;
+    QPushButton *tag_service = nullptr;
     QLineEdit *search = nullptr;
     QCompleter *completer = nullptr;
     HydrusAutocompletePopup *autocomplete = nullptr;
     QString text_before_completion;
     QListWidget *predicates = nullptr;
-    QPushButton *search_button = nullptr;
-    QComboBox *tag_sort = nullptr;
+    QPushButton *include_current = nullptr;
+    QPushButton *include_pending = nullptr;
+    QPushButton *search_pause_play = nullptr;
+    QPushButton *or_button = nullptr;
+    QPushButton *search_expand = nullptr;
+    QWidget *search_box = nullptr;
+    QWidget *search_content = nullptr;
+    QTabWidget *autocomplete_tabs = nullptr;
+    QListWidget *results_list = nullptr;
+    QListWidget *favourites_list = nullptr;
+    QListWidget *children_list = nullptr;
+    QPushButton *tag_sort_type = nullptr;
+    QPushButton *tag_sort_order = nullptr;
+    QPushButton *tag_sort_namespace = nullptr;
+    QFrame *selection_tags_box = nullptr;
+    QWidget *sidebar_filler = nullptr;
     QListWidget *selection_tags = nullptr;
-    QLabel *empty_label = nullptr;
+    QFrame *preview_frame = nullptr;
     QWidget *results = nullptr;
     QWidget *loading_panel = nullptr;
     QLabel *loading_text = nullptr;

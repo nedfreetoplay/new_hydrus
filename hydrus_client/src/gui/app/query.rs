@@ -290,14 +290,14 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
         if page.query.trim().is_empty() {
             "no search done yet".to_string()
         } else {
-            "no files match this search".to_string()
+            "no files found for this search".to_string()
         }
     } else {
         String::new()
     };
 
     page.status = if total == 0 {
-        "0 files".to_string()
+        page.empty_text.clone()
     } else if shown < total || shown > MAX_DISPLAYED_FILES {
         format!("{total} files (showing {})", shown.min(MAX_DISPLAYED_FILES))
     } else if total == 1 {

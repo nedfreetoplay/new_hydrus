@@ -45,6 +45,7 @@
 #include <QPlainTextEdit>
 #include <QPixmap>
 #include <QPixmapCache>
+#include <QPolygonF>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScreen>
@@ -76,6 +77,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
 #include <functional>
 
 void show_or_predicate_dialog(HydrusMainWindow &main, const QString &page_id, const QString &initial);
@@ -442,6 +444,11 @@ void HydrusCanvas::zoom_to(double factor) {
 void HydrusCanvas::set_background_mode(const QString &mode) {
     if (mode == QStringLiteral("black")) {
         setBackgroundBrush(QColor(0, 0, 0));
+        return;
+    }
+
+    if (mode == QStringLiteral("white")) {
+        setBackgroundBrush(QColor(255, 255, 255));
         return;
     }
 
@@ -1592,31 +1599,222 @@ private:
 
 namespace {
 
-// Hydrus ClientGUICommon.StaticBox: a raised frame with a bold, centred title.
-QFrame *make_static_box(const QString &title, QWidget *parent, QVBoxLayout **content_layout) {
+// Hydrus ClientGUICommon.StaticBox: a raised frame with a bold, centred title
+// and an optional expand/collapse arrow on the right.
+QFrame *make_static_box(
+    const QString &title,
+    QWidget *parent,
+    QVBoxLayout **content_layout,
+    QPushButton **expand_button = nullptr) {
     auto *box = new QFrame(parent);
     box->setFrameStyle(QFrame::Box | QFrame::Raised);
 
     auto *layout = new QVBoxLayout(box);
     layout->setContentsMargins(4, 2, 4, 4);
-    layout->setSpacing(4);
+    layout->setSpacing(0);
+
+    auto *header_row = new QHBoxLayout();
+    header_row->setContentsMargins(0, 0, 0, 0);
+    header_row->setSpacing(0);
 
     auto *header = new QLabel(title, box);
     QFont header_font = header->font();
     header_font.setBold(true);
     header->setFont(header_font);
     header->setAlignment(Qt::AlignHCenter);
-    layout->addWidget(header);
+
+    header_row->addSpacing(30);
+    header_row->addStretch(1);
+    header_row->addWidget(header, 0, Qt::AlignHCenter);
+    header_row->addStretch(1);
+
+    if (expand_button != nullptr) {
+        auto *button = new QPushButton(box);
+        button->setFlat(true);
+        button->setFixedSize(30, 22);
+        button->setFocusPolicy(Qt::NoFocus);
+        button->setIcon(box->style()->standardIcon(QStyle::SP_ArrowUp));
+        button->setIconSize(QSize(12, 12));
+        header_row->addWidget(button, 0, Qt::AlignRight | Qt::AlignVCenter);
+        *expand_button = button;
+    } else {
+        header_row->addSpacing(30);
+    }
+
+    layout->addLayout(header_row);
 
     auto *content = new QWidget(box);
     auto *content_vbox = new QVBoxLayout(content);
-    content_vbox->setContentsMargins(0, 0, 0, 0);
+    content_vbox->setContentsMargins(4, 2, 4, 4);
     content_vbox->setSpacing(4);
     layout->addWidget(content, 1);
 
     *content_layout = content_vbox;
 
     return box;
+}
+
+QIcon hydrus_small_icon(const QString &kind) {
+    QPixmap pixmap(16, 16);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+
+    if (kind == QStringLiteral("paste")) {
+        painter.setPen(QPen(QColor(150, 140, 120), 1));
+        painter.setBrush(QColor(245, 240, 220));
+        painter.drawRect(QRect(3, 3, 9, 11));
+        painter.drawRect(QRect(5, 1, 5, 3));
+        painter.setPen(QPen(QColor(110, 100, 80), 1));
+        painter.drawLine(5, 6, 10, 6);
+        painter.drawLine(5, 8, 10, 8);
+        painter.drawLine(5, 10, 9, 10);
+    } else if (kind == QStringLiteral("star")) {
+        QPolygonF star;
+        const QPointF centre(8.0, 8.0);
+        for (int index = 0; index < 10; ++index) {
+            const double radius = index % 2 == 0 ? 7.0 : 3.0;
+            const double angle = -1.5707963267948966 + index * 0.6283185307179586;
+            star << QPointF(
+                centre.x() + radius * std::cos(angle),
+                centre.y() + radius * std::sin(angle));
+        }
+        painter.setPen(QPen(QColor(140, 110, 10), 1));
+        painter.setBrush(QColor(240, 190, 20));
+        painter.drawPolygon(star);
+    } else if (kind == QStringLiteral("clear")) {
+        painter.setPen(QPen(QColor(45, 110, 200), 1.5));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawRoundedRect(QRect(2, 2, 12, 12), 2, 2);
+        painter.setBrush(QColor(45, 110, 200));
+        painter.drawRect(QRect(5, 5, 6, 6));
+    } else if (kind == QStringLiteral("gear")) {
+        painter.setPen(QPen(QColor(70, 70, 70), 1.2));
+        painter.setBrush(QColor(205, 205, 205));
+        painter.drawEllipse(QRectF(3.5, 3.5, 9.0, 9.0));
+
+        for (int index = 0; index < 8; ++index) {
+            const double angle = index * 0.7853981633974483;
+            painter.drawLine(
+                QPointF(8.0 + 4.6 * std::cos(angle), 8.0 + 4.6 * std::sin(angle)),
+                QPointF(8.0 + 6.8 * std::cos(angle), 8.0 + 6.8 * std::sin(angle)));
+        }
+
+        painter.setBrush(Qt::white);
+        painter.drawEllipse(QRectF(6.0, 6.0, 4.0, 4.0));
+    } else {
+        painter.setPen(QPen(QColor(130, 105, 45), 1.5));
+        painter.setBrush(QColor(220, 185, 95));
+        painter.drawRoundedRect(QRect(4, 7, 9, 7), 1, 1);
+        painter.setBrush(Qt::NoBrush);
+        painter.drawArc(QRect(5, 2, 7, 9), 0, 180 * 16);
+    }
+
+    painter.end();
+
+    return QIcon(pixmap);
+}
+
+QToolButton *make_icon_button(QWidget *parent, const QString &kind, const QString &tooltip) {
+    auto *button = new QToolButton(parent);
+    button->setIcon(hydrus_small_icon(kind));
+    button->setIconSize(QSize(16, 16));
+    button->setFixedSize(24, 24);
+    button->setAutoRaise(true);
+    button->setFocusPolicy(Qt::NoFocus);
+    button->setToolTip(tooltip);
+    return button;
+}
+
+struct HydrusSortOption {
+    const char *key;
+    const char *label;
+    const char *ascending;
+    const char *descending;
+    bool default_ascending;
+};
+
+const HydrusSortOption hydrus_sort_options[] = {
+    {"hash id", "sort by hash - sha256", "lexicographic", "reverse lexicographic", true},
+    {"import time", "sort by import time", "oldest first", "newest first", false},
+    {"size", "sort by file: filesize", "smallest first", "largest first", false},
+    {"mime", "sort by filetype", "filetype", "filetype", true},
+    {"width", "sort by width", "slimmest first", "widest first", true},
+    {"height", "sort by height", "shortest first", "tallest first", true},
+    {"ratio", "sort by resolution ratio", "tallest first", "widest first", true},
+    {"pixels", "sort by number of pixels", "ascending", "descending", false},
+    {"duration", "sort by duration", "shortest first", "longest first", false},
+    {"frames", "sort by number of frames", "smallest first", "largest first", false},
+    {"words", "sort by number of words", "ascending", "descending", true},
+};
+
+const HydrusSortOption *find_sort_option(const QString &key) {
+    for (const HydrusSortOption &option : hydrus_sort_options) {
+        if (key == QLatin1String(option.key)) {
+            return &option;
+        }
+    }
+
+    return &hydrus_sort_options[2];
+}
+
+QStringList default_system_predicates() {
+    return {
+        QStringLiteral("system:everything"),
+        QStringLiteral("system:inbox"),
+        QStringLiteral("system:archive"),
+        QStringLiteral("system:dimensions"),
+        QStringLiteral("system:duration"),
+        QStringLiteral("system:file properties"),
+        QStringLiteral("system:file relationships"),
+        QStringLiteral("system:file service"),
+        QStringLiteral("system:file viewing statistics"),
+        QStringLiteral("system:filesize"),
+        QStringLiteral("system:filetype"),
+        QStringLiteral("system:hash"),
+        QStringLiteral("system:limit"),
+        QStringLiteral("system:notes"),
+        QStringLiteral("system:number of tags"),
+        QStringLiteral("system:number of words"),
+        QStringLiteral("system:rating"),
+        QStringLiteral("system:similar files"),
+        QStringLiteral("system:tag (advanced)"),
+        QStringLiteral("system:tag as number"),
+        QStringLiteral("system:time"),
+        QStringLiteral("system:urls"),
+    };
+}
+
+void make_on_off_button(
+    QPushButton *button,
+    const QString &on_label,
+    const QString &off_label,
+    bool start_on) {
+    button->setObjectName(QStringLiteral("HydrusOnOffButton"));
+    button->setText(start_on ? on_label : off_label);
+    button->setProperty("hydrus_on", start_on);
+
+    QObject::connect(button, &QPushButton::clicked, button, [button, on_label, off_label]() {
+        const bool on = !button->property("hydrus_on").toBool();
+        button->setProperty("hydrus_on", on);
+        button->setText(on ? on_label : off_label);
+        button->style()->unpolish(button);
+        button->style()->polish(button);
+    });
+}
+
+void fill_system_predicates(QListWidget *list) {
+    list->clear();
+
+    for (const QString &text : default_system_predicates()) {
+        auto *item = new QListWidgetItem(text, list);
+        item->setForeground(QColor(150, 90, 10));
+    }
+
+    if (list->count() > 0) {
+        list->setCurrentRow(0);
+    }
 }
 
 }
@@ -1629,34 +1827,36 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
 
     auto *splitter = new QSplitter(Qt::Horizontal, this);
 
-    auto *sidebar = new QWidget(splitter);
-    auto *sidebar_layout = new QVBoxLayout(sidebar);
+    sidebar_scroll = new QScrollArea(splitter);
+    sidebar_scroll->setWidgetResizable(true);
+    sidebar_scroll->setFrameShape(QFrame::NoFrame);
+    sidebar_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    sidebar_content = new QWidget();
+    auto *sidebar_layout = new QVBoxLayout(sidebar_content);
     sidebar_layout->setContentsMargins(6, 6, 6, 6);
-    sidebar_layout->setSpacing(6);
+    sidebar_layout->setSpacing(4);
+    sidebar_scroll->setWidget(sidebar_content);
 
-    sort = new QComboBox(sidebar);
-    sort->addItem(QStringLiteral("sort by hash id"), QStringLiteral("hash id"));
-    sort->addItem(QStringLiteral("sort by import time"), QStringLiteral("import time"));
-    sort->addItem(QStringLiteral("sort by size"), QStringLiteral("size"));
-    sort->addItem(QStringLiteral("sort by mime"), QStringLiteral("mime"));
-    sort->addItem(QStringLiteral("sort by width"), QStringLiteral("width"));
-    sort->addItem(QStringLiteral("sort by height"), QStringLiteral("height"));
-    sort->addItem(QStringLiteral("sort by ratio"), QStringLiteral("ratio"));
-    sort->addItem(QStringLiteral("sort by pixels"), QStringLiteral("pixels"));
-    sort->addItem(QStringLiteral("sort by duration"), QStringLiteral("duration"));
-    sort->addItem(QStringLiteral("sort by frames"), QStringLiteral("frames"));
-    sort->addItem(QStringLiteral("sort by words"), QStringLiteral("words"));
+    const HydrusSortOption *initial_sort = find_sort_option(QStringLiteral("size"));
+    sort_value = QStringLiteral("size");
+    sort_ascending_value = true;
 
-    sort_direction = new QComboBox(sidebar);
-    sort_direction->addItem(QStringLiteral("ascending"));
-    sort_direction->addItem(QStringLiteral("descending"));
+    sort_type = new QPushButton(QString::fromUtf8(initial_sort->label), sidebar_content);
+    sort_type->setMinimumHeight(24);
+    sort_type->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-    auto *sort_row = new QWidget(sidebar);
+    sort_order = new QPushButton(QString::fromUtf8(initial_sort->ascending), sidebar_content);
+    sort_order->setMinimumHeight(24);
+    sort_order->setMinimumWidth(90);
+
+    auto *sort_row = new QWidget(sidebar_content);
+    sort_row->setFixedHeight(24);
     auto *sort_row_layout = new QHBoxLayout(sort_row);
     sort_row_layout->setContentsMargins(0, 0, 0, 0);
-    sort_row_layout->setSpacing(4);
-    sort_row_layout->addWidget(sort, 1);
-    sort_row_layout->addWidget(sort_direction);
+    sort_row_layout->setSpacing(2);
+    sort_row_layout->addWidget(sort_type, 1);
+    sort_row_layout->addWidget(sort_order, 0);
     sidebar_layout->addWidget(sort_row);
 
     const auto send_sort = [this]() {
@@ -1665,130 +1865,445 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
         }
 
         QJsonObject request;
-        request.insert(QStringLiteral("sort"), sort->currentData().toString());
-        request.insert(
-            QStringLiteral("ascending"),
-            sort_direction->currentIndex() == 0);
+        request.insert(QStringLiteral("sort"), sort_value);
+        request.insert(QStringLiteral("ascending"), sort_ascending_value);
         main->notify(
             QStringLiteral("set_sort"),
             id,
             QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact)));
     };
 
-    connect(
-        sort,
-        QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this,
-        [send_sort](int) { send_sort(); });
-    connect(
-        sort_direction,
-        QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this,
-        [send_sort](int) { send_sort(); });
+    const auto set_sort_direction = [this, send_sort](bool ascending) {
+        const HydrusSortOption *option = find_sort_option(sort_value);
+        sort_ascending_value = ascending;
+        sort_order->setText(
+            QString::fromUtf8(ascending ? option->ascending : option->descending));
+        send_sort();
+    };
 
-    collect = new QComboBox(sidebar);
+    const auto apply_sort = [this, send_sort](
+                                const QString &key, bool ascending, bool notify) {
+        const HydrusSortOption *option = find_sort_option(key);
+        sort_value = key;
+        sort_ascending_value = ascending;
+        sort_type->setText(QString::fromUtf8(option->label));
+        sort_order->setText(
+            QString::fromUtf8(ascending ? option->ascending : option->descending));
+
+        if (notify) {
+            send_sort();
+        }
+    };
+
+    auto *sort_menu = new QMenu(this);
+
+    for (const HydrusSortOption &option : hydrus_sort_options) {
+        auto *action = sort_menu->addAction(QString::fromUtf8(option.label));
+        action->setData(QString::fromUtf8(option.key));
+    }
+
+    connect(sort_menu, &QMenu::triggered, this, [apply_sort](QAction *action) {
+        const QString key = action->data().toString();
+        apply_sort(key, find_sort_option(key)->default_ascending, true);
+    });
+
+    connect(sort_type, &QPushButton::clicked, this, [this, sort_menu]() {
+        sort_menu->popup(sort_type->mapToGlobal(QPoint(0, sort_type->height())));
+    });
+
+    connect(sort_order, &QPushButton::clicked, this, [this, set_sort_direction]() {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+
+        const HydrusSortOption *option = find_sort_option(sort_value);
+
+        auto *ascending = menu->addAction(QString::fromUtf8(option->ascending));
+        auto *descending = menu->addAction(QString::fromUtf8(option->descending));
+
+        connect(ascending, &QAction::triggered, this, [set_sort_direction]() {
+            set_sort_direction(true);
+        });
+        connect(descending, &QAction::triggered, this, [set_sort_direction]() {
+            set_sort_direction(false);
+        });
+
+        menu->popup(sort_order->mapToGlobal(QPoint(0, sort_order->height())));
+    });
+
+    collect = new QComboBox(sidebar_content);
     collect->addItem(QStringLiteral("no collections"));
-    sidebar_layout->addWidget(collect);
+    collect->setFixedHeight(24);
+
+    collect_cog = new QToolButton(sidebar_content);
+    collect_cog->setIcon(hydrus_small_icon(QStringLiteral("gear")));
+    collect_cog->setIconSize(QSize(16, 16));
+    collect_cog->setToolTip(QStringLiteral("collection options"));
+    collect_cog->setAutoRaise(true);
+    collect_cog->setFixedSize(24, 24);
+    collect_cog->setFocusPolicy(Qt::NoFocus);
+
+    connect(collect_cog, &QToolButton::clicked, this, [this]() {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        auto *nothing = menu->addAction(QStringLiteral("no collection options available"));
+        nothing->setEnabled(false);
+        menu->popup(collect_cog->mapToGlobal(QPoint(0, collect_cog->height())));
+    });
+
+    auto *collect_row = new QWidget(sidebar_content);
+    collect_row->setFixedHeight(24);
+    auto *collect_row_layout = new QHBoxLayout(collect_row);
+    collect_row_layout->setContentsMargins(0, 0, 0, 0);
+    collect_row_layout->setSpacing(2);
+    collect_row_layout->addWidget(collect, 1);
+    collect_row_layout->addWidget(collect_cog, 0);
+    sidebar_layout->addWidget(collect_row);
 
     QVBoxLayout *search_layout = nullptr;
-    auto *search_box = make_static_box(QStringLiteral("search"), sidebar, &search_layout);
+    QPushButton *search_expander = nullptr;
+    search_box = make_static_box(
+        QStringLiteral("search"), sidebar_content, &search_layout, &search_expander);
+    search_expand = search_expander;
+    search_content = search_layout->parentWidget();
+    search_box->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    search_box->setFixedHeight(645);
     sidebar_layout->addWidget(search_box);
 
-    location = new QComboBox(search_box);
-    location->addItem(QStringLiteral("my files"));
-    location->addItem(QStringLiteral("all local files"));
-    location->addItem(QStringLiteral("trash"));
-    search_layout->addWidget(location);
+    connect(search_expand, &QPushButton::clicked, this, [this]() {
+        const bool show = !search_content->isVisible();
+        search_content->setVisible(show);
+        selection_tags_box->setVisible(!show);
+        sidebar_filler->setVisible(show);
+        search_expand->setIcon(
+            style()->standardIcon(show ? QStyle::SP_ArrowUp : QStyle::SP_ArrowDown));
+        search_box->setFixedHeight(show ? 645 : 32);
+    });
 
-    connect(location, &QComboBox::currentTextChanged, this, [this](const QString &value) {
-        if (main->building || value.isEmpty()) {
+    predicates = new QListWidget(search_box);
+    predicates->setSelectionMode(QAbstractItemView::SingleSelection);
+    predicates->setUniformItemSizes(true);
+    predicates->setFixedHeight(132);
+    search_layout->addWidget(predicates);
+
+    auto *input_row = new QWidget(search_box);
+    auto *input_layout = new QHBoxLayout(input_row);
+    input_layout->setContentsMargins(0, 0, 0, 0);
+    input_layout->setSpacing(2);
+
+    search = new QLineEdit(input_row);
+    search->setMinimumHeight(24);
+    search->setStyleSheet(QStringLiteral("QLineEdit { background-color: #ebf8ff; }"));
+    input_layout->addWidget(search, 1);
+
+    auto *paste_button = make_icon_button(
+        input_row,
+        QStringLiteral("paste"),
+        QStringLiteral("You can paste a newline-separated list of regular tags and/or system predicates."));
+    auto *favourite_button = make_icon_button(
+        input_row, QStringLiteral("star"), QStringLiteral("Load or save a favourite search."));
+    auto *clear_button = make_icon_button(
+        input_row, QStringLiteral("clear"), QStringLiteral("Clear the search back to an empty page."));
+    auto *lock_button = make_icon_button(
+        input_row, QStringLiteral("lock"), QStringLiteral("Lock the current files in view to a fixed system:hash."));
+
+    input_layout->addWidget(paste_button, 0);
+    input_layout->addWidget(favourite_button, 0);
+    input_layout->addWidget(clear_button, 0);
+    input_layout->addWidget(lock_button, 0);
+    search_layout->addWidget(input_row);
+
+    include_current = new QPushButton(search_box);
+    make_on_off_button(
+        include_current,
+        QStringLiteral("include current tags"),
+        QStringLiteral("exclude current tags"),
+        true);
+    include_current->setMinimumHeight(24);
+    include_current->setToolTip(QStringLiteral("select whether to include current tags in the search"));
+
+    include_pending = new QPushButton(search_box);
+    make_on_off_button(
+        include_pending,
+        QStringLiteral("include pending tags"),
+        QStringLiteral("exclude pending tags"),
+        true);
+    include_pending->setMinimumHeight(24);
+    include_pending->setToolTip(QStringLiteral("select whether to include pending tags in the search"));
+
+    auto *button_row_1 = new QWidget(search_box);
+    auto *button_row_1_layout = new QHBoxLayout(button_row_1);
+    button_row_1_layout->setContentsMargins(0, 0, 0, 0);
+    button_row_1_layout->setSpacing(2);
+    button_row_1_layout->addWidget(include_current, 1);
+    button_row_1_layout->addWidget(include_pending, 1);
+    search_layout->addWidget(button_row_1);
+
+    search_pause_play = new QPushButton(search_box);
+    make_on_off_button(
+        search_pause_play,
+        QStringLiteral("searching immediately"),
+        QStringLiteral("search paused"),
+        true);
+    search_pause_play->setMinimumHeight(24);
+    search_pause_play->setToolTip(
+        QStringLiteral("select whether to renew the search as soon as a new predicate is entered"));
+
+    or_button = new QPushButton(QStringLiteral("OR"), search_box);
+    or_button->setMinimumHeight(24);
+    or_button->setFixedWidth(75);
+
+    auto *button_row_2 = new QWidget(search_box);
+    auto *button_row_2_layout = new QHBoxLayout(button_row_2);
+    button_row_2_layout->setContentsMargins(0, 0, 0, 0);
+    button_row_2_layout->setSpacing(2);
+    button_row_2_layout->addWidget(search_pause_play, 1);
+    button_row_2_layout->addWidget(or_button, 0);
+    search_layout->addWidget(button_row_2);
+
+    location_value = QStringLiteral("my files");
+    location = new QPushButton(location_value, search_box);
+    location->setMinimumHeight(24);
+    location->setToolTip(QStringLiteral("select the file domain for this search"));
+
+    tag_service_value.clear();
+    tag_service = new QPushButton(QStringLiteral("all known tags"), search_box);
+    tag_service->setMinimumHeight(24);
+    tag_service->setToolTip(QStringLiteral("select the tag domain for this search"));
+
+    auto *button_row_3 = new QWidget(search_box);
+    auto *button_row_3_layout = new QHBoxLayout(button_row_3);
+    button_row_3_layout->setContentsMargins(0, 0, 0, 0);
+    button_row_3_layout->setSpacing(2);
+    button_row_3_layout->addWidget(location, 1);
+    button_row_3_layout->addWidget(tag_service, 1);
+    search_layout->addWidget(button_row_3);
+
+    const auto send_location = [this](const QString &value) {
+        location_value = value;
+        location->setText(value);
+
+        if (!main->building) {
+            main->notify(QStringLiteral("set_location"), id, value);
+        }
+    };
+
+    connect(location, &QPushButton::clicked, this, [this, send_location]() {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+
+        for (const QString &text :
+             {QStringLiteral("my files"), QStringLiteral("all local files"), QStringLiteral("trash")}) {
+            auto *action = menu->addAction(text);
+
+            connect(action, &QAction::triggered, this, [send_location, text]() {
+                send_location(text);
+            });
+        }
+
+        menu->popup(location->mapToGlobal(QPoint(0, location->height())));
+    });
+
+    const auto send_tag_service = [this](const QString &label) {
+        tag_service_value = label == QStringLiteral("all known tags") ? QString() : label;
+        tag_service->setText(label);
+
+        if (!main->building) {
+            main->notify(QStringLiteral("set_tag_service"), id, tag_service_value);
+        }
+    };
+
+    connect(tag_service, &QPushButton::clicked, this, [this, send_tag_service]() {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+
+        auto *all_known = menu->addAction(QStringLiteral("all known tags"));
+
+        connect(all_known, &QAction::triggered, this, [send_tag_service]() {
+            send_tag_service(QStringLiteral("all known tags"));
+        });
+
+        for (const QString &name : tag_services) {
+            auto *action = menu->addAction(name);
+
+            connect(action, &QAction::triggered, this, [send_tag_service, name]() {
+                send_tag_service(name);
+            });
+        }
+
+        menu->popup(tag_service->mapToGlobal(QPoint(0, tag_service->height())));
+    });
+
+    autocomplete_tabs = new QTabWidget(search_box);
+    autocomplete_tabs->setStyleSheet(QStringLiteral(
+        "QTabWidget::pane { border: 1px solid #b8b8b8; background: #ffffff; }"
+        "QTabBar::tab { background: #f0f0f0; }"
+        "QTabBar::tab:selected { background: #ffffff; }"
+        "QListWidget { background: #ffffff; border: none; }"
+        "QListWidget::item:selected { background: #a0522d; color: #ffffff; }"));
+
+    results_list = new QListWidget(autocomplete_tabs);
+    results_list->setSelectionMode(QAbstractItemView::SingleSelection);
+    results_list->setUniformItemSizes(true);
+    fill_system_predicates(results_list);
+
+    favourites_list = new QListWidget(autocomplete_tabs);
+    children_list = new QListWidget(autocomplete_tabs);
+
+    autocomplete_tabs->addTab(results_list, QStringLiteral("results"));
+    autocomplete_tabs->addTab(favourites_list, QStringLiteral("favourites"));
+    autocomplete_tabs->addTab(children_list, QStringLiteral("children"));
+    search_layout->addWidget(autocomplete_tabs, 1);
+
+    const auto send_search = [this]() {
+        if (main->building) {
             return;
         }
 
-        main->notify(QStringLiteral("set_location"), id, value);
-    });
+        const QByteArray page_bytes = id.toUtf8();
+        const QByteArray query_bytes = search->text().toUtf8();
+        app_action(
+            *main,
+            rust::Str("search", 6),
+            rust::Str(page_bytes.constData(), page_bytes.size()),
+            rust::Str(query_bytes.constData(), query_bytes.size()));
+    };
 
-    tag_service = new QComboBox(search_box);
-    search_layout->addWidget(tag_service);
+    connect(search, &QLineEdit::returnPressed, this, send_search);
 
-    connect(tag_service, &QComboBox::currentTextChanged, this, [this](const QString &value) {
-        if (main->building || value.isEmpty()) {
+    connect(results_list, &QListWidget::itemDoubleClicked, this, [this, send_search](QListWidgetItem *item) {
+        if (item == nullptr) {
             return;
         }
 
-        main->notify(QStringLiteral("set_tag_service"), id, value);
+        search->setText(item->text());
+        send_search();
     });
 
-    search = new QLineEdit(search_box);
-    search->setPlaceholderText(QStringLiteral("tags: blue eyes, -sky, system:inbox"));
-    search_layout->addWidget(search);
-
-    autocomplete = new HydrusAutocompletePopup(search, [this](const QString &text) {
-        insert_autocomplete(text);
+    connect(clear_button, &QToolButton::clicked, this, [this, send_search]() {
+        search->clear();
+        predicates->clear();
+        fill_system_predicates(results_list);
+        send_search();
     });
-    search->installEventFilter(this);
 
     connect(search, &QLineEdit::textEdited, this, [this](const QString &text) {
         text_before_completion = text;
         request_autocomplete();
     });
 
-    predicates = new QListWidget(search_box);
-    predicates->setSelectionMode(QAbstractItemView::SingleSelection);
-    predicates->setUniformItemSizes(true);
-    predicates->setFixedHeight(120);
-    search_layout->addWidget(predicates);
-    search_box->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
-
-    search_button = new QPushButton(QStringLiteral("search"), search_box);
-    search_layout->addWidget(search_button);
+    autocomplete = nullptr;
 
     QVBoxLayout *tags_layout = nullptr;
-    auto *tags_box = make_static_box(QStringLiteral("selection tags"), sidebar, &tags_layout);
+    auto *tags_box = make_static_box(
+        QStringLiteral("selection tags"), sidebar_content, &tags_layout);
+    selection_tags_box = tags_box;
+    tags_box->setVisible(false);
     sidebar_layout->addWidget(tags_box, 1);
 
-    tag_sort = new QComboBox(tags_box);
-    tag_sort->addItem(QStringLiteral("lexicographic (a-z)"));
-    tag_sort->addItem(QStringLiteral("incidence (desc)"));
-    tags_layout->addWidget(tag_sort);
+    sidebar_filler = new QWidget(sidebar_content);
+    sidebar_filler->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+    sidebar_layout->addWidget(sidebar_filler, 1);
+
+    tag_sort_type = new QPushButton(QStringLiteral("sort by tag"), tags_box);
+    tag_sort_type->setMinimumHeight(24);
+    tag_sort_type->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
+    tag_sort_order = new QPushButton(QStringLiteral("a-z"), tags_box);
+    tag_sort_order->setMinimumHeight(24);
+    tag_sort_order->setFixedWidth(75);
+
+    tag_sort_namespace = new QPushButton(QStringLiteral("namespace (user)"), tags_box);
+    tag_sort_namespace->setMinimumHeight(24);
+    tag_sort_namespace->setFixedWidth(101);
+
+    auto *tag_sort_row = new QWidget(tags_box);
+    auto *tag_sort_row_layout = new QHBoxLayout(tag_sort_row);
+    tag_sort_row_layout->setContentsMargins(0, 0, 0, 0);
+    tag_sort_row_layout->setSpacing(2);
+    tag_sort_row_layout->addWidget(tag_sort_type, 1);
+    tag_sort_row_layout->addWidget(tag_sort_order, 0);
+    tag_sort_row_layout->addWidget(tag_sort_namespace, 0);
+    tags_layout->addWidget(tag_sort_row);
 
     selection_tags = new QListWidget(tags_box);
     selection_tags->setSelectionMode(QAbstractItemView::ExtendedSelection);
     tags_layout->addWidget(selection_tags, 1);
 
-    connect(
-        tag_sort,
-        QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this,
-        [this](int index) {
-            selection_tags->sortItems(
-                index == 0 ? Qt::AscendingOrder : Qt::DescendingOrder);
-        });
+    const auto sort_selection = [this]() {
+        selection_tags->sortItems(
+            tag_sort_order->text() == QStringLiteral("a-z") ? Qt::AscendingOrder
+                                                           : Qt::DescendingOrder);
+    };
+
+    connect(tag_sort_order, &QPushButton::clicked, this, [this, sort_selection]() {
+        tag_sort_order->setText(
+            tag_sort_order->text() == QStringLiteral("a-z") ? QStringLiteral("z-a")
+                                                            : QStringLiteral("a-z"));
+        sort_selection();
+    });
+
+    connect(tag_sort_type, &QPushButton::clicked, this, [this]() {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+
+        for (const QString &text : {QStringLiteral("sort by tag"),
+                                    QStringLiteral("sort by namespace"),
+                                    QStringLiteral("sort by incidence")}) {
+            auto *action = menu->addAction(text);
+
+            connect(action, &QAction::triggered, this, [this, text]() {
+                tag_sort_type->setText(text);
+            });
+        }
+
+        menu->popup(tag_sort_type->mapToGlobal(QPoint(0, tag_sort_type->height())));
+    });
+
+    connect(tag_sort_namespace, &QPushButton::clicked, this, [this]() {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+
+        for (const QString &text : {QStringLiteral("namespace (user)"),
+                                    QStringLiteral("namespace (creator)"),
+                                    QStringLiteral("no namespace")}) {
+            auto *action = menu->addAction(text);
+
+            connect(action, &QAction::triggered, this, [this, text]() {
+                tag_sort_namespace->setText(text);
+            });
+        }
+
+        menu->popup(tag_sort_namespace->mapToGlobal(QPoint(0, tag_sort_namespace->height())));
+    });
 
     auto *vertical = new QSplitter(Qt::Vertical, splitter);
-    vertical->addWidget(sidebar);
+    vertical->addWidget(sidebar_scroll);
 
-    auto *preview_frame = new QFrame(vertical);
+    preview_frame = new QFrame(vertical);
     preview_frame->setFrameStyle(QFrame::Panel | QFrame::Sunken);
     preview_frame->setLineWidth(2);
     auto *preview_layout = new QVBoxLayout(preview_frame);
     preview_layout->setContentsMargins(0, 0, 0, 0);
     preview = new HydrusCanvas(preview_frame);
+    preview->set_background_mode(QStringLiteral("white"));
     preview->setMinimumHeight(120);
     preview_layout->addWidget(preview);
     vertical->addWidget(preview_frame);
     vertical->setStretchFactor(0, 1);
     vertical->setStretchFactor(1, 0);
-    vertical->setSizes({420, 300});
+    vertical->setSizes({900, 280});
+    preview_frame->setVisible(false);
 
     splitter->addWidget(vertical);
 
     results = new QWidget(splitter);
+    results->setAutoFillBackground(true);
+    QPalette results_palette = results->palette();
+    results_palette.setColor(QPalette::Window, Qt::white);
+    results->setPalette(results_palette);
     auto *results_layout = new QVBoxLayout(results);
     results_layout->setContentsMargins(0, 0, 0, 0);
     results_layout->setSpacing(0);
-
-
 
     grid = new HydrusThumbnailGrid(main, this);
     results_layout->addWidget(grid, 1);
@@ -1815,33 +2330,15 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
     loading_layout->addStretch(2);
     loading_panel->hide();
 
-    empty_label = new QLabel(QStringLiteral("no files"), results);
-    empty_label->setAlignment(Qt::AlignCenter);
-    empty_label->setStyleSheet(QStringLiteral("color: #707070; background: transparent;"));
-    empty_label->hide();
-
     splitter->addWidget(results);
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
-    splitter->setSizes({360, 900});
+    splitter->setSizes({400, 880});
 
     layout->addWidget(splitter);
 
-    connect(search, &QLineEdit::returnPressed, this, [this]() {
-        const QByteArray page_bytes = id.toUtf8();
-        const QByteArray query_bytes = search->text().toUtf8();
-        app_action(*main, rust::Str("search", 6), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(query_bytes.constData(), query_bytes.size()));
-    });
-
-    connect(search_button, &QPushButton::clicked, this, [this]() {
-        const QByteArray page_bytes = id.toUtf8();
-        const QByteArray query_bytes = search->text().toUtf8();
-        app_action(*main, rust::Str("search", 6), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(query_bytes.constData(), query_bytes.size()));
-    });
-
     update_state(state);
 }
-
 const QString &HydrusQueryPage::page_id() const {
     return id;
 }
@@ -1851,7 +2348,30 @@ void HydrusQueryPage::show_autocomplete(const QJsonObject &state) {
         return;
     }
 
-    autocomplete->set_state(state);
+    const QJsonArray entries = state.value(QStringLiteral("entries")).toArray();
+
+    results_list->clear();
+
+    if (entries.isEmpty()) {
+        fill_system_predicates(results_list);
+        return;
+    }
+
+    for (const QJsonValue &value : entries) {
+        const QString text = value.toObject().value(QStringLiteral("text")).toString();
+
+        if (text.isEmpty()) {
+            continue;
+        }
+
+        auto *item = new QListWidgetItem(text, results_list);
+        item->setForeground(
+            text.startsWith(QStringLiteral("system:")) ? QColor(150, 90, 10) : QColor(32, 32, 32));
+    }
+
+    if (results_list->count() > 0) {
+        results_list->setCurrentRow(0);
+    }
 }
 
 void HydrusQueryPage::insert_autocomplete(const QString &text) {
@@ -1931,15 +2451,7 @@ bool HydrusQueryPage::eventFilter(QObject *watched, QEvent *event) {
 }
 
 void HydrusQueryPage::update_progress(const QJsonObject &state) {
-    const int count = state.value(QStringLiteral("count")).toInt();
     const bool loading = state.value(QStringLiteral("loading")).toBool();
-
-    empty_label->setGeometry(results->rect());
-    empty_label->setVisible(count == 0 && !loading);
-
-    if (empty_label->isVisible()) {
-        empty_label->raise();
-    }
 
     if (loading) {
         loading_panel->setGeometry(results->rect());
@@ -1953,12 +2465,12 @@ void HydrusQueryPage::update_progress(const QJsonObject &state) {
 void HydrusQueryPage::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
 
-    if (loading_panel != nullptr && loading_panel->isVisible() && results != nullptr) {
-        loading_panel->setGeometry(results->rect());
+    if (preview_frame != nullptr) {
+        preview_frame->setVisible(height() >= 1000);
     }
 
-    if (empty_label != nullptr && results != nullptr) {
-        empty_label->setGeometry(results->rect());
+    if (loading_panel != nullptr && loading_panel->isVisible() && results != nullptr) {
+        loading_panel->setGeometry(results->rect());
     }
 }
 
@@ -1969,78 +2481,39 @@ void HydrusQueryPage::update_state(const QJsonObject &state) {
         search->setText(query);
     }
 
-    const QString location_value = state.value(QStringLiteral("location")).toString();
+    const QString location_text = state.value(QStringLiteral("location")).toString();
+    location_value = location_text.isEmpty() ? QStringLiteral("my files") : location_text;
+    location->setText(location_value);
 
-    if (!location_value.isEmpty() && location->currentText() != location_value) {
-        const QSignalBlocker blocker(location);
-        const int index = location->findText(location_value);
-
-        if (index >= 0) {
-            location->setCurrentIndex(index);
-        }
-    }
-
-    QStringList tag_service_names;
+    tag_services.clear();
 
     for (const QJsonValue &value : state.value(QStringLiteral("tag_services")).toArray()) {
-        tag_service_names.append(value.toString());
+        tag_services.append(value.toString());
     }
 
-    bool rebuild_services = tag_service_names.size() != tag_service->count();
+    tag_service_value = state.value(QStringLiteral("tag_service")).toString();
+    tag_service->setText(
+        tag_service_value.isEmpty() ? QStringLiteral("all known tags") : tag_service_value);
 
-    for (int index = 0; !rebuild_services && index < tag_service_names.size(); ++index) {
-        rebuild_services = tag_service->itemText(index) != tag_service_names[index];
-    }
+    const QString sort_key = state.value(QStringLiteral("sort")).toString();
 
-    if (rebuild_services) {
-        const QSignalBlocker blocker(tag_service);
-        tag_service->clear();
-        tag_service->addItems(tag_service_names);
-    }
-
-    QString tag_service_value = state.value(QStringLiteral("tag_service")).toString();
-
-    if (tag_service_value.isEmpty() && !tag_service_names.isEmpty()) {
-        tag_service_value = tag_service_names.first();
-    }
-
-    if (!tag_service_value.isEmpty() && tag_service->currentText() != tag_service_value) {
-        const QSignalBlocker blocker(tag_service);
-        const int index = tag_service->findText(tag_service_value);
-
-        if (index >= 0) {
-            tag_service->setCurrentIndex(index);
-        }
-    }
-
-    const QString sort_value = state.value(QStringLiteral("sort")).toString();
-
-    if (!sort_value.isEmpty() && sort->currentData().toString() != sort_value) {
-        const QSignalBlocker blocker(sort);
-        int index = sort->findData(sort_value);
-
-        if (index < 0) {
-            index = sort->findText(sort_value);
-        }
-
-        if (index >= 0) {
-            sort->setCurrentIndex(index);
-        }
-    }
-
-    const bool ascending = state.value(QStringLiteral("sort_ascending")).toBool(true);
-    const int direction_index = ascending ? 0 : 1;
-
-    if (sort_direction->currentIndex() != direction_index) {
-        const QSignalBlocker blocker(sort_direction);
-        sort_direction->setCurrentIndex(direction_index);
+    if (!sort_key.isEmpty()) {
+        const bool ascending = state.value(QStringLiteral("sort_ascending")).toBool(true);
+        const HydrusSortOption *option = find_sort_option(sort_key);
+        sort_value = sort_key;
+        sort_ascending_value = ascending;
+        sort_type->setText(QString::fromUtf8(option->label));
+        sort_order->setText(
+            QString::fromUtf8(ascending ? option->ascending : option->descending));
     }
 
     predicates->clear();
 
     for (const QJsonValue &value : state.value(QStringLiteral("predicates")).toArray()) {
-        auto *item = new QListWidgetItem(value.toString(), predicates);
-        item->setForeground(QColor(0, 0, 0));
+        const QString text = value.toString();
+        auto *item = new QListWidgetItem(text, predicates);
+        item->setForeground(
+            text.startsWith(QStringLiteral("system:")) ? QColor(150, 90, 10) : QColor(32, 32, 32));
     }
 
     selection_tags->clear();
@@ -2050,13 +2523,8 @@ void HydrusQueryPage::update_state(const QJsonObject &state) {
     }
 
     selection_tags->sortItems(
-        tag_sort->currentIndex() == 0 ? Qt::AscendingOrder : Qt::DescendingOrder);
-
-    const QString empty_text = state.value(QStringLiteral("empty_text")).toString();
-
-    if (!empty_text.isEmpty()) {
-        empty_label->setText(empty_text);
-    }
+        tag_sort_order->text() == QStringLiteral("a-z") ? Qt::AscendingOrder
+                                                        : Qt::DescendingOrder);
 
     const QString focused = state.value(QStringLiteral("focused")).toString();
     const QJsonObject thumbnails = state.value(QStringLiteral("thumbnails")).toObject();
@@ -2082,7 +2550,8 @@ void HydrusQueryPage::set_selection(
     selection_tags->clear();
     selection_tags->addItems(tags);
     selection_tags->sortItems(
-        tag_sort->currentIndex() == 0 ? Qt::AscendingOrder : Qt::DescendingOrder);
+        tag_sort_order->text() == QStringLiteral("a-z") ? Qt::AscendingOrder
+                                                        : Qt::DescendingOrder);
 
     grid->set_focused(hash);
 

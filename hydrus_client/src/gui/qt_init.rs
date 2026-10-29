@@ -1,5 +1,6 @@
 //! Qt application initialisation from `hydrus/client/gui/QtInit.py`.
 
+use hydrus_core::hydrus_constants::SOFTWARE_VERSION;
 use hydrus_core::hydrus_exceptions::HydrusResult;
 
 use crate::gui::qt::apply_application_settings;
@@ -17,7 +18,7 @@ impl Default for QtInit {
     fn default() -> Self {
         Self {
             app_name: "hydrus_client".to_string(),
-            display_name: "hydrus client".to_string(),
+            display_name: format!("hydrus client {SOFTWARE_VERSION}"),
             organization_name: "Hydrus".to_string(),
             style: ClientGUIStyle::default(),
         }
@@ -60,7 +61,10 @@ mod tests {
         let init = QtInit::default();
 
         assert_eq!(init.app_name, "hydrus_client");
-        assert_eq!(init.display_name, "hydrus client");
+        assert_eq!(
+            init.display_name,
+            format!("hydrus client {SOFTWARE_VERSION}")
+        );
     }
 
     #[test]

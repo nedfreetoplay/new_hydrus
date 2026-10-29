@@ -10,7 +10,7 @@ impl Default for ClientGUIStyle {
     fn default() -> Self {
         Self {
             darkmode: false,
-            style_name: "Fusion".to_string(),
+            style_name: "windowsvista".to_string(),
         }
     }
 }
@@ -24,24 +24,25 @@ impl ClientGUIStyle {
     }
 
     pub fn stylesheet(&self) -> String {
+        // The Python client always prepends static/qss/default_hydrus.qss; the
+        // default light theme adds nothing else on top of the native palette.
+        const HYDRUS_DEFAULT_QSS: &str = "
+            QPushButton#HydrusOnOffButton[hydrus_on=true] { color: #008000; }
+            QPushButton#HydrusOnOffButton[hydrus_on=false] { color: #800000; }
+        ";
+
         if self.darkmode {
+            format!(
+                "{HYDRUS_DEFAULT_QSS}
+            QWidget {{ background-color: #343434; color: #d9e0e6; }}
+            QTabWidget::pane {{ border: 1px solid #4b4b4b; }}
+            QTabBar::tab:selected {{ background: #4b4b4b; }}
+            QMenuBar, QMenu, QStatusBar {{ background-color: #2b2b2b; color: #d9e0e6; }}
+            QTreeWidget {{ background-color: #2b2b2b; alternate-background-color: #343434; }}
             "
-            QWidget { background-color: #343434; color: #d9e0e6; }
-            QTabWidget::pane { border: 1px solid #4b4b4b; }
-            QTabBar::tab:selected { background: #4b4b4b; }
-            QMenuBar, QMenu, QStatusBar { background-color: #2b2b2b; color: #d9e0e6; }
-            QTreeWidget { background-color: #2b2b2b; alternate-background-color: #343434; }
-            "
-            .to_string()
+            )
         } else {
-            "
-            QWidget { background-color: #ffffff; color: #000000; }
-            QTabWidget::pane { border: 1px solid #dfe3e6; }
-            QTabBar::tab:selected { background: #d9f2ff; }
-            QMenuBar, QMenu, QStatusBar { background-color: #f2f2f2; }
-            QTreeWidget { background-color: #ffffff; alternate-background-color: #f7f7f7; }
-            "
-            .to_string()
+            HYDRUS_DEFAULT_QSS.to_string()
         }
     }
 }
@@ -55,13 +56,13 @@ mod tests {
         let light = ClientGUIStyle::default();
         let dark = ClientGUIStyle::darkmode();
 
-        assert!(light.stylesheet().contains("#ffffff"));
+        assert!(light.stylesheet().contains("HydrusOnOffButton"));
         assert!(dark.stylesheet().contains("#343434"));
         assert_ne!(light.stylesheet(), dark.stylesheet());
     }
 
     #[test]
-    fn fusion_is_the_default_style() {
-        assert_eq!(ClientGUIStyle::default().style_name, "Fusion");
+    fn windows_vista_is_the_default_style() {
+        assert_eq!(ClientGUIStyle::default().style_name, "windowsvista");
     }
 }

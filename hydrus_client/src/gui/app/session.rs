@@ -416,7 +416,7 @@ fn to_node(node: &SessionNode) -> PageNode {
             );
             page.query = node.query.clone().unwrap_or_default();
             page.tag_service = node.tag_service.clone().unwrap_or_default();
-            page.sort = node.sort.clone().unwrap_or_else(|| "hash id".to_string());
+            page.sort = node.sort.clone().unwrap_or_else(|| "size".to_string());
             page.sort_ascending = node.sort_ascending.unwrap_or(true);
 
             let fixed: Vec<Vec<u8>> = node

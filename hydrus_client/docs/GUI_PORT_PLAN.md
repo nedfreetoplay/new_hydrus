@@ -228,7 +228,13 @@ Rust-цели: `gui/app/import.rs`, `gui/app/import_folders.rs`,
   локальный tag service; диалог папки показывает список сервисов, редактирует
   правила с preview по примеру пути, а успешный импорт добавляет полученные теги
   в этот tag service.
-- [ ] 06.9 Local import review panel.
+- [x] 06.9 Local import review panel: меню «import files...» и drag/drop открывают
+  review-диалог вместо немедленного импорта. Список путей показывает индекс, путь,
+  результат парсинга (good/empty/missing/unsupported/occupied/sidecar) и размер;
+  работают add files/add folder, поиск по подпапкам, remove, сортировка, счётчики
+  и summary. Панель использует effective `local_import` import options, позволяет
+  включить удаление оригиналов после успешного импорта и открыть filename tagging
+  для локальных tag services. «import now» отправляет настоящий import job.
 - [x] 06.10 File seed cache UI: диалог показывает очередь страницы (status, url,
   created, modified, note), фильтр по статусу и поиск, сортировку по колонкам,
   копирование URL, retry failed/selected, remove, clear finished и clear all.
@@ -242,7 +248,13 @@ Rust-цели: `gui/app/import.rs`, `gui/app/import_folders.rs`,
 - [ ] 06.12 Importer sidebars для HDD/gallery/watcher/simple/URLs.
 - [x] 06.13 «Check all» и полное меню import folders.
 - [ ] 06.14 Parsing scripts/legacy import scripts.
-- [ ] 06.15 Review local imports и repair import locations.
+- [x] 06.15 Review local imports и repair import locations: тот же review-диалог
+  доступен из `database -> maintenance -> review local imports...`; repair-диалог
+  `repair file locations...` показывает prefix/base/status каждой file storage
+  подпапки, позволяет задать новую base, автоматически подобрать
+  client_files/thumbnails внутри выбранной папки, пересоздать пустые thumbnail
+  папки и сохранить исправленные subfolders в БД. При старте с отсутствующими
+  папками repair-диалог открывается автоматически.
 
 Выход фазы: импорт настраивается через Hydrus import options, видны seed-логи,
 работают sidebars и filename tagging.
@@ -393,9 +405,14 @@ Rust-цели: `gui/app/mod.rs`, `db/maintenance.rs`, `files/maintenance_executo
 - [ ] 11.12 File history chart.
 - [x] 11.13 «How boned am I?».
 - [ ] 11.14 Embedded metadata review.
-- [ ] 11.15 Repair file system.
+- [x] 11.15 Repair file system: `repair file locations...` в меню database,
+  автоматический показ при старте, если file/thumbnail subfolder отсутствует;
+  set correct location, probe client_files/thumbnails, создание пустых
+  thumbnail-папок и запись исправленных subfolders/locations в client.db.
 - [ ] 11.16 Move media files/physical storage.
-- [ ] 11.17 Review local imports.
+- [x] 11.17 Review local imports: `database -> maintenance -> review local imports...`
+  открывает review-панель с парсингом путей, фильтрами, filename tagging и
+  импортом только good-файлов.
 - [x] 11.18 File viewing statistics.
 
 Выход фазы: maintenance-сценарии выполняются и отображаются в GUI, а не только

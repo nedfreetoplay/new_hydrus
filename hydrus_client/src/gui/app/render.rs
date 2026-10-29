@@ -131,6 +131,9 @@ pub fn menus_json(state: &AppState) -> String {
                     {"separator": true},
                     {"label": "clear orphan files...", "action": "orphan_files_scan"},
                     {"separator": true},
+                    {"label": "review local imports...", "action": "import_files"},
+                    {"label": "repair file locations...", "action": "repair_file_locations"},
+                    {"separator": true},
                     {"label": "how boned am I?", "action": "db_stats"}
                 ]}
             ]

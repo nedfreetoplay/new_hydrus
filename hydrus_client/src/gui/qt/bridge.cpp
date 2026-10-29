@@ -837,7 +837,7 @@ void HydrusThumbnailGrid::dropEvent(QDropEvent *event) {
 
         if (!paths.isEmpty()) {
             main->notify(
-                QStringLiteral("import_paths"),
+                QStringLiteral("local_import_open_paths"),
                 QString(),
                 QString::fromUtf8(QJsonDocument(paths).toJson(QJsonDocument::Compact)));
             event->acceptProposedAction();
@@ -7912,6 +7912,17 @@ HydrusImportOptionsDialog::HydrusImportOptionsDialog(
 
     rebuild_list();
 
+    const QString selected = data.value(QStringLiteral("selected")).toString();
+
+    if (!selected.isEmpty()) {
+        for (int row = 0; row < list->count(); ++row) {
+            if (list->item(row)->data(Qt::UserRole).toString() == selected) {
+                list->setCurrentRow(row);
+                break;
+            }
+        }
+    }
+
     if (qEnvironmentVariableIsSet("HYDRUS_QT_IMPORT_OPTIONS_FAVOURITE")) {
         const QString target = qEnvironmentVariable("HYDRUS_QT_IMPORT_OPTIONS_FAVOURITE");
 
@@ -9295,7 +9306,7 @@ void HydrusMainWindow::dropEvent(QDropEvent *event) {
         array.append(path);
     }
 
-    notify(QStringLiteral("import_paths"), QString(), QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
+    notify(QStringLiteral("local_import_open_paths"), QString(), QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
     event->acceptProposedAction();
 }
 
@@ -11183,6 +11194,632 @@ static bool edit_filename_tagging_options(QWidget *parent, const QString &servic
     *result = built;
 
     return true;
+}
+
+HydrusLocalImportReviewDialog::HydrusLocalImportReviewDialog(
+    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    : QDialog(parent), main(main_window) {
+    setWindowTitle(QStringLiteral("review files to import"));
+    setObjectName(QStringLiteral("hydrus_local_import_review"));
+    setAttribute(Qt::WA_DeleteOnClose, true);
+    resize(960, 560);
+
+    auto *layout = new QVBoxLayout(this);
+
+    summary = new QLabel(this);
+    summary->setWordWrap(true);
+    layout->addWidget(summary);
+
+    auto *controls = new QHBoxLayout();
+    auto *add_files = new QPushButton(QStringLiteral("add files"), this);
+    auto *add_folder = new QPushButton(QStringLiteral("add folder"), this);
+    auto *remove = new QPushButton(QStringLiteral("remove files"), this);
+    search = new QCheckBox(QStringLiteral("search subdirectories"), this);
+    controls->addWidget(add_files);
+    controls->addWidget(add_folder);
+    controls->addWidget(remove);
+    controls->addWidget(search);
+    controls->addStretch(1);
+    layout->addLayout(controls);
+
+    table = new QTableWidget(this);
+    table->setObjectName(QStringLiteral("local_import_paths"));
+    table->setColumnCount(4);
+    table->setHorizontalHeaderLabels({QStringLiteral("#"), QStringLiteral("path"),
+                                      QStringLiteral("result / mime"), QStringLiteral("size")});
+    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    table->verticalHeader()->setVisible(false);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setSortingEnabled(true);
+    layout->addWidget(table, 1);
+
+    auto *delete_row = new QHBoxLayout();
+    warning = new QLabel(this);
+    warning->setObjectName(QStringLiteral("HydrusWarning"));
+    delete_after_success = new QCheckBox(QStringLiteral("delete original files after successful import"), this);
+    delete_row->addWidget(warning, 1);
+    delete_row->addWidget(delete_after_success);
+    layout->addLayout(delete_row);
+
+    auto *buttons = new QHBoxLayout();
+    auto *options = new QPushButton(QStringLiteral("import options..."), this);
+    tag_button = new QPushButton(QStringLiteral("add tags/urls with the import >>"), this);
+    tag_button->setToolTip(QStringLiteral(
+        "Add tags from filenames to local tag services, then start the import."));
+    import_button = new QPushButton(QStringLiteral("import now"), this);
+    import_button->setObjectName(QStringLiteral("HydrusAccept"));
+    auto *close_button = new QPushButton(QStringLiteral("close"), this);
+    buttons->addWidget(options);
+    buttons->addStretch(1);
+    buttons->addWidget(tag_button);
+    buttons->addWidget(import_button);
+    buttons->addWidget(close_button);
+    layout->addLayout(buttons);
+
+    connect(add_files, &QPushButton::clicked, this, [this]() {
+        const QStringList paths = QFileDialog::getOpenFileNames(
+            this,
+            QStringLiteral("import files"),
+            QString(),
+            QStringLiteral("all files (*.*)"));
+
+        if (paths.isEmpty()) {
+            return;
+        }
+
+        QJsonObject payload;
+        QJsonArray array;
+        for (const QString &path : paths) {
+            array.append(path);
+        }
+        payload.insert(QStringLiteral("paths"), array);
+        send(QStringLiteral("local_import_add_paths"), payload);
+    });
+    connect(add_folder, &QPushButton::clicked, this, [this]() {
+        const QString path = QFileDialog::getExistingDirectory(
+            this,
+            QStringLiteral("Select a folder to add."));
+
+        if (path.isEmpty()) {
+            return;
+        }
+
+        QJsonObject payload;
+        payload.insert(QStringLiteral("paths"), QJsonArray{path});
+        send(QStringLiteral("local_import_add_paths"), payload);
+    });
+    connect(remove, &QPushButton::clicked, this, [this]() {
+        const QStringList paths = selected_paths();
+
+        if (paths.isEmpty()) {
+            QMessageBox::information(this, windowTitle(), QStringLiteral("Select some paths first."));
+            return;
+        }
+
+        QJsonObject payload;
+        QJsonArray array;
+        for (const QString &path : paths) {
+            array.append(path);
+        }
+        payload.insert(QStringLiteral("paths"), array);
+        send(QStringLiteral("local_import_remove"), payload);
+    });
+    connect(search, &QCheckBox::toggled, this, [this](bool checked) {
+        QJsonObject payload;
+        payload.insert(QStringLiteral("value"), checked);
+        send(QStringLiteral("local_import_search_subdirectories"), payload);
+    });
+    connect(delete_after_success, &QCheckBox::toggled, this, [this](bool checked) {
+        warning->setText(checked ? QStringLiteral("YOUR ORIGINAL FILES WILL BE DELETED")
+                                 : QString());
+        QJsonObject payload;
+        payload.insert(QStringLiteral("value"), checked);
+        send(QStringLiteral("local_import_delete_after_success"), payload);
+    });
+    connect(options, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("local_import_options"));
+    });
+    connect(tag_button, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("local_import_tagging_open"));
+    });
+    connect(import_button, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("local_import_import"));
+    });
+    connect(close_button, &QPushButton::clicked, this, &QDialog::close);
+
+    set_state(state);
+}
+
+QStringList HydrusLocalImportReviewDialog::selected_paths() const {
+    QStringList paths;
+
+    for (const QTableWidgetItem *item : table->selectedItems()) {
+        if (item->column() != 1) {
+            continue;
+        }
+
+        const QString path = item->data(Qt::UserRole).toString();
+
+        if (!path.isEmpty() && !paths.contains(path)) {
+            paths << path;
+        }
+    }
+
+    return paths;
+}
+
+void HydrusLocalImportReviewDialog::send(const QString &action, const QJsonObject &payload) {
+    main->notify(action, QString(), payload.isEmpty() ? QString() : json_payload(payload));
+}
+
+void HydrusLocalImportReviewDialog::set_state(const QJsonObject &state) {
+    data = state;
+
+    summary->setText(state.value(QStringLiteral("summary")).toString()
+                     + (state.value(QStringLiteral("note")).toString().isEmpty()
+                            ? QString()
+                            : QStringLiteral("\n%1").arg(state.value(QStringLiteral("note")).toString())));
+
+    {
+        QSignalBlocker blocker(search);
+        search->setChecked(state.value(QStringLiteral("search_subdirectories")).toBool(true));
+    }
+    {
+        QSignalBlocker blocker(delete_after_success);
+        const bool checked = state.value(QStringLiteral("delete_after_success")).toBool(false);
+        delete_after_success->setChecked(checked);
+        warning->setText(checked ? QStringLiteral("YOUR ORIGINAL FILES WILL BE DELETED")
+                                 : QString());
+    }
+
+    const QStringList selected = selected_paths();
+
+    table->setSortingEnabled(false);
+    table->setRowCount(0);
+
+    for (const QJsonValue &value : state.value(QStringLiteral("paths")).toArray()) {
+        const QJsonObject parse = value.toObject();
+        const QString path = parse.value(QStringLiteral("path")).toString();
+        const int row = table->rowCount();
+        table->insertRow(row);
+
+        table->setItem(row, 0, new QTableWidgetItem(QString::number(parse.value(QStringLiteral("index")).toInt())));
+
+        auto *path_item = new QTableWidgetItem(path);
+        path_item->setData(Qt::UserRole, path);
+        path_item->setToolTip(path);
+        table->setItem(row, 1, path_item);
+
+        auto *result_item = new QTableWidgetItem(parse.value(QStringLiteral("result_text")).toString());
+
+        if (parse.value(QStringLiteral("bad")).toBool()) {
+            result_item->setForeground(QColor(220, 110, 110));
+        } else if (parse.value(QStringLiteral("sidecar")).toBool()) {
+            result_item->setForeground(QColor(170, 170, 170));
+        } else {
+            result_item->setForeground(QColor(120, 190, 120));
+        }
+
+        table->setItem(row, 2, result_item);
+        table->setItem(row, 3, new QTableWidgetItem(parse.value(QStringLiteral("size_display")).toString()));
+    }
+
+    table->setSortingEnabled(true);
+
+    for (int row = 0; row < table->rowCount(); ++row) {
+        if (selected.contains(table->item(row, 1)->data(Qt::UserRole).toString())) {
+            table->selectRow(row);
+        }
+    }
+
+    const bool can_import = state.value(QStringLiteral("can_import")).toBool(false);
+    import_button->setEnabled(can_import);
+    tag_button->setEnabled(can_import);
+    import_button->setText(can_import
+        ? QStringLiteral("import now (%1)").arg(state.value(QStringLiteral("good_count")).toInt())
+        : QStringLiteral("import now"));
+}
+
+HydrusLocalImportTaggingDialog::HydrusLocalImportTaggingDialog(
+    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    : QDialog(parent), main(main_window) {
+    setWindowTitle(QStringLiteral("filename tagging"));
+    setObjectName(QStringLiteral("hydrus_local_import_tagging"));
+    setAttribute(Qt::WA_DeleteOnClose, true);
+    resize(640, 520);
+
+    auto *layout = new QVBoxLayout(this);
+
+    help = new QLabel(this);
+    help->setWordWrap(true);
+    layout->addWidget(help);
+
+    list = new QListWidget(this);
+    list->setObjectName(QStringLiteral("local_import_filename_tagging"));
+    layout->addWidget(list, 1);
+
+    auto *buttons = new QHBoxLayout();
+    auto *add = new QPushButton(QStringLiteral("add tag service..."), this);
+    auto *edit = new QPushButton(QStringLiteral("edit..."), this);
+    auto *remove = new QPushButton(QStringLiteral("remove"), this);
+    buttons->addWidget(add);
+    buttons->addWidget(edit);
+    buttons->addWidget(remove);
+    buttons->addStretch(1);
+    layout->addLayout(buttons);
+
+    auto *footer = new QHBoxLayout();
+    auto *cancel = new QPushButton(QStringLiteral("cancel"), this);
+    auto *save = new QPushButton(QStringLiteral("save and import"), this);
+    save->setObjectName(QStringLiteral("HydrusAccept"));
+    footer->addStretch(1);
+    footer->addWidget(cancel);
+    footer->addWidget(save);
+    layout->addLayout(footer);
+
+    connect(add, &QPushButton::clicked, this, [this]() {
+        QStringList available;
+
+        for (auto iterator = service_name_to_key.constBegin(); iterator != service_name_to_key.constEnd(); ++iterator) {
+            if (!filename_tagging.contains(iterator.value())) {
+                available << iterator.key();
+            }
+        }
+
+        if (available.isEmpty()) {
+            QMessageBox::information(
+                this,
+                windowTitle(),
+                QStringLiteral("Create a local tag service first, or every local tag service already has rules."));
+            return;
+        }
+
+        available.sort();
+        bool ok = false;
+        const QString name = QInputDialog::getItem(
+            this,
+            windowTitle(),
+            QStringLiteral("tag service:"),
+            available,
+            0,
+            false,
+            &ok);
+
+        if (!ok || name.isEmpty()) {
+            return;
+        }
+
+        edit_rules(service_name_to_key.value(name), name, QJsonObject());
+    });
+    connect(edit, &QPushButton::clicked, this, [this]() {
+        const QListWidgetItem *item = list->currentItem();
+
+        if (item == nullptr) {
+            return;
+        }
+
+        const QString key = item->data(Qt::UserRole).toString();
+        edit_rules(key, service_name_to_key.key(key, key), filename_tagging.value(key).toObject());
+    });
+    connect(remove, &QPushButton::clicked, this, [this]() {
+        const QListWidgetItem *item = list->currentItem();
+
+        if (item == nullptr) {
+            return;
+        }
+
+        const QString key = item->data(Qt::UserRole).toString();
+
+        if (QMessageBox::question(
+                this,
+                windowTitle(),
+                QStringLiteral("Remove the filename tagging rules for this service?"))
+            != QMessageBox::Yes) {
+            return;
+        }
+
+        filename_tagging.remove(key);
+        rebuild();
+    });
+    connect(cancel, &QPushButton::clicked, this, &QDialog::close);
+    connect(save, &QPushButton::clicked, this, [this]() { this->save(); });
+
+    set_state(state);
+}
+
+void HydrusLocalImportTaggingDialog::rebuild() {
+    list->clear();
+
+    for (auto iterator = filename_tagging.constBegin(); iterator != filename_tagging.constEnd(); ++iterator) {
+        const QString name = service_name_to_key.key(iterator.key(), iterator.key());
+        auto *item = new QListWidgetItem(
+            QStringLiteral("%1 - %2").arg(name, filename_tagging_summary(iterator.value().toObject())),
+            list);
+        item->setData(Qt::UserRole, iterator.key());
+    }
+}
+
+void HydrusLocalImportTaggingDialog::edit_rules(
+    const QString &key, const QString &name, const QJsonObject &current) {
+    QJsonObject initial = current.isEmpty() ? default_filename_tagging_options() : current;
+
+    if (!example_path.isEmpty()) {
+        initial.insert(QStringLiteral("example_path"), example_path);
+    }
+
+    QJsonObject edited;
+
+    if (!edit_filename_tagging_options(this, name, initial, &edited)) {
+        return;
+    }
+
+    if (filename_tagging_summary(edited) == QStringLiteral("no tags")) {
+        filename_tagging.remove(key);
+    } else {
+        filename_tagging.insert(key, edited);
+    }
+
+    rebuild();
+}
+
+void HydrusLocalImportTaggingDialog::save() {
+    QJsonObject payload;
+    payload.insert(QStringLiteral("filename_tagging"), filename_tagging);
+    payload.insert(QStringLiteral("import_after_save"), import_after_save);
+    main->notify(QStringLiteral("local_import_tagging_save"), QString(), json_payload(payload));
+    close();
+}
+
+void HydrusLocalImportTaggingDialog::set_state(const QJsonObject &state) {
+    data = state;
+    filename_tagging = state.value(QStringLiteral("filename_tagging")).toObject();
+    example_path = state.value(QStringLiteral("example_path")).toString();
+    import_after_save = state.value(QStringLiteral("import_after_save")).toBool(false);
+    service_name_to_key.clear();
+
+    for (const QJsonValue &value : state.value(QStringLiteral("tag_services")).toArray()) {
+        const QJsonObject service = value.toObject();
+        service_name_to_key.insert(
+            service.value(QStringLiteral("name")).toString(),
+            service.value(QStringLiteral("key")).toString());
+    }
+
+    help->setText(import_after_save
+        ? QStringLiteral("A tag service can read tags from each file's path. When you save, "
+                         "the import starts with these rules and your existing import options.")
+        : QStringLiteral("A tag service can read tags from each file's path."));
+    rebuild();
+}
+
+HydrusRepairFileLocationsDialog::HydrusRepairFileLocationsDialog(
+    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    : QDialog(parent), main(main_window) {
+    setWindowTitle(QStringLiteral("repair file locations"));
+    setObjectName(QStringLiteral("hydrus_repair_file_locations"));
+    setAttribute(Qt::WA_DeleteOnClose, true);
+    resize(980, 540);
+
+    auto *layout = new QVBoxLayout(this);
+
+    auto *help = new QLabel(
+        QStringLiteral("Some expected file storage directories were not found. Set the correct "
+                       "base folder for each prefix, or probe a folder that contains the old "
+                       "client_files/thumbnails layout. File prefixes must be corrected; "
+                       "thumbnail prefixes can be recreated empty."),
+        this);
+    help->setWordWrap(true);
+    layout->addWidget(help);
+
+    summary = new QLabel(this);
+    summary->setWordWrap(true);
+    layout->addWidget(summary);
+
+    table = new QTableWidget(this);
+    table->setObjectName(QStringLiteral("repair_file_locations"));
+    table->setColumnCount(4);
+    table->setHorizontalHeaderLabels({QStringLiteral("current base"), QStringLiteral("prefix"),
+                                      QStringLiteral("corrected base"), QStringLiteral("status")});
+    table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+    table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    table->verticalHeader()->setVisible(false);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    layout->addWidget(table, 1);
+
+    message = new QLabel(this);
+    message->setWordWrap(true);
+    layout->addWidget(message);
+
+    auto *controls = new QHBoxLayout();
+    create_thumbnails = new QCheckBox(
+        QStringLiteral("create empty folders for missing thumbnail paths"), this);
+    create_thumbnails->setChecked(true);
+    auto *set_button = new QPushButton(QStringLiteral("set correct location"), this);
+    auto *probe_button = new QPushButton(
+        QStringLiteral("add a possibly correct location (let the client figure out what it contains)"),
+        this);
+    auto *apply_button = new QPushButton(QStringLiteral("apply"), this);
+    apply_button->setObjectName(QStringLiteral("HydrusAccept"));
+    auto *close_button = new QPushButton(QStringLiteral("close"), this);
+    controls->addWidget(create_thumbnails);
+    controls->addStretch(1);
+    controls->addWidget(set_button);
+    controls->addWidget(probe_button);
+    controls->addWidget(apply_button);
+    controls->addWidget(close_button);
+    layout->addLayout(controls);
+
+    connect(set_button, &QPushButton::clicked, this, [this]() {
+        const QStringList prefixes = selected_prefixes();
+
+        if (prefixes.isEmpty()) {
+            QMessageBox::information(this, windowTitle(), QStringLiteral("Select one or more rows first."));
+            return;
+        }
+
+        const QString path = QFileDialog::getExistingDirectory(
+            this,
+            QStringLiteral("Select correct location."));
+
+        if (path.isEmpty()) {
+            return;
+        }
+
+        QJsonArray updates;
+        for (const QString &prefix : prefixes) {
+            QJsonObject update;
+            update.insert(QStringLiteral("prefix"), prefix);
+            update.insert(QStringLiteral("base"), path);
+            updates.append(update);
+        }
+
+        QJsonObject payload;
+        payload.insert(QStringLiteral("updates"), updates);
+        send(QStringLiteral("repair_locations_set"), payload);
+    });
+    connect(probe_button, &QPushButton::clicked, this, [this]() {
+        const QString path = QFileDialog::getExistingDirectory(
+            this,
+            QStringLiteral("Select the potential correct location."));
+
+        if (path.isEmpty()) {
+            return;
+        }
+
+        QJsonObject payload;
+        payload.insert(QStringLiteral("path"), path);
+        send(QStringLiteral("repair_locations_probe"), payload);
+    });
+    connect(apply_button, &QPushButton::clicked, this, [this]() {
+        QJsonObject payload;
+        payload.insert(QStringLiteral("create_thumbnails"), create_thumbnails->isChecked());
+        send(QStringLiteral("repair_locations_apply"), payload);
+    });
+    connect(close_button, &QPushButton::clicked, this, &QDialog::close);
+
+    set_state(state);
+}
+
+QStringList HydrusRepairFileLocationsDialog::selected_prefixes() const {
+    QStringList prefixes;
+
+    for (const QTableWidgetItem *item : table->selectedItems()) {
+        if (item->column() != 1) {
+            continue;
+        }
+
+        const QString prefix = item->data(Qt::UserRole).toString();
+
+        if (!prefix.isEmpty() && !prefixes.contains(prefix)) {
+            prefixes << prefix;
+        }
+    }
+
+    return prefixes;
+}
+
+void HydrusRepairFileLocationsDialog::send(const QString &action, const QJsonObject &payload) {
+    main->notify(action, QString(), payload.isEmpty() ? QString() : json_payload(payload));
+}
+
+void HydrusRepairFileLocationsDialog::set_state(const QJsonObject &state) {
+    data = state;
+    summary->setText(state.value(QStringLiteral("summary")).toString());
+    message->setText(state.value(QStringLiteral("message")).toString());
+
+    const QString error = state.value(QStringLiteral("error")).toString();
+
+    if (!error.isEmpty()) {
+        QMessageBox::warning(this, windowTitle(), error);
+    }
+
+    table->setRowCount(0);
+
+    for (const QJsonValue &value : state.value(QStringLiteral("rows")).toArray()) {
+        const QJsonObject row = value.toObject();
+        const int index = table->rowCount();
+        table->insertRow(index);
+
+        table->setItem(index, 0, new QTableWidgetItem(row.value(QStringLiteral("old_base")).toString()));
+        table->setItem(index, 1, new QTableWidgetItem(row.value(QStringLiteral("prefix")).toString()));
+        table->item(index, 1)->setData(Qt::UserRole, row.value(QStringLiteral("prefix")).toString());
+        table->setItem(index, 2, new QTableWidgetItem(row.value(QStringLiteral("base")).toString()));
+        auto *status = new QTableWidgetItem(row.value(QStringLiteral("status")).toString());
+
+        if (row.value(QStringLiteral("exists")).toBool()) {
+            status->setForeground(QColor(120, 190, 120));
+        } else {
+            status->setForeground(QColor(220, 110, 110));
+        }
+
+        table->setItem(index, 3, status);
+    }
+}
+
+void HydrusMainWindow::show_local_import_review(const QJsonObject &state) {
+    if (local_import_review_dialog == nullptr) {
+        local_import_review_dialog = new HydrusLocalImportReviewDialog(this, state, this);
+        connect(local_import_review_dialog, &QObject::destroyed, this, [this]() {
+            local_import_review_dialog = nullptr;
+        });
+        local_import_review_dialog->show();
+    } else {
+        local_import_review_dialog->set_state(state);
+        local_import_review_dialog->raise();
+        local_import_review_dialog->activateWindow();
+    }
+}
+
+void HydrusMainWindow::show_local_import_tagging(const QJsonObject &state) {
+    if (local_import_tagging_dialog == nullptr) {
+        local_import_tagging_dialog = new HydrusLocalImportTaggingDialog(this, state, this);
+        connect(local_import_tagging_dialog, &QObject::destroyed, this, [this]() {
+            local_import_tagging_dialog = nullptr;
+        });
+        local_import_tagging_dialog->show();
+    } else {
+        local_import_tagging_dialog->set_state(state);
+        local_import_tagging_dialog->raise();
+        local_import_tagging_dialog->activateWindow();
+    }
+}
+
+void HydrusMainWindow::close_local_import_review() {
+    if (local_import_tagging_dialog != nullptr) {
+        local_import_tagging_dialog->close();
+    }
+
+    if (local_import_review_dialog != nullptr) {
+        local_import_review_dialog->close();
+    }
+}
+
+void HydrusMainWindow::show_repair_file_locations(const QJsonObject &state) {
+    if (repair_file_locations_dialog == nullptr) {
+        repair_file_locations_dialog = new HydrusRepairFileLocationsDialog(this, state, this);
+        connect(repair_file_locations_dialog, &QObject::destroyed, this, [this]() {
+            repair_file_locations_dialog = nullptr;
+        });
+        repair_file_locations_dialog->show();
+    } else {
+        repair_file_locations_dialog->set_state(state);
+        repair_file_locations_dialog->raise();
+        repair_file_locations_dialog->activateWindow();
+    }
+}
+
+void HydrusMainWindow::close_repair_file_locations() {
+    if (repair_file_locations_dialog != nullptr) {
+        repair_file_locations_dialog->close();
+    }
 }
 
 void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
@@ -13206,6 +13843,26 @@ void hydrus_show_tag_relations(HydrusMainWindow &window, rust::Str json) {
 
 void hydrus_show_import_folder(HydrusMainWindow &window, rust::Str json) {
     window.show_import_folder(parse_object(json));
+}
+
+void hydrus_show_local_import_review(HydrusMainWindow &window, rust::Str json) {
+    window.show_local_import_review(parse_object(json));
+}
+
+void hydrus_show_local_import_tagging(HydrusMainWindow &window, rust::Str json) {
+    window.show_local_import_tagging(parse_object(json));
+}
+
+void hydrus_close_local_import_review(HydrusMainWindow &window) {
+    window.close_local_import_review();
+}
+
+void hydrus_show_repair_file_locations(HydrusMainWindow &window, rust::Str json) {
+    window.show_repair_file_locations(parse_object(json));
+}
+
+void hydrus_close_repair_file_locations(HydrusMainWindow &window) {
+    window.close_repair_file_locations();
 }
 
 void hydrus_show_export_folder(HydrusMainWindow &window, rust::Str json) {

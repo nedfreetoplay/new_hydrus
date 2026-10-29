@@ -493,6 +493,7 @@ pub fn check_now(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
             .iter()
             .filter_map(|(key, options)| super::query::unhex(key).map(|key| (key, options.clone())))
             .collect(),
+        delete_after_success: false,
     }) {
         folder.status = error;
         return page_commands(state);

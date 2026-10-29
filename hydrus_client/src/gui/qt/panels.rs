@@ -80,6 +80,21 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::ImportFolderDialog(json) => {
             ffi::hydrus_show_import_folder(window.as_mut(), &json);
         }
+        UiCommand::LocalImportReviewDialog(json) => {
+            ffi::hydrus_show_local_import_review(window.as_mut(), &json);
+        }
+        UiCommand::LocalImportTaggingDialog(json) => {
+            ffi::hydrus_show_local_import_tagging(window.as_mut(), &json);
+        }
+        UiCommand::CloseLocalImportReview => {
+            ffi::hydrus_close_local_import_review(window.as_mut());
+        }
+        UiCommand::RepairFileLocationsDialog(json) => {
+            ffi::hydrus_show_repair_file_locations(window.as_mut(), &json);
+        }
+        UiCommand::CloseRepairFileLocations => {
+            ffi::hydrus_close_repair_file_locations(window.as_mut());
+        }
         UiCommand::ExportFolderDialog(json) => {
             ffi::hydrus_show_export_folder(window.as_mut(), &json);
         }
@@ -185,9 +200,7 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdateAccountTypes(json) => {
             ffi::hydrus_update_account_types(window.as_mut(), &json)
         }
-        UiCommand::OrphanFilesDialog(json) => {
-            ffi::hydrus_show_orphan_files(window.as_mut(), &json)
-        }
+        UiCommand::OrphanFilesDialog(json) => ffi::hydrus_show_orphan_files(window.as_mut(), &json),
         UiCommand::UpdateOrphanFiles(json) => {
             ffi::hydrus_update_orphan_files(window.as_mut(), &json)
         }

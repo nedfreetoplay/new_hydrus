@@ -23,9 +23,11 @@ pub mod downloader_export;
 pub mod duplicates;
 pub mod export;
 pub mod favourites;
+pub mod file_locations;
 pub mod import;
 pub mod import_folders;
 pub mod import_options;
+pub mod local_import;
 pub mod metadata;
 pub mod model;
 pub mod notifications;
@@ -75,12 +77,24 @@ pub fn initial_commands() -> Vec<UiCommand> {
         let tags = serde_json::to_string(&query::all_tags(&state.controller))
             .unwrap_or_else(|_| "[]".to_string());
 
-        vec![
+        let mut commands = vec![
             UiCommand::Menus(render::menus_json(state)),
             UiCommand::TagSuggestions(tags),
             UiCommand::BuildPages(render::pages_json(state)),
             UiCommand::Status(render::status_json(state)),
-        ]
+        ];
+
+        if state
+            .controller
+            .files_manager()
+            .subfolders()
+            .iter()
+            .any(|subfolder| !subfolder.path_exists(false))
+        {
+            commands.extend(file_locations::open(state));
+        }
+
+        commands
     })
 }
 
@@ -1241,7 +1255,24 @@ impl AppState {
             "archive_active" => self.set_inbox_active(false),
             "inbox_active" => self.set_inbox_active(true),
             "delete_files" => self.delete_files(target, payload),
-            "import_files" => vec![UiCommand::PickFiles],
+            "import_files" | "review_local_imports" => local_import::open(self),
+            "local_import_open_paths" => local_import::open_paths(self, payload),
+            "local_import_add_paths" => local_import::add_paths(self, payload),
+            "local_import_remove" => local_import::remove_paths(self, payload),
+            "local_import_search_subdirectories" => {
+                local_import::set_search_subdirectories(self, payload)
+            }
+            "local_import_delete_after_success" => {
+                local_import::set_delete_after_success(self, payload)
+            }
+            "local_import_import" => local_import::import_now(self),
+            "local_import_options" => import_options::open_caller(self, "local_import"),
+            "local_import_tagging_open" => local_import::tagging_open(self),
+            "local_import_tagging_save" => local_import::tagging_save(self, payload),
+            "repair_file_locations" => file_locations::open(self),
+            "repair_locations_set" => file_locations::set_locations(self, payload),
+            "repair_locations_probe" => file_locations::probe(self, payload),
+            "repair_locations_apply" => file_locations::apply(self, payload),
             "import_options" => import_options::open(self),
             "import_options_save" => import_options::save_action(self, payload),
             "import_url" => vec![UiCommand::PromptUrl],
@@ -2599,6 +2630,7 @@ impl AppState {
             paths: paths.clone(),
             folder: None,
             filename_tagging: Default::default(),
+            delete_after_success: false,
         };
 
         if let Err(error) = self.runtime.submit(job) {

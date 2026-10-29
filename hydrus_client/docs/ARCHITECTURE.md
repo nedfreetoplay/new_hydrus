@@ -240,6 +240,23 @@ regex'ы с namespace. Import folder хранит такую настройку 
 service (ключ — hex service key) и передаёт её в worker; после успешного импорта
 теги добавляются в соответствующий локальный tag service.
 
+Локальный импорт идёт через review-панель (`gui/app/local_import.rs`): пути
+классифицируются как good, empty, missing, unsupported, occupied или sidecar,
+папки раскрываются с учётом `search subdirectories`, а sidecar'ы определяются по
+совпадению basename с обычным файлом (`.txt`, `.json`, `.xml`). Импортируются
+только good-файлы; опции берутся из effective `local_import` контейнера, filename
+tagging задаётся отдельно для каждого локального tag service, а
+`delete_after_success` удаляет оригинал после успешного нового импорта (уже
+известный хеш не удаляется). Панель открывается из File → import files..., из
+database → maintenance → review local imports... и при drag/drop.
+
+`gui/app/file_locations.rs` обслуживает repair file locations: показывает prefix,
+текущую и исправленную base, проверяет наличие подпапки, умеет подобрать
+`client_files`/`thumbnails` внутри выбранной папки, создать пустые thumbnail
+папки и записать `client_files_subfolders` плюс current locations в client.db.
+При старте с отсутствующей subfolder панель открывается автоматически; свежая
+база создаёт и сохраняет дефолтные `files`/`thumbs`.
+
 Downloader-страницы хранят файловые seed'ы в `DownloaderPage.queue` и журнал
 gallery/post URL в `DownloaderPage.gallery_seeds`; обе структуры сериализуются в
 `gui session.json`. Диалоги `file seed cache` и `gallery seed log` показывают

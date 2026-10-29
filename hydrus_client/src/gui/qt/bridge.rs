@@ -64,6 +64,11 @@ pub(crate) mod ffi {
         fn hydrus_update_duplicate_review(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_tag_relations(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_import_folder(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_local_import_review(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_local_import_tagging(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_close_local_import_review(window: Pin<&mut HydrusMainWindow>);
+        fn hydrus_show_repair_file_locations(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_close_repair_file_locations(window: Pin<&mut HydrusMainWindow>);
         fn hydrus_show_export_folder(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_export_review(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_notes(window: Pin<&mut HydrusMainWindow>, json: &str);

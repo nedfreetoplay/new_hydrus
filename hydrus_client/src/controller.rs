@@ -154,6 +154,11 @@ impl Controller {
         self.files_manager.read().unwrap().clone()
     }
 
+    /// Replaces the live file layout after a storage repair.
+    pub fn set_files_manager(&self, manager: ClientFilesManager) {
+        *self.files_manager.write().unwrap() = manager;
+    }
+
     pub fn maintenance(&self) -> &FilesMaintenanceManager {
         &self.maintenance
     }

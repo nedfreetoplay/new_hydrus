@@ -12,6 +12,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::thread;
 
+use hydrus_core::files::hydrus_file_handling as core_files;
 use hydrus_core::hydrus_constants::Mime;
 use hydrus_core::hydrus_db_base::DBBase;
 use reqwest::blocking::Client;
@@ -42,6 +43,9 @@ pub(crate) enum AsyncJob {
         /// or local import dialog.
         filename_tagging:
             std::collections::BTreeMap<Vec<u8>, crate::importing::FilenameTaggingOptions>,
+        /// Delete each source file after it imports successfully (the review
+        /// panel's "delete original files" option).
+        delete_after_success: bool,
     },
     DownloadUrls {
         job_id: String,
@@ -254,7 +258,15 @@ fn worker_loop(mut context: WorkerContext, jobs: Receiver<AsyncJob>, events: Sen
                 paths,
                 folder,
                 filename_tagging,
-            } => run_import(&context, &events, paths, folder, filename_tagging),
+                delete_after_success,
+            } => run_import(
+                &context,
+                &events,
+                paths,
+                folder,
+                filename_tagging,
+                delete_after_success,
+            ),
             AsyncJob::DownloadUrls { job_id, urls } => {
                 run_download_urls(&context, &events, &job_id, urls)
             }
@@ -300,6 +312,7 @@ fn run_import(
     paths: Vec<PathBuf>,
     folder: Option<String>,
     filename_tagging: std::collections::BTreeMap<Vec<u8>, crate::importing::FilenameTaggingOptions>,
+    delete_after_success: bool,
 ) {
     let total = paths.len();
     let mut imported = 0;
@@ -331,12 +344,30 @@ fn run_import(
             "importing {}",
             path.file_name().unwrap_or_default().to_string_lossy()
         );
+        let known_before = delete_after_success
+            && core_files::get_hash_from_path(path)
+                .ok()
+                .is_some_and(|hash| {
+                    master::find_hash_id(importer.db(), &hash)
+                        .ok()
+                        .flatten()
+                        .is_some()
+                });
 
         match importer.import_file(path) {
             Ok(hash) => {
                 imported += 1;
                 hashes.push(hash);
                 results.push((path.clone(), true));
+
+                if delete_after_success && !known_before {
+                    if let Err(error) = std::fs::remove_file(path) {
+                        errors.push(format!(
+                            "{}: could not delete the original: {error}",
+                            path.display()
+                        ));
+                    }
+                }
             }
             Err(error) => {
                 skipped += 1;

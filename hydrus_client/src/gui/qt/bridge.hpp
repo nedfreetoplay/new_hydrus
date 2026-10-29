@@ -556,6 +556,73 @@ private:
     QPushButton *retry_button = nullptr;
 };
 
+// Local import review panel: parse paths, show good/bad/sidecar rows, then
+// import the good ones (optionally deleting the originals).
+class HydrusLocalImportReviewDialog : public QDialog {
+public:
+    HydrusLocalImportReviewDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void rebuild();
+    void send(const QString &action, const QJsonObject &payload = QJsonObject());
+    QStringList selected_paths() const;
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    QTableWidget *table = nullptr;
+    QLabel *summary = nullptr;
+    QLabel *warning = nullptr;
+    QCheckBox *search = nullptr;
+    QCheckBox *delete_after_success = nullptr;
+    QPushButton *import_button = nullptr;
+    QPushButton *tag_button = nullptr;
+};
+
+// Per-local-tag-service filename tagging rules for the local import review.
+// Shares the rule editor with the import folder dialog.
+class HydrusLocalImportTaggingDialog : public QDialog {
+public:
+    HydrusLocalImportTaggingDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void rebuild();
+    void edit_rules(const QString &key, const QString &name, const QJsonObject &current);
+    void save();
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    QJsonObject filename_tagging;
+    QHash<QString, QString> service_name_to_key;
+    QListWidget *list = nullptr;
+    QLabel *help = nullptr;
+    QString example_path;
+    bool import_after_save = false;
+};
+
+// Remap missing media/thumbnail subfolder roots.
+class HydrusRepairFileLocationsDialog : public QDialog {
+public:
+    HydrusRepairFileLocationsDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void rebuild();
+    void send(const QString &action, const QJsonObject &payload = QJsonObject());
+    QStringList selected_prefixes() const;
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    QTableWidget *table = nullptr;
+    QLabel *summary = nullptr;
+    QLabel *message = nullptr;
+    QCheckBox *create_thumbnails = nullptr;
+};
+
 // A notebook is a page of pages: tabs, a trailing "+" tab, and the usual
 // close/rename/context-menu behaviour.
 class HydrusNotebook : public QTabWidget {
@@ -893,6 +960,11 @@ public:
     void update_duplicate_review(const QJsonObject &state);
     void show_tag_relations(const QJsonObject &state);
     void show_import_folder(const QJsonObject &state);
+    void show_local_import_review(const QJsonObject &state);
+    void show_local_import_tagging(const QJsonObject &state);
+    void close_local_import_review();
+    void show_repair_file_locations(const QJsonObject &state);
+    void close_repair_file_locations();
     void show_export_folder(const QJsonObject &state);
     void show_export_review(const QJsonObject &state);
     void show_options(const QJsonObject &state);
@@ -960,6 +1032,9 @@ private:
     HydrusImportOptionsDialog *import_options_dialog = nullptr;
     HydrusSeedCacheDialog *file_seed_cache_dialog = nullptr;
     HydrusSeedCacheDialog *gallery_seed_log_dialog = nullptr;
+    HydrusLocalImportReviewDialog *local_import_review_dialog = nullptr;
+    HydrusLocalImportTaggingDialog *local_import_tagging_dialog = nullptr;
+    HydrusRepairFileLocationsDialog *repair_file_locations_dialog = nullptr;
     HydrusDuplicateReviewDialog *duplicate_review_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
     QTimer *tick_timer = nullptr;
@@ -1011,6 +1086,11 @@ void hydrus_show_duplicate_review(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_duplicate_review(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_tag_relations(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_import_folder(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_local_import_review(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_local_import_tagging(HydrusMainWindow &window, rust::Str json);
+void hydrus_close_local_import_review(HydrusMainWindow &window);
+void hydrus_show_repair_file_locations(HydrusMainWindow &window, rust::Str json);
+void hydrus_close_repair_file_locations(HydrusMainWindow &window);
 void hydrus_show_export_folder(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_export_review(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_notes(HydrusMainWindow &window, rust::Str json);

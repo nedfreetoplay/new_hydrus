@@ -44,6 +44,7 @@ impl Controller {
 
     pub(super) fn init_client_files_manager(&self) -> HydrusResult<()> {
         let locations = files_physical_storage::get_current_locations(self.db.db())?;
+        let had_locations = !locations.is_empty();
         let locations = if locations.is_empty() {
             vec![
                 FilesStorageBaseLocation::new(self.db_dir.join("files"), 1, None),
@@ -54,6 +55,7 @@ impl Controller {
         };
 
         let subfolders = files_physical_storage::get_subfolders(self.db.db(), &locations)?;
+        let had_subfolders = !subfolders.is_empty();
         let subfolders = if subfolders.is_empty() {
             vec![
                 FilesStorageSubfolder::new("f", locations[0].clone()),
@@ -63,8 +65,22 @@ impl Controller {
             subfolders
         };
 
+        if !had_locations {
+            files_physical_storage::set_current_locations(self.db.db(), &locations)?;
+        }
+
+        if !had_subfolders {
+            files_physical_storage::set_subfolders(self.db.db(), &subfolders)?;
+        }
+
         let manager = ClientFilesManager::new(subfolders);
-        manager.make_sure_exists()?;
+
+        // A fresh database gets its folders created. An existing one keeps
+        // missing subfolders missing so the GUI can offer the repair panel,
+        // like Python's boot-time check.
+        if !had_locations || !had_subfolders {
+            manager.make_sure_exists()?;
+        }
 
         *self.files_manager.write().unwrap() = manager;
 

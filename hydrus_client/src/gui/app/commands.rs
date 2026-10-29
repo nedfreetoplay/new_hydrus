@@ -30,6 +30,11 @@ pub enum UiCommand {
     UpdateDuplicateReview(String),
     TagRelationsDialog(String),
     ImportFolderDialog(String),
+    LocalImportReviewDialog(String),
+    LocalImportTaggingDialog(String),
+    CloseLocalImportReview,
+    RepairFileLocationsDialog(String),
+    CloseRepairFileLocations,
     ExportFolderDialog(String),
     ExportReviewDialog(String),
     SetSelection {

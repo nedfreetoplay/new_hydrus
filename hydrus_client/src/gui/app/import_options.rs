@@ -134,6 +134,18 @@ pub fn open(state: &AppState) -> Vec<UiCommand> {
     vec![UiCommand::ImportOptionsDialog(dialog_json(state))]
 }
 
+/// Opens the options dialog with one caller row selected, used by the local
+/// import review panel.
+pub fn open_caller(state: &AppState, caller: &str) -> Vec<UiCommand> {
+    let mut value: Value = serde_json::from_str(&dialog_json(state)).unwrap_or_else(|_| json!({}));
+
+    if value.is_object() {
+        value["selected"] = json!(format!("default:{caller}"));
+    }
+
+    vec![UiCommand::ImportOptionsDialog(value.to_string())]
+}
+
 pub fn save_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     let Ok(value) = serde_json::from_str::<Value>(payload) else {
         return vec![UiCommand::NotifyMessage(
@@ -152,6 +164,7 @@ pub fn save_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 
     manager.ensure_defaults();
     save_manager(&state.controller, &manager);
+    state.runtime.update_options(state.controller.options());
     state.message = "import options saved".to_string();
 
     vec![

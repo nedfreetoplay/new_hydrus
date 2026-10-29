@@ -25,6 +25,7 @@ pub mod export;
 pub mod favourites;
 pub mod import;
 pub mod import_folders;
+pub mod import_options;
 pub mod metadata;
 pub mod model;
 pub mod notifications;
@@ -1240,6 +1241,8 @@ impl AppState {
             "inbox_active" => self.set_inbox_active(true),
             "delete_files" => self.delete_files(target, payload),
             "import_files" => vec![UiCommand::PickFiles],
+            "import_options" => import_options::open(self),
+            "import_options_save" => import_options::save_action(self, payload),
             "import_url" => vec![UiCommand::PromptUrl],
             "download_url" => self.download_one_url(payload),
             "import_paths" => self.import_paths(payload),

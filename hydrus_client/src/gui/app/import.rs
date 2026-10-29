@@ -21,6 +21,7 @@ use crate::files::ClientFilesManager;
 use crate::files::images::{
     decode_image_path, discard_blank_perceptual_hashes, generate_shape_perceptual_hash,
 };
+use crate::importing::ImportOptionsContainer;
 
 #[derive(Debug, Default)]
 pub struct ImportSummary {
@@ -54,34 +55,65 @@ impl ImportSummary {
 pub struct ImportContext {
     db: DBBase,
     files_manager: ClientFilesManager,
-    file_service_id: i64,
+    file_service_ids: Vec<i64>,
+    import_options: ImportOptionsContainer,
 }
 
 impl ImportContext {
     pub fn from_controller(controller: &Controller) -> Result<Self, String> {
-        Self::new(controller.db().db().clone(), controller.files_manager())
+        let import_options = super::import_options::local_import_options(controller);
+
+        Self::new_with_options(
+            controller.db().db().clone(),
+            controller.files_manager(),
+            import_options,
+        )
     }
 
     pub fn new(db: DBBase, files_manager: ClientFilesManager) -> Result<Self, String> {
-        let file_service_id = crate::db::services::get_services(&db)
-            .ok()
-            .and_then(|services| {
+        Self::new_with_options(db, files_manager, ImportOptionsContainer::with_defaults())
+    }
+
+    pub fn new_with_options(
+        db: DBBase,
+        files_manager: ClientFilesManager,
+        import_options: ImportOptionsContainer,
+    ) -> Result<Self, String> {
+        let services = crate::db::services::get_services(&db).unwrap_or_default();
+        let default_service_id = services
+            .iter()
+            .find(|service| service.name == "my files")
+            .or_else(|| {
                 services
                     .iter()
-                    .find(|service| service.name == "my files")
-                    .or_else(|| {
-                        services
-                            .iter()
-                            .find(|service| service.service_type == ServiceType::LocalFileDomain)
+                    .find(|service| service.service_type == ServiceType::LocalFileDomain)
+            })
+            .map(|service| service.service_id)
+            .ok_or_else(|| "no local file domain".to_string())?;
+        let locations = import_options.locations_or_default();
+        let mut file_service_ids: Vec<i64> = locations
+            .destination_services
+            .iter()
+            .filter_map(|name| {
+                services
+                    .iter()
+                    .find(|service| {
+                        &service.name == name
+                            && service.service_type == ServiceType::LocalFileDomain
                     })
                     .map(|service| service.service_id)
             })
-            .ok_or_else(|| "no local file domain".to_string())?;
+            .collect();
+
+        if file_service_ids.is_empty() {
+            file_service_ids.push(default_service_id);
+        }
 
         Ok(Self {
             db,
             files_manager,
-            file_service_id,
+            file_service_ids,
+            import_options,
         })
     }
 
@@ -105,7 +137,8 @@ impl ImportContext {
         let hash = import_one(
             &self.db,
             &self.files_manager,
-            self.file_service_id,
+            &self.file_service_ids,
+            &self.import_options,
             path,
             source_url,
         )?;
@@ -149,7 +182,8 @@ pub fn import_paths_with(context: &ImportContext, paths: &[PathBuf]) -> ImportSu
 fn import_one(
     db: &DBBase,
     files_manager: &ClientFilesManager,
-    file_service_id: i64,
+    file_service_ids: &[i64],
+    import_options: &ImportOptionsContainer,
     path: &Path,
     source_url: Option<&str>,
 ) -> Result<Vec<u8>, String> {
@@ -167,6 +201,13 @@ fn import_one(
     let info = core_files::get_file_info(path, Some(mime), false)
         .unwrap_or_else(|_| fallback_info(path, mime));
 
+    if !import_options
+        .file_filtering_or_default()
+        .check_file_is_valid(info.size, info.mime, info.width, info.height)
+    {
+        return Err("file did not pass the import file filter".to_string());
+    }
+
     let destination = files_manager
         .get_file_path(&hash, mime, false)
         .map_err(|error| error.to_string())?;
@@ -182,18 +223,30 @@ fn import_one(
     let hash_id = master::get_hash_id(db, &hash).map_err(|error| error.to_string())?;
 
     files_metadata::set_file_info(db, hash_id, &info).map_err(|error| error.to_string())?;
-    files_storage::add_files(
-        db,
-        file_service_id,
-        ContentStatus::Current,
-        &[hash_id],
-        Some(hydrus_time::get_now()),
-    )
-    .map_err(|error| error.to_string())?;
-    files_storage::set_inbox(db, &[hash_id], true).map_err(|error| error.to_string())?;
+
+    let locations = import_options.locations_or_default();
+
+    for file_service_id in file_service_ids {
+        files_storage::add_files(
+            db,
+            *file_service_id,
+            ContentStatus::Current,
+            &[hash_id],
+            Some(hydrus_time::get_now()),
+        )
+        .map_err(|error| error.to_string())?;
+    }
+
+    if locations.automatically_archives {
+        files_storage::set_inbox(db, &[hash_id], false).map_err(|error| error.to_string())?;
+    } else {
+        files_storage::set_inbox(db, &[hash_id], true).map_err(|error| error.to_string())?;
+    }
 
     if let Some(source_url) = source_url {
-        let _ = url_map::add_url(db, hash_id, source_url);
+        if locations.associate_primary_urls || locations.associate_source_urls {
+            let _ = url_map::add_url(db, hash_id, source_url);
+        }
     }
 
     if let Ok(timestamp_ms) = core_files::get_file_modified_timestamp_ms(path) {

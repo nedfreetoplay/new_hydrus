@@ -1,4 +1,4 @@
-﻿#include "bridge.hpp"
+#include "bridge.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -7789,6 +7789,1154 @@ void HydrusDuplicateCustomActionDialog::apply() {
     close();
 }
 
+HydrusImportOptionsDialog::HydrusImportOptionsDialog(
+    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    : QDialog(parent), main(main_window) {
+    setWindowTitle(QStringLiteral("import options"));
+    setObjectName(QStringLiteral("hydrus_import_options_dialog"));
+    setAttribute(Qt::WA_DeleteOnClose, true);
+    resize(1120, 760);
+
+    data = state;
+
+    auto *layout = new QVBoxLayout(this);
+
+    auto *help = new QLabel(
+        QStringLiteral("Each caller type starts from the global options. Set only what should differ; "
+                       "a tab with \"use default import options\" checked is inherited from the broader "
+                       "container. Favourites are named containers you can reuse elsewhere."),
+        this);
+    help->setWordWrap(true);
+    layout->addWidget(help);
+
+    auto *splitter = new QSplitter(Qt::Horizontal, this);
+
+    auto *left = new QWidget(splitter);
+    auto *left_layout = new QVBoxLayout(left);
+    left_layout->setContentsMargins(0, 0, 0, 0);
+    left_layout->addWidget(new QLabel(QStringLiteral("containers"), left));
+
+    list = new QListWidget(left);
+    left_layout->addWidget(list, 1);
+
+    auto *list_buttons = new QHBoxLayout();
+    auto *add_button = new QPushButton(QStringLiteral("new favourite"), left);
+    rename_button = new QPushButton(QStringLiteral("rename"), left);
+    delete_button = new QPushButton(QStringLiteral("delete"), left);
+    list_buttons->addWidget(add_button);
+    list_buttons->addWidget(rename_button);
+    list_buttons->addWidget(delete_button);
+    left_layout->addLayout(list_buttons);
+
+    auto *right = new QWidget(splitter);
+    auto *right_layout = new QVBoxLayout(right);
+    right_layout->setContentsMargins(0, 0, 0, 0);
+
+    description = new QLabel(right);
+    description->setWordWrap(true);
+    right_layout->addWidget(description);
+
+    build_editor();
+    right_layout->addWidget(editor.tabs, 1);
+
+    splitter->addWidget(left);
+    splitter->addWidget(right);
+    splitter->setStretchFactor(0, 0);
+    splitter->setStretchFactor(1, 1);
+    splitter->setSizes({240, 820});
+    layout->addWidget(splitter, 1);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, this);
+    layout->addWidget(buttons);
+
+    connect(add_button, &QPushButton::clicked, this, [this]() { add_favourite(); });
+    connect(rename_button, &QPushButton::clicked, this, [this]() { rename_favourite(); });
+    connect(delete_button, &QPushButton::clicked, this, [this]() { delete_favourite(); });
+    connect(buttons, &QDialogButtonBox::accepted, this, [this]() { save(); });
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::close);
+    connect(list, &QListWidget::currentRowChanged, this, [this](int) {
+        if (rebuilding) {
+            return;
+        }
+
+        store_current();
+
+        const QString key = current_key();
+
+        if (key.isEmpty()) {
+            return;
+        }
+
+        selected_key = key;
+
+        QJsonObject defaults = data.value(QStringLiteral("defaults")).toObject();
+        QJsonObject favourites = data.value(QStringLiteral("favourites")).toObject();
+        QString name = key;
+        QJsonObject container;
+
+        if (name.startsWith(QStringLiteral("default:"))) {
+            name = name.mid(8);
+            container = defaults.value(name).toObject();
+            const QJsonArray callers = data.value(QStringLiteral("caller_types")).toArray();
+
+            for (const QJsonValue &value : callers) {
+                const QJsonObject caller = value.toObject();
+
+                if (caller.value(QStringLiteral("key")).toString() == name) {
+                    description->setText(caller.value(QStringLiteral("description")).toString());
+                    break;
+                }
+            }
+        } else {
+            name = name.mid(10);
+            container = favourites.value(name).toObject();
+            description->setText(QStringLiteral("favourite container \"%1\"").arg(name));
+        }
+
+        rename_button->setEnabled(!selected_key.startsWith(QStringLiteral("default:")));
+        delete_button->setEnabled(!selected_key.startsWith(QStringLiteral("default:")));
+
+        fill_editor(container, defaults.value(QStringLiteral("global")).toObject());
+    });
+
+    rebuild_list();
+
+    if (qEnvironmentVariableIsSet("HYDRUS_QT_IMPORT_OPTIONS_FAVOURITE")) {
+        const QString target = qEnvironmentVariable("HYDRUS_QT_IMPORT_OPTIONS_FAVOURITE");
+
+        for (int row = 0; row < list->count(); ++row) {
+            if (list->item(row)->data(Qt::UserRole).toString() == target) {
+                list->setCurrentRow(row);
+                break;
+            }
+        }
+    }
+
+    if (qEnvironmentVariableIsSet("HYDRUS_QT_IMPORT_OPTIONS_CALLER")) {
+        const QString target = QStringLiteral("default:%1").arg(qEnvironmentVariable("HYDRUS_QT_IMPORT_OPTIONS_CALLER"));
+
+        for (int row = 0; row < list->count(); ++row) {
+            if (list->item(row)->data(Qt::UserRole).toString() == target) {
+                list->setCurrentRow(row);
+                break;
+            }
+        }
+    }
+
+    if (qEnvironmentVariableIsSet("HYDRUS_QT_IMPORT_OPTIONS_TAB")) {
+        const QString wanted = qEnvironmentVariable("HYDRUS_QT_IMPORT_OPTIONS_TAB");
+        const QJsonArray types = data.value(QStringLiteral("types")).toArray();
+
+        for (int index = 0; index < types.size(); ++index) {
+            if (types.at(index).toObject().value(QStringLiteral("key")).toString() == wanted) {
+                editor.tabs->setCurrentIndex(index);
+                break;
+            }
+        }
+    }
+}
+
+void HydrusImportOptionsDialog::build_editor() {
+    editor.tabs = new QTabWidget(this);
+    editor.tabs->setObjectName(QStringLiteral("hydrus_import_options_tabs"));
+
+    auto add_page = [this](const QString &key, const QString &title) {
+        auto *page = new QWidget(editor.tabs);
+        auto *layout = new QVBoxLayout(page);
+
+        auto *use_default = new QCheckBox(
+            QStringLiteral("use default import options (inherited from the broader container)"), page);
+        layout->addWidget(use_default);
+
+        auto *content = new QWidget(page);
+        layout->addWidget(content, 1);
+
+        connect(use_default, &QCheckBox::toggled, content, [content](bool checked) {
+            content->setEnabled(!checked);
+        });
+
+        editor.use_default.insert(key, use_default);
+        editor.content.insert(key, content);
+        editor.tabs->addTab(page, title);
+
+        return content;
+    };
+
+    auto add_combo_items = [this](QComboBox *combo, const QString &array_key, const QString &label_key, const QString &value_key) {
+        for (const QJsonValue &value : data.value(array_key).toArray()) {
+            const QJsonObject entry = value.toObject();
+            QVariant data_value = entry.value(value_key).toVariant();
+
+            if (data_value.typeId() == QMetaType::Double) {
+                data_value = data_value.toInt();
+            }
+
+            combo->addItem(entry.value(label_key).toString(), data_value);
+        }
+    };
+
+    {
+        QWidget *content = add_page(QStringLiteral("prefetch"), QStringLiteral("prefetch"));
+        auto *form = new QFormLayout(content);
+
+        editor.prefetch_hash = new QComboBox(content);
+        editor.prefetch_url = new QComboBox(content);
+        editor.prefetch_hash->setObjectName(QStringLiteral("import_options_prefetch_hash"));
+        editor.prefetch_url->setObjectName(QStringLiteral("import_options_prefetch_url"));
+        add_combo_items(editor.prefetch_hash, QStringLiteral("prefetch_check_types"), QStringLiteral("label"), QStringLiteral("value"));
+        add_combo_items(editor.prefetch_url, QStringLiteral("prefetch_check_types"), QStringLiteral("label"), QStringLiteral("value"));
+
+        editor.prefetch_spam = new QCheckBox(QStringLiteral("URL check looks for neighbour spam"), content);
+        editor.prefetch_meta_hash = new QCheckBox(QStringLiteral("fetch metadata even if the hash is known"), content);
+        editor.prefetch_meta_url = new QCheckBox(QStringLiteral("fetch metadata even if the URL is known"), content);
+
+        form->addRow(QStringLiteral("pre-import hash check:"), editor.prefetch_hash);
+        form->addRow(QStringLiteral("pre-import URL check:"), editor.prefetch_url);
+        form->addRow(editor.prefetch_spam);
+        form->addRow(editor.prefetch_meta_hash);
+        form->addRow(editor.prefetch_meta_url);
+    }
+
+    {
+        QWidget *content = add_page(QStringLiteral("file_filtering"), QStringLiteral("file filtering"));
+        auto *layout = new QVBoxLayout(content);
+        auto *form = new QFormLayout();
+
+        auto make_size = [content]() {
+            auto *spin = new QSpinBox(content);
+            spin->setRange(0, 2000000000);
+            spin->setSpecialValueText(QStringLiteral("no limit"));
+            return spin;
+        };
+        auto make_resolution = [content]() {
+            auto *spin = new QSpinBox(content);
+            spin->setRange(0, 100000);
+            spin->setSpecialValueText(QStringLiteral("any"));
+            return spin;
+        };
+
+        editor.min_size = make_size();
+        editor.max_size = make_size();
+        editor.min_width = make_resolution();
+        editor.min_height = make_resolution();
+        editor.max_width = make_resolution();
+        editor.max_height = make_resolution();
+        editor.max_gif_size = make_size();
+
+        auto *min_size_row = new QWidget(content);
+        auto *min_size_layout = new QHBoxLayout(min_size_row);
+        min_size_layout->setContentsMargins(0, 0, 0, 0);
+        min_size_layout->addWidget(editor.min_size);
+        min_size_layout->addWidget(new QLabel(QStringLiteral("bytes minimum"), content));
+
+        auto *max_size_row = new QWidget(content);
+        auto *max_size_layout = new QHBoxLayout(max_size_row);
+        max_size_layout->setContentsMargins(0, 0, 0, 0);
+        max_size_layout->addWidget(editor.max_size);
+        max_size_layout->addWidget(new QLabel(QStringLiteral("bytes maximum"), content));
+
+        auto *min_res_row = new QWidget(content);
+        auto *min_res_layout = new QHBoxLayout(min_res_row);
+        min_res_layout->setContentsMargins(0, 0, 0, 0);
+        min_res_layout->addWidget(editor.min_width);
+        min_res_layout->addWidget(new QLabel(QStringLiteral("x"), content));
+        min_res_layout->addWidget(editor.min_height);
+
+        auto *max_res_row = new QWidget(content);
+        auto *max_res_layout = new QHBoxLayout(max_res_row);
+        max_res_layout->setContentsMargins(0, 0, 0, 0);
+        max_res_layout->addWidget(editor.max_width);
+        max_res_layout->addWidget(new QLabel(QStringLiteral("x"), content));
+        max_res_layout->addWidget(editor.max_height);
+
+        auto *gif_row = new QWidget(content);
+        auto *gif_layout = new QHBoxLayout(gif_row);
+        gif_layout->setContentsMargins(0, 0, 0, 0);
+        gif_layout->addWidget(editor.max_gif_size);
+        gif_layout->addWidget(new QLabel(QStringLiteral("bytes maximum for gifs"), content));
+
+        form->addRow(QStringLiteral("minimum size:"), min_size_row);
+        form->addRow(QStringLiteral("maximum size:"), max_size_row);
+        form->addRow(QStringLiteral("minimum resolution:"), min_res_row);
+        form->addRow(QStringLiteral("maximum resolution:"), max_res_row);
+        form->addRow(QStringLiteral("maximum animated gif size:"), gif_row);
+        layout->addLayout(form);
+
+        editor.exclude_deleted = new QCheckBox(QStringLiteral("exclude previously deleted files"), content);
+        editor.allow_bombs = new QCheckBox(QStringLiteral("allow decompression bombs"), content);
+        layout->addWidget(editor.exclude_deleted);
+        layout->addWidget(editor.allow_bombs);
+
+        layout->addWidget(new QLabel(QStringLiteral("allowed filetypes (none checked means all):"), content));
+
+        editor.mimes = new QListWidget(content);
+        editor.mimes->setObjectName(QStringLiteral("import_options_mimes"));
+        editor.mimes->setViewMode(QListView::IconMode);
+        editor.mimes->setResizeMode(QListView::Adjust);
+        editor.mimes->setMovement(QListView::Static);
+        editor.mimes->setSpacing(4);
+
+        for (const QJsonValue &value : data.value(QStringLiteral("file_types")).toArray()) {
+            const QJsonObject entry = value.toObject();
+            auto *item = new QListWidgetItem(
+                QStringLiteral("%1  (%2)")
+                    .arg(entry.value(QStringLiteral("label")).toString(),
+                         entry.value(QStringLiteral("extensions")).toString()),
+                editor.mimes);
+            item->setData(Qt::UserRole, entry.value(QStringLiteral("value")).toString());
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+            item->setCheckState(Qt::Unchecked);
+        }
+
+        layout->addWidget(editor.mimes, 1);
+    }
+
+    {
+        QWidget *content = add_page(QStringLiteral("tag_filtering"), QStringLiteral("tag filtering"));
+        auto *layout = new QVBoxLayout(content);
+
+        layout->addWidget(new QLabel(
+            QStringLiteral("Blacklist and whitelist slices. A blacklisted parsed tag, or no "
+                           "whitelisted tag, makes the import ignored."),
+            content));
+
+        editor.tag_rules = new QTableWidget(content);
+        editor.tag_rules->setColumnCount(2);
+        editor.tag_rules->setHorizontalHeaderLabels({QStringLiteral("tag slice"), QStringLiteral("rule")});
+        editor.tag_rules->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+        editor.tag_rules->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+        editor.tag_rules->verticalHeader()->setVisible(false);
+        layout->addWidget(editor.tag_rules, 1);
+
+        auto *buttons = new QHBoxLayout();
+        auto *add_rule = new QPushButton(QStringLiteral("add rule"), content);
+        auto *remove_rule = new QPushButton(QStringLiteral("remove rule"), content);
+        buttons->addWidget(add_rule);
+        buttons->addWidget(remove_rule);
+        buttons->addStretch(1);
+        layout->addLayout(buttons);
+
+        connect(add_rule, &QPushButton::clicked, this, [this]() {
+            const int row = editor.tag_rules->rowCount();
+            editor.tag_rules->insertRow(row);
+            editor.tag_rules->setItem(row, 0, new QTableWidgetItem(QStringLiteral("")));
+            auto *combo = new QComboBox(editor.tag_rules);
+            for (const QJsonValue &value : data.value(QStringLiteral("rules")).toArray()) {
+                const QJsonObject entry = value.toObject();
+                combo->addItem(entry.value(QStringLiteral("label")).toString(), entry.value(QStringLiteral("value")).toString());
+            }
+            editor.tag_rules->setCellWidget(row, 1, combo);
+        });
+        connect(remove_rule, &QPushButton::clicked, this, [this]() {
+            const int row = editor.tag_rules->currentRow();
+
+            if (row >= 0) {
+                editor.tag_rules->removeRow(row);
+            }
+        });
+
+        layout->addWidget(new QLabel(QStringLiteral("whitelist tags, one per line:"), content));
+        editor.tag_whitelist = new QPlainTextEdit(content);
+        layout->addWidget(editor.tag_whitelist, 1);
+    }
+
+    {
+        QWidget *content = add_page(QStringLiteral("locations"), QStringLiteral("locations"));
+        auto *layout = new QVBoxLayout(content);
+
+        layout->addWidget(new QLabel(
+            QStringLiteral("Where the file is placed. No destination checked means the default "
+                           "local file service."),
+            content));
+
+        editor.destinations = new QListWidget(content);
+        editor.destinations->setObjectName(QStringLiteral("import_options_destinations"));
+
+        for (const QJsonValue &value : data.value(QStringLiteral("file_services")).toArray()) {
+            auto *item = new QListWidgetItem(value.toString(), editor.destinations);
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+            item->setCheckState(Qt::Unchecked);
+        }
+
+        layout->addWidget(editor.destinations, 1);
+
+        editor.auto_archive = new QCheckBox(QStringLiteral("automatically archive new files"), content);
+        editor.assoc_primary = new QCheckBox(QStringLiteral("associate primary URLs"), content);
+        editor.assoc_source = new QCheckBox(QStringLiteral("associate source URLs"), content);
+        editor.archive_existing = new QCheckBox(QStringLiteral("archive files that are already in db"), content);
+        editor.destinations_existing = new QCheckBox(QStringLiteral("add destinations for files already in db"), content);
+
+        for (QCheckBox *checkbox : {editor.auto_archive, editor.assoc_primary, editor.assoc_source,
+                                    editor.archive_existing, editor.destinations_existing}) {
+            layout->addWidget(checkbox);
+        }
+    }
+
+    {
+        QWidget *content = add_page(QStringLiteral("tags"), QStringLiteral("tags"));
+        auto *layout = new QVBoxLayout(content);
+
+        editor.tag_services = new QTableWidget(content);
+        editor.tag_services->setColumnCount(7);
+        editor.tag_services->setHorizontalHeaderLabels({
+            QStringLiteral("tag service"),
+            QStringLiteral("get tags"),
+            QStringLiteral("additional tags"),
+            QStringLiteral("new"),
+            QStringLiteral("inbox"),
+            QStringLiteral("archive"),
+            QStringLiteral("only existing"),
+        });
+        editor.tag_services->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+        editor.tag_services->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+        editor.tag_services->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+        for (int column = 3; column < 7; ++column) {
+            editor.tag_services->horizontalHeader()->setSectionResizeMode(column, QHeaderView::ResizeToContents);
+        }
+        editor.tag_services->verticalHeader()->setVisible(false);
+
+        const QJsonArray services = data.value(QStringLiteral("tag_services")).toArray();
+        editor.tag_services->setRowCount(services.size());
+
+        for (int row = 0; row < services.size(); ++row) {
+            const QJsonObject service = services.at(row).toObject();
+            auto *name = new QTableWidgetItem(service.value(QStringLiteral("name")).toString());
+            name->setData(Qt::UserRole, service.value(QStringLiteral("key")).toString());
+            editor.tag_services->setItem(row, 0, name);
+
+            auto *get_tags = new QCheckBox(editor.tag_services);
+            get_tags->setObjectName(QStringLiteral("import_options_tag_get"));
+            editor.tag_services->setCellWidget(row, 1, get_tags);
+
+            auto *additional = new QLineEdit(editor.tag_services);
+            additional->setPlaceholderText(QStringLiteral("comma separated"));
+            editor.tag_services->setCellWidget(row, 2, additional);
+
+            auto *to_new = new QCheckBox(editor.tag_services);
+            auto *to_inbox = new QCheckBox(editor.tag_services);
+            auto *to_archive = new QCheckBox(editor.tag_services);
+            auto *only_existing = new QCheckBox(editor.tag_services);
+            to_new->setObjectName(QStringLiteral("import_options_tag_new"));
+            to_inbox->setObjectName(QStringLiteral("import_options_tag_inbox"));
+            to_archive->setObjectName(QStringLiteral("import_options_tag_archive"));
+            only_existing->setObjectName(QStringLiteral("import_options_tag_only"));
+            editor.tag_services->setCellWidget(row, 3, to_new);
+            editor.tag_services->setCellWidget(row, 4, to_inbox);
+            editor.tag_services->setCellWidget(row, 5, to_archive);
+            editor.tag_services->setCellWidget(row, 6, only_existing);
+        }
+
+        layout->addWidget(editor.tag_services, 1);
+    }
+
+    {
+        QWidget *content = add_page(QStringLiteral("notes"), QStringLiteral("notes"));
+        auto *layout = new QVBoxLayout(content);
+
+        editor.get_notes = new QCheckBox(QStringLiteral("add notes"), content);
+        editor.extend_notes = new QCheckBox(QStringLiteral("extend an existing note if possible"), content);
+        layout->addWidget(editor.get_notes);
+        layout->addWidget(editor.extend_notes);
+
+        auto *form = new QFormLayout();
+        editor.note_conflict = new QComboBox(content);
+        editor.note_conflict->setObjectName(QStringLiteral("import_options_note_conflict"));
+        add_combo_items(editor.note_conflict, QStringLiteral("note_conflicts"), QStringLiteral("label"), QStringLiteral("value"));
+        form->addRow(QStringLiteral("conflict resolution:"), editor.note_conflict);
+
+        editor.note_all_override = new QLineEdit(content);
+        editor.note_all_override->setPlaceholderText(QStringLiteral("optional new name for all notes"));
+        form->addRow(QStringLiteral("rename all notes to:"), editor.note_all_override);
+        layout->addLayout(form);
+
+        layout->addWidget(new QLabel(QStringLiteral("only these note names, one per line (empty means all):"), content));
+        editor.note_whitelist = new QPlainTextEdit(content);
+        layout->addWidget(editor.note_whitelist, 1);
+
+        layout->addWidget(new QLabel(QStringLiteral("renames, one per line as name=new name:"), content));
+        editor.note_overrides = new QPlainTextEdit(content);
+        layout->addWidget(editor.note_overrides, 1);
+    }
+
+    {
+        QWidget *content = add_page(QStringLiteral("presentation"), QStringLiteral("presentation"));
+        auto *form = new QFormLayout(content);
+
+        editor.presentation_status = new QComboBox(content);
+        editor.presentation_inbox = new QComboBox(content);
+        editor.presentation_status->setObjectName(QStringLiteral("import_options_presentation_status"));
+        editor.presentation_inbox->setObjectName(QStringLiteral("import_options_presentation_inbox"));
+        add_combo_items(editor.presentation_status, QStringLiteral("presentation_statuses"), QStringLiteral("label"), QStringLiteral("value"));
+        add_combo_items(editor.presentation_inbox, QStringLiteral("presentation_inboxes"), QStringLiteral("label"), QStringLiteral("value"));
+
+        form->addRow(QStringLiteral("present:"), editor.presentation_status);
+        form->addRow(QStringLiteral("inbox filter:"), editor.presentation_inbox);
+    }
+
+    {
+        QWidget *content = add_page(QStringLiteral("external_programs"), QStringLiteral("external programs"));
+        auto *layout = new QVBoxLayout(content);
+
+        layout->addWidget(new QLabel(
+            QStringLiteral("Run a program for each imported file. The file path is appended to the "
+                           "arguments when the arguments do not contain {path}."),
+            content));
+
+        editor.external_programs = new QTableWidget(content);
+        editor.external_programs->setObjectName(QStringLiteral("import_options_external_programs"));
+        editor.external_programs->setColumnCount(5);
+        editor.external_programs->setHorizontalHeaderLabels({
+            QStringLiteral("name"),
+            QStringLiteral("program"),
+            QStringLiteral("arguments"),
+            QStringLiteral("new files"),
+            QStringLiteral("already in db"),
+        });
+        editor.external_programs->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+        editor.external_programs->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+        editor.external_programs->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+        editor.external_programs->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+        editor.external_programs->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+        editor.external_programs->verticalHeader()->setVisible(false);
+        layout->addWidget(editor.external_programs, 1);
+
+        auto *buttons = new QHBoxLayout();
+        auto *add_program = new QPushButton(QStringLiteral("add program"), content);
+        auto *remove_program = new QPushButton(QStringLiteral("remove program"), content);
+        buttons->addWidget(add_program);
+        buttons->addWidget(remove_program);
+        buttons->addStretch(1);
+        layout->addLayout(buttons);
+
+        connect(add_program, &QPushButton::clicked, this, [this]() {
+            const int row = editor.external_programs->rowCount();
+            editor.external_programs->insertRow(row);
+
+            for (int column = 0; column < 3; ++column) {
+                auto *edit = new QLineEdit(editor.external_programs);
+                editor.external_programs->setCellWidget(row, column, edit);
+            }
+
+            editor.external_programs->setCellWidget(row, 3, new QCheckBox(editor.external_programs));
+            editor.external_programs->setCellWidget(row, 4, new QCheckBox(editor.external_programs));
+        });
+        connect(remove_program, &QPushButton::clicked, this, [this]() {
+            const int row = editor.external_programs->currentRow();
+
+            if (row >= 0) {
+                editor.external_programs->removeRow(row);
+            }
+        });
+    }
+}
+
+void HydrusImportOptionsDialog::rebuild_list(const QString &select) {
+    rebuilding = true;
+
+    const QString wanted = select.isEmpty() ? selected_key : select;
+    list->clear();
+
+    const QJsonArray callers = data.value(QStringLiteral("caller_types")).toArray();
+
+    for (const QJsonValue &value : callers) {
+        const QJsonObject caller = value.toObject();
+        auto *item = new QListWidgetItem(
+            QStringLiteral("%1  (default)").arg(caller.value(QStringLiteral("label")).toString()),
+            list);
+        item->setData(Qt::UserRole, QStringLiteral("default:%1").arg(caller.value(QStringLiteral("key")).toString()));
+    }
+
+    const QJsonObject favourites = data.value(QStringLiteral("favourites")).toObject();
+
+    for (auto iterator = favourites.constBegin(); iterator != favourites.constEnd(); ++iterator) {
+        auto *item = new QListWidgetItem(
+            QStringLiteral("favourite: %1").arg(iterator.key()),
+            list);
+        item->setData(Qt::UserRole, QStringLiteral("favourite:%1").arg(iterator.key()));
+    }
+
+    int row_to_select = 0;
+
+    for (int row = 0; row < list->count(); ++row) {
+        if (list->item(row)->data(Qt::UserRole).toString() == wanted) {
+            row_to_select = row;
+            break;
+        }
+    }
+
+    rebuilding = false;
+
+    if (list->count() > 0) {
+        list->setCurrentRow(row_to_select);
+    }
+}
+
+QString HydrusImportOptionsDialog::current_key() const {
+    const QListWidgetItem *item = list->currentItem();
+
+    if (item == nullptr) {
+        return QString();
+    }
+
+    return item->data(Qt::UserRole).toString();
+}
+
+void HydrusImportOptionsDialog::store_current() {
+    if (selected_key.isEmpty()) {
+        return;
+    }
+
+    QJsonObject defaults = data.value(QStringLiteral("defaults")).toObject();
+    QJsonObject favourites = data.value(QStringLiteral("favourites")).toObject();
+    const QJsonObject container = read_editor();
+
+    if (selected_key.startsWith(QStringLiteral("default:"))) {
+        defaults.insert(selected_key.mid(8), container);
+        data.insert(QStringLiteral("defaults"), defaults);
+    } else {
+        favourites.insert(selected_key.mid(10), container);
+        data.insert(QStringLiteral("favourites"), favourites);
+    }
+}
+
+void HydrusImportOptionsDialog::fill_editor(const QJsonObject &container, const QJsonObject &fallback) {
+    auto set_use_default = [this, &container](const QString &key) {
+        const bool use_default = !container.contains(key);
+        editor.use_default.value(key)->setChecked(use_default);
+        editor.content.value(key)->setEnabled(!use_default);
+        return !use_default;
+    };
+
+    auto options_for = [&container, &fallback](const QString &key) {
+        return (container.contains(key) ? container : fallback).value(key).toObject();
+    };
+
+    auto set_combo = [](QComboBox *combo, const QJsonValue &value) {
+        QVariant data_value = value.toVariant();
+
+        if (data_value.typeId() == QMetaType::Double) {
+            data_value = data_value.toInt();
+        }
+
+        const int index = combo->findData(data_value);
+
+        if (index >= 0) {
+            combo->setCurrentIndex(index);
+        }
+    };
+
+    auto array_contains = [](const QJsonArray &array, const QString &needle) {
+        for (const QJsonValue &value : array) {
+            if (value.toString() == needle) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    {
+        const bool enabled = set_use_default(QStringLiteral("prefetch"));
+        const QJsonObject options = options_for(QStringLiteral("prefetch"));
+        set_combo(editor.prefetch_hash, options.value(QStringLiteral("preimport_hash_check_type")));
+        set_combo(editor.prefetch_url, options.value(QStringLiteral("preimport_url_check_type")));
+        editor.prefetch_spam->setChecked(options.value(QStringLiteral("preimport_url_check_looks_for_neighbour_spam")).toBool(true));
+        editor.prefetch_meta_hash->setChecked(options.value(QStringLiteral("fetch_metadata_even_if_hash_known")).toBool());
+        editor.prefetch_meta_url->setChecked(options.value(QStringLiteral("fetch_metadata_even_if_url_known")).toBool());
+        Q_UNUSED(enabled);
+    }
+
+    {
+        const bool enabled = set_use_default(QStringLiteral("file_filtering"));
+        const QJsonObject options = options_for(QStringLiteral("file_filtering"));
+        auto number = [&options](const QString &key) {
+            return options.value(key).toInt(0);
+        };
+        editor.min_size->setValue(number(QStringLiteral("min_size")));
+        editor.max_size->setValue(number(QStringLiteral("max_size")));
+        editor.max_gif_size->setValue(number(QStringLiteral("max_gif_size")));
+        editor.min_width->setValue(0);
+        editor.min_height->setValue(0);
+        editor.max_width->setValue(0);
+        editor.max_height->setValue(0);
+
+        auto fill_resolution = [&options](const QString &key, QSpinBox *width, QSpinBox *height) {
+            const QJsonArray resolution = options.value(key).toArray();
+
+            if (resolution.size() == 2) {
+                width->setValue(resolution.at(0).toInt());
+                height->setValue(resolution.at(1).toInt());
+            }
+        };
+        fill_resolution(QStringLiteral("min_resolution"), editor.min_width, editor.min_height);
+        fill_resolution(QStringLiteral("max_resolution"), editor.max_width, editor.max_height);
+
+        editor.exclude_deleted->setChecked(options.value(QStringLiteral("excludes_deleted")).toBool(true));
+        editor.allow_bombs->setChecked(options.value(QStringLiteral("allows_decompression_bombs")).toBool());
+
+        const QJsonArray allowed = options.value(QStringLiteral("allowed_mimes")).toArray();
+
+        for (int row = 0; row < editor.mimes->count(); ++row) {
+            QListWidgetItem *item = editor.mimes->item(row);
+            item->setCheckState(array_contains(allowed, item->data(Qt::UserRole).toString()) ? Qt::Checked : Qt::Unchecked);
+        }
+
+        Q_UNUSED(enabled);
+    }
+
+    {
+        const bool enabled = set_use_default(QStringLiteral("tag_filtering"));
+        const QJsonObject options = options_for(QStringLiteral("tag_filtering"));
+        const QJsonObject rules = options.value(QStringLiteral("rules")).toObject();
+        editor.tag_rules->setRowCount(0);
+
+        for (auto iterator = rules.constBegin(); iterator != rules.constEnd(); ++iterator) {
+            const int row = editor.tag_rules->rowCount();
+            editor.tag_rules->insertRow(row);
+            editor.tag_rules->setItem(row, 0, new QTableWidgetItem(iterator.key()));
+            auto *combo = new QComboBox(editor.tag_rules);
+
+            for (const QJsonValue &value : data.value(QStringLiteral("rules")).toArray()) {
+                const QJsonObject entry = value.toObject();
+                combo->addItem(entry.value(QStringLiteral("label")).toString(), entry.value(QStringLiteral("value")).toString());
+            }
+
+            set_combo(combo, iterator.value());
+            editor.tag_rules->setCellWidget(row, 1, combo);
+        }
+
+        QStringList whitelist;
+        for (const QJsonValue &value : options.value(QStringLiteral("whitelist")).toArray()) {
+            whitelist << value.toString();
+        }
+        editor.tag_whitelist->setPlainText(whitelist.join(QStringLiteral("\n")));
+        Q_UNUSED(enabled);
+    }
+
+    {
+        const bool enabled = set_use_default(QStringLiteral("locations"));
+        const QJsonObject options = options_for(QStringLiteral("locations"));
+        const QJsonArray destinations = options.value(QStringLiteral("destination_services")).toArray();
+
+        for (int row = 0; row < editor.destinations->count(); ++row) {
+            QListWidgetItem *item = editor.destinations->item(row);
+            item->setCheckState(array_contains(destinations, item->text()) ? Qt::Checked : Qt::Unchecked);
+        }
+
+        editor.auto_archive->setChecked(options.value(QStringLiteral("automatically_archives")).toBool());
+        editor.assoc_primary->setChecked(options.value(QStringLiteral("associate_primary_urls")).toBool(true));
+        editor.assoc_source->setChecked(options.value(QStringLiteral("associate_source_urls")).toBool(true));
+        editor.archive_existing->setChecked(options.value(QStringLiteral("do_automatic_archive_on_already_in_db_files")).toBool(true));
+        editor.destinations_existing->setChecked(options.value(QStringLiteral("do_import_destinations_on_already_in_db_files")).toBool());
+        Q_UNUSED(enabled);
+    }
+
+    {
+        const bool enabled = set_use_default(QStringLiteral("tags"));
+        const QJsonObject options = options_for(QStringLiteral("tags"));
+
+        for (int row = 0; row < editor.tag_services->rowCount(); ++row) {
+            const QTableWidgetItem *name = editor.tag_services->item(row, 0);
+            const QJsonObject service_options = options.value(name->data(Qt::UserRole).toString()).toObject();
+            auto *get_tags = qobject_cast<QCheckBox *>(editor.tag_services->cellWidget(row, 1));
+            auto *additional = qobject_cast<QLineEdit *>(editor.tag_services->cellWidget(row, 2));
+            auto *to_new = qobject_cast<QCheckBox *>(editor.tag_services->cellWidget(row, 3));
+            auto *to_inbox = qobject_cast<QCheckBox *>(editor.tag_services->cellWidget(row, 4));
+            auto *to_archive = qobject_cast<QCheckBox *>(editor.tag_services->cellWidget(row, 5));
+            auto *only_existing = qobject_cast<QCheckBox *>(editor.tag_services->cellWidget(row, 6));
+
+            get_tags->setChecked(service_options.value(QStringLiteral("get_tags")).toBool());
+            QStringList tags;
+
+            for (const QJsonValue &tag : service_options.value(QStringLiteral("additional_tags")).toArray()) {
+                tags << tag.toString();
+            }
+
+            additional->setText(tags.join(QStringLiteral(", ")));
+            to_new->setChecked(service_options.value(QStringLiteral("to_new_files")).toBool(true));
+            to_inbox->setChecked(service_options.value(QStringLiteral("to_already_in_inbox")).toBool(true));
+            to_archive->setChecked(service_options.value(QStringLiteral("to_already_in_archive")).toBool(true));
+            only_existing->setChecked(service_options.value(QStringLiteral("only_add_existing_tags")).toBool());
+        }
+
+        Q_UNUSED(enabled);
+    }
+
+    {
+        const bool enabled = set_use_default(QStringLiteral("notes"));
+        const QJsonObject options = options_for(QStringLiteral("notes"));
+        editor.get_notes->setChecked(options.value(QStringLiteral("get_notes")).toBool(true));
+        editor.extend_notes->setChecked(options.value(QStringLiteral("extend_existing_note_if_possible")).toBool(true));
+        set_combo(editor.note_conflict, options.value(QStringLiteral("conflict_resolution")).toString());
+        editor.note_all_override->setText(options.value(QStringLiteral("all_name_override")).toString());
+
+        QStringList whitelist;
+        for (const QJsonValue &value : options.value(QStringLiteral("name_whitelist")).toArray()) {
+            whitelist << value.toString();
+        }
+        editor.note_whitelist->setPlainText(whitelist.join(QStringLiteral("\n")));
+
+        QStringList overrides;
+        const QJsonObject names_to_overrides = options.value(QStringLiteral("names_to_name_overrides")).toObject();
+        for (auto iterator = names_to_overrides.constBegin(); iterator != names_to_overrides.constEnd(); ++iterator) {
+            overrides << QStringLiteral("%1=%2").arg(iterator.key(), iterator.value().toString());
+        }
+        editor.note_overrides->setPlainText(overrides.join(QStringLiteral("\n")));
+        Q_UNUSED(enabled);
+    }
+
+    {
+        const bool enabled = set_use_default(QStringLiteral("presentation"));
+        const QJsonObject options = options_for(QStringLiteral("presentation"));
+        set_combo(editor.presentation_status, options.value(QStringLiteral("presentation_status")).toString());
+        set_combo(editor.presentation_inbox, options.value(QStringLiteral("presentation_inbox")).toString());
+        Q_UNUSED(enabled);
+    }
+
+    {
+        const bool enabled = set_use_default(QStringLiteral("external_programs"));
+        const QJsonArray entries = options_for(QStringLiteral("external_programs")).value(QStringLiteral("entries")).toArray();
+        editor.external_programs->setRowCount(0);
+
+        for (const QJsonValue &value : entries) {
+            const QJsonObject entry = value.toObject();
+            const int row = editor.external_programs->rowCount();
+            editor.external_programs->insertRow(row);
+
+            auto *name = new QLineEdit(entry.value(QStringLiteral("name")).toString(), editor.external_programs);
+            auto *path = new QLineEdit(entry.value(QStringLiteral("path")).toString(), editor.external_programs);
+            auto *arguments = new QLineEdit(entry.value(QStringLiteral("arguments")).toString(), editor.external_programs);
+            auto *on_new = new QCheckBox(editor.external_programs);
+            auto *on_already = new QCheckBox(editor.external_programs);
+            on_new->setChecked(entry.value(QStringLiteral("do_it_on_new")).toBool());
+            on_already->setChecked(entry.value(QStringLiteral("do_it_on_already_in")).toBool());
+
+            editor.external_programs->setCellWidget(row, 0, name);
+            editor.external_programs->setCellWidget(row, 1, path);
+            editor.external_programs->setCellWidget(row, 2, arguments);
+            editor.external_programs->setCellWidget(row, 3, on_new);
+            editor.external_programs->setCellWidget(row, 4, on_already);
+        }
+
+        Q_UNUSED(enabled);
+    }
+}
+
+QJsonObject HydrusImportOptionsDialog::read_editor() const {
+    QJsonObject container;
+
+    auto is_used = [this](const QString &key) {
+        const QCheckBox *checkbox = editor.use_default.value(key);
+        return checkbox != nullptr && !checkbox->isChecked();
+    };
+
+    auto combo_value = [](const QComboBox *combo) {
+        return combo->currentData().toInt();
+    };
+
+    if (is_used(QStringLiteral("prefetch"))) {
+        container.insert(QStringLiteral("prefetch"), QJsonObject{
+            {QStringLiteral("preimport_hash_check_type"), combo_value(editor.prefetch_hash)},
+            {QStringLiteral("preimport_url_check_type"), combo_value(editor.prefetch_url)},
+            {QStringLiteral("preimport_url_check_looks_for_neighbour_spam"), editor.prefetch_spam->isChecked()},
+            {QStringLiteral("fetch_metadata_even_if_hash_known"), editor.prefetch_meta_hash->isChecked()},
+            {QStringLiteral("fetch_metadata_even_if_url_known"), editor.prefetch_meta_url->isChecked()},
+        });
+    }
+
+    if (is_used(QStringLiteral("file_filtering"))) {
+        QJsonArray allowed_mimes;
+
+        for (int row = 0; row < editor.mimes->count(); ++row) {
+            const QListWidgetItem *item = editor.mimes->item(row);
+
+            if (item->checkState() == Qt::Checked) {
+                allowed_mimes.append(item->data(Qt::UserRole).toString());
+            }
+        }
+
+        QJsonObject options{
+            {QStringLiteral("allowed_mimes"), allowed_mimes},
+            {QStringLiteral("excludes_deleted"), editor.exclude_deleted->isChecked()},
+            {QStringLiteral("allows_decompression_bombs"), editor.allow_bombs->isChecked()},
+        };
+
+        auto set_number = [&options](const QString &key, int value) {
+            options.insert(key, value > 0 ? QJsonValue(value) : QJsonValue(QJsonValue::Null));
+        };
+        set_number(QStringLiteral("min_size"), editor.min_size->value());
+        set_number(QStringLiteral("max_size"), editor.max_size->value());
+        set_number(QStringLiteral("max_gif_size"), editor.max_gif_size->value());
+
+        auto set_resolution = [&options](const QString &key, int width, int height) {
+            if (width > 0 || height > 0) {
+                options.insert(key, QJsonArray{width, height});
+            } else {
+                options.insert(key, QJsonValue(QJsonValue::Null));
+            }
+        };
+        set_resolution(QStringLiteral("min_resolution"), editor.min_width->value(), editor.min_height->value());
+        set_resolution(QStringLiteral("max_resolution"), editor.max_width->value(), editor.max_height->value());
+
+        container.insert(QStringLiteral("file_filtering"), options);
+    }
+
+    if (is_used(QStringLiteral("tag_filtering"))) {
+        QJsonObject rules;
+
+        for (int row = 0; row < editor.tag_rules->rowCount(); ++row) {
+            const QTableWidgetItem *slice = editor.tag_rules->item(row, 0);
+            auto *combo = qobject_cast<QComboBox *>(editor.tag_rules->cellWidget(row, 1));
+
+            if (slice == nullptr || combo == nullptr || slice->text().trimmed().isEmpty()) {
+                continue;
+            }
+
+            rules.insert(slice->text().trimmed(), combo->currentData().toString());
+        }
+
+        QJsonArray whitelist;
+        for (const QString &line : editor.tag_whitelist->toPlainText().split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts)) {
+            whitelist.append(line.trimmed());
+        }
+
+        container.insert(QStringLiteral("tag_filtering"), QJsonObject{
+            {QStringLiteral("rules"), rules},
+            {QStringLiteral("whitelist"), whitelist},
+        });
+    }
+
+    if (is_used(QStringLiteral("locations"))) {
+        QJsonArray destinations;
+
+        for (int row = 0; row < editor.destinations->count(); ++row) {
+            const QListWidgetItem *item = editor.destinations->item(row);
+
+            if (item->checkState() == Qt::Checked) {
+                destinations.append(item->text());
+            }
+        }
+
+        container.insert(QStringLiteral("locations"), QJsonObject{
+            {QStringLiteral("destination_services"), destinations},
+            {QStringLiteral("automatically_archives"), editor.auto_archive->isChecked()},
+            {QStringLiteral("associate_primary_urls"), editor.assoc_primary->isChecked()},
+            {QStringLiteral("associate_source_urls"), editor.assoc_source->isChecked()},
+            {QStringLiteral("do_automatic_archive_on_already_in_db_files"), editor.archive_existing->isChecked()},
+            {QStringLiteral("do_import_destinations_on_already_in_db_files"), editor.destinations_existing->isChecked()},
+        });
+    }
+
+    if (is_used(QStringLiteral("tags"))) {
+        QJsonObject services;
+
+        for (int row = 0; row < editor.tag_services->rowCount(); ++row) {
+            const QTableWidgetItem *name = editor.tag_services->item(row, 0);
+            auto *get_tags = qobject_cast<QCheckBox *>(editor.tag_services->cellWidget(row, 1));
+            auto *additional = qobject_cast<QLineEdit *>(editor.tag_services->cellWidget(row, 2));
+            auto *to_new = qobject_cast<QCheckBox *>(editor.tag_services->cellWidget(row, 3));
+            auto *to_inbox = qobject_cast<QCheckBox *>(editor.tag_services->cellWidget(row, 4));
+            auto *to_archive = qobject_cast<QCheckBox *>(editor.tag_services->cellWidget(row, 5));
+            auto *only_existing = qobject_cast<QCheckBox *>(editor.tag_services->cellWidget(row, 6));
+
+            if (name == nullptr) {
+                continue;
+            }
+
+            QJsonArray tags;
+            for (const QString &tag : additional->text().split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+                const QString trimmed = tag.trimmed();
+
+                if (!trimmed.isEmpty()) {
+                    tags.append(trimmed);
+                }
+            }
+
+            services.insert(name->data(Qt::UserRole).toString(), QJsonObject{
+                {QStringLiteral("get_tags"), get_tags->isChecked()},
+                {QStringLiteral("additional_tags"), tags},
+                {QStringLiteral("to_new_files"), to_new->isChecked()},
+                {QStringLiteral("to_already_in_inbox"), to_inbox->isChecked()},
+                {QStringLiteral("to_already_in_archive"), to_archive->isChecked()},
+                {QStringLiteral("only_add_existing_tags"), only_existing->isChecked()},
+            });
+        }
+
+        container.insert(QStringLiteral("tags"), services);
+    }
+
+    if (is_used(QStringLiteral("notes"))) {
+        QJsonArray whitelist;
+        for (const QString &line : editor.note_whitelist->toPlainText().split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts)) {
+            whitelist.append(line.trimmed());
+        }
+
+        QJsonObject overrides;
+        for (const QString &line : editor.note_overrides->toPlainText().split(QRegularExpression(QStringLiteral("[\\r\\n]+")), Qt::SkipEmptyParts)) {
+            const int separator = line.indexOf(QLatin1Char('='));
+
+            if (separator > 0) {
+                overrides.insert(line.left(separator).trimmed(), line.mid(separator + 1).trimmed());
+            }
+        }
+
+        const QString all_override = editor.note_all_override->text().trimmed();
+
+        container.insert(QStringLiteral("notes"), QJsonObject{
+            {QStringLiteral("get_notes"), editor.get_notes->isChecked()},
+            {QStringLiteral("extend_existing_note_if_possible"), editor.extend_notes->isChecked()},
+            {QStringLiteral("conflict_resolution"), editor.note_conflict->currentData().toString()},
+            {QStringLiteral("name_whitelist"), whitelist},
+            {QStringLiteral("all_name_override"), all_override.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(all_override)},
+            {QStringLiteral("names_to_name_overrides"), overrides},
+        });
+    }
+
+    if (is_used(QStringLiteral("presentation"))) {
+        container.insert(QStringLiteral("presentation"), QJsonObject{
+            {QStringLiteral("presentation_status"), editor.presentation_status->currentData().toString()},
+            {QStringLiteral("presentation_inbox"), editor.presentation_inbox->currentData().toString()},
+        });
+    }
+
+    if (is_used(QStringLiteral("external_programs"))) {
+        QJsonArray entries;
+
+        for (int row = 0; row < editor.external_programs->rowCount(); ++row) {
+            auto *name = qobject_cast<QLineEdit *>(editor.external_programs->cellWidget(row, 0));
+            auto *path = qobject_cast<QLineEdit *>(editor.external_programs->cellWidget(row, 1));
+            auto *arguments = qobject_cast<QLineEdit *>(editor.external_programs->cellWidget(row, 2));
+            auto *on_new = qobject_cast<QCheckBox *>(editor.external_programs->cellWidget(row, 3));
+            auto *on_already = qobject_cast<QCheckBox *>(editor.external_programs->cellWidget(row, 4));
+
+            if (path == nullptr || path->text().trimmed().isEmpty()) {
+                continue;
+            }
+
+            entries.append(QJsonObject{
+                {QStringLiteral("name"), name->text().trimmed()},
+                {QStringLiteral("path"), path->text().trimmed()},
+                {QStringLiteral("arguments"), arguments->text()},
+                {QStringLiteral("do_it_on_new"), on_new->isChecked()},
+                {QStringLiteral("do_it_on_already_in"), on_already->isChecked()},
+            });
+        }
+
+        container.insert(QStringLiteral("external_programs"), QJsonObject{
+            {QStringLiteral("entries"), entries},
+        });
+    }
+
+    return container;
+}
+
+void HydrusImportOptionsDialog::add_favourite() {
+    store_current();
+
+    QJsonObject favourites = data.value(QStringLiteral("favourites")).toObject();
+    QJsonObject defaults = data.value(QStringLiteral("defaults")).toObject();
+    QJsonObject container;
+
+    if (selected_key.startsWith(QStringLiteral("default:"))) {
+        container = defaults.value(selected_key.mid(8)).toObject();
+    } else if (selected_key.startsWith(QStringLiteral("favourite:"))) {
+        container = favourites.value(selected_key.mid(10)).toObject();
+    }
+
+    QString base = QStringLiteral("new import options");
+    QString name = base;
+    int counter = 2;
+
+    while (favourites.contains(name)) {
+        name = QStringLiteral("%1 (%2)").arg(base).arg(counter);
+        counter += 1;
+    }
+
+    favourites.insert(name, container);
+    data.insert(QStringLiteral("favourites"), favourites);
+    rebuild_list(QStringLiteral("favourite:%1").arg(name));
+}
+
+void HydrusImportOptionsDialog::rename_favourite() {
+    if (selected_key.startsWith(QStringLiteral("default:"))) {
+        return;
+    }
+
+    store_current();
+
+    const QString old_name = selected_key.mid(10);
+    bool ok = false;
+    const QString new_name = QInputDialog::getText(
+        this,
+        QStringLiteral("rename import options"),
+        QStringLiteral("new name:"),
+        QLineEdit::Normal,
+        old_name,
+        &ok).trimmed();
+
+    if (!ok || new_name.isEmpty() || new_name == old_name) {
+        return;
+    }
+
+    QJsonObject favourites = data.value(QStringLiteral("favourites")).toObject();
+
+    if (favourites.contains(new_name)) {
+        QMessageBox::warning(this, QStringLiteral("rename import options"), QStringLiteral("that name already exists"));
+        return;
+    }
+
+    const QJsonObject container = favourites.take(old_name).toObject();
+    favourites.insert(new_name, container);
+    data.insert(QStringLiteral("favourites"), favourites);
+    selected_key = QStringLiteral("favourite:%1").arg(new_name);
+    rebuild_list(selected_key);
+}
+
+void HydrusImportOptionsDialog::delete_favourite() {
+    if (selected_key.startsWith(QStringLiteral("default:"))) {
+        return;
+    }
+
+    const QString name = selected_key.mid(10);
+
+    if (QMessageBox::question(
+            this,
+            QStringLiteral("delete import options"),
+            QStringLiteral("delete the favourite container \"%1\"?").arg(name))
+        != QMessageBox::Yes) {
+        return;
+    }
+
+    QJsonObject favourites = data.value(QStringLiteral("favourites")).toObject();
+    favourites.remove(name);
+    data.insert(QStringLiteral("favourites"), favourites);
+    selected_key = QStringLiteral("default:global");
+    rebuild_list(selected_key);
+}
+
+void HydrusImportOptionsDialog::save() {
+    store_current();
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("defaults"), data.value(QStringLiteral("defaults")));
+    payload.insert(QStringLiteral("favourites"), data.value(QStringLiteral("favourites")));
+
+    main->notify(QStringLiteral("import_options_save"), QString(), json_payload(payload));
+
+    close();
+}
+
+void HydrusMainWindow::show_import_options(const QJsonObject &state) {
+    if (import_options_dialog == nullptr) {
+        import_options_dialog = new HydrusImportOptionsDialog(this, state, this);
+        connect(import_options_dialog, &QObject::destroyed, this, [this]() { import_options_dialog = nullptr; });
+    }
+
+    import_options_dialog->show();
+    import_options_dialog->raise();
+    import_options_dialog->activateWindow();
+}
+
 void HydrusMainWindow::show_duplicates_rules(const QJsonObject &state) {
     if (duplicates_rules_dialog == nullptr) {
         duplicates_rules_dialog = new HydrusDuplicatesRulesDialog(this, state, this);
@@ -9193,7 +10341,7 @@ void HydrusMainWindow::show_about(const QJsonObject &state) {
     layout->addWidget(title);
 
     auto *subtitle = new QLabel(
-        QStringLiteral("Rust/Qt client Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂєР В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р Р†РІР‚С›РЎС›Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В· software v%1 Р В Р’В Р вЂ™Р’В Р В РІР‚в„ўР вЂ™Р’В Р В Р’В Р В РІР‚В Р В Р’В Р Р†Р вЂљРЎв„ўР В Р вЂ Р Р†Р вЂљРЎвЂєР РЋРЎвЂєР В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р Р†РІР‚С›РЎС›Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В· network v%2")
+        QStringLiteral("Rust/Qt client Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р Р†РІР‚С›РЎС›Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В· software v%1 Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р Р†РІР‚С›РЎС›Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В· network v%2")
             .arg(state.value(QStringLiteral("software_version")).toInt())
             .arg(state.value(QStringLiteral("network_version")).toInt()),
         &dialog);
@@ -10795,7 +11943,7 @@ void HydrusOrphanFilesDialog::set_state(const QJsonObject &state) {
     }
 
     table->resizeRowsToContents();
-    status->setText(QStringLiteral("%1 — %2 file(s), %3 thumbnail(s), %4")
+    status->setText(QStringLiteral("%1 � %2 file(s), %3 thumbnail(s), %4")
                         .arg(state.value(QStringLiteral("status")).toString())
                         .arg(state.value(QStringLiteral("files")).toInt())
                         .arg(state.value(QStringLiteral("thumbnails")).toInt())
@@ -11228,6 +12376,10 @@ void hydrus_show_duplicate_merge_options(HydrusMainWindow &window, rust::Str jso
 
 void hydrus_show_duplicate_custom_action(HydrusMainWindow &window, rust::Str json) {
     window.show_duplicate_custom_action(parse_object(json));
+}
+
+void hydrus_show_import_options(HydrusMainWindow &window, rust::Str json) {
+    window.show_import_options(parse_object(json));
 }
 
 void hydrus_update_auto_resolution_preview(HydrusMainWindow &window, rust::Str json) {

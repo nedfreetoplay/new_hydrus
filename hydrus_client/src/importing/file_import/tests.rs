@@ -25,7 +25,10 @@ fn unknown_and_deleted_statuses_control_import() {
     assert!(!deleted.should_import(&options));
 
     let mut allow_deleted = options.clone();
-    allow_deleted.file_filtering.excludes_deleted = false;
+    allow_deleted.file_filtering = Some(FileFilteringImportOptions {
+        excludes_deleted: false,
+        ..Default::default()
+    });
     assert!(deleted.should_import(&allow_deleted));
 }
 
@@ -62,10 +65,10 @@ fn known_hashes_short_circuit_as_redundant() {
 fn filters_reject_files_with_status_error() {
     let path = png_file("filtered");
     let options = ImportOptionsContainer {
-        file_filtering: FileFilteringImportOptions {
+        file_filtering: Some(FileFilteringImportOptions {
             allowed_mimes: vec![Mime::Jpeg],
             ..Default::default()
-        },
+        }),
         ..Default::default()
     };
     let mut job = FileImportJob::new(&path, options, None);

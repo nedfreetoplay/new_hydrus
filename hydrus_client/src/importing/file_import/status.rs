@@ -55,7 +55,8 @@ impl FileImportStatus {
             return true;
         }
 
-        if self.status == Status::Deleted && !container.file_filtering.excludes_deleted {
+        if self.status == Status::Deleted && !container.file_filtering_or_default().excludes_deleted
+        {
             return true;
         }
 

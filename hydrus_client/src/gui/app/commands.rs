@@ -73,6 +73,7 @@ pub enum UiCommand {
     ManageTagsDialog(String),
     TimestampsDialog(String),
     NotesDialog(String),
+    ImportOptionsDialog(String),
     OptionsDialog(String),
     ServicesDialog(String),
     UpdateServices(String),

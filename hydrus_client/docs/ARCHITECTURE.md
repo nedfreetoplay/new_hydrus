@@ -223,6 +223,17 @@ selected-файлам; префикс `-` удаляет тег. Обе опер
 thumbnail и индексацию perceptual/pixel hash. Тот же контекст используется
 фоновым worker'ом.
 
+`importing::options` содержит import options framework: prefetch, file filtering,
+tag filtering, locations, tags, notes, presentation и external programs. Каждый
+контейнер хранит только явно заданные типы и source label; `ImportOptionsManager`
+держит default-контейнер на каждый caller type плюс именованные favourites.
+Эффективные опции собираются по приоритету specific importer -> caller default ->
+global, поэтому более конкретные настройки перекрывают общие. Менеджер сохраняется
+в options group `import_options`; диалог File → import options... редактирует
+контейнеры по вкладкам и позволяет сбросить тип на наследование. Локальный импорт
+применяет file filtering, destinations и automatic archive из эффективных опций
+`local_import`.
+
 `gui::app::download` создаёт задания, а `worker` качает прямые URL или страницы
 через site-specific парсеры (`parsing::gallery`: danbooru, gelbooru, e621, rule34,
 safebooru, pixiv, generic). Generic-парсер следует ссылкам страницы и собирает

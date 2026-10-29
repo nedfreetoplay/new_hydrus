@@ -211,9 +211,17 @@ Rust-цели: `gui/app/import.rs`, `gui/app/import_folders.rs`,
 - [x] 06.3 Import folders: период, pause, subdirectories.
 - [x] 06.4 Фильтры: расширения, min/max size, skip recent.
 - [x] 06.5 Post-import move/delete/ignore.
-- [ ] 06.6 Import options framework: file filtering, location, notes,
-  presentation, prefetch, tags, external programs.
-- [ ] 06.7 Default/specific import options containers.
+- [x] 06.6 Import options framework: file filtering, location, notes,
+  presentation, prefetch, tags, external programs. Каждый тип — отдельная структура
+  с сериализацией; контейнер хранит только явно заданные типы, отсутствующие
+  наследуются. Диалог редактирует контейнер по вкладкам и умеет сбрасывать тип на
+  «use default». Локальный импорт применяет file filtering, destinations и
+  automatic archive из эффективных опций.
+- [x] 06.7 Default/specific import options containers: менеджер хранит default
+  контейнер для каждого caller type (global, client api, local import, import
+  folder, watcher urls, post urls, subscription, url class, specific importer) и
+  именованные favourites; эффективные опции собираются по приоритету specific ->
+  caller -> global. Менеджер сохраняется в options group `import_options`.
 - [ ] 06.8 Filename tagging options.
 - [ ] 06.9 Local import review panel.
 - [ ] 06.10 File seed cache UI.

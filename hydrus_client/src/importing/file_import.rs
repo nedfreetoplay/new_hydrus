@@ -103,12 +103,11 @@ impl FileImportJob {
             ));
         };
 
-        if self.import_options.file_filtering.check_file_is_valid(
-            info.size,
-            info.mime,
-            info.width,
-            info.height,
-        ) {
+        if self
+            .import_options
+            .file_filtering_or_default()
+            .check_file_is_valid(info.size, info.mime, info.width, info.height)
+        {
             Ok(())
         } else {
             Err(HydrusException::new(

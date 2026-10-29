@@ -189,7 +189,10 @@ impl WorkerContext {
     }
 
     fn importer(&self) -> Result<ImportContext, String> {
-        ImportContext::new(self.db.clone(), self.files_manager.clone())
+        let manager = crate::importing::ImportOptionsManager::load_from_options(&self.options);
+        let import_options = manager.get_effective("local_import", None);
+
+        ImportContext::new_with_options(self.db.clone(), self.files_manager.clone(), import_options)
     }
 
     fn client(&self) -> Result<Client, String> {

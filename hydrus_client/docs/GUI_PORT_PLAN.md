@@ -222,7 +222,12 @@ Rust-цели: `gui/app/import.rs`, `gui/app/import_folders.rs`,
   folder, watcher urls, post urls, subscription, url class, specific importer) и
   именованные favourites; эффективные опции собираются по приоритету specific ->
   caller -> global. Менеджер сохраняется в options group `import_options`.
-- [ ] 06.8 Filename tagging options.
+- [x] 06.8 Filename tagging options: `FilenameTaggingOptions` с тегами для всех
+  файлов, добавлением имени файла, шестью directory-слотами (0,1,2,-3,-2,-1),
+  regex'ами и namespace-regex'ами. Import folder хранит набор опций на каждый
+  локальный tag service; диалог папки показывает список сервисов, редактирует
+  правила с preview по примеру пути, а успешный импорт добавляет полученные теги
+  в этот tag service.
 - [ ] 06.9 Local import review panel.
 - [ ] 06.10 File seed cache UI.
 - [ ] 06.11 Gallery seed log UI.

@@ -5,11 +5,13 @@
 //! for a caller (global -> caller default -> specific importer).
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 use hydrus_core::hydrus_constants::{
     ANIMATIONS, APPLICATIONS, ARCHIVES, AUDIO, GENERAL_CLASSES_OF_FILETYPE, IMAGE_PROJECT_FILES,
     IMAGES, Mime, VIDEO,
 };
+use hydrus_core::hydrus_tags;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Canonical order from `ImportOptionsConstants.py`.
@@ -757,6 +759,275 @@ impl ExternalProgramsImportOptions {
 
         statements.join(", ")
     }
+}
+
+/// One of the six directory slots a filename tagging rule can read. The
+/// indexes are `0, 1, 2` from the start of the path and `-3, -2, -1` from the
+/// end, matching Python's `_directories_dict`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DirectoryTaggingRule {
+    pub enabled: bool,
+    /// Empty means an unnamespaced tag; otherwise the directory name is added
+    /// as `namespace:directory`.
+    pub namespace: String,
+}
+
+impl Default for DirectoryTaggingRule {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            namespace: String::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct QuickNamespaceRule {
+    pub namespace: String,
+    pub regex: String,
+}
+
+impl Default for QuickNamespaceRule {
+    fn default() -> Self {
+        Self {
+            namespace: String::new(),
+            regex: String::new(),
+        }
+    }
+}
+
+/// `FilenameTaggingOptions.py`: turns a file's path into tags.
+///
+/// Python keys this object by tag service key on an import folder and on a
+/// local import page; here the map lives on the folder entry.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FilenameTaggingOptions {
+    pub tags_for_all: Vec<String>,
+    pub add_filename: bool,
+    pub filename_namespace: String,
+    /// Keys are the six directory slots described on [`DirectoryTaggingRule`].
+    pub directories: BTreeMap<i32, DirectoryTaggingRule>,
+    pub quick_namespaces: Vec<QuickNamespaceRule>,
+    pub regexes: Vec<String>,
+}
+
+pub const FILENAME_TAGGING_DIRECTORIES: &[i32] = &[0, 1, 2, -3, -2, -1];
+
+impl Default for FilenameTaggingOptions {
+    fn default() -> Self {
+        let mut directories = BTreeMap::new();
+
+        for index in FILENAME_TAGGING_DIRECTORIES {
+            directories.insert(*index, DirectoryTaggingRule::default());
+        }
+
+        Self {
+            tags_for_all: Vec::new(),
+            add_filename: false,
+            filename_namespace: "filename".to_string(),
+            directories,
+            quick_namespaces: Vec::new(),
+            regexes: Vec::new(),
+        }
+    }
+}
+
+impl FilenameTaggingOptions {
+    /// `GetTags( service_key, path )`
+    ///
+    /// Tags are cleaned and de-duplicated; display filtering is applied by the
+    /// caller when it writes the mappings.
+    pub fn get_tags(&self, path: &Path) -> Vec<String> {
+        let mut tags: Vec<String> = self.tags_for_all.clone();
+
+        let filename = path
+            .file_stem()
+            .map(|stem| stem.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        if self.add_filename && !filename.is_empty() {
+            tags.push(namespaced_tag(&self.filename_namespace, &filename));
+        }
+
+        let directories = directory_components(path);
+
+        for (index, rule) in &self.directories {
+            if !rule.enabled {
+                continue;
+            }
+
+            let Some(directory) = directory_at(&directories, *index) else {
+                continue;
+            };
+
+            tags.push(namespaced_tag(&rule.namespace, directory));
+        }
+
+        let path_text = path.to_string_lossy();
+
+        for pattern in &self.regexes {
+            collect_regex_matches(&mut tags, pattern, &path_text, None);
+        }
+
+        for rule in &self.quick_namespaces {
+            collect_regex_matches(
+                &mut tags,
+                &rule.regex,
+                &path_text,
+                Some(rule.namespace.as_str()),
+            );
+        }
+
+        clean_tag_list(tags)
+    }
+
+    pub fn get_summary(&self) -> String {
+        let mut statements = Vec::new();
+
+        if !self.tags_for_all.is_empty() {
+            statements.push(format!("{} tag(s) for all", self.tags_for_all.len()));
+        }
+
+        if self.add_filename {
+            statements.push(format!("filename as '{}'", self.filename_namespace));
+        }
+
+        let directories = self
+            .directories
+            .values()
+            .filter(|rule| rule.enabled)
+            .count();
+
+        if directories > 0 {
+            statements.push(format!("{directories} directory rule(s)"));
+        }
+
+        if !self.quick_namespaces.is_empty() {
+            statements.push(format!(
+                "{} namespace regex(es)",
+                self.quick_namespaces.len()
+            ));
+        }
+
+        if !self.regexes.is_empty() {
+            statements.push(format!("{} regex(es)", self.regexes.len()));
+        }
+
+        if statements.is_empty() {
+            "no tags".to_string()
+        } else {
+            statements.join(", ")
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.tags_for_all.is_empty()
+            && !self.add_filename
+            && self.directories.values().all(|rule| !rule.enabled)
+            && self.quick_namespaces.is_empty()
+            && self.regexes.is_empty()
+    }
+}
+
+fn namespaced_tag(namespace: &str, subtag: &str) -> String {
+    let namespace = namespace.trim();
+
+    if namespace.is_empty() {
+        subtag.to_string()
+    } else {
+        format!("{namespace}:{subtag}")
+    }
+}
+
+/// Path directories without the drive/root and the filename, so index `0` is
+/// the first real directory and `-1` the immediate parent.
+fn directory_components(path: &Path) -> Vec<String> {
+    let mut components: Vec<String> = path
+        .parent()
+        .map(|parent| {
+            parent
+                .components()
+                .filter_map(|component| match component {
+                    std::path::Component::Normal(part) => Some(part.to_string_lossy().to_string()),
+                    _ => None,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    components.retain(|component| !component.is_empty());
+
+    components
+}
+
+fn directory_at(directories: &[String], index: i32) -> Option<&str> {
+    let len = directories.len() as i32;
+    let resolved = if index < 0 { len + index } else { index };
+
+    if resolved < 0 || resolved >= len {
+        return None;
+    }
+
+    directories.get(resolved as usize).map(String::as_str)
+}
+
+/// Mimics `re.findall`: capture groups win when the pattern has any, otherwise
+/// the whole match is used.
+fn collect_regex_matches(
+    tags: &mut Vec<String>,
+    pattern: &str,
+    text: &str,
+    namespace: Option<&str>,
+) {
+    let Ok(regex) = regex::Regex::new(pattern) else {
+        return;
+    };
+
+    if regex.captures_len() > 1 {
+        for captures in regex.captures_iter(text) {
+            for group in captures.iter().skip(1).flatten() {
+                let tag = match namespace {
+                    Some(namespace) => namespaced_tag(namespace, group.as_str()),
+                    None => group.as_str().to_string(),
+                };
+
+                tags.push(tag);
+            }
+        }
+    } else {
+        for found in regex.find_iter(text) {
+            let tag = match namespace {
+                Some(namespace) => namespaced_tag(namespace, found.as_str()),
+                None => found.as_str().to_string(),
+            };
+
+            tags.push(tag);
+        }
+    }
+}
+
+fn clean_tag_list(tags: Vec<String>) -> Vec<String> {
+    let mut clean: BTreeSet<String> = BTreeSet::new();
+
+    for tag in tags {
+        let tag = tag.trim();
+
+        if tag.is_empty() {
+            continue;
+        }
+
+        match hydrus_tags::clean_tag(tag) {
+            Ok(tag) if hydrus_tags::check_tag_not_empty(&tag).is_ok() => {
+                clean.insert(tag);
+            }
+            _ => {}
+        }
+    }
+
+    clean.into_iter().collect()
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -4,12 +4,15 @@
 //! the GUI entries, their JSON file and the scan-scheduling glue to the async
 //! import worker.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use hydrus_core::hydrus_constants::ServiceType;
 use hydrus_core::hydrus_time;
 use serde::{Deserialize, Serialize};
 
 use crate::importing::import_folders::{ImportFolder, ImportFolderAction};
+use crate::importing::options::FilenameTaggingOptions;
 
 use super::model::ImportFoldersPage;
 use super::worker::AsyncJob;
@@ -52,6 +55,10 @@ pub struct ImportFolderEntry {
     /// every extension is accepted.
     #[serde(default)]
     pub extensions: String,
+    /// Hex tag service key -> filename tagging options. Tags are added to that
+    /// local tag service after a successful import.
+    #[serde(default)]
+    pub filename_tagging: BTreeMap<String, FilenameTaggingOptions>,
 }
 
 fn default_action() -> String {
@@ -84,6 +91,7 @@ impl ImportFolderEntry {
             min_size: 0,
             max_size: 0,
             extensions: String::new(),
+            filename_tagging: BTreeMap::new(),
         }
     }
 
@@ -243,8 +251,26 @@ pub fn edit(state: &AppState, payload: &str) -> Vec<UiCommand> {
         None => folder_json(&ImportFolderEntry::new("", "", 300)),
     };
 
+    let tag_services: Vec<serde_json::Value> = state
+        .controller
+        .services()
+        .get_services(Some(&[ServiceType::LocalTag]))
+        .into_iter()
+        .map(|service| {
+            serde_json::json!({
+                "key": super::query::hex(&service.service_key),
+                "name": service.name,
+            })
+        })
+        .collect();
+
     vec![UiCommand::ImportFolderDialog(
-        serde_json::json!({"folder": folder, "existing": !name.is_empty()}).to_string(),
+        serde_json::json!({
+            "folder": folder,
+            "existing": !name.is_empty(),
+            "tag_services": tag_services,
+        })
+        .to_string(),
     )]
 }
 
@@ -362,6 +388,21 @@ fn apply_payload(entry: &mut ImportFolderEntry, value: &serde_json::Value) {
         entry.extensions = extensions.trim().to_string();
     }
 
+    if let Some(tagging) = value
+        .get("filename_tagging")
+        .and_then(serde_json::Value::as_object)
+    {
+        entry.filename_tagging = tagging
+            .iter()
+            .filter_map(|(key, options)| {
+                serde_json::from_value::<FilenameTaggingOptions>(options.clone())
+                    .ok()
+                    .filter(|options| !options.is_empty())
+                    .map(|options| (key.clone(), options))
+            })
+            .collect();
+    }
+
     if let Some(skip) = value
         .get("last_modified_skip")
         .and_then(serde_json::Value::as_i64)
@@ -447,6 +488,11 @@ pub fn check_now(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     if let Err(error) = state.runtime.submit(AsyncJob::ImportPaths {
         paths: paths.clone(),
         folder: Some(folder.name.clone()),
+        filename_tagging: folder
+            .filename_tagging
+            .iter()
+            .filter_map(|(key, options)| super::query::unhex(key).map(|key| (key, options.clone())))
+            .collect(),
     }) {
         folder.status = error;
         return page_commands(state);
@@ -505,6 +551,7 @@ pub fn folder_json(folder: &ImportFolderEntry) -> serde_json::Value {
         "max_size": folder.max_size,
         "extensions": folder.extensions,
         "last_modified_skip": folder.last_modified_skip,
+        "filename_tagging": folder.filename_tagging,
     })
 }
 
@@ -740,4 +787,46 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(directory);
     }
+}
+
+#[test]
+fn filename_tagging_round_trips_through_the_folder_payload() {
+    let mut entry = ImportFolderEntry::new("incoming", ".", 60);
+
+    let payload = serde_json::json!({
+        "filename_tagging": {
+            "abcd": {
+                "tags_for_all": ["test tag"],
+                "add_filename": true,
+                "filename_namespace": "filename",
+                "directories": {"0": {"enabled": true, "namespace": "artist"}},
+                "quick_namespaces": [],
+                "regexes": []
+            }
+        }
+    });
+
+    apply_payload(&mut entry, &payload);
+
+    assert_eq!(entry.filename_tagging.len(), 1);
+    assert!(entry.filename_tagging["abcd"].add_filename);
+    assert_eq!(entry.filename_tagging["abcd"].tags_for_all, ["test tag"]);
+
+    let json = folder_json(&entry);
+    let loaded: BTreeMap<String, FilenameTaggingOptions> =
+        serde_json::from_value(json["filename_tagging"].clone()).unwrap();
+
+    assert_eq!(loaded, entry.filename_tagging);
+}
+
+#[test]
+fn empty_filename_tagging_rules_are_not_persisted() {
+    let mut entry = ImportFolderEntry::new("incoming", ".", 60);
+
+    apply_payload(
+        &mut entry,
+        &serde_json::json!({"filename_tagging": {"abcd": {}}}),
+    );
+
+    assert!(entry.filename_tagging.is_empty());
 }

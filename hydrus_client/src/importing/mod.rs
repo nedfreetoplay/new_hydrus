@@ -13,10 +13,10 @@ pub use gallery_and_urls::{
 };
 pub use import_folders::{ImportFolder, ImportFolderAction, ImportFoldersManager};
 pub use options::{
-    ExternalProgramEntry, ExternalProgramsImportOptions, FileFilteringImportOptions,
-    ImportOptionsContainer, LocationImportOptions, NoteImportOptions, PrefetchImportOptions,
-    PresentationImportOptions, ServiceTagImportOptions, TagFilteringImportOptions,
-    TagImportOptions,
+    DirectoryTaggingRule, ExternalProgramEntry, ExternalProgramsImportOptions,
+    FileFilteringImportOptions, FilenameTaggingOptions, ImportOptionsContainer,
+    LocationImportOptions, NoteImportOptions, PrefetchImportOptions, PresentationImportOptions,
+    QuickNamespaceRule, ServiceTagImportOptions, TagFilteringImportOptions, TagImportOptions,
 };
 pub use options_manager::{IMPORT_OPTIONS_GROUP, IMPORT_OPTIONS_KEY, ImportOptionsManager};
 pub use watchers_subscriptions::{

@@ -193,3 +193,58 @@ fn import_options_manager_round_trips_through_client_options() {
     drop(controller);
     let _ = std::fs::remove_dir_all(directory);
 }
+
+#[test]
+fn filename_tagging_writes_tags_to_the_local_tag_service() {
+    let (controller, directory) = temporary_controller();
+    let folder = directory.join("artists").join("aurora");
+    std::fs::create_dir_all(&folder).unwrap();
+    let source = folder.join("blue sky.png");
+
+    image::RgbaImage::from_pixel(8, 6, image::Rgba([10, 20, 30, 255]))
+        .save(&source)
+        .unwrap();
+
+    let mut tagging = crate::importing::FilenameTaggingOptions {
+        tags_for_all: vec!["test tag".to_string()],
+        add_filename: true,
+        filename_namespace: "filename".to_string(),
+        ..Default::default()
+    };
+    tagging.directories.insert(
+        -1,
+        crate::importing::DirectoryTaggingRule {
+            enabled: true,
+            namespace: "artist".to_string(),
+        },
+    );
+
+    let context = ImportContext::from_controller(&controller)
+        .unwrap()
+        .with_filename_tagging([(b"local tags".to_vec(), tagging)].into_iter().collect());
+
+    let summary = import_paths_with(&context, &[source]);
+    assert_eq!(summary.imported, 1, "{:?}", summary.errors);
+
+    let hash_id = query::hash_id_for(&controller, &summary.hashes[0]).unwrap();
+    let services = crate::db::services::get_services(controller.db().db()).unwrap();
+    let local_tags = services
+        .iter()
+        .find(|service| service.service_type == ServiceType::LocalTag)
+        .unwrap();
+
+    let tags = crate::db::mappings::get_tags(
+        controller.db().db(),
+        local_tags.service_id,
+        ContentStatus::Current,
+        hash_id,
+    )
+    .unwrap();
+
+    assert!(tags.contains(&"test tag".to_string()), "{tags:?}");
+    assert!(tags.contains(&"filename:blue sky".to_string()), "{tags:?}");
+    assert!(tags.contains(&"artist:aurora".to_string()), "{tags:?}");
+
+    drop(controller);
+    let _ = std::fs::remove_dir_all(directory);
+}

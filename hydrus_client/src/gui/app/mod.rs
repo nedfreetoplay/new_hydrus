@@ -2593,6 +2593,7 @@ impl AppState {
         let job = worker::AsyncJob::ImportPaths {
             paths: paths.clone(),
             folder: None,
+            filename_tagging: Default::default(),
         };
 
         if let Err(error) = self.runtime.submit(job) {

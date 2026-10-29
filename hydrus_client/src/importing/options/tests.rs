@@ -227,3 +227,96 @@ fn file_type_classes_have_extensions() {
         );
     }
 }
+
+#[test]
+fn filename_tagging_adds_tags_for_all_filename_and_directories() {
+    let mut options = FilenameTaggingOptions {
+        tags_for_all: vec!["all files".to_string()],
+        add_filename: true,
+        filename_namespace: "filename".to_string(),
+        ..Default::default()
+    };
+    options.directories.insert(
+        1,
+        DirectoryTaggingRule {
+            enabled: true,
+            namespace: "artist".to_string(),
+        },
+    );
+    options.directories.insert(
+        -1,
+        DirectoryTaggingRule {
+            enabled: true,
+            namespace: String::new(),
+        },
+    );
+
+    let tags = options.get_tags(std::path::Path::new("/artists/aurora/2024/sketch one.png"));
+
+    assert!(tags.contains(&"all files".to_string()), "{tags:?}");
+    assert!(
+        tags.contains(&"filename:sketch one".to_string()),
+        "{tags:?}"
+    );
+    assert!(tags.contains(&"artist:aurora".to_string()), "{tags:?}");
+    assert!(tags.contains(&"2024".to_string()), "{tags:?}");
+}
+
+#[test]
+fn filename_tagging_applies_regexes_and_quick_namespaces() {
+    let options = FilenameTaggingOptions {
+        regexes: vec![r"(\d{4})".to_string()],
+        quick_namespaces: vec![QuickNamespaceRule {
+            namespace: "creator".to_string(),
+            regex: r"by ([a-z]+)".to_string(),
+        }],
+        ..Default::default()
+    };
+
+    let tags = options.get_tags(std::path::Path::new("/tmp/2023 by mira.png"));
+
+    assert!(tags.contains(&"2023".to_string()), "{tags:?}");
+    assert!(tags.contains(&"creator:mira".to_string()), "{tags:?}");
+}
+
+#[test]
+fn filename_tagging_cleans_and_deduplicates_tags() {
+    let options = FilenameTaggingOptions {
+        tags_for_all: vec![
+            "  Blue   Eyes ".to_string(),
+            "blue eyes".to_string(),
+            "another tag".to_string(),
+        ],
+        ..Default::default()
+    };
+
+    let tags = options.get_tags(std::path::Path::new("/tmp/file.png"));
+
+    assert_eq!(
+        tags,
+        vec!["another tag".to_string(), "blue eyes".to_string()]
+    );
+}
+
+#[test]
+fn filename_tagging_round_trips_through_json() {
+    let mut options = FilenameTaggingOptions {
+        tags_for_all: vec!["a".to_string()],
+        add_filename: true,
+        ..Default::default()
+    };
+    options.directories.insert(
+        -2,
+        DirectoryTaggingRule {
+            enabled: true,
+            namespace: "series".to_string(),
+        },
+    );
+
+    let value = serde_json::to_value(&options).unwrap();
+    let loaded: FilenameTaggingOptions = serde_json::from_value(value).unwrap();
+
+    assert_eq!(loaded, options);
+    assert_eq!(loaded.directories.len(), 6);
+    assert!(loaded.get_summary().contains("filename"));
+}

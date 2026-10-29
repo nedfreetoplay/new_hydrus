@@ -38,6 +38,10 @@ pub(crate) enum AsyncJob {
         /// Set when the batch came from an import folder, so post-import
         /// move/delete actions can be applied to that folder.
         folder: Option<String>,
+        /// Tag service key -> filename tagging options, from the import folder
+        /// or local import dialog.
+        filename_tagging:
+            std::collections::BTreeMap<Vec<u8>, crate::importing::FilenameTaggingOptions>,
     },
     DownloadUrls {
         job_id: String,
@@ -239,7 +243,11 @@ impl WorkerContext {
 fn worker_loop(mut context: WorkerContext, jobs: Receiver<AsyncJob>, events: Sender<AsyncEvent>) {
     while let Ok(job) = jobs.recv() {
         match job {
-            AsyncJob::ImportPaths { paths, folder } => run_import(&context, &events, paths, folder),
+            AsyncJob::ImportPaths {
+                paths,
+                folder,
+                filename_tagging,
+            } => run_import(&context, &events, paths, folder, filename_tagging),
             AsyncJob::DownloadUrls { job_id, urls } => {
                 run_download_urls(&context, &events, &job_id, urls)
             }
@@ -284,6 +292,7 @@ fn run_import(
     events: &Sender<AsyncEvent>,
     paths: Vec<PathBuf>,
     folder: Option<String>,
+    filename_tagging: std::collections::BTreeMap<Vec<u8>, crate::importing::FilenameTaggingOptions>,
 ) {
     let total = paths.len();
     let mut imported = 0;
@@ -292,7 +301,10 @@ fn run_import(
     let mut hashes = Vec::new();
     let mut results = Vec::with_capacity(total);
 
-    let importer = match context.importer() {
+    let importer = match context
+        .importer()
+        .map(|importer| importer.with_filename_tagging(filename_tagging))
+    {
         Ok(importer) => importer,
         Err(error) => {
             let _ = events.send(AsyncEvent::ImportFinished {

@@ -234,6 +234,12 @@ global, поэтому более конкретные настройки пер
 применяет file filtering, destinations и automatic archive из эффективных опций
 `local_import`.
 
+`FilenameTaggingOptions` превращает путь файла в теги: общие теги, имя файла с
+namespace, до шести directory-слотов (с начала и с конца пути), обычные regex'ы и
+regex'ы с namespace. Import folder хранит такую настройку на каждый локальный tag
+service (ключ — hex service key) и передаёт её в worker; после успешного импорта
+теги добавляются в соответствующий локальный tag service.
+
 `gui::app::download` создаёт задания, а `worker` качает прямые URL или страницы
 через site-specific парсеры (`parsing::gallery`: danbooru, gelbooru, e621, rule34,
 safebooru, pixiv, generic). Generic-парсер следует ссылкам страницы и собирает

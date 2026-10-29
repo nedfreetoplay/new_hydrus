@@ -6,6 +6,7 @@
 //! hash, inspect, copy into file storage, register metadata/service membership
 //! and generate a thumbnail.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use hydrus_core::files::hydrus_file_handling as core_files;
@@ -15,13 +16,14 @@ use hydrus_core::hydrus_time;
 
 use crate::controller::Controller;
 use crate::db::{
-    duplicates, files_metadata, files_storage, files_timestamps, master, similar_files, url_map,
+    duplicates, files_metadata, files_storage, files_timestamps, mappings, master, master_tags,
+    similar_files, url_map,
 };
 use crate::files::ClientFilesManager;
 use crate::files::images::{
     decode_image_path, discard_blank_perceptual_hashes, generate_shape_perceptual_hash,
 };
-use crate::importing::ImportOptionsContainer;
+use crate::importing::{FilenameTaggingOptions, ImportOptionsContainer};
 
 #[derive(Debug, Default)]
 pub struct ImportSummary {
@@ -57,6 +59,7 @@ pub struct ImportContext {
     files_manager: ClientFilesManager,
     file_service_ids: Vec<i64>,
     import_options: ImportOptionsContainer,
+    filename_tagging: BTreeMap<Vec<u8>, FilenameTaggingOptions>,
 }
 
 impl ImportContext {
@@ -114,7 +117,18 @@ impl ImportContext {
             files_manager,
             file_service_ids,
             import_options,
+            filename_tagging: BTreeMap::new(),
         })
+    }
+
+    /// Adds the per-tag-service filename tagging rules used by import folders.
+    pub fn with_filename_tagging(
+        mut self,
+        filename_tagging: BTreeMap<Vec<u8>, FilenameTaggingOptions>,
+    ) -> Self {
+        self.filename_tagging = filename_tagging;
+
+        self
     }
 
     pub fn db(&self) -> &DBBase {
@@ -143,7 +157,54 @@ impl ImportContext {
             source_url,
         )?;
 
+        self.apply_filename_tags(&hash, path)?;
+
         Ok(hash)
+    }
+
+    /// `FilenameTaggingOptions.GetTags` applied to each configured local tag
+    /// service after a successful import.
+    fn apply_filename_tags(&self, hash: &[u8], path: &Path) -> Result<(), String> {
+        if self.filename_tagging.is_empty() {
+            return Ok(());
+        }
+
+        let services = crate::db::services::get_services(&self.db).unwrap_or_default();
+        let hash_id = master::get_hash_id(&self.db, hash).map_err(|error| error.to_string())?;
+
+        for (service_key, options) in &self.filename_tagging {
+            let Some(service) = services.iter().find(|service| {
+                &service.service_key == service_key && service.service_type == ServiceType::LocalTag
+            }) else {
+                continue;
+            };
+
+            let tags = options.get_tags(path);
+
+            if tags.is_empty() {
+                continue;
+            }
+
+            let mut tag_ids = Vec::with_capacity(tags.len());
+
+            for tag in &tags {
+                match master_tags::get_tag_id(&self.db, tag) {
+                    Ok(tag_id) => tag_ids.push(tag_id),
+                    Err(error) => return Err(format!("could not create tag '{tag}': {error}")),
+                }
+            }
+
+            mappings::add_mappings(
+                &self.db,
+                service.service_id,
+                ContentStatus::Current,
+                hash_id,
+                &tag_ids,
+            )
+            .map_err(|error| error.to_string())?;
+        }
+
+        Ok(())
     }
 }
 

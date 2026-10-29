@@ -85,6 +85,12 @@ pub fn menus_json(state: &AppState) -> String {
             "title": "&pages",
             "items": [
                 {"label": "new page...", "action": "new_page"},
+                {"label": "download", "items": [
+                    {"label": "new url download page", "action": "new_urls", "description": "Download direct file URLs."},
+                    {"label": "new watcher page", "action": "new_watcher", "description": "Watch a page for new files."},
+                    {"label": "new gallery page", "action": "new_gallery", "description": "Parse a gallery page and download its files."},
+                    {"label": "new simple downloader page", "action": "new_simple", "description": "Parse page links and download the files they point to."}
+                ]},
                 {"label": "refresh", "action": "refresh_page"},
                 {"separator": true},
                 {"label": "back", "action": "history_back", "enabled": state.history.can_back()},
@@ -139,23 +145,14 @@ pub fn menus_json(state: &AppState) -> String {
             ]
         },
         {
-            "title": "&download",
-            "items": [
-                {"label": "urls", "action": "new_urls", "description": "Download direct file URLs."},
-                {"label": "gallery", "action": "new_gallery", "description": "Parse a gallery page and download its files."},
-                {"label": "watcher", "action": "new_watcher", "description": "Watch a page for new files."},
-                {"label": "subscriptions", "action": "new_subscriptions", "description": "Manage periodic gallery subscriptions."},
-                {"label": "simple downloader", "action": "new_simple", "description": "Parse page links and download the files they point to."},
-                {"separator": true},
-                {"label": "export downloader definition...", "action": "downloader_export"},
-                {"label": "import downloader definition...", "action": "downloader_import"}
-            ]
-        },
-        {
             "title": "&network",
             "items": [
                 {"label": "manage network...", "action": "options_network"},
-                {"label": "pause all new network traffic", "action": "pause_network", "checkable": true, "checked": state.controller.network_paused()}
+                {"label": "pause all new network traffic", "action": "pause_network", "checkable": true, "checked": state.controller.network_paused()},
+                {"label": "subscriptions...", "action": "new_subscriptions", "description": "Manage periodic gallery subscriptions."},
+                {"separator": true},
+                {"label": "export downloader definition...", "action": "downloader_export"},
+                {"label": "import downloader definition...", "action": "downloader_import"}
             ]
         },
         {
@@ -579,6 +576,12 @@ pub fn query_state(
         "empty_text": page.empty_text,
         "focused": focused,
         "tags": tags,
+        "predicates": page
+            .query
+            .split(',')
+            .map(str::trim)
+            .filter(|part| !part.is_empty())
+            .collect::<Vec<_>>(),
         "metadata": metadata,
         "media": query::media_json(controller, page),
         "count": page.hashes.len(),
@@ -695,34 +698,34 @@ pub fn status_json(state: &AppState) -> String {
         None => String::new(),
     };
 
-    let version = state.controller.db().get_version().unwrap_or(0);
-    let services = state.controller.services().get_num_services();
-    let dir = state.controller.db_dir().display();
-
-    let mut idle = "idle".to_string();
+    let mut busy = String::new();
 
     if state.import_queue.running {
-        idle = format!(
-            "importing {}/{}",
-            state.import_queue.done, state.import_queue.total
-        );
+        busy = format!("{}/{}", state.import_queue.done, state.import_queue.total);
     } else if let Some((title, done, total)) = running_downloader(state) {
-        idle = format!("{title}: {done}/{total}");
+        busy = format!("{title}: {done}/{total}");
     }
+
+    let idle = if busy.is_empty() {
+        "idle".to_string()
+    } else {
+        String::new()
+    };
+
+    let mut bandwidth = String::new();
 
     if state.controller.network_paused() {
-        idle.push_str(" - network paused");
-    }
-
-    if let Some(address) = state.controller.api_status() {
-        idle.push_str(&format!(" - api {address}"));
+        bandwidth = "network paused".to_string();
     }
 
     json!({
         "message": state.message,
         "media": media,
+        "bandwidth": bandwidth,
         "idle": idle,
-        "db": format!("db {version} - {services} services - {dir}"),
+        "hydrus_busy": if busy.is_empty() { String::new() } else { "working".to_string() },
+        "cpu_busy": "",
+        "db": "",
     })
     .to_string()
 }

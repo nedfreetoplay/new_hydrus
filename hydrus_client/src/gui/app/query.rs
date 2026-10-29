@@ -288,7 +288,7 @@ fn run_query(controller: &Controller, page: &mut QueryPage) -> Result<(), String
 
     page.empty_text = if total == 0 {
         if page.query.trim().is_empty() {
-            "drag files here or use File > import files".to_string()
+            "no search done yet".to_string()
         } else {
             "no files match this search".to_string()
         }

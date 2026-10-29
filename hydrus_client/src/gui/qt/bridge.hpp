@@ -135,24 +135,23 @@ private:
 
     HydrusMainWindow *main = nullptr;
     QString id;
+    QComboBox *sort = nullptr;
+    QComboBox *sort_direction = nullptr;
+    QComboBox *collect = nullptr;
     QComboBox *location = nullptr;
     QComboBox *tag_service = nullptr;
-    QComboBox *sort = nullptr;
-    QCheckBox *sort_ascending = nullptr;
     QLineEdit *search = nullptr;
     QCompleter *completer = nullptr;
     HydrusAutocompletePopup *autocomplete = nullptr;
     QString text_before_completion;
+    QListWidget *predicates = nullptr;
     QPushButton *search_button = nullptr;
-    QLabel *status_label = nullptr;
+    QComboBox *tag_sort = nullptr;
+    QListWidget *selection_tags = nullptr;
     QLabel *empty_label = nullptr;
-    QLabel *count_label = nullptr;
-    QLabel *loading_label = nullptr;
-    QProgressBar *import_progress = nullptr;
     QWidget *results = nullptr;
     QWidget *loading_panel = nullptr;
     QLabel *loading_text = nullptr;
-    HydrusMetadataPanel *metadata = nullptr;
     HydrusCanvas *preview = nullptr;
     HydrusThumbnailGrid *grid = nullptr;
 };
@@ -1034,9 +1033,11 @@ private:
     void build_shortcuts();
 
     HydrusNotebook *root = nullptr;
-    QLabel *status_message = nullptr;
     QLabel *status_media = nullptr;
+    QLabel *status_bandwidth = nullptr;
     QLabel *status_idle = nullptr;
+    QLabel *status_hydrus_busy = nullptr;
+    QLabel *status_cpu_busy = nullptr;
     QLabel *status_db = nullptr;
 
     QHash<QString, HydrusQueryPage *> pages;

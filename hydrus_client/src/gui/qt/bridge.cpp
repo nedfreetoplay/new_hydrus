@@ -536,9 +536,9 @@ HydrusThumbnailGrid::HydrusThumbnailGrid(HydrusMainWindow *main_window, HydrusQu
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setStyleSheet(QStringLiteral(
-        "QListWidget#HydrusThumbnailGrid { background-color: #343434; border: none; }"
-        "QListWidget#HydrusThumbnailGrid::item { border: 1px solid transparent; }"
-        "QListWidget#HydrusThumbnailGrid::item:selected { border: 1px solid #dfe3e6; background: #707f8f; }"));
+        "QListWidget#HydrusThumbnailGrid { background-color: #ffffff; border: none; }"
+        "QListWidget#HydrusThumbnailGrid::item { border: 1px solid #dfe3e6; background: #ffffff; }"
+        "QListWidget#HydrusThumbnailGrid::item:selected { border: 1px solid #01111a; background: #d9f2ff; }"));
 
     connect(this, &QListWidget::currentItemChanged, this, [this](QListWidgetItem *current, QListWidgetItem *) {
         if (main->building || current == nullptr) {
@@ -621,10 +621,6 @@ void HydrusThumbnailGrid::set_media(const QJsonArray &media) {
     }
 
     if (media.isEmpty()) {
-        auto *empty = new QListWidgetItem(QStringLiteral("no files"), this);
-        empty->setFlags(Qt::NoItemFlags);
-        empty->setForeground(QColor(170, 170, 170));
-        empty->setSizeHint(QSize(120, 32));
         return;
     }
 
@@ -1426,6 +1422,8 @@ public:
                 activate(item->data(Qt::UserRole).toString());
             }
         });
+
+        hide();
     }
 
     void set_state(const QJsonObject &state) {
@@ -1592,6 +1590,37 @@ private:
 // HydrusQueryPage
 // ---------------------------------------------------------------------------
 
+namespace {
+
+// Hydrus ClientGUICommon.StaticBox: a raised frame with a bold, centred title.
+QFrame *make_static_box(const QString &title, QWidget *parent, QVBoxLayout **content_layout) {
+    auto *box = new QFrame(parent);
+    box->setFrameStyle(QFrame::Box | QFrame::Raised);
+
+    auto *layout = new QVBoxLayout(box);
+    layout->setContentsMargins(4, 2, 4, 4);
+    layout->setSpacing(4);
+
+    auto *header = new QLabel(title, box);
+    QFont header_font = header->font();
+    header_font.setBold(true);
+    header->setFont(header_font);
+    header->setAlignment(Qt::AlignHCenter);
+    layout->addWidget(header);
+
+    auto *content = new QWidget(box);
+    auto *content_vbox = new QVBoxLayout(content);
+    content_vbox->setContentsMargins(0, 0, 0, 0);
+    content_vbox->setSpacing(4);
+    layout->addWidget(content, 1);
+
+    *content_layout = content_vbox;
+
+    return box;
+}
+
+}
+
 HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &page_id, const QJsonObject &state)
     : QWidget(), main(main_window), id(page_id) {
     auto *layout = new QHBoxLayout(this);
@@ -1603,17 +1632,73 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
     auto *sidebar = new QWidget(splitter);
     auto *sidebar_layout = new QVBoxLayout(sidebar);
     sidebar_layout->setContentsMargins(6, 6, 6, 6);
-    sidebar_layout->setSpacing(4);
+    sidebar_layout->setSpacing(6);
 
-    auto *search_title = new QLabel(QStringLiteral("search"), sidebar);
-    search_title->setStyleSheet(QStringLiteral("font-weight: bold;"));
-    sidebar_layout->addWidget(search_title);
+    sort = new QComboBox(sidebar);
+    sort->addItem(QStringLiteral("sort by hash id"), QStringLiteral("hash id"));
+    sort->addItem(QStringLiteral("sort by import time"), QStringLiteral("import time"));
+    sort->addItem(QStringLiteral("sort by size"), QStringLiteral("size"));
+    sort->addItem(QStringLiteral("sort by mime"), QStringLiteral("mime"));
+    sort->addItem(QStringLiteral("sort by width"), QStringLiteral("width"));
+    sort->addItem(QStringLiteral("sort by height"), QStringLiteral("height"));
+    sort->addItem(QStringLiteral("sort by ratio"), QStringLiteral("ratio"));
+    sort->addItem(QStringLiteral("sort by pixels"), QStringLiteral("pixels"));
+    sort->addItem(QStringLiteral("sort by duration"), QStringLiteral("duration"));
+    sort->addItem(QStringLiteral("sort by frames"), QStringLiteral("frames"));
+    sort->addItem(QStringLiteral("sort by words"), QStringLiteral("words"));
 
-    location = new QComboBox(sidebar);
+    sort_direction = new QComboBox(sidebar);
+    sort_direction->addItem(QStringLiteral("ascending"));
+    sort_direction->addItem(QStringLiteral("descending"));
+
+    auto *sort_row = new QWidget(sidebar);
+    auto *sort_row_layout = new QHBoxLayout(sort_row);
+    sort_row_layout->setContentsMargins(0, 0, 0, 0);
+    sort_row_layout->setSpacing(4);
+    sort_row_layout->addWidget(sort, 1);
+    sort_row_layout->addWidget(sort_direction);
+    sidebar_layout->addWidget(sort_row);
+
+    const auto send_sort = [this]() {
+        if (main->building) {
+            return;
+        }
+
+        QJsonObject request;
+        request.insert(QStringLiteral("sort"), sort->currentData().toString());
+        request.insert(
+            QStringLiteral("ascending"),
+            sort_direction->currentIndex() == 0);
+        main->notify(
+            QStringLiteral("set_sort"),
+            id,
+            QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact)));
+    };
+
+    connect(
+        sort,
+        QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this,
+        [send_sort](int) { send_sort(); });
+    connect(
+        sort_direction,
+        QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this,
+        [send_sort](int) { send_sort(); });
+
+    collect = new QComboBox(sidebar);
+    collect->addItem(QStringLiteral("no collections"));
+    sidebar_layout->addWidget(collect);
+
+    QVBoxLayout *search_layout = nullptr;
+    auto *search_box = make_static_box(QStringLiteral("search"), sidebar, &search_layout);
+    sidebar_layout->addWidget(search_box);
+
+    location = new QComboBox(search_box);
     location->addItem(QStringLiteral("my files"));
     location->addItem(QStringLiteral("all local files"));
     location->addItem(QStringLiteral("trash"));
-    sidebar_layout->addWidget(location);
+    search_layout->addWidget(location);
 
     connect(location, &QComboBox::currentTextChanged, this, [this](const QString &value) {
         if (main->building || value.isEmpty()) {
@@ -1623,8 +1708,8 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
         main->notify(QStringLiteral("set_location"), id, value);
     });
 
-    tag_service = new QComboBox(sidebar);
-    sidebar_layout->addWidget(tag_service);
+    tag_service = new QComboBox(search_box);
+    search_layout->addWidget(tag_service);
 
     connect(tag_service, &QComboBox::currentTextChanged, this, [this](const QString &value) {
         if (main->building || value.isEmpty()) {
@@ -1634,9 +1719,9 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
         main->notify(QStringLiteral("set_tag_service"), id, value);
     });
 
-    search = new QLineEdit(sidebar);
+    search = new QLineEdit(search_box);
     search->setPlaceholderText(QStringLiteral("tags: blue eyes, -sky, system:inbox"));
-    sidebar_layout->addWidget(search);
+    search_layout->addWidget(search);
 
     autocomplete = new HydrusAutocompletePopup(search, [this](const QString &text) {
         insert_autocomplete(text);
@@ -1648,80 +1733,53 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
         request_autocomplete();
     });
 
-    search_button = new QPushButton(QStringLiteral("search"), sidebar);
-    sidebar_layout->addWidget(search_button);
+    predicates = new QListWidget(search_box);
+    predicates->setSelectionMode(QAbstractItemView::SingleSelection);
+    predicates->setUniformItemSizes(true);
+    predicates->setFixedHeight(120);
+    search_layout->addWidget(predicates);
+    search_box->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 
-    auto *or_button = new QPushButton(QStringLiteral("OR..."), sidebar);
-    or_button->setToolTip(QStringLiteral("Combine tags or system predicates with OR."));
-    sidebar_layout->addWidget(or_button);
+    search_button = new QPushButton(QStringLiteral("search"), search_box);
+    search_layout->addWidget(search_button);
 
-    connect(or_button, &QPushButton::clicked, this, [this]() {
-        QStringList seed;
+    QVBoxLayout *tags_layout = nullptr;
+    auto *tags_box = make_static_box(QStringLiteral("selection tags"), sidebar, &tags_layout);
+    sidebar_layout->addWidget(tags_box, 1);
 
-        for (const QString &term : search->text().split(' ', Qt::SkipEmptyParts)) {
-            seed.append(term);
-        }
+    tag_sort = new QComboBox(tags_box);
+    tag_sort->addItem(QStringLiteral("lexicographic (a-z)"));
+    tag_sort->addItem(QStringLiteral("incidence (desc)"));
+    tags_layout->addWidget(tag_sort);
 
-        show_or_predicate_dialog(*main, id, seed.join(QLatin1Char('\n')));
-    });
+    selection_tags = new QListWidget(tags_box);
+    selection_tags->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    tags_layout->addWidget(selection_tags, 1);
 
-    sort = new QComboBox(sidebar);
-    sort->addItems({
-        QStringLiteral("hash id"),
-        QStringLiteral("import time"),
-        QStringLiteral("size"),
-        QStringLiteral("mime"),
-        QStringLiteral("width"),
-        QStringLiteral("height"),
-        QStringLiteral("ratio"),
-        QStringLiteral("pixels"),
-        QStringLiteral("duration"),
-        QStringLiteral("frames"),
-        QStringLiteral("words"),
-    });
-    sidebar_layout->addWidget(sort);
-
-    sort_ascending = new QCheckBox(QStringLiteral("ascending"), sidebar);
-    sort_ascending->setChecked(true);
-    sidebar_layout->addWidget(sort_ascending);
-
-    const auto send_sort = [this]() {
-        if (main->building) {
-            return;
-        }
-
-        QJsonObject request;
-        request.insert(QStringLiteral("sort"), sort->currentText());
-        request.insert(QStringLiteral("ascending"), sort_ascending->isChecked());
-        main->notify(
-            QStringLiteral("set_sort"),
-            id,
-            QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact)));
-    };
-
-    connect(sort, &QComboBox::currentTextChanged, this, [send_sort](const QString &) { send_sort(); });
-    connect(sort_ascending, &QCheckBox::toggled, this, [send_sort](bool) { send_sort(); });
-
-    status_label = new QLabel(sidebar);
-    status_label->setWordWrap(true);
-    sidebar_layout->addWidget(status_label);
-
-    auto *tags_title = new QLabel(QStringLiteral("metadata"), sidebar);
-    tags_title->setStyleSheet(QStringLiteral("font-weight: bold;"));
-    sidebar_layout->addWidget(tags_title);
-
-    metadata = new HydrusMetadataPanel(main, sidebar);
-    sidebar_layout->addWidget(metadata, 1);
+    connect(
+        tag_sort,
+        QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this,
+        [this](int index) {
+            selection_tags->sortItems(
+                index == 0 ? Qt::AscendingOrder : Qt::DescendingOrder);
+        });
 
     auto *vertical = new QSplitter(Qt::Vertical, splitter);
     vertical->addWidget(sidebar);
 
-    preview = new HydrusCanvas(vertical);
-    preview->setMinimumHeight(140);
-    vertical->addWidget(preview);
+    auto *preview_frame = new QFrame(vertical);
+    preview_frame->setFrameStyle(QFrame::Panel | QFrame::Sunken);
+    preview_frame->setLineWidth(2);
+    auto *preview_layout = new QVBoxLayout(preview_frame);
+    preview_layout->setContentsMargins(0, 0, 0, 0);
+    preview = new HydrusCanvas(preview_frame);
+    preview->setMinimumHeight(120);
+    preview_layout->addWidget(preview);
+    vertical->addWidget(preview_frame);
     vertical->setStretchFactor(0, 1);
     vertical->setStretchFactor(1, 0);
-    vertical->setSizes({400, 260});
+    vertical->setSizes({420, 300});
 
     splitter->addWidget(vertical);
 
@@ -1730,28 +1788,7 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
     results_layout->setContentsMargins(0, 0, 0, 0);
     results_layout->setSpacing(0);
 
-    auto *header = new QWidget(results);
-    header->setObjectName(QStringLiteral("HydrusResultsHeader"));
-    auto *header_layout = new QHBoxLayout(header);
-    header_layout->setContentsMargins(8, 4, 8, 4);
-    header_layout->setSpacing(8);
 
-    count_label = new QLabel(QStringLiteral("0 files"), header);
-    count_label->setStyleSheet(QStringLiteral("font-weight: bold;"));
-    header_layout->addWidget(count_label);
-    header_layout->addStretch(1);
-
-    loading_label = new QLabel(header);
-    loading_label->setVisible(false);
-    header_layout->addWidget(loading_label);
-
-    import_progress = new QProgressBar(header);
-    import_progress->setFixedWidth(190);
-    import_progress->setTextVisible(true);
-    import_progress->setVisible(false);
-    header_layout->addWidget(import_progress);
-
-    results_layout->addWidget(header);
 
     grid = new HydrusThumbnailGrid(main, this);
     results_layout->addWidget(grid, 1);
@@ -1759,29 +1796,34 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
     loading_panel = new QWidget(results);
     loading_panel->setObjectName(QStringLiteral("HydrusLoadingPanel"));
     loading_panel->setStyleSheet(
-        QStringLiteral("QWidget#HydrusLoadingPanel { background: rgba(30, 30, 30, 210); }"));
+        QStringLiteral("QWidget#HydrusLoadingPanel { background: rgba(235, 235, 235, 200); }"));
     auto *loading_layout = new QVBoxLayout(loading_panel);
     loading_layout->addStretch(1);
     loading_text = new QLabel(QStringLiteral("loading files..."), loading_panel);
     loading_text->setAlignment(Qt::AlignHCenter);
     loading_text->setStyleSheet(
-        QStringLiteral("font-size: 15px; color: #e6e6e6; background: transparent;"));
+        QStringLiteral("font-size: 15px; color: #202020; background: transparent;"));
     loading_layout->addWidget(loading_text);
     auto *loading_bar = new QProgressBar(loading_panel);
     loading_bar->setRange(0, 0);
     loading_bar->setTextVisible(false);
     loading_bar->setFixedWidth(240);
     loading_bar->setStyleSheet(
-        QStringLiteral("QProgressBar { background: #2a2a2a; border: 1px solid #555; }"
+        QStringLiteral("QProgressBar { background: #f0f0f0; border: 1px solid #b0b0b0; }"
                        "QProgressBar::chunk { background: #4a90d9; }"));
     loading_layout->addWidget(loading_bar, 0, Qt::AlignHCenter);
     loading_layout->addStretch(2);
     loading_panel->hide();
 
+    empty_label = new QLabel(QStringLiteral("no files"), results);
+    empty_label->setAlignment(Qt::AlignCenter);
+    empty_label->setStyleSheet(QStringLiteral("color: #707070; background: transparent;"));
+    empty_label->hide();
+
     splitter->addWidget(results);
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
-    splitter->setSizes({330, 900});
+    splitter->setSizes({360, 900});
 
     layout->addWidget(splitter);
 
@@ -1855,6 +1897,7 @@ bool HydrusQueryPage::eventFilter(QObject *watched, QEvent *event) {
     }
 
     if (watched == search && autocomplete != nullptr && autocomplete->is_open()
+
         && event->type() == QEvent::KeyPress) {
         auto *key = static_cast<QKeyEvent *>(event);
 
@@ -1889,29 +1932,14 @@ bool HydrusQueryPage::eventFilter(QObject *watched, QEvent *event) {
 
 void HydrusQueryPage::update_progress(const QJsonObject &state) {
     const int count = state.value(QStringLiteral("count")).toInt();
-
-    count_label->setText(
-        count == 1 ? QStringLiteral("1 file") : QStringLiteral("%1 files").arg(count));
-
-    const QJsonValue importing = state.value(QStringLiteral("importing"));
-
-    if (importing.isObject()) {
-        const QJsonObject progress = importing.toObject();
-        const int done = progress.value(QStringLiteral("done")).toInt();
-        const int total = progress.value(QStringLiteral("total")).toInt();
-
-        loading_label->setText(progress.value(QStringLiteral("message")).toString());
-        import_progress->setRange(0, qMax(1, total));
-        import_progress->setValue(qBound(0, done, qMax(1, total)));
-        import_progress->setFormat(QStringLiteral("%1 / %2").arg(done).arg(total));
-        loading_label->setVisible(true);
-        import_progress->setVisible(true);
-    } else {
-        loading_label->setVisible(false);
-        import_progress->setVisible(false);
-    }
-
     const bool loading = state.value(QStringLiteral("loading")).toBool();
+
+    empty_label->setGeometry(results->rect());
+    empty_label->setVisible(count == 0 && !loading);
+
+    if (empty_label->isVisible()) {
+        empty_label->raise();
+    }
 
     if (loading) {
         loading_panel->setGeometry(results->rect());
@@ -1927,6 +1955,10 @@ void HydrusQueryPage::resizeEvent(QResizeEvent *event) {
 
     if (loading_panel != nullptr && loading_panel->isVisible() && results != nullptr) {
         loading_panel->setGeometry(results->rect());
+    }
+
+    if (empty_label != nullptr && results != nullptr) {
+        empty_label->setGeometry(results->rect());
     }
 }
 
@@ -1983,9 +2015,13 @@ void HydrusQueryPage::update_state(const QJsonObject &state) {
 
     const QString sort_value = state.value(QStringLiteral("sort")).toString();
 
-    if (!sort_value.isEmpty() && sort->currentText() != sort_value) {
+    if (!sort_value.isEmpty() && sort->currentData().toString() != sort_value) {
         const QSignalBlocker blocker(sort);
-        const int index = sort->findText(sort_value);
+        int index = sort->findData(sort_value);
+
+        if (index < 0) {
+            index = sort->findText(sort_value);
+        }
 
         if (index >= 0) {
             sort->setCurrentIndex(index);
@@ -1993,23 +2029,34 @@ void HydrusQueryPage::update_state(const QJsonObject &state) {
     }
 
     const bool ascending = state.value(QStringLiteral("sort_ascending")).toBool(true);
+    const int direction_index = ascending ? 0 : 1;
 
-    if (sort_ascending->isChecked() != ascending) {
-        const QSignalBlocker blocker(sort_ascending);
-        sort_ascending->setChecked(ascending);
+    if (sort_direction->currentIndex() != direction_index) {
+        const QSignalBlocker blocker(sort_direction);
+        sort_direction->setCurrentIndex(direction_index);
     }
 
-    QString status = state.value(QStringLiteral("status")).toString();
+    predicates->clear();
+
+    for (const QJsonValue &value : state.value(QStringLiteral("predicates")).toArray()) {
+        auto *item = new QListWidgetItem(value.toString(), predicates);
+        item->setForeground(QColor(0, 0, 0));
+    }
+
+    selection_tags->clear();
+
+    for (const QJsonValue &value : state.value(QStringLiteral("tags")).toArray()) {
+        selection_tags->addItem(value.toString());
+    }
+
+    selection_tags->sortItems(
+        tag_sort->currentIndex() == 0 ? Qt::AscendingOrder : Qt::DescendingOrder);
+
     const QString empty_text = state.value(QStringLiteral("empty_text")).toString();
 
     if (!empty_text.isEmpty()) {
-        status += QStringLiteral("\n") + empty_text;
+        empty_label->setText(empty_text);
     }
-
-    status_label->setText(status);
-
-    const QJsonObject metadata_state = state.value(QStringLiteral("metadata")).toObject();
-    metadata->set_state(metadata_state);
 
     const QString focused = state.value(QStringLiteral("focused")).toString();
     const QJsonObject thumbnails = state.value(QStringLiteral("thumbnails")).toObject();
@@ -2031,8 +2078,11 @@ void HydrusQueryPage::set_selection(
     const QStringList &tags,
     const QString &preview_path,
     const QJsonObject &metadata_state) {
-    Q_UNUSED(tags);
-    metadata->set_state(metadata_state);
+    Q_UNUSED(metadata_state);
+    selection_tags->clear();
+    selection_tags->addItems(tags);
+    selection_tags->sortItems(
+        tag_sort->currentIndex() == 0 ? Qt::AscendingOrder : Qt::DescendingOrder);
 
     grid->set_focused(hash);
 
@@ -2044,7 +2094,7 @@ void HydrusQueryPage::set_selection(
 }
 
 void HydrusQueryPage::set_suggestions(const QStringList &suggestions) {
-    metadata->set_suggestions(suggestions);
+    Q_UNUSED(suggestions);
 }
 
 void HydrusQueryPage::focus_hash(const QString &hash) {
@@ -3609,7 +3659,6 @@ public:
         : QTabBar(parent), main(main_window), notebook(notebook_widget) {
         setAcceptDrops(true);
         setMovable(false);
-        setDrawBase(false);
     }
 
 protected:
@@ -3714,9 +3763,8 @@ private:
 HydrusNotebook::HydrusNotebook(HydrusMainWindow *main_window, const QString &notebook_id, QWidget *parent)
     : QTabWidget(parent), main(main_window), id(notebook_id) {
     setTabBar(new HydrusTabBar(main_window, this, this));
-    setTabsClosable(true);
+    setTabsClosable(false);
     setMovable(false);
-    setDocumentMode(true);
     setAcceptDrops(true);
 
     connect(this, &QTabWidget::tabCloseRequested, this, [this](int index) { request_close(index); });
@@ -3787,6 +3835,15 @@ HydrusNotebook::HydrusNotebook(HydrusMainWindow *main_window, const QString &not
 }
 
 bool HydrusNotebook::eventFilter(QObject *watched, QEvent *event) {
+    if (watched == tabBar() && event->type() == QEvent::MouseButtonDblClick) {
+        auto *mouse = static_cast<QMouseEvent *>(event);
+
+        if (mouse->button() == Qt::LeftButton && tabBar()->tabAt(mouse->pos()) < 0) {
+            main->show_page_chooser(id);
+            return true;
+        }
+    }
+
     if (watched == tabBar() && event->type() == QEvent::MouseButtonRelease) {
         auto *mouse = static_cast<QMouseEvent *>(event);
 
@@ -3829,8 +3886,6 @@ void HydrusNotebook::install_plus_tab() {
 }
 
 void HydrusNotebook::finalize_notebook(const QString &current_page_id) {
-    install_plus_tab();
-
     int target = -1;
 
     if (!current_page_id.isEmpty()) {
@@ -9522,24 +9577,34 @@ void HydrusMainWindow::build_shell() {
         return;
     }
 
-    setStyleSheet(QStringLiteral(
-        "QTabWidget::pane { border: 1px solid #c8c8c8; }"
-        "QTabBar::tab { padding: 4px 14px; }"
-        "QStatusBar QLabel { padding: 0px 8px; border-left: 1px solid #b0b0b0; }"
-        "QSplitter::handle { background: #c8c8c8; }"));
+    setStyleSheet(QString());
 
     root = new HydrusNotebook(this, QStringLiteral("root"), this);
     setCentralWidget(root);
 
-    status_message = new QLabel(QStringLiteral("ready"), this);
-    status_media = new QLabel(this);
-    status_idle = new QLabel(this);
-    status_db = new QLabel(this);
+    auto text_width = [this](int chars) {
+        return fontMetrics().horizontalAdvance(QString(chars, QLatin1Char('0')));
+    };
 
-    statusBar()->addWidget(status_message, 1);
-    statusBar()->addPermanentWidget(status_media);
-    statusBar()->addPermanentWidget(status_idle);
-    statusBar()->addPermanentWidget(status_db);
+    status_media = new QLabel(this);
+    status_bandwidth = new QLabel(this);
+    status_bandwidth->setFixedWidth(text_width(17));
+    status_idle = new QLabel(this);
+    status_idle->setFixedWidth(text_width(6));
+    status_hydrus_busy = new QLabel(this);
+    status_hydrus_busy->setFixedWidth(text_width(11));
+    status_cpu_busy = new QLabel(this);
+    status_cpu_busy->setFixedWidth(text_width(13));
+    status_db = new QLabel(this);
+    status_db->setFixedWidth(text_width(14));
+
+    statusBar()->addWidget(status_media, 1);
+    statusBar()->addWidget(status_bandwidth);
+    statusBar()->addWidget(status_idle);
+    statusBar()->addWidget(status_hydrus_busy);
+    statusBar()->addWidget(status_cpu_busy);
+    statusBar()->addWidget(status_db);
+    statusBar()->setSizeGripEnabled(true);
 
     if (QSystemTrayIcon::isSystemTrayAvailable()) {
         tray = new QSystemTrayIcon(style()->standardIcon(QStyle::SP_ComputerIcon), this);
@@ -9677,9 +9742,15 @@ void HydrusMainWindow::build_shortcuts() {
 }
 
 void HydrusMainWindow::set_status(const QJsonObject &status) {
-    status_message->setText(status.value(QStringLiteral("message")).toString());
-    status_media->setText(status.value(QStringLiteral("media")).toString());
+    const QString media = status.value(QStringLiteral("media")).toString();
+    const QString message = status.value(QStringLiteral("message")).toString();
+
+    status_media->setText(media.isEmpty() ? message : media);
+    status_media->setToolTip(message.isEmpty() ? media : message);
+    status_bandwidth->setText(status.value(QStringLiteral("bandwidth")).toString());
     status_idle->setText(status.value(QStringLiteral("idle")).toString());
+    status_hydrus_busy->setText(status.value(QStringLiteral("hydrus_busy")).toString());
+    status_cpu_busy->setText(status.value(QStringLiteral("cpu_busy")).toString());
     status_db->setText(status.value(QStringLiteral("db")).toString());
 }
 
@@ -13763,8 +13834,8 @@ void HydrusMainWindow::show_message(const QString &title, const QString &text) {
 }
 
 void HydrusMainWindow::notify_message(const QString &message) {
-    if (status_message != nullptr) {
-        status_message->setText(message);
+    if (status_media != nullptr) {
+        status_media->setText(message);
     }
 
     if (tray != nullptr && tray->isVisible()) {

@@ -63,6 +63,22 @@ Definition of Done для задачи.
 - светлая тема или дефолтный вид виджетов вместо стиля Hydrus;
 - таблица без сортировки, выделения и двойного клика, как в оригинале.
 
+### Журнал сверок
+
+- 2026-10-29 — главное окно (страница files). Меню приведено к порядку Python
+  (`file, undo, pages, database, network, services, tags, pending, help`):
+  downloader-страницы ушли в `pages -> download`, подписки — в `network`, лишний
+  верхний `download` удалён. Статус-бар получил шесть секций Python (media,
+  bandwidth, idle, hydrus busy, CPU busy, db) с теми же фиксированными ширинами и
+  size grip. Sidebar пересобран из `StaticBox`: `sort by ...`, `no collections`,
+  `search` (file/tag domain, autocomplete, predicates, search), `selection tags`;
+  убраны вкладки-«+», крестики закрытия и лишняя панель metadata (теги теперь через
+  `manage tags`/viewer). Сетка миниатюр стала белой с рамками Hydrus и голубым
+  выделением, статус пустой страницы — `no search done yet`.
+  Скриншот: `docs/images/main_window.png`.
+  Осталось: иконки Hydrus, сворачивание панели `search`, полноценные
+  file/tag domain селекторы вместо простых combobox, точная ширина вкладок.
+
 ## Текущий статус
 
 | ID | Направление | Статус | Приоритет | Размер | Зависит от |
@@ -574,7 +590,7 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   дубликаты → maintenance.
 - [ ] 14.6 Проверить error paths и пустые БД.
 - [ ] 14.7 Обновить README/ARCHITECTURE и закрыть план.
-- [ ] 14.8 Визуальный аудит: пройти по всем экранам, снять скриншоты Rust и Python
+- [~] 14.8 Визуальный аудит: пройти по всем экранам, снять скриншоты Rust и Python
   и устранить расхождения по «Правилу визуального паритета» (порядок контролов,
   подписи, размеры, отступы, иконки, тема).
 

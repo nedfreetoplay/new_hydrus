@@ -922,7 +922,7 @@ impl AppState {
             controller,
             root: Notebook::new("root", "top page notebook"),
             active: None,
-            message: "ready".to_string(),
+            message: String::new(),
             viewers: Default::default(),
             subscriptions: Vec::new(),
             import_folders: Vec::new(),

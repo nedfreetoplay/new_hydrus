@@ -77,6 +77,13 @@ fn downloaders_and_subscriptions_round_trip() {
         modified: 0,
     });
     downloader.results.push(vec![0xab, 0xcd]);
+    downloader.import_options = crate::importing::ImportOptionsContainer {
+        file_filtering: Some(crate::importing::options::FileFilteringImportOptions {
+            allowed_mimes: vec![hydrus_core::hydrus_constants::Mime::Png],
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
     root.add(PageNode::Downloader(downloader));
 
     root.add(PageNode::Subscriptions(SubscriptionsPage::new("p3")));
@@ -93,6 +100,12 @@ fn downloaders_and_subscriptions_round_trip() {
             assert_eq!(page.check_period, 900);
             assert_eq!(page.queue[0].status, DownloadItemStatus::Done);
             assert_eq!(page.results, vec![vec![0xab, 0xcd]]);
+            assert_eq!(
+                page.import_options
+                    .file_filtering_or_default()
+                    .allowed_mimes,
+                vec![hydrus_core::hydrus_constants::Mime::Png]
+            );
         }
         _ => panic!("downloader did not round-trip"),
     }
@@ -102,6 +115,7 @@ fn downloaders_and_subscriptions_round_trip() {
     let restored: SubscriptionEntry = serde_json::from_value(value).unwrap();
 
     assert_eq!(restored.name, "daily");
+    assert!(restored.import_options.is_empty());
 }
 
 #[test]

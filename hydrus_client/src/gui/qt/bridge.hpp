@@ -523,12 +523,14 @@ private:
 
     HydrusMainWindow *main = nullptr;
     QJsonObject data;
+    QWidget *left_panel = nullptr;
     QListWidget *list = nullptr;
     QLabel *description = nullptr;
     QPushButton *rename_button = nullptr;
     QPushButton *delete_button = nullptr;
     Editor editor;
     bool rebuilding = false;
+    bool specific_mode = false;
     QString selected_key;
 };
 
@@ -601,6 +603,28 @@ private:
     QLabel *help = nullptr;
     QString example_path;
     bool import_after_save = false;
+};
+
+// Edit one subscription's site, query, filter and timing.
+class HydrusSubscriptionEditorDialog : public QDialog {
+public:
+    HydrusSubscriptionEditorDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void save();
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    QString page_id;
+    QLineEdit *name = nullptr;
+    QLineEdit *url = nullptr;
+    QLineEdit *query = nullptr;
+    QComboBox *site = nullptr;
+    QLineEdit *filter = nullptr;
+    QSpinBox *period = nullptr;
+    QCheckBox *paused = nullptr;
 };
 
 // Remap missing media/thumbnail subfolder roots.
@@ -680,6 +704,7 @@ private:
     QPushButton *results_button = nullptr;
     QPushButton *seed_cache_button = nullptr;
     QPushButton *gallery_log_button = nullptr;
+    QPushButton *import_options_button = nullptr;
     QPushButton *auto_button = nullptr;
     QLabel *status_label = nullptr;
     QTableWidget *queue = nullptr;
@@ -708,6 +733,7 @@ private:
     QTableWidget *table = nullptr;
     QLabel *status = nullptr;
     QJsonArray sites;
+    QPushButton *import_options_button = nullptr;
 };
 
 // Side-by-side duplicate pair filter.
@@ -927,6 +953,7 @@ public:
     void update_page_progress(const QString &page_id, const QJsonObject &state);
     void update_downloader(const QString &page_id, const QJsonObject &state);
     void update_subscriptions(const QString &page_id, const QJsonObject &state);
+    void show_subscription_editor(const QJsonObject &state);
     void update_duplicates(const QString &page_id, const QJsonObject &state);
     void update_import_folders(const QString &page_id, const QJsonObject &state);
     void update_export_folders(const QString &page_id, const QJsonObject &state);
@@ -1035,6 +1062,7 @@ private:
     HydrusLocalImportReviewDialog *local_import_review_dialog = nullptr;
     HydrusLocalImportTaggingDialog *local_import_tagging_dialog = nullptr;
     HydrusRepairFileLocationsDialog *repair_file_locations_dialog = nullptr;
+    HydrusSubscriptionEditorDialog *subscription_editor_dialog = nullptr;
     HydrusDuplicateReviewDialog *duplicate_review_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
     QTimer *tick_timer = nullptr;
@@ -1072,6 +1100,7 @@ void hydrus_update_page_progress(
     rust::Str json);
 void hydrus_update_downloader(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_subscriptions(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
+void hydrus_show_subscription_editor(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_export_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);

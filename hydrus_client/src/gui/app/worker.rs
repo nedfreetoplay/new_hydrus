@@ -50,12 +50,16 @@ pub(crate) enum AsyncJob {
     DownloadUrls {
         job_id: String,
         urls: Vec<String>,
+        /// Effective import options for this page or subscription.
+        import_options: crate::importing::ImportOptionsContainer,
     },
     ProcessPages {
         job_id: String,
         urls: Vec<String>,
         filter: String,
         site: String,
+        /// Effective import options for this page or subscription.
+        import_options: crate::importing::ImportOptionsContainer,
     },
     UpdateOptions(ClientOptions),
     UpdateNetworkHeaders(Vec<(String, String)>),
@@ -210,6 +214,17 @@ impl WorkerContext {
         ImportContext::new_with_options(self.db.clone(), self.files_manager.clone(), import_options)
     }
 
+    fn importer_with_options(
+        &self,
+        import_options: &crate::importing::ImportOptionsContainer,
+    ) -> Result<ImportContext, String> {
+        ImportContext::new_with_options(
+            self.db.clone(),
+            self.files_manager.clone(),
+            import_options.clone(),
+        )
+    }
+
     fn client(&self) -> Result<Client, String> {
         let timeout = self.options.get_integer("network_timeout").max(5) as u64;
 
@@ -267,15 +282,26 @@ fn worker_loop(mut context: WorkerContext, jobs: Receiver<AsyncJob>, events: Sen
                 filename_tagging,
                 delete_after_success,
             ),
-            AsyncJob::DownloadUrls { job_id, urls } => {
-                run_download_urls(&context, &events, &job_id, urls)
-            }
+            AsyncJob::DownloadUrls {
+                job_id,
+                urls,
+                import_options,
+            } => run_download_urls(&context, &events, &job_id, urls, &import_options),
             AsyncJob::ProcessPages {
                 job_id,
                 urls,
                 filter,
                 site,
-            } => run_process_pages(&context, &events, &job_id, urls, &filter, &site),
+                import_options,
+            } => run_process_pages(
+                &context,
+                &events,
+                &job_id,
+                urls,
+                &filter,
+                &site,
+                &import_options,
+            ),
             AsyncJob::UpdateOptions(options) => {
                 context.options = options;
             }
@@ -400,13 +426,14 @@ fn run_download_urls(
     events: &Sender<AsyncEvent>,
     job_id: &str,
     urls: Vec<String>,
+    import_options: &crate::importing::ImportOptionsContainer,
 ) {
     let _ = events.send(AsyncEvent::Started {
         job_id: job_id.to_string(),
         total: urls.len(),
     });
 
-    let (imported, failed, hashes) = run_pool(context, events, job_id, urls);
+    let (imported, failed, hashes) = run_pool(context, events, job_id, urls, import_options);
 
     let _ = events.send(AsyncEvent::Finished {
         job_id: job_id.to_string(),
@@ -424,6 +451,7 @@ fn run_process_pages(
     urls: Vec<String>,
     filter: &str,
     site: &str,
+    import_options: &crate::importing::ImportOptionsContainer,
 ) {
     let client = match context.client() {
         Ok(client) => client,
@@ -615,7 +643,7 @@ fn run_process_pages(
         total: file_urls.len(),
     });
 
-    let (imported, failed, hashes) = run_pool(context, events, job_id, file_urls);
+    let (imported, failed, hashes) = run_pool(context, events, job_id, file_urls, import_options);
 
     let _ = events.send(AsyncEvent::Finished {
         job_id: job_id.to_string(),
@@ -634,6 +662,7 @@ fn run_pool(
     events: &Sender<AsyncEvent>,
     job_id: &str,
     urls: Vec<String>,
+    import_options: &crate::importing::ImportOptionsContainer,
 ) -> (usize, usize, Vec<Vec<u8>>) {
     let groups = group_by_domain(urls);
     let global = Arc::new(PoolGate::new(
@@ -664,6 +693,7 @@ fn run_pool(
                 let events = events.clone();
                 let context = context.clone();
                 let job_id = job_id.to_string();
+                let import_options = import_options.clone();
 
                 scope.spawn(move || {
                     loop {
@@ -694,7 +724,7 @@ fn run_pool(
                         });
 
                         global.acquire();
-                        let (ok, note, hash) = download_url(&context, &url);
+                        let (ok, note, hash) = download_url(&context, &url, &import_options);
                         global.release();
 
                         if ok {
@@ -772,7 +802,11 @@ fn normalise_page_url(url: &str) -> String {
         .to_ascii_lowercase()
 }
 
-fn download_url(context: &WorkerContext, url: &str) -> (bool, String, Option<Vec<u8>>) {
+fn download_url(
+    context: &WorkerContext,
+    url: &str,
+    import_options: &crate::importing::ImportOptionsContainer,
+) -> (bool, String, Option<Vec<u8>>) {
     if context.paused.load(Ordering::Relaxed) {
         return (false, "network is paused".to_string(), None);
     }
@@ -805,7 +839,7 @@ fn download_url(context: &WorkerContext, url: &str) -> (bool, String, Option<Vec
 
     drop(file);
 
-    let importer = match context.importer() {
+    let importer = match context.importer_with_options(import_options) {
         Ok(importer) => importer,
         Err(error) => {
             let _ = std::fs::remove_file(&path);

@@ -227,6 +227,10 @@ pub struct DownloaderPage {
     /// Gallery and post URLs handled by this gallery/watcher page.
     #[serde(default)]
     pub gallery_seeds: Vec<GallerySeedEntry>,
+    /// Per-page import option overrides; unset types inherit the caller default
+    /// (`post_urls` for gallery/simple/url pages, `watcher_urls` for watchers).
+    #[serde(default)]
+    pub import_options: crate::importing::ImportOptionsContainer,
     pub imported: usize,
     pub failed: usize,
     pub status: String,
@@ -255,6 +259,7 @@ impl DownloaderPage {
             check_period: 3600,
             queue: Vec::new(),
             gallery_seeds: Vec::new(),
+            import_options: Default::default(),
             imported: 0,
             failed: 0,
             status: "ready".to_string(),
@@ -342,6 +347,10 @@ pub struct SubscriptionEntry {
     pub status: String,
     #[serde(default)]
     pub results: Vec<Vec<u8>>,
+    /// Per-subscription import option overrides; unset types inherit the
+    /// `subscription` caller default and then global.
+    #[serde(default)]
+    pub import_options: crate::importing::ImportOptionsContainer,
 }
 
 fn default_subscription_period() -> i64 {
@@ -364,6 +373,7 @@ impl SubscriptionEntry {
             failed: 0,
             status: "ready".to_string(),
             results: Vec::new(),
+            import_options: Default::default(),
         }
     }
 

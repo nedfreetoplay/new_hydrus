@@ -297,6 +297,7 @@ pub fn file_seed_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         let job = AsyncJob::DownloadUrls {
             job_id: page_id.clone(),
             urls: retried.clone(),
+            import_options: super::download::downloader_import_options(state, &page_id),
         };
 
         match state.runtime.submit(job) {
@@ -431,6 +432,7 @@ pub fn gallery_seed_action(state: &mut AppState, payload: &str) -> Vec<UiCommand
             urls: retried.clone(),
             filter,
             site,
+            import_options: super::download::downloader_import_options(state, &page_id),
         };
 
         match state.runtime.submit(job) {

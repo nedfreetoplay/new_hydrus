@@ -1283,6 +1283,14 @@ impl AppState {
             "downloader_clear" => download::clear(self, target),
             "downloader_retry" => download::retry(self, target, payload),
             "downloader_open_results" => download::open_results(self, target),
+            "downloader_import_options" => download::open_import_options(self, target),
+            "downloader_import_options_save" => download::save_import_options(self, payload),
+            "subscription_import_options" => {
+                download::open_subscription_import_options(self, payload.trim())
+            }
+            "subscription_import_options_save" => {
+                download::save_subscription_import_options(self, payload)
+            }
             "file_seed_cache" => seeds::open_file_seed_cache(self, target),
             "file_seed_cache_action" => seeds::file_seed_action(self, payload),
             "gallery_seed_log" => seeds::open_gallery_seed_log(self, target),
@@ -1302,6 +1310,8 @@ impl AppState {
             "subscription_check" => download::start_subscription(self, target, payload),
             "subscription_toggle" => download::toggle_subscription(self, target, payload),
             "subscription_delete" => download::delete_subscription(self, target, payload),
+            "subscription_edit" => download::edit_subscription_dialog(self, target, payload),
+            "subscription_edit_save" => download::save_subscription_dialog(self, target, payload),
             "subscription_add" => download::add_subscription(self, target, payload),
             "subscription_open_results" => {
                 download::open_subscription_results(self, target, payload)

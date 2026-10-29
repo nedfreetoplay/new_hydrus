@@ -895,6 +895,10 @@ pub fn downloader_json(
         "url": page.url,
         "query": page.query,
         "site": page.site,
+        "import_options_summary": super::download::import_options_summary(
+            &page.import_options,
+            super::download::downloader_caller(page.kind),
+        ),
         "sites": crate::parsing::gallery::GALLERY_PARSERS
             .iter()
             .map(|parser| json!({"id": parser.id.as_str(), "title": parser.title}))
@@ -940,6 +944,10 @@ pub fn subscriptions_json(state: &AppState, page_id: &str) -> String {
                 "failed": subscription.failed,
                 "status": subscription.status,
                 "result_count": subscription.results.len(),
+                "import_options_summary": super::download::import_options_summary(
+                    &subscription.import_options,
+                    "subscription",
+                ),
             })
         })
         .collect();

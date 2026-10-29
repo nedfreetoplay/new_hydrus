@@ -280,12 +280,24 @@ Rust-цели: `gui/app/download.rs`, `gui/app/model.rs`,
 - [ ] 07.9 URL class links и downloader display manager.
 - [ ] 07.10 Content/page/subsidiary parser editors.
 - [ ] 07.11 Formula editor и parser test panel.
-- [ ] 07.12 Watcher editor/review.
-- [ ] 07.13 Subscription editor/query editor.
-- [ ] 07.14 Gallery seed log.
+- [x] 07.12 Watcher editor/review: watcher-страница редактирует URL, search/filter,
+  site parser, subject, период и automatic checks, запускает `check now`, а
+  gallery seed log и file seed cache показывают историю проверок и файлов.
+- [~] 07.13 Subscription editor/query editor: диалог редактирования подписки
+  меняет имя, URL, query, site parser, filter, период и paused; per-subscription
+  import options хранятся отдельно. Полноценный multi-query editor и query logs
+  Python-подписок ещё не перенесены (текущая модель — одна query на подписку).
+- [x] 07.14 Gallery seed log: страница gallery/watcher ведёт журнал page/post URL
+  со статусами, заметками и числом найденных файлов; диалог сохраняется в сессии
+  (см. WS-06.11).
 - [x] 07.15 Downloader export/import.
 - [ ] 07.16 Login credentials и login scripts.
-- [ ] 07.17 Per-downloader import options.
+- [x] 07.17 Per-downloader import options: у downloader-страницы и подписки есть
+  свой контейнер overrides; не заданные типы наследуются от caller
+  (`post_urls`, `watcher_urls`, `subscription`) и global. Диалог specific import
+  options редактирует только overrides, summary показывается на кнопке, а worker
+  применяет effective options к скачанным файлам. Контейнеры сохраняются в
+  `gui session.json`.
 - [ ] 07.18 Thread slots/network job control UI.
 
 Выход фазы: загрузчик можно создать и настроить из GUI, протестировать парсер
@@ -533,8 +545,8 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
 
 Правило: не начинать зависимую фазу, пока её вход не закрыт хотя бы до `[~]`
 с работающим happy path. Например, media viewer hovers (WS-04.7) ждут
-results panel selection (WS-03.5), а per-downloader import options (WS-07.17)
-ждут import options (WS-06.6).
+results panel selection (WS-03.5), а thread slots (WS-07.18) ждут registry
+активных network jobs.
 
 ## Как обновлять флаги
 

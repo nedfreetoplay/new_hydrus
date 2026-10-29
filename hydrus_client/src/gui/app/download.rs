@@ -86,6 +86,10 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
     page.last_check = now;
 
     let kind = page.kind;
+    let caller = downloader_caller(kind);
+    let specific_import_options = page.import_options.clone();
+    let import_options =
+        super::import_options::effective_for(&controller, caller, &specific_import_options);
 
     let (urls, category) = match kind {
         DownloaderKind::Urls => {
@@ -165,13 +169,18 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
 
     let job_id = page_id.to_string();
     let job = if category == "url" {
-        AsyncJob::DownloadUrls { job_id, urls }
+        AsyncJob::DownloadUrls {
+            job_id,
+            urls,
+            import_options,
+        }
     } else {
         AsyncJob::ProcessPages {
             job_id,
             urls,
             filter,
             site: site.clone(),
+            import_options,
         }
     };
 
@@ -230,9 +239,12 @@ pub fn retry(state: &mut AppState, page_id: &str, url: &str) -> Vec<UiCommand> {
     page.running = true;
     page.note(format!("retrying {url}"));
 
+    let import_options = downloader_import_options(state, page_id);
+
     let job = AsyncJob::DownloadUrls {
         job_id: page_id.to_string(),
         urls: vec![url.to_string()],
+        import_options,
     };
 
     if let Err(error) = state.runtime.submit(job) {
@@ -354,11 +366,19 @@ pub fn start_subscription(state: &mut AppState, page_id: &str, name: &str) -> Ve
     entry.status = "checking".to_string();
     entry.failed = 0;
 
+    let specific_import_options = entry.import_options.clone();
+    let import_options = super::import_options::effective_for(
+        &state.controller,
+        "subscription",
+        &specific_import_options,
+    );
+
     let job = AsyncJob::ProcessPages {
         job_id: format!("sub:{}", entry.name),
         urls: vec![url],
         filter: entry.filter.clone(),
         site: entry.site.clone(),
+        import_options,
     };
 
     if let Err(error) = state.runtime.submit(job) {
@@ -396,6 +416,142 @@ pub fn delete_subscription(state: &mut AppState, page_id: &str, name: &str) -> V
     state
         .subscriptions
         .retain(|subscription| subscription.name != name);
+
+    subscriptions_commands(state, page_id)
+}
+
+pub fn edit_subscription_dialog(state: &AppState, page_id: &str, name: &str) -> Vec<UiCommand> {
+    let Some(entry) = state
+        .subscriptions
+        .iter()
+        .find(|subscription| subscription.name == name)
+    else {
+        return vec![UiCommand::NotifyMessage(
+            "subscription is missing".to_string(),
+        )];
+    };
+
+    let sites: Vec<Value> = crate::parsing::gallery::GALLERY_PARSERS
+        .iter()
+        .map(|parser| json!({"id": parser.id.as_str(), "title": parser.title}))
+        .collect();
+
+    vec![UiCommand::SubscriptionEditor(
+        json!({
+            "page_id": page_id,
+            "original": entry.name,
+            "name": entry.name,
+            "url": entry.url,
+            "query": entry.query,
+            "site": entry.site,
+            "filter": entry.filter,
+            "period": entry.period,
+            "paused": entry.paused,
+            "sites": sites,
+        })
+        .to_string(),
+    )]
+}
+
+pub fn save_subscription_dialog(
+    state: &mut AppState,
+    page_id: &str,
+    payload: &str,
+) -> Vec<UiCommand> {
+    let Ok(value) = serde_json::from_str::<Value>(payload) else {
+        return vec![UiCommand::NotifyMessage(
+            "invalid subscription payload".to_string(),
+        )];
+    };
+
+    let original = value
+        .get("original")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let url = value
+        .get("url")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return vec![UiCommand::NotifyMessage(
+            "the subscription url must start with http:// or https://".to_string(),
+        )];
+    }
+
+    let name = value
+        .get("name")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| subscription_name_from_url(&url));
+
+    if original != name
+        && state
+            .subscriptions
+            .iter()
+            .any(|subscription| subscription.name == name)
+    {
+        return vec![UiCommand::NotifyMessage(format!(
+            "a subscription named '{name}' already exists"
+        ))];
+    }
+
+    let query = value
+        .get("query")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let site = value
+        .get("site")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let filter = value
+        .get("filter")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let period = value
+        .get("period")
+        .and_then(Value::as_i64)
+        .unwrap_or(86_400)
+        .max(60);
+    let paused = value
+        .get("paused")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    if let Some(entry) = state
+        .subscriptions
+        .iter_mut()
+        .find(|subscription| subscription.name == original)
+    {
+        entry.name = name;
+        entry.url = url;
+        entry.query = query;
+        entry.site = site;
+        entry.filter = filter;
+        entry.period = period;
+        entry.paused = paused;
+        entry.status = if paused {
+            "paused".to_string()
+        } else {
+            "ready".to_string()
+        };
+    } else {
+        let mut entry = SubscriptionEntry::new(name, url);
+        entry.query = query;
+        entry.site = site;
+        entry.filter = filter;
+        entry.period = period;
+        entry.paused = paused;
+        state.subscriptions.push(entry);
+    }
 
     subscriptions_commands(state, page_id)
 }
@@ -485,11 +641,13 @@ pub fn tick(state: &mut AppState) -> Vec<UiCommand> {
     }
 
     for (page_id, url, filter) in due_watchers {
+        let import_options = downloader_import_options(state, &page_id);
         let job = AsyncJob::ProcessPages {
             job_id: page_id.clone(),
             urls: vec![url.clone()],
             filter,
             site: String::new(),
+            import_options,
         };
 
         if state.runtime.submit(job).is_ok() {
@@ -878,6 +1036,147 @@ fn subscriptions_page_ids(notebook: &super::model::Notebook) -> Vec<String> {
     ids
 }
 
+pub(crate) fn downloader_import_options(
+    state: &AppState,
+    page_id: &str,
+) -> crate::importing::ImportOptionsContainer {
+    let Some(page) = state.find_downloader(page_id) else {
+        return Default::default();
+    };
+    let caller = downloader_caller(page.kind);
+
+    super::import_options::effective_for(&state.controller, caller, &page.import_options)
+}
+
+pub(crate) fn downloader_caller(kind: DownloaderKind) -> &'static str {
+    if kind == DownloaderKind::Watcher {
+        "watcher_urls"
+    } else {
+        "post_urls"
+    }
+}
+
+pub fn open_import_options(state: &AppState, page_id: &str) -> Vec<UiCommand> {
+    let Some(page) = state.find_downloader(page_id) else {
+        return vec![UiCommand::NotifyMessage(
+            "no downloader page selected".to_string(),
+        )];
+    };
+
+    super::import_options::specific_open(
+        state,
+        downloader_caller(page.kind),
+        &page.import_options,
+        page_id,
+        "downloader_import_options_save",
+    )
+}
+
+pub fn save_import_options(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
+    let Ok(value) = serde_json::from_str::<Value>(payload) else {
+        return vec![UiCommand::NotifyMessage(
+            "could not read the downloader import options".to_string(),
+        )];
+    };
+
+    let target = value
+        .get("target")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let caller = value
+        .get("caller")
+        .and_then(Value::as_str)
+        .unwrap_or("post_urls");
+    let Some(container) = value.get("container").cloned().and_then(|container| {
+        serde_json::from_value::<crate::importing::ImportOptionsContainer>(container).ok()
+    }) else {
+        return vec![UiCommand::NotifyMessage(
+            "could not read the importer options".to_string(),
+        )];
+    };
+
+    let Some(page) = state.find_downloader_mut(&target) else {
+        return vec![UiCommand::NotifyMessage(
+            "the downloader page is gone".to_string(),
+        )];
+    };
+
+    page.import_options = container;
+    let summary = import_options_summary(&page.import_options, caller);
+    page.note(format!("import options: {summary}"));
+
+    update_commands(state, &target)
+}
+
+pub fn open_subscription_import_options(state: &AppState, name: &str) -> Vec<UiCommand> {
+    let Some(entry) = state
+        .subscriptions
+        .iter()
+        .find(|subscription| subscription.name == name)
+    else {
+        return vec![UiCommand::NotifyMessage(
+            "subscription is missing".to_string(),
+        )];
+    };
+
+    super::import_options::specific_open(
+        state,
+        "subscription",
+        &entry.import_options,
+        name,
+        "subscription_import_options_save",
+    )
+}
+
+pub fn save_subscription_import_options(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
+    let Ok(value) = serde_json::from_str::<Value>(payload) else {
+        return vec![UiCommand::NotifyMessage(
+            "could not read the subscription import options".to_string(),
+        )];
+    };
+
+    let target = value
+        .get("target")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let Some(container) = value.get("container").cloned().and_then(|container| {
+        serde_json::from_value::<crate::importing::ImportOptionsContainer>(container).ok()
+    }) else {
+        return vec![UiCommand::NotifyMessage(
+            "could not read the importer options".to_string(),
+        )];
+    };
+
+    let Some(entry) = state
+        .subscriptions
+        .iter_mut()
+        .find(|subscription| subscription.name == target)
+    else {
+        return vec![UiCommand::NotifyMessage(
+            "subscription is missing".to_string(),
+        )];
+    };
+
+    entry.import_options = container;
+    let summary = import_options_summary(&entry.import_options, "subscription");
+    entry.status = format!("import options: {summary}");
+
+    subscriptions_commands(state, "")
+}
+
+pub(crate) fn import_options_summary(
+    container: &crate::importing::ImportOptionsContainer,
+    caller: &str,
+) -> String {
+    if container.is_empty() {
+        "using caller defaults".to_string()
+    } else {
+        container.get_summary(caller)
+    }
+}
+
 fn normalise_urls(controller: &crate::controller::Controller, urls: Vec<String>) -> Vec<String> {
     let manager = match controller.domain_manager().read() {
         Ok(manager) => manager,
@@ -912,3 +1211,6 @@ fn subscription_name_from_url(url: &str) -> String {
         .and_then(|url| url.host_str().map(str::to_string))
         .unwrap_or_else(|| "subscription".to_string())
 }
+
+#[cfg(test)]
+mod tests;

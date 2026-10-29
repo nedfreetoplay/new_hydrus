@@ -19,6 +19,7 @@ pub enum UiCommand {
     },
     UpdateDownloader(String, String),
     UpdateSubscriptions(String, String),
+    SubscriptionEditor(String),
     UpdateDuplicates(String, String),
     UpdateImportFolders(String, String),
     UpdateExportFolders(String, String),

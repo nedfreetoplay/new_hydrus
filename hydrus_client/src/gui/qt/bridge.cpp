@@ -2169,6 +2169,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     results_button = new QPushButton(QStringLiteral("files"), this);
     seed_cache_button = new QPushButton(QStringLiteral("seed cache..."), this);
     gallery_log_button = new QPushButton(QStringLiteral("gallery log..."), this);
+    import_options_button = new QPushButton(QStringLiteral("import options..."), this);
     auto_button = new QPushButton(QStringLiteral("automatic checks: off"), this);
 
     controls->addWidget(start_button);
@@ -2177,6 +2178,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     controls->addWidget(results_button);
     controls->addWidget(seed_cache_button);
     controls->addWidget(gallery_log_button);
+    controls->addWidget(import_options_button);
     controls->addWidget(auto_button);
     controls->addStretch(1);
     layout->addLayout(controls);
@@ -2224,6 +2226,9 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     });
     connect(gallery_log_button, &QPushButton::clicked, this, [this]() {
         main->notify(QStringLiteral("gallery_seed_log"), id);
+    });
+    connect(import_options_button, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("downloader_import_options"), id);
     });
     connect(auto_button, &QPushButton::clicked, this, [this]() {
         main->notify(QStringLiteral("watcher_auto"), id);
@@ -2339,6 +2344,8 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     auto_button->setText(auto_watch
         ? QStringLiteral("automatic checks: on")
         : QStringLiteral("automatic checks: off"));
+    import_options_button->setText(
+        QStringLiteral("import options: %1").arg(state.value(QStringLiteral("import_options_summary")).toString()));
 
     QString status = state.value(QStringLiteral("status")).toString();
 
@@ -2433,22 +2440,33 @@ HydrusSubscriptionsPage::HydrusSubscriptionsPage(HydrusMainWindow *main_window, 
     auto *buttons = new QHBoxLayout();
     auto *add = new QPushButton(QStringLiteral("add subscription..."), this);
     auto *check = new QPushButton(QStringLiteral("check now"), this);
+    auto *edit_button = new QPushButton(QStringLiteral("edit..."), this);
     auto *toggle = new QPushButton(QStringLiteral("pause / resume"), this);
     auto *remove = new QPushButton(QStringLiteral("delete"), this);
     auto *results = new QPushButton(QStringLiteral("open files"), this);
+    import_options_button = new QPushButton(QStringLiteral("import options..."), this);
     buttons->addWidget(add);
     buttons->addWidget(check);
+    buttons->addWidget(edit_button);
     buttons->addWidget(toggle);
     buttons->addWidget(remove);
     buttons->addWidget(results);
+    buttons->addWidget(import_options_button);
     buttons->addStretch(1);
     layout->addLayout(buttons);
 
     connect(add, &QPushButton::clicked, this, [this]() { add_subscription(); });
     connect(check, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("subscription_check")); });
+    connect(edit_button, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("subscription_edit")); });
     connect(toggle, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("subscription_toggle")); });
     connect(remove, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("subscription_delete")); });
     connect(results, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("subscription_open_results")); });
+    connect(import_options_button, &QPushButton::clicked, this, [this]() {
+        with_selected(QStringLiteral("subscription_import_options"));
+    });
+    connect(table, &QTableWidget::cellDoubleClicked, this, [this](int, int) {
+        with_selected(QStringLiteral("subscription_edit"));
+    });
 
     update_state(state);
 }
@@ -2562,6 +2580,116 @@ void HydrusSubscriptionsPage::update_state(const QJsonObject &state) {
     }
 
     table->resizeRowsToContents();
+}
+
+HydrusSubscriptionEditorDialog::HydrusSubscriptionEditorDialog(
+    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    : QDialog(parent), main(main_window) {
+    setWindowTitle(QStringLiteral("subscription editor"));
+    setObjectName(QStringLiteral("hydrus_subscription_editor"));
+    setAttribute(Qt::WA_DeleteOnClose, true);
+    resize(620, 380);
+
+    auto *layout = new QVBoxLayout(this);
+    auto *form = new QFormLayout();
+
+    name = new QLineEdit(this);
+    url = new QLineEdit(this);
+    url->setPlaceholderText(QStringLiteral("https://example.com/search?q={query}"));
+    query = new QLineEdit(this);
+    query->setPlaceholderText(QStringLiteral("search terms for {query}"));
+    site = new QComboBox(this);
+    filter = new QLineEdit(this);
+    filter->setPlaceholderText(QStringLiteral("optional link filter"));
+    period = new QSpinBox(this);
+    period->setRange(60, 31536000);
+    period->setSingleStep(300);
+    paused = new QCheckBox(QStringLiteral("paused"), this);
+
+    form->addRow(QStringLiteral("name"), name);
+    form->addRow(QStringLiteral("gallery url"), url);
+    form->addRow(QStringLiteral("search terms"), query);
+    form->addRow(QStringLiteral("site parser"), site);
+    form->addRow(QStringLiteral("link filter"), filter);
+    form->addRow(QStringLiteral("period (seconds)"), period);
+    form->addRow(QString(), paused);
+    layout->addLayout(form);
+
+    auto *help = new QLabel(
+        QStringLiteral("Subscriptions use the page URL as a template; {query} is replaced with the "
+                       "search terms. Import options are edited from the subscriptions page."),
+        this);
+    help->setWordWrap(true);
+    layout->addWidget(help);
+    layout->addStretch(1);
+
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, this);
+    connect(buttons, &QDialogButtonBox::accepted, this, [this]() { save(); });
+    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::close);
+    layout->addWidget(buttons);
+
+    set_state(state);
+}
+
+void HydrusSubscriptionEditorDialog::set_state(const QJsonObject &state) {
+    data = state;
+    page_id = state.value(QStringLiteral("page_id")).toString();
+
+    name->setText(state.value(QStringLiteral("name")).toString());
+    url->setText(state.value(QStringLiteral("url")).toString());
+    query->setText(state.value(QStringLiteral("query")).toString());
+    filter->setText(state.value(QStringLiteral("filter")).toString());
+    period->setValue(state.value(QStringLiteral("period")).toInt(86400));
+    paused->setChecked(state.value(QStringLiteral("paused")).toBool());
+
+    site->clear();
+    site->addItem(QStringLiteral("auto detect"), QString());
+
+    for (const QJsonValue &value : state.value(QStringLiteral("sites")).toArray()) {
+        const QJsonObject parser = value.toObject();
+        site->addItem(
+            parser.value(QStringLiteral("title")).toString(),
+            parser.value(QStringLiteral("id")).toString());
+    }
+
+    const int index = site->findData(state.value(QStringLiteral("site")).toString());
+
+    if (index >= 0) {
+        site->setCurrentIndex(index);
+    }
+}
+
+void HydrusSubscriptionEditorDialog::save() {
+    QJsonObject payload;
+    payload.insert(QStringLiteral("original"), data.value(QStringLiteral("original")));
+    payload.insert(QStringLiteral("name"), name->text().trimmed());
+    payload.insert(QStringLiteral("url"), url->text().trimmed());
+    payload.insert(QStringLiteral("query"), query->text());
+    payload.insert(QStringLiteral("site"), site->currentData().toString());
+    payload.insert(QStringLiteral("filter"), filter->text());
+    payload.insert(QStringLiteral("period"), period->value());
+    payload.insert(QStringLiteral("paused"), paused->isChecked());
+
+    main->notify(
+        QStringLiteral("subscription_edit_save"),
+        page_id,
+        json_payload(payload));
+
+    close();
+}
+
+void HydrusMainWindow::show_subscription_editor(const QJsonObject &state) {
+    if (subscription_editor_dialog != nullptr) {
+        subscription_editor_dialog->close();
+    }
+
+    subscription_editor_dialog = new HydrusSubscriptionEditorDialog(this, state, this);
+    connect(subscription_editor_dialog, &QObject::destroyed, this, [this]() {
+        subscription_editor_dialog = nullptr;
+    });
+    subscription_editor_dialog->show();
+    subscription_editor_dialog->raise();
+    subscription_editor_dialog->activateWindow();
 }
 
 // ---------------------------------------------------------------------------
@@ -7809,11 +7937,17 @@ HydrusImportOptionsDialog::HydrusImportOptionsDialog(
     resize(1120, 760);
 
     data = state;
+    const QJsonObject specific = state.value(QStringLiteral("specific")).toObject();
+    specific_mode = !specific.isEmpty();
 
     auto *layout = new QVBoxLayout(this);
 
     auto *help = new QLabel(
-        QStringLiteral("Each caller type starts from the global options. Set only what should differ; "
+        specific_mode
+            ? QStringLiteral("These options belong to this one importer. A tab with \"use default "
+                             "import options\" checked inherits the caller default and then global "
+                             "options; set only what should differ.")
+            : QStringLiteral("Each caller type starts from the global options. Set only what should differ; "
                        "a tab with \"use default import options\" checked is inherited from the broader "
                        "container. Favourites are named containers you can reuse elsewhere."),
         this);
@@ -7823,6 +7957,7 @@ HydrusImportOptionsDialog::HydrusImportOptionsDialog(
     auto *splitter = new QSplitter(Qt::Horizontal, this);
 
     auto *left = new QWidget(splitter);
+    left_panel = left;
     auto *left_layout = new QVBoxLayout(left);
     left_layout->setContentsMargins(0, 0, 0, 0);
     left_layout->addWidget(new QLabel(QStringLiteral("containers"), left));
@@ -7855,6 +7990,12 @@ HydrusImportOptionsDialog::HydrusImportOptionsDialog(
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
     splitter->setSizes({240, 820});
+
+    if (specific_mode) {
+        left->setVisible(false);
+        splitter->setSizes({0, 1060});
+    }
+
     layout->addWidget(splitter, 1);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, this);
@@ -7912,6 +8053,15 @@ HydrusImportOptionsDialog::HydrusImportOptionsDialog(
 
     rebuild_list();
 
+    if (specific_mode) {
+        description->setText(
+            QStringLiteral("options specific to this importer; unchecked tabs inherit the caller default"));
+
+        const QJsonObject container = specific.value(QStringLiteral("container")).toObject();
+        const QJsonObject fallback = data.value(QStringLiteral("fallback")).toObject();
+        fill_editor(container, fallback);
+    } else {
+
     const QString selected = data.value(QStringLiteral("selected")).toString();
 
     if (!selected.isEmpty()) {
@@ -7954,6 +8104,8 @@ HydrusImportOptionsDialog::HydrusImportOptionsDialog(
                 break;
             }
         }
+    }
+
     }
 }
 
@@ -8937,6 +9089,22 @@ void HydrusImportOptionsDialog::delete_favourite() {
 }
 
 void HydrusImportOptionsDialog::save() {
+    if (specific_mode) {
+        const QJsonObject specific = data.value(QStringLiteral("specific")).toObject();
+        QJsonObject payload;
+        payload.insert(QStringLiteral("target"), specific.value(QStringLiteral("target")));
+        payload.insert(QStringLiteral("caller"), specific.value(QStringLiteral("caller")));
+        payload.insert(QStringLiteral("container"), read_editor());
+
+        main->notify(
+            specific.value(QStringLiteral("action")).toString(),
+            QString(),
+            json_payload(payload));
+
+        close();
+        return;
+    }
+
     store_current();
 
     QJsonObject payload;
@@ -9199,10 +9367,12 @@ void HydrusMainWindow::show_gallery_seed_log(const QJsonObject &state) {
 }
 
 void HydrusMainWindow::show_import_options(const QJsonObject &state) {
-    if (import_options_dialog == nullptr) {
-        import_options_dialog = new HydrusImportOptionsDialog(this, state, this);
-        connect(import_options_dialog, &QObject::destroyed, this, [this]() { import_options_dialog = nullptr; });
+    if (import_options_dialog != nullptr) {
+        import_options_dialog->close();
     }
+
+    import_options_dialog = new HydrusImportOptionsDialog(this, state, this);
+    connect(import_options_dialog, &QObject::destroyed, this, [this]() { import_options_dialog = nullptr; });
 
     import_options_dialog->show();
     import_options_dialog->raise();
@@ -13787,6 +13957,10 @@ void hydrus_update_downloader(HydrusMainWindow &window, rust::Str page_id, rust:
 
 void hydrus_update_subscriptions(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
     window.update_subscriptions(to_qstring(page_id), parse_object(json));
+}
+
+void hydrus_show_subscription_editor(HydrusMainWindow &window, rust::Str json) {
+    window.show_subscription_editor(parse_object(json));
 }
 
 void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {

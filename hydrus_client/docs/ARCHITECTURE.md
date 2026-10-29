@@ -57,7 +57,8 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
   открытые кнопкой «files» у загрузчика, используют `fixed_hashes`.
 - `PageNode::Notebook` — «page of pages» с собственным current.
 - `PageNode::Downloader` — urls / gallery / watcher / simple downloader: поля,
-  очередь URL, статусы, лог, результаты и настройки watcher.
+  очередь URL, статусы, лог, результаты, настройки watcher и per-page import
+  option overrides.
 - `PageNode::Subscriptions` — общий менеджер периодических подписок.
 - `PageNode::Duplicates` — очередь потенциальных пар и решения merge/false-positive;
   очередь готовится батчами по `duplicate_filter_max_batch_size`, размер
@@ -264,6 +265,19 @@ gallery/post URL в `DownloaderPage.gallery_seeds`; обе структуры с
 копировать URL, повторять неудачные, удалять выбранные и очищать завершённые.
 Worker присылает `GallerySeed` событие на каждый обработанный page/post, поэтому
 журнал заполняется по ходу gallery/watcher импорта.
+
+Downloader-страницы и подписки хранят `import_options` как контейнер overrides.
+Эффективные опции собираются как specific -> caller (`post_urls` для
+urls/gallery/simple, `watcher_urls` для watcher, `subscription` для подписок) ->
+global. Диалог `import options...` на странице редактирует только overrides
+(не заданные вкладки наследуются), summary показывается на кнопке, а worker
+получает готовый effective-контейнер в `DownloadUrls`/`ProcessPages` и применяет
+его к каждому скачанному файлу. Контейнеры переживают перезапуск через
+`gui session.json`.
+
+Подписку можно переименовать, сменить URL/query/site/filter/period и paused в
+`subscription editor`; per-subscription import options живут в том же контейнере.
+Полноценный multi-query editor Python-подписок пока не перенесён.
 
 `gui::app::download` создаёт задания, а `worker` качает прямые URL или страницы
 через site-specific парсеры (`parsing::gallery`: danbooru, gelbooru, e621, rule34,

@@ -36,6 +36,18 @@ pub fn local_import_options(controller: &Controller) -> ImportOptionsContainer {
     load(controller).get_effective("local_import", None)
 }
 
+/// Resolves a per-page/subscription override against its caller default and
+/// global options.
+pub fn effective_for(
+    controller: &Controller,
+    caller: &str,
+    specific: &ImportOptionsContainer,
+) -> ImportOptionsContainer {
+    let specific = (!specific.is_empty()).then_some(specific);
+
+    load(controller).get_effective(caller, specific)
+}
+
 pub fn dialog_json(state: &AppState) -> String {
     let manager = load(&state.controller);
     let services = state.controller.services();
@@ -144,6 +156,47 @@ pub fn open_caller(state: &AppState, caller: &str) -> Vec<UiCommand> {
     }
 
     vec![UiCommand::ImportOptionsDialog(value.to_string())]
+}
+
+/// Builds the editor for a specific importer container. The container only
+/// stores overrides; unchecked option tabs inherit the caller default and then
+/// global options.
+pub fn specific_dialog_json(
+    state: &AppState,
+    caller: &str,
+    container: &ImportOptionsContainer,
+    target: &str,
+    action: &str,
+) -> String {
+    let mut value: Value = serde_json::from_str(&dialog_json(state)).unwrap_or_else(|_| json!({}));
+    let fallback = load(&state.controller).get_effective(caller, None);
+
+    if let Some(object) = value.as_object_mut() {
+        object.insert(
+            "specific".to_string(),
+            json!({
+                "caller": caller,
+                "target": target,
+                "action": action,
+                "container": container,
+            }),
+        );
+        object.insert("fallback".to_string(), json!(fallback));
+    }
+
+    value.to_string()
+}
+
+pub fn specific_open(
+    state: &AppState,
+    caller: &str,
+    container: &ImportOptionsContainer,
+    target: &str,
+    action: &str,
+) -> Vec<UiCommand> {
+    vec![UiCommand::ImportOptionsDialog(specific_dialog_json(
+        state, caller, container, target, action,
+    ))]
 }
 
 pub fn save_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {

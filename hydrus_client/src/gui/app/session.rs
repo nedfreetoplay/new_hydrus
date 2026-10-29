@@ -68,6 +68,8 @@ pub struct SessionNode {
     pub fixed_hashes: Vec<String>,
     #[serde(default)]
     pub duplicate_search: Option<DuplicateSearchContext>,
+    #[serde(default)]
+    pub import_options: Option<crate::importing::ImportOptionsContainer>,
 }
 
 pub struct LoadedSession {
@@ -166,6 +168,7 @@ fn from_notebook(notebook: &Notebook) -> SessionNode {
         results: Vec::new(),
         fixed_hashes: Vec::new(),
         duplicate_search: None,
+        import_options: None,
     }
 }
 
@@ -203,6 +206,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             auto_watch: None,
             check_period: None,
             last_check: None,
+            import_options: None,
         },
         PageNode::Notebook(notebook) => from_notebook(notebook),
         PageNode::Downloader(page) => SessionNode {
@@ -233,6 +237,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             results: page.results.iter().map(|hash| hex(hash)).collect(),
             fixed_hashes: Vec::new(),
             duplicate_search: None,
+            import_options: Some(page.import_options.clone()),
         },
         PageNode::Subscriptions(page) => SessionNode {
             id: page.id.clone(),
@@ -262,6 +267,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             results: Vec::new(),
             fixed_hashes: Vec::new(),
             duplicate_search: None,
+            import_options: None,
         },
         PageNode::Duplicates(page) => SessionNode {
             id: page.id.clone(),
@@ -291,6 +297,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             results: Vec::new(),
             fixed_hashes: Vec::new(),
             duplicate_search: Some(page.search_context.clone()),
+            import_options: None,
         },
         PageNode::ImportFolders(page) => SessionNode {
             id: page.id.clone(),
@@ -320,6 +327,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             results: Vec::new(),
             fixed_hashes: Vec::new(),
             duplicate_search: None,
+            import_options: None,
         },
         PageNode::ExportFolders(page) => SessionNode {
             id: page.id.clone(),
@@ -349,6 +357,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             results: Vec::new(),
             fixed_hashes: Vec::new(),
             duplicate_search: None,
+            import_options: None,
         },
         PageNode::Placeholder(page) => SessionNode {
             id: page.id.clone(),
@@ -378,6 +387,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             results: Vec::new(),
             fixed_hashes: Vec::new(),
             duplicate_search: None,
+            import_options: None,
         },
     }
 }
@@ -442,6 +452,7 @@ fn to_node(node: &SessionNode) -> PageNode {
             page.queue = node.queue.clone();
             page.gallery_seeds = node.gallery_seeds.clone();
             page.results = node.results.iter().filter_map(|hash| unhex(hash)).collect();
+            page.import_options = node.import_options.clone().unwrap_or_default();
 
             // Downloads are not running after a restart.
             page.running = false;

@@ -44,6 +44,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdateSubscriptions(page_id, json) => {
             ffi::hydrus_update_subscriptions(window.as_mut(), &page_id, &json);
         }
+        UiCommand::SubscriptionEditor(json) => {
+            ffi::hydrus_show_subscription_editor(window.as_mut(), &json);
+        }
         UiCommand::UpdateDuplicates(page_id, json) => {
             ffi::hydrus_update_duplicates(window.as_mut(), &page_id, &json);
         }

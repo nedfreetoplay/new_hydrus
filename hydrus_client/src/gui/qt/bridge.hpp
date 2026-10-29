@@ -709,35 +709,87 @@ public:
 
 private:
     void start();
-    void retry_selected();
+    void fill_sites(const QJsonArray &sites);
+    void apply_file_limit(int value, bool no_limit);
 
     HydrusMainWindow *main = nullptr;
     QString id;
     QString kind;
+    QJsonArray sites;
+    int file_limit_value = 2000;
+    bool no_limit_value = false;
+    bool site_loaded = false;
+
+    QScrollArea *sidebar_scroll = nullptr;
+    QWidget *sidebar_content = nullptr;
+
+    QPushButton *sort_type = nullptr;
+    QPushButton *sort_order = nullptr;
+    QComboBox *collect = nullptr;
+    QToolButton *collect_cog = nullptr;
+
+    QFrame *main_box = nullptr;
+    QWidget *main_content = nullptr;
+    QLabel *status_top = nullptr;
+    QLabel *status_bottom = nullptr;
+    QTableWidget *queue = nullptr;
+    QWidget *query_row = nullptr;
+    QLineEdit *query = nullptr;
+    QWidget *url_row = nullptr;
+    QLineEdit *url = nullptr;
+    QWidget *subject_row = nullptr;
+    QLineEdit *subject = nullptr;
+    QWidget *period_row = nullptr;
+    QSpinBox *period = nullptr;
+    QWidget *site_row = nullptr;
+    QComboBox *site = nullptr;
+    QPushButton *gug_button = nullptr;
+    QWidget *file_limit_row = nullptr;
+    QSpinBox *file_limit = nullptr;
+    QCheckBox *no_limit = nullptr;
     QPlainTextEdit *input = nullptr;
     QWidget *input_row = nullptr;
-    QLineEdit *url = nullptr;
-    QLineEdit *query = nullptr;
-    QComboBox *site = nullptr;
-    QLineEdit *filter = nullptr;
-    QLineEdit *subject = nullptr;
-    QSpinBox *period = nullptr;
     QPushButton *start_button = nullptr;
-    QPushButton *pause_button = nullptr;
-    QPushButton *clear_button = nullptr;
-    QPushButton *results_button = nullptr;
-    QPushButton *seed_cache_button = nullptr;
-    QPushButton *gallery_log_button = nullptr;
-    QPushButton *import_options_button = nullptr;
     QPushButton *auto_button = nullptr;
-    QLabel *status_label = nullptr;
-    QTableWidget *queue = nullptr;
-    QPlainTextEdit *log = nullptr;
-    QWidget *url_row = nullptr;
-    QWidget *query_row = nullptr;
-    QWidget *site_row = nullptr;
-    QWidget *subject_row = nullptr;
-    QWidget *period_row = nullptr;
+    QPushButton *import_options_button = nullptr;
+
+    QFrame *highlight_box = nullptr;
+    QWidget *highlight_content = nullptr;
+    QLineEdit *highlight_query = nullptr;
+    QWidget *highlight_limit_row = nullptr;
+    QSpinBox *highlight_file_limit = nullptr;
+    QCheckBox *highlight_no_limit = nullptr;
+    QPushButton *highlight_import_options = nullptr;
+
+    QFrame *imports_box = nullptr;
+    QLabel *imports_status = nullptr;
+    QLabel *file_seed_status = nullptr;
+    QToolButton *files_pause = nullptr;
+    QToolButton *file_log_button = nullptr;
+    QProgressBar *file_progress = nullptr;
+    QLabel *file_percent = nullptr;
+    QProgressBar *file_network_progress = nullptr;
+    QLabel *file_network_percent = nullptr;
+    QToolButton *file_cog = nullptr;
+
+    QFrame *search_box = nullptr;
+    QLabel *search_status = nullptr;
+    QLabel *search_seed_status = nullptr;
+    QToolButton *search_pause = nullptr;
+    QToolButton *search_log_button = nullptr;
+    QProgressBar *search_progress = nullptr;
+    QLabel *search_percent = nullptr;
+    QProgressBar *search_network_progress = nullptr;
+    QLabel *search_network_percent = nullptr;
+    QToolButton *search_cog = nullptr;
+
+    QFrame *selection_tags_box = nullptr;
+    QListWidget *selection_tags = nullptr;
+    QPushButton *tag_sort_type = nullptr;
+    QPushButton *tag_sort_order = nullptr;
+    QPushButton *tag_sort_namespace = nullptr;
+
+    QWidget *results = nullptr;
 };
 
 // Subscription manager page.

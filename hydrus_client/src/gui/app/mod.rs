@@ -1280,6 +1280,7 @@ impl AppState {
             "import_paths" => self.import_paths(payload),
             "downloader_start" => download::start(self, target, payload),
             "downloader_pause" => download::pause(self, target),
+            "downloader_set_site" => download::set_site(self, target, payload),
             "downloader_clear" => download::clear(self, target),
             "downloader_retry" => download::retry(self, target, payload),
             "downloader_open_results" => download::open_results(self, target),

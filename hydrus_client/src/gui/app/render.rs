@@ -695,7 +695,13 @@ pub fn status_json(state: &AppState) -> String {
                 format!("{position}{}", page.status)
             }
         }
-        None => String::new(),
+        None => match state.active_downloader() {
+            Some(page) if page.kind == crate::gui::app::model::DownloaderKind::Watcher => {
+                "no highlighted watcher".to_string()
+            }
+            Some(_) => "no highlighted query".to_string(),
+            None => String::new(),
+        },
     };
 
     let mut busy = String::new();
@@ -889,6 +895,33 @@ pub fn downloader_json(
             })
         })
         .collect();
+    let queue_done = page
+        .queue
+        .iter()
+        .filter(|item| {
+            matches!(
+                item.status,
+                crate::gui::app::model::DownloadItemStatus::Done
+                    | crate::gui::app::model::DownloadItemStatus::Error
+            )
+        })
+        .count();
+    let gallery_total = page.gallery_seeds.len();
+    let gallery_done = page
+        .gallery_seeds
+        .iter()
+        .filter(|seed| seed.status == "success" || seed.status == "failed")
+        .count();
+    let gallery_success = page
+        .gallery_seeds
+        .iter()
+        .filter(|seed| seed.status == "success")
+        .count();
+    let gallery_failed = page
+        .gallery_seeds
+        .iter()
+        .filter(|seed| seed.status == "failed")
+        .count();
 
     json!({
         "page_id": page.id,
@@ -904,7 +937,13 @@ pub fn downloader_json(
         ),
         "sites": crate::parsing::gallery::GALLERY_PARSERS
             .iter()
-            .map(|parser| json!({"id": parser.id.as_str(), "title": parser.title}))
+            .map(|parser| {
+                json!({
+                    "id": parser.id.as_str(),
+                    "title": parser.title,
+                    "template": parser.search_template,
+                })
+            })
             .collect::<Vec<_>>(),
         "filter": page.filter,
         "subject": page.subject,
@@ -916,6 +955,14 @@ pub fn downloader_json(
         "imported": page.imported,
         "failed": page.failed,
         "result_count": page.results.len(),
+        "file_limit": page.file_limit,
+        "last_check": page.last_check,
+        "queue_count": page.queue.len(),
+        "queue_done": queue_done,
+        "gallery_seed_count": gallery_total,
+        "gallery_seed_done": gallery_done,
+        "gallery_seed_success": gallery_success,
+        "gallery_seed_failed": gallery_failed,
         "queue": queue,
         "log": page.log.iter().rev().take(200).cloned().collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n"),
     })
@@ -961,7 +1008,13 @@ pub fn subscriptions_json(state: &AppState, page_id: &str) -> String {
         "status": page.map(|page| page.status.as_str()).unwrap_or(""),
         "sites": crate::parsing::gallery::GALLERY_PARSERS
             .iter()
-            .map(|parser| json!({"id": parser.id.as_str(), "title": parser.title}))
+            .map(|parser| {
+                json!({
+                    "id": parser.id.as_str(),
+                    "title": parser.title,
+                    "template": parser.search_template,
+                })
+            })
             .collect::<Vec<_>>(),
         "subscriptions": subscriptions,
     })

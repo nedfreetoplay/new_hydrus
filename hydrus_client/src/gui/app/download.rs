@@ -68,6 +68,19 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
         .and_then(Value::as_i64)
         .unwrap_or(page.check_period)
         .max(60);
+    let no_limit = value
+        .get("no_limit")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let file_limit = if no_limit {
+        0
+    } else {
+        value
+            .get("file_limit")
+            .and_then(Value::as_i64)
+            .unwrap_or(page.file_limit)
+            .max(1)
+    };
 
     page.input = input.clone();
     page.url = url.clone();
@@ -77,6 +90,7 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
     page.subject = subject;
     page.auto_watch = auto;
     page.check_period = period;
+    page.file_limit = file_limit;
     page.imported = 0;
     page.failed = 0;
     page.results.clear();
@@ -202,6 +216,14 @@ pub fn pause(state: &mut AppState, page_id: &str) -> Vec<UiCommand> {
         } else {
             "resumed".to_string()
         });
+    }
+
+    update_commands(state, page_id)
+}
+
+pub fn set_site(state: &mut AppState, page_id: &str, site: &str) -> Vec<UiCommand> {
+    if let Some(page) = state.find_downloader_mut(page_id) {
+        page.site = site.to_string();
     }
 
     update_commands(state, page_id)
@@ -830,7 +852,16 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
                     }
                 }
 
-                page.note(format!("found {} files", urls.len()));
+                if page.file_limit > 0 && page.queue.len() > page.file_limit as usize {
+                    page.queue.truncate(page.file_limit as usize);
+                    page.note(format!(
+                        "found {} files, stopped at the file limit of {}",
+                        urls.len(),
+                        page.file_limit
+                    ));
+                } else {
+                    page.note(format!("found {} files", urls.len()));
+                }
             }
 
             downloader_commands(state, &job_id)
@@ -1171,7 +1202,7 @@ pub(crate) fn import_options_summary(
     caller: &str,
 ) -> String {
     if container.is_empty() {
-        "using caller defaults".to_string()
+        "all default".to_string()
     } else {
         container.get_summary(caller)
     }

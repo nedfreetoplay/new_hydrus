@@ -77,7 +77,9 @@ Python-клиент v692 запускается локально из `hydrus_py
 - `PageNode::Notebook` — «page of pages» с собственным current.
 - `PageNode::Downloader` — urls / gallery / watcher / simple downloader: поля,
   очередь URL, статусы, лог, результаты, настройки watcher и per-page import
-  option overrides.
+  option overrides. Gallery-страница повторяет Python-sidebar (`gallery
+  downloader` + `highlighted query` с `imports`/`search`, `selection tags`);
+  file limit ограничивает число найденных ссылок на странице.
 - `PageNode::Subscriptions` — общий менеджер периодических подписок.
 - `PageNode::Duplicates` — очередь потенциальных пар и решения merge/false-positive;
   очередь готовится батчами по `duplicate_filter_max_batch_size`, размер

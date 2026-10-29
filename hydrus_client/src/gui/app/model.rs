@@ -223,6 +223,8 @@ pub struct DownloaderPage {
     pub auto_watch: bool,
     pub last_check: i64,
     pub check_period: i64,
+    /// Per-query file cap from the downloader sidebar; 0 means no limit.
+    pub file_limit: i64,
     pub queue: Vec<DownloadItem>,
     /// Gallery and post URLs handled by this gallery/watcher page.
     #[serde(default)]
@@ -257,6 +259,7 @@ impl DownloaderPage {
             auto_watch: false,
             last_check: 0,
             check_period: 3600,
+            file_limit: 2000,
             queue: Vec::new(),
             gallery_seeds: Vec::new(),
             import_options: Default::default(),
@@ -1177,6 +1180,12 @@ impl AppState {
 
     pub fn active_query(&self) -> Option<&QueryPage> {
         self.active.as_deref().and_then(|id| self.find_query(id))
+    }
+
+    pub fn active_downloader(&self) -> Option<&DownloaderPage> {
+        self.active
+            .as_deref()
+            .and_then(|id| self.find_downloader(id))
     }
 
     pub fn active_notebook_id(&self) -> String {

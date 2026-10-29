@@ -108,6 +108,23 @@ Definition of Done для задачи.
   Осталось: точный набор иконок Hydrus вместо нарисованных приближений, полные
   меню file/tag domain, sort и collect, поведение `favourites`/`children` и
   drop-down автодополнения, пиксельная ширина сплиттера.
+- 2026-10-29 — gallery downloader сверен с живым Python v692 в окне 1296x839.
+  Страница перестроена из формы в Python-sidebar: `sort by file: filesize` /
+  `smallest first`, `no collections`, `gallery downloader` (`waiting for new
+  queries`, таблица `query/source/files status/search status/status/items/added`
+  с сортировкой по query, ряд из шести иконок highlight/clear/pause files/pause
+  search/retry/remove), поле query с paste/gear, `no downloader set` (меню GUG),
+  `stop after this many files: 2000` + `no limit`, `import options (all default)`;
+  ниже `highlighted query` с вложенными `imports` и `search` (статус, seed log,
+  прогресс, network job), тем же limit и import options; внизу `selection tags`.
+  Пустой статус-бар — `no highlighted query`; для watcher-страницы —
+  `no highlighted watcher`. File limit теперь реально ограничивает число
+  найденных ссылок. Скриншоты: `docs/images/gallery_page.png` (Rust) и
+  `docs/images/python_gallery_page.png` (Python). Осталось: точная ширина колонок
+  и элизия заголовков, включённое состояние disabled-панелей при пустом
+  highlight, точные иконки Hydrus, полноценные multi-query/GUG-редакторы,
+  а также отдельная сверка urls/simple/watcher страниц, subscriptions,
+  duplicates, import/export folders и options dialogs.
 
 ## Текущий статус
 
@@ -623,6 +640,9 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
 - [~] 14.8 Визуальный аудит: пройти по всем экранам, снять скриншоты Rust и Python
   и устранить расхождения по «Правилу визуального паритета» (порядок контролов,
   подписи, размеры, отступы, иконки, тема).
+  - сверено: главное окно (файловая страница), gallery downloader.
+  - осталось: subscriptions, duplicates, import/export folders, options dialogs,
+    urls/simple/watcher downloader pages, media viewer.
 
 ---
 

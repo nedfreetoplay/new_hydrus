@@ -263,3 +263,27 @@ fn saving_options_for_missing_targets_is_refused() {
     drop(state);
     let _ = std::fs::remove_dir_all(directory);
 }
+
+#[test]
+fn set_site_updates_the_gallery_page() {
+    let directory = std::env::temp_dir().join(format!(
+        "hydrus_downloader_set_site_{}_{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    let mut state = test_state(&directory);
+    state.root.add(PageNode::Downloader(DownloaderPage::new(
+        "p1",
+        DownloaderKind::Gallery,
+    )));
+
+    let commands = set_site(&mut state, "p1", "safebooru");
+
+    let page = state.find_downloader("p1").unwrap();
+    assert_eq!(page.site, "safebooru");
+    assert_eq!(page.file_limit, 2000);
+    assert!(!commands.is_empty());
+
+    drop(state);
+    let _ = std::fs::remove_dir_all(directory);
+}

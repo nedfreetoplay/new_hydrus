@@ -1689,6 +1689,62 @@ QIcon hydrus_small_icon(const QString &kind) {
         painter.drawRoundedRect(QRect(2, 2, 12, 12), 2, 2);
         painter.setBrush(QColor(45, 110, 200));
         painter.drawRect(QRect(5, 5, 6, 6));
+    } else if (kind == QStringLiteral("pause")) {
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(70, 70, 70));
+        painter.drawRect(QRect(4, 3, 3, 10));
+        painter.drawRect(QRect(9, 3, 3, 10));
+    } else if (kind == QStringLiteral("play")) {
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(70, 70, 70));
+        QPolygonF triangle;
+        triangle << QPointF(4.0, 3.0) << QPointF(13.0, 8.0) << QPointF(4.0, 13.0);
+        painter.drawPolygon(triangle);
+    } else if (kind == QStringLiteral("retry")) {
+        painter.setPen(QPen(QColor(70, 70, 70), 1.6));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawArc(QRect(2, 2, 12, 12), 40 * 16, 280 * 16);
+        painter.setBrush(QColor(70, 70, 70));
+        QPolygonF arrow;
+        arrow << QPointF(11.0, 1.0) << QPointF(14.5, 4.5) << QPointF(10.5, 5.5);
+        painter.drawPolygon(arrow);
+    } else if (kind == QStringLiteral("trash")) {
+        painter.setPen(QPen(QColor(90, 90, 90), 1.2));
+        painter.setBrush(QColor(235, 235, 235));
+        painter.drawRect(QRect(3, 4, 10, 10));
+        painter.drawLine(2, 4, 14, 4);
+        painter.drawLine(6, 2, 10, 2);
+        painter.setPen(QPen(QColor(90, 90, 90), 1));
+        painter.drawLine(6, 6, 6, 12);
+        painter.drawLine(9, 6, 9, 12);
+    } else if (kind == QStringLiteral("highlight")) {
+        QPolygonF star;
+        const QPointF centre(8.0, 8.0);
+        for (int index = 0; index < 10; ++index) {
+            const double radius = index % 2 == 0 ? 6.5 : 2.8;
+            const double angle = -1.5707963267948966 + index * 0.6283185307179586;
+            star << QPointF(
+                centre.x() + radius * std::cos(angle),
+                centre.y() + radius * std::sin(angle));
+        }
+        painter.setPen(QPen(QColor(90, 90, 90), 1));
+        painter.setBrush(QColor(235, 235, 235));
+        painter.drawPolygon(star);
+    } else if (kind == QStringLiteral("unhighlight")) {
+        QPolygonF star;
+        const QPointF centre(8.0, 8.0);
+        for (int index = 0; index < 10; ++index) {
+            const double radius = index % 2 == 0 ? 6.5 : 2.8;
+            const double angle = -1.5707963267948966 + index * 0.6283185307179586;
+            star << QPointF(
+                centre.x() + radius * std::cos(angle),
+                centre.y() + radius * std::sin(angle));
+        }
+        painter.setPen(QPen(QColor(130, 130, 130), 1));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPolygon(star);
+        painter.setPen(QPen(QColor(160, 60, 60), 1.6));
+        painter.drawLine(3, 13, 13, 3);
     } else if (kind == QStringLiteral("gear")) {
         painter.setPen(QPen(QColor(70, 70, 70), 1.2));
         painter.setBrush(QColor(205, 205, 205));
@@ -2632,221 +2688,911 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     : QWidget(), main(main_window), id(page_id) {
     kind = state.value(QStringLiteral("kind")).toString();
 
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(6, 6, 6, 6);
-    layout->setSpacing(6);
+    auto *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
 
-    auto *form = new QFormLayout();
-    form->setContentsMargins(0, 0, 0, 0);
+    auto *splitter = new QSplitter(Qt::Horizontal, this);
 
-    input = new QPlainTextEdit(this);
-    input->setPlaceholderText(QStringLiteral("https://example.com/file.jpg\none url per line"));
-    input->setMinimumHeight(64);
-    input->setMaximumHeight(110);
-    input_row = field_row(QStringLiteral("urls"), input, this);
-    form->addRow(input_row);
+    sidebar_scroll = new QScrollArea(splitter);
+    sidebar_scroll->setWidgetResizable(true);
+    sidebar_scroll->setFrameShape(QFrame::NoFrame);
+    sidebar_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 
-    url = new QLineEdit(this);
-    url->setPlaceholderText(QStringLiteral("https://example.com/gallery?q={query}"));
-    url_row = field_row(QStringLiteral("page url"), url, this);
-    form->addRow(url_row);
+    sidebar_content = new QWidget();
+    auto *sidebar_layout = new QVBoxLayout(sidebar_content);
+    sidebar_layout->setContentsMargins(6, 6, 6, 6);
+    sidebar_layout->setSpacing(4);
+    sidebar_scroll->setWidget(sidebar_content);
+    splitter->addWidget(sidebar_scroll);
 
-    query = new QLineEdit(this);
-    query->setPlaceholderText(QStringLiteral("blue eyes"));
-    filter = new QLineEdit(this);
-    filter->setPlaceholderText(QStringLiteral("optional link filter"));
-    auto *query_widget = new QWidget(this);
-    auto *query_layout = new QHBoxLayout(query_widget);
-    query_layout->setContentsMargins(0, 0, 0, 0);
-    query_layout->addWidget(query, 1);
-    query_layout->addWidget(filter, 1);
-    query_row = field_row(QStringLiteral("search"), query_widget, this);
-    form->addRow(query_row);
-
-    site = new QComboBox(this);
-    site_row = field_row(QStringLiteral("site parser"), site, this);
-    form->addRow(site_row);
-
-    subject = new QLineEdit(this);
-    subject->setPlaceholderText(QStringLiteral("watcher subject"));
-    subject_row = field_row(QStringLiteral("subject"), subject, this);
-    form->addRow(subject_row);
-
-    period = new QSpinBox(this);
-    period->setRange(60, 2592000);
-    period->setSingleStep(300);
-    period->setValue(3600);
-    period_row = field_row(QStringLiteral("check every"), period, this);
-    form->addRow(period_row);
-
-    layout->addLayout(form);
-
-    auto *controls = new QHBoxLayout();
-    start_button = new QPushButton(QStringLiteral("start"), this);
-    pause_button = new QPushButton(QStringLiteral("pause"), this);
-    clear_button = new QPushButton(QStringLiteral("clear finished"), this);
-    results_button = new QPushButton(QStringLiteral("files"), this);
-    seed_cache_button = new QPushButton(QStringLiteral("seed cache..."), this);
-    gallery_log_button = new QPushButton(QStringLiteral("gallery log..."), this);
-    import_options_button = new QPushButton(QStringLiteral("import options..."), this);
-    auto_button = new QPushButton(QStringLiteral("automatic checks: off"), this);
-
-    controls->addWidget(start_button);
-    controls->addWidget(pause_button);
-    controls->addWidget(clear_button);
-    controls->addWidget(results_button);
-    controls->addWidget(seed_cache_button);
-    controls->addWidget(gallery_log_button);
-    controls->addWidget(import_options_button);
-    controls->addWidget(auto_button);
-    controls->addStretch(1);
-    layout->addLayout(controls);
-
-    status_label = new QLabel(this);
-    status_label->setWordWrap(true);
-    layout->addWidget(status_label);
-
-    auto *splitter = new QSplitter(Qt::Vertical, this);
-
-    queue = new QTableWidget(splitter);
-    queue->setColumnCount(4);
-    queue->setHorizontalHeaderLabels({QStringLiteral("url"), QStringLiteral("domain"), QStringLiteral("status"), QStringLiteral("note")});
-    queue->horizontalHeader()->setStretchLastSection(true);
-    queue->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-    queue->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    queue->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    queue->setSelectionBehavior(QAbstractItemView::SelectRows);
-    queue->setSelectionMode(QAbstractItemView::SingleSelection);
-    queue->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    queue->verticalHeader()->setVisible(false);
-    splitter->addWidget(queue);
-
-    log = new QPlainTextEdit(splitter);
-    log->setReadOnly(true);
-    log->setMaximumBlockCount(400);
-    splitter->addWidget(log);
-    splitter->setStretchFactor(0, 3);
+    results = new QWidget(splitter);
+    results->setAutoFillBackground(true);
+    QPalette results_palette = results->palette();
+    results_palette.setColor(QPalette::Window, Qt::white);
+    results->setPalette(results_palette);
+    auto *results_layout = new QVBoxLayout(results);
+    results_layout->setContentsMargins(0, 0, 0, 0);
+    results_layout->setSpacing(0);
+    splitter->addWidget(results);
+    splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
+    splitter->setSizes({400, 880});
 
-    layout->addWidget(splitter, 1);
+    layout->addWidget(splitter);
 
-    connect(start_button, &QPushButton::clicked, this, [this]() { start(); });
-    connect(pause_button, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("downloader_pause"), id);
+    const HydrusSortOption *initial_sort = find_sort_option(QStringLiteral("size"));
+
+    sort_type = new QPushButton(QString::fromUtf8(initial_sort->label), sidebar_content);
+    sort_type->setMinimumHeight(24);
+    sort_type->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
+    sort_order = new QPushButton(QString::fromUtf8(initial_sort->ascending), sidebar_content);
+    sort_order->setMinimumHeight(24);
+    sort_order->setMinimumWidth(90);
+
+    auto *sort_row = new QWidget(sidebar_content);
+    sort_row->setFixedHeight(24);
+    auto *sort_row_layout = new QHBoxLayout(sort_row);
+    sort_row_layout->setContentsMargins(0, 0, 0, 0);
+    sort_row_layout->setSpacing(2);
+    sort_row_layout->addWidget(sort_type, 1);
+    sort_row_layout->addWidget(sort_order, 0);
+    sidebar_layout->addWidget(sort_row);
+
+    auto *sort_menu = new QMenu(this);
+
+    for (const HydrusSortOption &option : hydrus_sort_options) {
+        auto *action = sort_menu->addAction(QString::fromUtf8(option.label));
+        action->setData(QString::fromUtf8(option.key));
+    }
+
+    const auto set_sort = [this](const QString &key) {
+        const HydrusSortOption *option = find_sort_option(key);
+        sort_type->setText(QString::fromUtf8(option->label));
+        sort_order->setText(QString::fromUtf8(option->ascending));
+    };
+
+    const auto set_sort_direction = [this](bool ascending) {
+        for (const HydrusSortOption &option : hydrus_sort_options) {
+            if (sort_type->text() == QString::fromUtf8(option.label)) {
+                sort_order->setText(
+                    QString::fromUtf8(ascending ? option.ascending : option.descending));
+                break;
+            }
+        }
+    };
+
+    connect(sort_menu, &QMenu::triggered, this, [set_sort](QAction *action) {
+        set_sort(action->data().toString());
     });
-    connect(clear_button, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("downloader_clear"), id);
+
+    connect(sort_type, &QPushButton::clicked, this, [this, sort_menu]() {
+        sort_menu->popup(sort_type->mapToGlobal(QPoint(0, sort_type->height())));
     });
-    connect(results_button, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("downloader_open_results"), id);
+
+    connect(sort_order, &QPushButton::clicked, this, [this, set_sort_direction]() {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        auto *ascending = menu->addAction(QStringLiteral("smallest first"));
+        auto *descending = menu->addAction(QStringLiteral("largest first"));
+
+        connect(ascending, &QAction::triggered, this, [set_sort_direction]() {
+            set_sort_direction(true);
+        });
+        connect(descending, &QAction::triggered, this, [set_sort_direction]() {
+            set_sort_direction(false);
+        });
+
+        menu->popup(sort_order->mapToGlobal(QPoint(0, sort_order->height())));
     });
-    connect(seed_cache_button, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("file_seed_cache"), id);
+
+    collect = new QComboBox(sidebar_content);
+    collect->addItem(QStringLiteral("no collections"));
+    collect->setFixedHeight(24);
+
+    collect_cog = new QToolButton(sidebar_content);
+    collect_cog->setIcon(hydrus_small_icon(QStringLiteral("gear")));
+    collect_cog->setIconSize(QSize(16, 16));
+    collect_cog->setToolTip(QStringLiteral("collection options"));
+    collect_cog->setAutoRaise(true);
+    collect_cog->setFixedSize(24, 24);
+    collect_cog->setFocusPolicy(Qt::NoFocus);
+
+    auto *collect_row = new QWidget(sidebar_content);
+    collect_row->setFixedHeight(24);
+    auto *collect_row_layout = new QHBoxLayout(collect_row);
+    collect_row_layout->setContentsMargins(0, 0, 0, 0);
+    collect_row_layout->setSpacing(2);
+    collect_row_layout->addWidget(collect, 1);
+    collect_row_layout->addWidget(collect_cog, 0);
+    sidebar_layout->addWidget(collect_row);
+
+    connect(collect_cog, &QToolButton::clicked, this, [this]() {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        auto *nothing = menu->addAction(QStringLiteral("no collection options available"));
+        nothing->setEnabled(false);
+        menu->popup(collect_cog->mapToGlobal(QPoint(0, collect_cog->height())));
     });
-    connect(gallery_log_button, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("gallery_seed_log"), id);
+
+    const auto row_icon = [this](QWidget *parent, const QString &icon_kind, const QString &tooltip) {
+        auto *button = new QToolButton(parent);
+        button->setIcon(hydrus_small_icon(icon_kind));
+        button->setIconSize(QSize(16, 16));
+        button->setFixedSize(28, 24);
+        button->setAutoRaise(true);
+        button->setFocusPolicy(Qt::NoFocus);
+        button->setToolTip(tooltip);
+        return button;
+    };
+
+    const auto make_status_box = [this, row_icon](
+                                     QWidget *container,
+                                     QVBoxLayout *outer_layout,
+                                     const QString &title,
+                                     QLabel **status_label,
+                                     QLabel **seed_label,
+                                     QToolButton **pause_button,
+                                     QToolButton **log_button,
+                                     QProgressBar **progress_bar,
+                                     QLabel **percent_label,
+                                     QProgressBar **network_bar,
+                                     QLabel **network_percent,
+                                     QToolButton **cog_button,
+                                     const QString &pause_tip,
+                                     const QString &log_text,
+                                     const QString &log_action) {
+        QVBoxLayout *box_layout = nullptr;
+        QFrame *box = make_static_box(title, container, &box_layout);
+        box_layout->setContentsMargins(8, 4, 8, 10);
+        box_layout->setSpacing(8);
+
+        auto *status_row = new QWidget(box);
+        status_row->setFixedHeight(24);
+        auto *status_layout = new QHBoxLayout(status_row);
+        status_layout->setContentsMargins(0, 0, 0, 0);
+        status_layout->setSpacing(2);
+
+        *status_label = new QLabel(status_row);
+        status_layout->addWidget(*status_label, 1);
+
+        *pause_button = row_icon(status_row, QStringLiteral("pause"), pause_tip);
+        status_layout->addWidget(*pause_button, 0);
+        box_layout->addWidget(status_row);
+
+        auto *seed_row = new QWidget(box);
+        seed_row->setFixedHeight(24);
+        auto *seed_layout = new QHBoxLayout(seed_row);
+        seed_layout->setContentsMargins(0, 0, 0, 0);
+        seed_layout->setSpacing(2);
+
+        *seed_label = new QLabel(seed_row);
+        seed_layout->addWidget(*seed_label, 1);
+
+        *log_button = new QToolButton(seed_row);
+        (*log_button)->setText(QStringLiteral("%1 log").arg(log_text));
+        (*log_button)->setMinimumWidth(78);
+        (*log_button)->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        (*log_button)->setPopupMode(QToolButton::InstantPopup);
+        (*log_button)->setAutoRaise(true);
+        (*log_button)->setFocusPolicy(Qt::NoFocus);
+
+        auto *log_menu = new QMenu(*log_button);
+        log_menu->addAction(
+            QStringLiteral("open %1 log").arg(log_text), this, [this, log_action]() {
+                main->notify(log_action, id);
+            });
+        log_menu->addAction(QStringLiteral("clear finished"), this, [this]() {
+            main->notify(QStringLiteral("downloader_clear"), id);
+        });
+        (*log_button)->setMenu(log_menu);
+        seed_layout->addWidget(*log_button, 0);
+        box_layout->addWidget(seed_row);
+
+        auto *progress_row = new QWidget(box);
+        auto *progress_layout = new QHBoxLayout(progress_row);
+        progress_layout->setContentsMargins(0, 0, 0, 0);
+        progress_layout->setSpacing(2);
+
+        *progress_bar = new QProgressBar(progress_row);
+        (*progress_bar)->setRange(0, 100);
+        (*progress_bar)->setValue(0);
+        (*progress_bar)->setTextVisible(false);
+        (*progress_bar)->setFixedHeight(20);
+        progress_layout->addWidget(*progress_bar, 1);
+
+        *percent_label = new QLabel(progress_row);
+        (*percent_label)->setFixedWidth(38);
+        (*percent_label)->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        (*percent_label)->setVisible(false);
+        progress_layout->addWidget(*percent_label, 0);
+        box_layout->addWidget(progress_row);
+
+        auto *network_row = new QWidget(box);
+        network_row->setFixedHeight(44);
+        auto *network_layout = new QHBoxLayout(network_row);
+        network_layout->setContentsMargins(0, 0, 0, 0);
+        network_layout->setSpacing(2);
+
+        *network_bar = new QProgressBar(network_row);
+        (*network_bar)->setRange(0, 100);
+        (*network_bar)->setValue(0);
+        (*network_bar)->setTextVisible(false);
+        (*network_bar)->setFixedHeight(20);
+        network_layout->addWidget(*network_bar, 1);
+
+        *network_percent = new QLabel(QStringLiteral("0%"), network_row);
+        (*network_percent)->setFixedWidth(38);
+        (*network_percent)->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        network_layout->addWidget(*network_percent, 0);
+
+        *cog_button = row_icon(network_row, QStringLiteral("gear"), QStringLiteral("network job options"));
+        network_layout->addWidget(*cog_button, 0);
+        box_layout->addWidget(network_row);
+
+        outer_layout->addWidget(box);
+
+        return box;
+    };
+
+    const bool watcher = kind == QStringLiteral("watcher");
+    const bool gallery = kind == QStringLiteral("gallery");
+    const bool urls = kind == QStringLiteral("urls");
+    const bool simple = kind == QStringLiteral("simple");
+
+    QString box_title = QStringLiteral("url downloader");
+
+    if (gallery) {
+        box_title = QStringLiteral("gallery downloader");
+    } else if (simple) {
+        box_title = QStringLiteral("simple downloader");
+    } else if (watcher) {
+        box_title = QStringLiteral("watcher");
+    }
+
+    QVBoxLayout *main_layout = nullptr;
+    QPushButton *main_expand = nullptr;
+    main_box = make_static_box(box_title, sidebar_content, &main_layout, &main_expand);
+    main_content = main_layout->parentWidget();
+    sidebar_layout->addWidget(main_box);
+
+    connect(main_expand, &QPushButton::clicked, this, [this, main_expand]() {
+        const bool show = !main_content->isVisible();
+        main_content->setVisible(show);
+        main_expand->setIcon(
+            style()->standardIcon(show ? QStyle::SP_ArrowUp : QStyle::SP_ArrowDown));
     });
+
+    if (gallery) {
+        status_top = new QLabel(main_content);
+        status_top->setTextFormat(Qt::PlainText);
+        main_layout->addWidget(status_top);
+
+        status_bottom = new QLabel(main_content);
+        status_bottom->setTextFormat(Qt::PlainText);
+        main_layout->addWidget(status_bottom);
+
+        queue = new QTableWidget(main_content);
+        queue->setColumnCount(7);
+        queue->setHorizontalHeaderLabels({QStringLiteral("query"),
+                                          QStringLiteral("source"),
+                                          QStringLiteral("files status"),
+                                          QStringLiteral("search status"),
+                                          QStringLiteral("status"),
+                                          QStringLiteral("items"),
+                                          QStringLiteral("added")});
+        queue->verticalHeader()->setVisible(false);
+        queue->setSelectionBehavior(QAbstractItemView::SelectRows);
+        queue->setSelectionMode(QAbstractItemView::SingleSelection);
+        queue->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        queue->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+        queue->setFixedHeight(128);
+
+        queue->setSortingEnabled(true);
+        queue->setTextElideMode(Qt::ElideRight);
+        queue->horizontalHeader()->setTextElideMode(Qt::ElideRight);
+        queue->horizontalHeader()->setFixedHeight(24);
+
+        const int widths[] = {56, 78, 30, 30, 56, 64, 56};
+
+        for (int index = 0; index < 7; ++index) {
+            queue->setColumnWidth(index, widths[index]);
+            queue->horizontalHeader()->setSectionResizeMode(index, QHeaderView::Fixed);
+        }
+
+        queue->sortByColumn(0, Qt::AscendingOrder);
+
+        main_layout->addWidget(queue);
+
+        auto *icon_row = new QWidget(main_content);
+        auto *icon_layout = new QHBoxLayout(icon_row);
+        icon_layout->setContentsMargins(0, 0, 0, 0);
+        icon_layout->setSpacing(2);
+        icon_layout->addStretch(1);
+
+        auto *highlight_button = row_icon(icon_row, QStringLiteral("highlight"), QStringLiteral("highlight"));
+        auto *clear_highlight_button =
+            row_icon(icon_row, QStringLiteral("unhighlight"), QStringLiteral("clear highlight"));
+        files_pause = row_icon(icon_row, QStringLiteral("pause"), QStringLiteral("pause/play files"));
+        search_pause = row_icon(icon_row, QStringLiteral("pause"), QStringLiteral("pause/play search"));
+        auto *retry_button = row_icon(icon_row, QStringLiteral("retry"), QStringLiteral("retry commands"));
+        auto *remove_button = row_icon(icon_row, QStringLiteral("trash"), QStringLiteral("remove selected"));
+
+        for (QToolButton *button : {highlight_button,
+                                    clear_highlight_button,
+                                    files_pause,
+                                    search_pause,
+                                    retry_button,
+                                    remove_button}) {
+            icon_layout->addWidget(button, 0);
+        }
+
+        main_layout->addWidget(icon_row);
+
+        connect(highlight_button, &QToolButton::clicked, this, [this]() {
+            main->notify(QStringLiteral("downloader_open_results"), id);
+        });
+        connect(clear_highlight_button, &QToolButton::clicked, this, [this]() {
+            main->notify(QStringLiteral("downloader_clear"), id);
+        });
+        connect(files_pause, &QToolButton::clicked, this, [this]() {
+            main->notify(QStringLiteral("downloader_pause"), id);
+        });
+        connect(search_pause, &QToolButton::clicked, this, [this]() {
+            main->notify(QStringLiteral("downloader_pause"), id);
+        });
+        connect(retry_button, &QToolButton::clicked, this, [this]() { start(); });
+        connect(remove_button, &QToolButton::clicked, this, [this]() {
+            main->notify(QStringLiteral("downloader_clear"), id);
+        });
+        connect(queue, &QTableWidget::cellDoubleClicked, this, [this](int, int) { start(); });
+
+        query_row = new QWidget(main_content);
+        auto *query_layout = new QHBoxLayout(query_row);
+        query_layout->setContentsMargins(0, 0, 0, 0);
+        query_layout->setSpacing(2);
+
+        query = new QLineEdit(query_row);
+        query->setMinimumHeight(24);
+        query->setPlaceholderText(QStringLiteral("unknown downloader"));
+        query_layout->addWidget(query, 1);
+
+        auto *paste_button = row_icon(query_row, QStringLiteral("paste"), QStringLiteral("paste"));
+        paste_button->setFixedSize(28, 24);
+        query_layout->addWidget(paste_button, 0);
+
+        auto *query_cog = row_icon(query_row, QStringLiteral("gear"), QStringLiteral("downloader options"));
+        query_layout->addWidget(query_cog, 0);
+        main_layout->addWidget(query_row);
+
+        connect(query, &QLineEdit::returnPressed, this, [this]() { start(); });
+        connect(paste_button, &QToolButton::clicked, this, [this]() {
+            const QString text = QApplication::clipboard()->text().trimmed();
+
+            if (!text.isEmpty()) {
+                query->setText(text.split('\n').first().trimmed());
+                start();
+            }
+        });
+
+        connect(query_cog, &QToolButton::clicked, this, [this, query_cog]() {
+            auto *menu = new QMenu(this);
+            menu->setAttribute(Qt::WA_DeleteOnClose);
+            menu->addAction(QStringLiteral("start query"), this, [this]() { start(); });
+            menu->addAction(QStringLiteral("clear finished"), this, [this]() {
+                main->notify(QStringLiteral("downloader_clear"), id);
+            });
+            menu->addAction(QStringLiteral("file seed cache..."), this, [this]() {
+                main->notify(QStringLiteral("file_seed_cache"), id);
+            });
+            menu->addAction(QStringLiteral("gallery log..."), this, [this]() {
+                main->notify(QStringLiteral("gallery_seed_log"), id);
+            });
+            menu->popup(query_cog->mapToGlobal(QPoint(0, query_cog->height())));
+        });
+
+        gug_button = new QPushButton(QStringLiteral("no downloader set"), main_content);
+        gug_button->setMinimumHeight(24);
+        main_layout->addWidget(gug_button);
+
+        site = new QComboBox(main_content);
+        site->hide();
+
+        connect(gug_button, &QPushButton::clicked, this, [this]() {
+            auto *menu = new QMenu(this);
+            menu->setAttribute(Qt::WA_DeleteOnClose);
+            auto *none = menu->addAction(QStringLiteral("no downloader set"));
+
+            connect(none, &QAction::triggered, this, [this]() {
+                site->setCurrentIndex(0);
+                gug_button->setText(QStringLiteral("no downloader set"));
+                url->clear();
+                main->notify(QStringLiteral("downloader_set_site"), id, QString());
+            });
+
+            for (int index = 1; index < site->count(); ++index) {
+                const QString title = site->itemText(index);
+                auto *action = menu->addAction(title);
+
+                connect(action, &QAction::triggered, this, [this, index, title]() {
+                    site->setCurrentIndex(index);
+                    gug_button->setText(title);
+                    url->setText(site->itemData(index, Qt::UserRole + 1).toString());
+                    main->notify(
+                        QStringLiteral("downloader_set_site"),
+                        id,
+                        site->itemData(index).toString());
+                });
+            }
+
+            menu->popup(gug_button->mapToGlobal(QPoint(0, gug_button->height())));
+        });
+
+        file_limit_row = new QWidget(main_content);
+        auto *limit_layout = new QHBoxLayout(file_limit_row);
+        limit_layout->setContentsMargins(0, 0, 0, 0);
+        limit_layout->setSpacing(4);
+
+        auto *limit_label = new QLabel(QStringLiteral("stop after this many files:"), file_limit_row);
+        limit_layout->addWidget(limit_label, 0);
+
+        file_limit = new QSpinBox(file_limit_row);
+        file_limit->setRange(1, 10000000);
+        file_limit->setValue(2000);
+        file_limit->setFixedHeight(20);
+        limit_layout->addWidget(file_limit, 1);
+
+        no_limit = new QCheckBox(QStringLiteral("no limit"), file_limit_row);
+        limit_layout->addWidget(no_limit, 0);
+        main_layout->addWidget(file_limit_row);
+    } else {
+        if (urls || simple) {
+            input_row = new QWidget(main_content);
+            auto *input_layout = new QVBoxLayout(input_row);
+            input_layout->setContentsMargins(0, 0, 0, 0);
+            input_layout->setSpacing(0);
+
+            input = new QPlainTextEdit(input_row);
+            input->setMinimumHeight(64);
+            input->setMaximumHeight(110);
+            input_layout->addWidget(input);
+            main_layout->addWidget(input_row);
+        }
+
+        if (watcher) {
+            subject_row = new QWidget(main_content);
+            auto *subject_layout = new QHBoxLayout(subject_row);
+            subject_layout->setContentsMargins(0, 0, 0, 0);
+            subject_layout->setSpacing(4);
+            subject_layout->addWidget(new QLabel(QStringLiteral("subject"), subject_row), 0);
+
+            subject = new QLineEdit(subject_row);
+            subject->setPlaceholderText(QStringLiteral("watcher subject"));
+            subject_layout->addWidget(subject, 1);
+            main_layout->addWidget(subject_row);
+
+            url_row = new QWidget(main_content);
+            auto *url_layout = new QHBoxLayout(url_row);
+            url_layout->setContentsMargins(0, 0, 0, 0);
+            url_layout->setSpacing(4);
+            url_layout->addWidget(new QLabel(QStringLiteral("page url"), url_row), 0);
+
+            url = new QLineEdit(url_row);
+            url->setPlaceholderText(QStringLiteral("https://example.com/gallery?q={query}"));
+            url_layout->addWidget(url, 1);
+            main_layout->addWidget(url_row);
+        }
+
+        if (watcher || simple) {
+            site_row = new QWidget(main_content);
+            auto *site_layout = new QHBoxLayout(site_row);
+            site_layout->setContentsMargins(0, 0, 0, 0);
+            site_layout->setSpacing(4);
+            site_layout->addWidget(new QLabel(QStringLiteral("site parser"), site_row), 0);
+
+            site = new QComboBox(site_row);
+            site_layout->addWidget(site, 1);
+            main_layout->addWidget(site_row);
+
+            connect(site, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+                if (!main->building) {
+                    main->notify(
+                        QStringLiteral("downloader_set_site"),
+                        id,
+                        site->currentData().toString());
+                }
+            });
+        }
+
+        if (watcher) {
+            period_row = new QWidget(main_content);
+            auto *period_layout = new QHBoxLayout(period_row);
+            period_layout->setContentsMargins(0, 0, 0, 0);
+            period_layout->setSpacing(4);
+            period_layout->addWidget(new QLabel(QStringLiteral("check every"), period_row), 0);
+
+            period = new QSpinBox(period_row);
+            period->setRange(60, 2592000);
+            period->setSingleStep(300);
+            period->setValue(3600);
+            period->setSuffix(QStringLiteral(" s"));
+            period_layout->addWidget(period, 1);
+            main_layout->addWidget(period_row);
+
+            auto_button = new QPushButton(QStringLiteral("automatic checks: off"), main_content);
+            auto_button->setMinimumHeight(24);
+            main_layout->addWidget(auto_button);
+        }
+    }
+
+    start_button = new QPushButton(watcher ? QStringLiteral("check now") : QStringLiteral("start"), main_content);
+    start_button->setMinimumHeight(24);
+    start_button->setVisible(!gallery);
+    main_layout->addWidget(start_button);
+
+    import_options_button = new QPushButton(
+        QStringLiteral("import options (%1)")
+            .arg(state.value(QStringLiteral("import_options_summary")).toString()),
+        main_content);
+    import_options_button->setMinimumHeight(22);
+    main_layout->addWidget(import_options_button);
+
     connect(import_options_button, &QPushButton::clicked, this, [this]() {
         main->notify(QStringLiteral("downloader_import_options"), id);
     });
-    connect(auto_button, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("watcher_auto"), id);
-    });
-    connect(queue, &QTableWidget::cellDoubleClicked, this, [this](int, int) { retry_selected(); });
+    connect(start_button, &QPushButton::clicked, this, [this]() { start(); });
 
+    if (auto_button != nullptr) {
+        connect(auto_button, &QPushButton::clicked, this, [this]() {
+            main->notify(QStringLiteral("watcher_auto"), id);
+        });
+    }
+
+    if (query != nullptr) {
+        connect(file_limit, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int value) {
+            apply_file_limit(value, no_limit->isChecked());
+        });
+        connect(no_limit, &QCheckBox::toggled, this, [this](bool checked) {
+            apply_file_limit(file_limit->value(), checked);
+        });
+    }
+
+    if (gallery) {
+        QVBoxLayout *highlight_layout = nullptr;
+        QPushButton *highlight_expand = nullptr;
+        highlight_box = make_static_box(
+            QStringLiteral("highlighted query"),
+            sidebar_content,
+            &highlight_layout,
+            &highlight_expand);
+        highlight_content = highlight_layout->parentWidget();
+        sidebar_layout->addWidget(highlight_box);
+
+        connect(highlight_expand, &QPushButton::clicked, this, [this, highlight_expand]() {
+            const bool show = !highlight_content->isVisible();
+            highlight_content->setVisible(show);
+            highlight_expand->setIcon(
+                style()->standardIcon(show ? QStyle::SP_ArrowUp : QStyle::SP_ArrowDown));
+        });
+
+        highlight_query = new QLineEdit(highlight_content);
+        highlight_query->setReadOnly(true);
+        highlight_query->setFixedHeight(22);
+        highlight_layout->addWidget(highlight_query);
+
+        imports_box = make_status_box(highlight_content,
+                                      highlight_layout,
+                                      QStringLiteral("imports"),
+                                      &imports_status,
+                                      &file_seed_status,
+                                      &files_pause,
+                                      &file_log_button,
+                                      &file_progress,
+                                      &file_percent,
+                                      &file_network_progress,
+                                      &file_network_percent,
+                                      &file_cog,
+                                      QStringLiteral("pause/play files"),
+                                      QStringLiteral("file"),
+                                      QStringLiteral("file_seed_cache"));
+
+        search_box = make_status_box(highlight_content,
+                                     highlight_layout,
+                                     QStringLiteral("search"),
+                                     &search_status,
+                                     &search_seed_status,
+                                     &search_pause,
+                                     &search_log_button,
+                                     &search_progress,
+                                     &search_percent,
+                                     &search_network_progress,
+                                     &search_network_percent,
+                                     &search_cog,
+                                     QStringLiteral("pause/play search"),
+                                     QStringLiteral("search"),
+                                     QStringLiteral("gallery_seed_log"));
+
+        highlight_limit_row = new QWidget(highlight_content);
+        auto *highlight_limit_layout = new QHBoxLayout(highlight_limit_row);
+        highlight_limit_layout->setContentsMargins(0, 0, 0, 0);
+        highlight_limit_layout->setSpacing(4);
+        highlight_limit_layout->addWidget(
+            new QLabel(QStringLiteral("stop after this many files:"), highlight_limit_row), 0);
+
+        highlight_file_limit = new QSpinBox(highlight_limit_row);
+        highlight_file_limit->setRange(1, 10000000);
+        highlight_file_limit->setValue(2000);
+        highlight_file_limit->setFixedHeight(20);
+        highlight_limit_layout->addWidget(highlight_file_limit, 1);
+
+        highlight_no_limit = new QCheckBox(QStringLiteral("no limit"), highlight_limit_row);
+        highlight_limit_layout->addWidget(highlight_no_limit, 0);
+        highlight_layout->addWidget(highlight_limit_row);
+
+        connect(
+            highlight_file_limit,
+            QOverload<int>::of(&QSpinBox::valueChanged),
+            this,
+            [this](int value) { apply_file_limit(value, highlight_no_limit->isChecked()); });
+        connect(highlight_no_limit, &QCheckBox::toggled, this, [this](bool checked) {
+            apply_file_limit(highlight_file_limit->value(), checked);
+        });
+
+        highlight_import_options = new QPushButton(
+            QStringLiteral("import options (%1)")
+                .arg(state.value(QStringLiteral("import_options_summary")).toString()),
+            highlight_content);
+        highlight_import_options->setMinimumHeight(22);
+        highlight_layout->addWidget(highlight_import_options);
+
+        connect(highlight_import_options, &QPushButton::clicked, this, [this]() {
+            main->notify(QStringLiteral("downloader_import_options"), id);
+        });
+    } else {
+        imports_box = make_status_box(main_content,
+                                      main_layout,
+                                      QStringLiteral("imports"),
+                                      &imports_status,
+                                      &file_seed_status,
+                                      &files_pause,
+                                      &file_log_button,
+                                      &file_progress,
+                                      &file_percent,
+                                      &file_network_progress,
+                                      &file_network_percent,
+                                      &file_cog,
+                                      QStringLiteral("pause/play files"),
+                                      QStringLiteral("file"),
+                                      QStringLiteral("file_seed_cache"));
+
+        search_box = make_status_box(main_content,
+                                     main_layout,
+                                     watcher ? QStringLiteral("search") : QStringLiteral("search"),
+                                     &search_status,
+                                     &search_seed_status,
+                                     &search_pause,
+                                     &search_log_button,
+                                     &search_progress,
+                                     &search_percent,
+                                     &search_network_progress,
+                                     &search_network_percent,
+                                     &search_cog,
+                                     QStringLiteral("pause/play search"),
+                                     QStringLiteral("search"),
+                                     QStringLiteral("gallery_seed_log"));
+
+        main_layout->removeWidget(imports_box);
+        main_layout->removeWidget(search_box);
+        main_layout->insertWidget(0, imports_box);
+        main_layout->insertWidget(1, search_box);
+    }
+
+    connect(files_pause, &QToolButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("downloader_pause"), id);
+    });
+    connect(search_pause, &QToolButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("downloader_pause"), id);
+    });
+
+    const auto network_cog_menu = [this](QToolButton *button) {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        menu->addAction(QStringLiteral("pause files"), this, [this]() {
+            main->notify(QStringLiteral("downloader_pause"), id);
+        });
+        menu->addAction(QStringLiteral("clear finished"), this, [this]() {
+            main->notify(QStringLiteral("downloader_clear"), id);
+        });
+        menu->popup(button->mapToGlobal(QPoint(0, button->height())));
+    };
+
+    connect(file_cog, &QToolButton::clicked, this, [network_cog_menu, this]() {
+        network_cog_menu(file_cog);
+    });
+    connect(search_cog, &QToolButton::clicked, this, [network_cog_menu, this]() {
+        network_cog_menu(search_cog);
+    });
+
+    QVBoxLayout *tags_layout = nullptr;
+    auto *tags_box = make_static_box(
+        QStringLiteral("selection tags"), sidebar_content, &tags_layout);
+    selection_tags_box = tags_box;
+    sidebar_layout->addWidget(tags_box, 1);
+
+    tag_sort_type = new QPushButton(QStringLiteral("sort by tag"), tags_box);
+    tag_sort_type->setMinimumHeight(24);
+    tag_sort_type->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
+    tag_sort_order = new QPushButton(QStringLiteral("a-z"), tags_box);
+    tag_sort_order->setMinimumHeight(24);
+    tag_sort_order->setFixedWidth(75);
+
+    tag_sort_namespace = new QPushButton(QStringLiteral("namespace (user)"), tags_box);
+    tag_sort_namespace->setMinimumHeight(24);
+    tag_sort_namespace->setFixedWidth(101);
+
+    auto *tag_sort_row = new QWidget(tags_box);
+    auto *tag_sort_row_layout = new QHBoxLayout(tag_sort_row);
+    tag_sort_row_layout->setContentsMargins(0, 0, 0, 0);
+    tag_sort_row_layout->setSpacing(2);
+    tag_sort_row_layout->addWidget(tag_sort_type, 1);
+    tag_sort_row_layout->addWidget(tag_sort_order, 0);
+    tag_sort_row_layout->addWidget(tag_sort_namespace, 0);
+    tags_layout->addWidget(tag_sort_row);
+
+    selection_tags = new QListWidget(tags_box);
+    selection_tags->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    tags_layout->addWidget(selection_tags, 1);
+
+    connect(tag_sort_order, &QPushButton::clicked, this, [this]() {
+        tag_sort_order->setText(
+            tag_sort_order->text() == QStringLiteral("a-z") ? QStringLiteral("z-a")
+                                                            : QStringLiteral("a-z"));
+        selection_tags->sortItems(
+            tag_sort_order->text() == QStringLiteral("a-z") ? Qt::AscendingOrder
+                                                            : Qt::DescendingOrder);
+    });
+
+    sidebar_layout->addStretch(1);
+
+    fill_sites(state.value(QStringLiteral("sites")).toArray());
     update_state(state);
 }
-
 const QString &HydrusDownloaderPage::page_id() const {
     return id;
 }
 
 void HydrusDownloaderPage::start() {
-    QJsonObject payload;
-    payload.insert(QStringLiteral("input"), input->toPlainText());
-    payload.insert(QStringLiteral("url"), url->text());
-    payload.insert(QStringLiteral("query"), query->text());
-    payload.insert(QStringLiteral("site"), site->currentData().toString());
-    payload.insert(QStringLiteral("filter"), filter->text());
-    payload.insert(QStringLiteral("subject"), subject->text());
-    payload.insert(QStringLiteral("period"), period->value());
-    payload.insert(QStringLiteral("auto"), auto_button->text().endsWith(QStringLiteral("on")));
+    const bool gallery = kind == QStringLiteral("gallery");
 
-    const QString action = kind == QStringLiteral("watcher") ? QStringLiteral("watcher_check") : QStringLiteral("downloader_start");
+    if (gallery && query != nullptr && query->text().trimmed().isEmpty()
+        && (url == nullptr || url->text().isEmpty())) {
+        query->setFocus();
+        return;
+    }
+
+    QJsonObject payload;
+
+    if (input != nullptr) {
+        payload.insert(QStringLiteral("input"), input->toPlainText());
+    }
+
+    if (url != nullptr) {
+        payload.insert(QStringLiteral("url"), url->text());
+    }
+
+    if (query != nullptr) {
+        payload.insert(QStringLiteral("query"), query->text());
+    }
+
+    if (site != nullptr) {
+        payload.insert(QStringLiteral("site"), site->currentData().toString());
+    }
+
+    if (subject != nullptr) {
+        payload.insert(QStringLiteral("subject"), subject->text());
+    }
+
+    if (period != nullptr) {
+        payload.insert(QStringLiteral("period"), period->value());
+    }
+
+    payload.insert(
+        QStringLiteral("auto"),
+        auto_button != nullptr && auto_button->text().endsWith(QStringLiteral("on")));
+
+    const bool unlimited = no_limit != nullptr && no_limit->isChecked();
+    const int limit = file_limit != nullptr ? file_limit->value() : 2000;
+    payload.insert(QStringLiteral("no_limit"), unlimited);
+    payload.insert(QStringLiteral("file_limit"), unlimited ? 0 : limit);
+
+    if (gallery && url != nullptr && url->text().isEmpty() && site != nullptr
+        && site->currentIndex() > 0) {
+        payload.insert(
+            QStringLiteral("url"),
+            site->itemData(site->currentIndex(), Qt::UserRole + 1).toString());
+    }
+
+    const QString action =
+        kind == QStringLiteral("watcher") ? QStringLiteral("watcher_check")
+                                          : QStringLiteral("downloader_start");
     main->notify(action, id, json_payload(payload));
 }
 
-void HydrusDownloaderPage::retry_selected() {
-    const int row = queue->currentRow();
+void HydrusDownloaderPage::fill_sites(const QJsonArray &value) {
+    sites = value;
 
-    if (row < 0) {
+    if (site == nullptr) {
         return;
     }
 
-    QTableWidgetItem *item = queue->item(row, 0);
+    bool same = site->count() == value.size() + 1;
 
-    if (item == nullptr) {
+    for (int index = 0; same && index < value.size(); ++index) {
+        same = site->itemText(index + 1)
+               == value.at(index).toObject().value(QStringLiteral("title")).toString();
+    }
+
+    if (same) {
         return;
     }
 
-    main->notify(QStringLiteral("downloader_retry"), id, item->data(Qt::UserRole).toString());
+    const QString current = site->currentData().toString();
+    const QSignalBlocker blocker(site);
+    site->clear();
+    site->addItem(QStringLiteral("no downloader set"), QString());
+
+    for (const QJsonValue &entry : value) {
+        const QJsonObject parser = entry.toObject();
+        site->addItem(
+            parser.value(QStringLiteral("title")).toString(),
+            parser.value(QStringLiteral("id")).toString());
+        site->setItemData(
+            site->count() - 1,
+            parser.value(QStringLiteral("template")).toString(),
+            Qt::UserRole + 1);
+    }
+
+    const int index = site->findData(current);
+    site->setCurrentIndex(index >= 0 ? index : 0);
+}
+
+void HydrusDownloaderPage::apply_file_limit(int value, bool unlimited) {
+    const int clamped = qMax(1, value);
+    file_limit_value = unlimited ? 0 : clamped;
+    no_limit_value = unlimited;
+
+    if (file_limit != nullptr) {
+        const QSignalBlocker blocker(file_limit);
+        file_limit->setValue(clamped);
+        file_limit->setEnabled(!unlimited);
+    }
+
+    if (no_limit != nullptr) {
+        const QSignalBlocker blocker(no_limit);
+        no_limit->setChecked(unlimited);
+    }
+
+    if (highlight_file_limit != nullptr) {
+        const QSignalBlocker blocker(highlight_file_limit);
+        highlight_file_limit->setValue(clamped);
+        highlight_file_limit->setEnabled(!unlimited);
+    }
+
+    if (highlight_no_limit != nullptr) {
+        const QSignalBlocker blocker(highlight_no_limit);
+        highlight_no_limit->setChecked(unlimited);
+    }
 }
 
 void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     kind = state.value(QStringLiteral("kind")).toString();
 
-    const bool urls = kind == QStringLiteral("urls") || kind == QStringLiteral("simple");
     const bool gallery = kind == QStringLiteral("gallery");
     const bool watcher = kind == QStringLiteral("watcher");
-
-    input_row->setVisible(urls);
-    url_row->setVisible(gallery || watcher);
-    query_row->setVisible(gallery);
-    site_row->setVisible(gallery || watcher);
-    subject_row->setVisible(watcher);
-    period_row->setVisible(watcher);
-    pause_button->setVisible(!watcher);
-    auto_button->setVisible(watcher);
-    gallery_log_button->setVisible(gallery || watcher);
-
-    if (urls) {
-        input->setPlaceholderText(kind == QStringLiteral("simple")
-            ? QStringLiteral("https://example.com/post/123\none page url per line")
-            : QStringLiteral("https://example.com/file.jpg\none file url per line"));
-    }
-
-    if (!input->hasFocus()) {
-        const QString value = state.value(QStringLiteral("input")).toString();
-
-        if (input->toPlainText() != value) {
-            input->setPlainText(value);
-        }
-    }
-
-    update_line_edit(url, state.value(QStringLiteral("url")).toString());
-    update_line_edit(query, state.value(QStringLiteral("query")).toString());
-    update_line_edit(filter, state.value(QStringLiteral("filter")).toString());
-
-    if (site->count() == 0) {
-        site->addItem(QStringLiteral("auto detect"), QString());
-
-        for (const QJsonValue &value : state.value(QStringLiteral("sites")).toArray()) {
-            const QJsonObject parser = value.toObject();
-            site->addItem(parser.value(QStringLiteral("title")).toString(), parser.value(QStringLiteral("id")).toString());
-        }
-    }
-
-    const int site_index = site->findData(state.value(QStringLiteral("site")).toString());
-
-    if (site_index >= 0 && !site->hasFocus()) {
-        QSignalBlocker blocker(site);
-        site->setCurrentIndex(site_index);
-    }
-    update_line_edit(subject, state.value(QStringLiteral("subject")).toString());
-
-    if (!period->hasFocus()) {
-        period->setValue(state.value(QStringLiteral("check_period")).toInt(3600));
-    }
+    const bool urls = kind == QStringLiteral("urls");
+    const bool simple = kind == QStringLiteral("simple");
 
     const bool running = state.value(QStringLiteral("running")).toBool();
     const bool paused = state.value(QStringLiteral("paused")).toBool();
@@ -2854,75 +3600,281 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     const int imported = state.value(QStringLiteral("imported")).toInt();
     const int failed = state.value(QStringLiteral("failed")).toInt();
     const int result_count = state.value(QStringLiteral("result_count")).toInt();
+    const int queue_count = state.value(QStringLiteral("queue_count")).toInt();
+    const int queue_done = state.value(QStringLiteral("queue_done")).toInt();
+    const int seed_total = state.value(QStringLiteral("gallery_seed_count")).toInt();
+    const int seed_done = state.value(QStringLiteral("gallery_seed_done")).toInt();
+    const int seed_success = state.value(QStringLiteral("gallery_seed_success")).toInt();
+    const int seed_failed = state.value(QStringLiteral("gallery_seed_failed")).toInt();
+    const QString status = state.value(QStringLiteral("status")).toString();
 
-    start_button->setText(watcher ? QStringLiteral("check now") : QStringLiteral("start"));
-    start_button->setEnabled(!running);
-    pause_button->setText(paused ? QStringLiteral("resume") : QStringLiteral("pause"));
-    results_button->setText(QStringLiteral("files (%1)").arg(result_count));
-    results_button->setEnabled(result_count > 0);
-    auto_button->setText(auto_watch
-        ? QStringLiteral("automatic checks: on")
-        : QStringLiteral("automatic checks: off"));
-    import_options_button->setText(
-        QStringLiteral("import options: %1").arg(state.value(QStringLiteral("import_options_summary")).toString()));
+    fill_sites(state.value(QStringLiteral("sites")).toArray());
 
-    QString status = state.value(QStringLiteral("status")).toString();
-
-    if ((imported > 0 || failed > 0) && !status.contains(QStringLiteral("imported"))) {
-        status += QStringLiteral("  -  imported %1, failed %2").arg(imported).arg(failed);
+    if (input_row != nullptr) {
+        input_row->setVisible(urls || simple);
     }
 
-    if (running) {
-        status += paused ? QStringLiteral("  (paused)") : QStringLiteral("  (working)");
+    if (query_row != nullptr) {
+        query_row->setVisible(gallery);
     }
 
-    status_label->setText(status);
-    log->setPlainText(state.value(QStringLiteral("log")).toString());
-
-    const QJsonArray items = state.value(QStringLiteral("queue")).toArray();
-
-    if (queue->rowCount() != items.size() || queue->columnCount() != 4) {
-        queue->setRowCount(items.size());
+    if (url_row != nullptr) {
+        url_row->setVisible(watcher);
     }
 
-    for (int index = 0; index < items.size(); ++index) {
-        const QJsonObject item = items.at(index).toObject();
-        const QString item_url = item.value(QStringLiteral("url")).toString();
-        const QString item_status = item.value(QStringLiteral("status")).toString();
+    if (site_row != nullptr) {
+        site_row->setVisible(watcher || simple);
+    }
 
-        auto *url_item = queue->item(index, 0);
+    if (subject_row != nullptr) {
+        subject_row->setVisible(watcher);
+    }
 
-        if (url_item == nullptr) {
-            url_item = new QTableWidgetItem();
-            queue->setItem(index, 0, url_item);
-            queue->setItem(index, 1, new QTableWidgetItem());
-            queue->setItem(index, 2, new QTableWidgetItem());
-            queue->setItem(index, 3, new QTableWidgetItem());
+    if (period_row != nullptr) {
+        period_row->setVisible(watcher);
+    }
+
+    if (file_limit_row != nullptr) {
+        file_limit_row->setVisible(gallery);
+    }
+
+    if (gug_button != nullptr) {
+        gug_button->setVisible(gallery);
+    }
+
+    if (highlight_box != nullptr) {
+        highlight_box->setVisible(gallery);
+    }
+
+    if (start_button != nullptr) {
+        start_button->setVisible(!gallery);
+        start_button->setEnabled(!running);
+        start_button->setText(watcher ? QStringLiteral("check now") : QStringLiteral("start"));
+    }
+
+    if (auto_button != nullptr) {
+        auto_button->setVisible(watcher);
+        auto_button->setText(
+            auto_watch ? QStringLiteral("automatic checks: on")
+                       : QStringLiteral("automatic checks: off"));
+    }
+
+    if (input != nullptr && !input->hasFocus()) {
+        const QString value = state.value(QStringLiteral("input")).toString();
+
+        if (input->toPlainText() != value) {
+            input->setPlainText(value);
+        }
+    }
+
+    if (query != nullptr && !query->hasFocus()) {
+        update_line_edit(query, state.value(QStringLiteral("query")).toString());
+    }
+
+    if (url != nullptr) {
+        if (gallery) {
+            if (url->text().isEmpty()) {
+                const QString stored = state.value(QStringLiteral("url")).toString();
+
+                if (!stored.isEmpty()) {
+                    url->setText(stored);
+                } else if (site != nullptr && site->currentIndex() > 0) {
+                    url->setText(
+                        site->itemData(site->currentIndex(), Qt::UserRole + 1).toString());
+                }
+            }
+        } else if (!url->hasFocus()) {
+            update_line_edit(url, state.value(QStringLiteral("url")).toString());
+        }
+    }
+
+    if (subject != nullptr && !subject->hasFocus()) {
+        update_line_edit(subject, state.value(QStringLiteral("subject")).toString());
+    }
+
+    if (period != nullptr && !period->hasFocus()) {
+        period->setValue(state.value(QStringLiteral("check_period")).toInt(3600));
+    }
+
+    if (site != nullptr) {
+        if (!gallery) {
+            const int site_index =
+                site->findData(state.value(QStringLiteral("site")).toString());
+
+            if (site_index >= 0 && !site->hasFocus()) {
+                const QSignalBlocker blocker(site);
+                site->setCurrentIndex(site_index);
+            }
+        } else if (!site_loaded) {
+            const int site_index =
+                site->findData(state.value(QStringLiteral("site")).toString());
+
+            if (site_index >= 0) {
+                const QSignalBlocker blocker(site);
+                site->setCurrentIndex(site_index);
+            }
+
+            site_loaded = true;
+        }
+    }
+
+    if (gug_button != nullptr && site != nullptr) {
+        gug_button->setText(
+            site->currentIndex() > 0 ? site->currentText()
+                                     : QStringLiteral("no downloader set"));
+    }
+
+    if (highlight_query != nullptr) {
+        highlight_query->setText(state.value(QStringLiteral("query")).toString());
+    }
+
+    if (status_top != nullptr) {
+        const bool has_query = !state.value(QStringLiteral("query")).toString().isEmpty()
+                               || !state.value(QStringLiteral("url")).toString().isEmpty();
+        status_top->setText(
+            has_query ? QStringLiteral("1 query - %1/%2").arg(queue_done).arg(queue_count)
+                      : QStringLiteral("waiting for new queries"));
+        QString bottom;
+
+        if (has_query) {
+            bottom = QStringLiteral("%1 successful").arg(imported);
+
+            if (failed > 0) {
+                bottom += QStringLiteral(", %1 failed").arg(failed);
+            }
         }
 
-        url_item->setText(item_url);
-        url_item->setData(Qt::UserRole, item_url);
-        url_item->setToolTip(item_url);
-
-        queue->item(index, 1)->setText(item.value(QStringLiteral("domain")).toString());
-        queue->item(index, 1)->setToolTip(item.value(QStringLiteral("domain")).toString());
-
-        QTableWidgetItem *status_item = queue->item(index, 2);
-        status_item->setText(item_status);
-
-        if (item_status == QStringLiteral("error")) {
-            status_item->setForeground(QColor(220, 110, 110));
-        } else if (item_status == QStringLiteral("done")) {
-            status_item->setForeground(QColor(120, 190, 120));
-        } else if (item_status == QStringLiteral("downloading")) {
-            status_item->setForeground(QColor(220, 200, 120));
-        }
-
-        queue->item(index, 3)->setText(item.value(QStringLiteral("note")).toString());
-        queue->item(index, 3)->setToolTip(item.value(QStringLiteral("note")).toString());
+        status_bottom->setText(bottom);
     }
 
-    queue->resizeRowsToContents();
+    if (queue != nullptr) {
+        const bool has_query = !state.value(QStringLiteral("query")).toString().isEmpty()
+                               || !state.value(QStringLiteral("url")).toString().isEmpty();
+        queue->setRowCount(has_query ? 1 : 0);
+
+        if (has_query) {
+            QString source = QStringLiteral("unknown downloader");
+
+            if (site != nullptr && site->currentIndex() > 0) {
+                source = site->currentText();
+            }
+
+            QString added;
+
+            const qint64 last_check =
+                static_cast<qint64>(state.value(QStringLiteral("last_check")).toDouble());
+
+            if (last_check > 0) {
+                const qint64 delta = qMax<qint64>(
+                    0, QDateTime::currentSecsSinceEpoch() - last_check);
+
+                if (delta < 60) {
+                    added = QStringLiteral("just now");
+                } else if (delta < 3600) {
+                    added = QStringLiteral("%1 minutes ago").arg(delta / 60);
+                } else if (delta < 86400) {
+                    added = QStringLiteral("%1 hours ago").arg(delta / 3600);
+                } else {
+                    added = QStringLiteral("%1 days ago").arg(delta / 86400);
+                }
+            }
+
+            const QString files_status =
+                queue_count > 0
+                    ? QStringLiteral("%1/%2").arg(queue_done).arg(queue_count)
+                    : QString();
+            const QString search_state_text = running
+                                                  ? (paused ? QStringLiteral("paused")
+                                                            : QStringLiteral("working"))
+                                                  : QStringLiteral("ready");
+            const QString query_text = state.value(QStringLiteral("query")).toString().isEmpty()
+                                           ? state.value(QStringLiteral("url")).toString()
+                                           : state.value(QStringLiteral("query")).toString();
+            const QStringList cells = {query_text,
+                                       source,
+                                       files_status,
+                                       search_state_text,
+                                       status,
+                                       QString::number(queue_count),
+                                       added};
+
+            for (int column = 0; column < cells.size(); ++column) {
+                auto *item = queue->item(0, column);
+
+                if (item == nullptr) {
+                    item = new QTableWidgetItem();
+                    queue->setItem(0, column, item);
+                }
+
+                item->setText(cells[column]);
+                item->setToolTip(cells[column]);
+            }
+        }
+    }
+
+    if (imports_status != nullptr) {
+        if (imported == 0 && failed == 0) {
+            imports_status->setText(QStringLiteral("no files yet"));
+        } else if (failed == 0) {
+            imports_status->setText(QStringLiteral("%1 successful").arg(imported));
+        } else {
+            imports_status->setText(
+                QStringLiteral("%1 successful, %2 failed").arg(imported).arg(failed));
+        }
+    }
+
+    if (file_seed_status != nullptr) {
+        file_seed_status->setText(
+            QStringLiteral("%1/%2").arg(queue_done).arg(queue_count));
+    }
+
+    if (file_progress != nullptr) {
+        file_progress->setValue(
+            queue_count > 0 ? queue_done * 100 / queue_count : 0);
+    }
+
+    if (files_pause != nullptr) {
+        files_pause->setIcon(
+            hydrus_small_icon(paused ? QStringLiteral("play") : QStringLiteral("pause")));
+    }
+
+    if (search_status != nullptr) {
+        search_status->setText(status.isEmpty() ? QStringLiteral("ready") : status);
+    }
+
+    if (search_seed_status != nullptr) {
+        if (seed_total == 0) {
+            search_seed_status->setText(QStringLiteral("no files yet"));
+        } else {
+            const int pending = qMax(0, seed_total - seed_success - seed_failed);
+            search_seed_status->setText(
+                QStringLiteral("%1 successful, %2 pending")
+                    .arg(seed_success)
+                    .arg(pending));
+        }
+    }
+
+    if (search_progress != nullptr) {
+        search_progress->setValue(
+            seed_total > 0 ? seed_done * 100 / seed_total : 0);
+    }
+
+    if (search_pause != nullptr) {
+        search_pause->setIcon(
+            hydrus_small_icon(paused ? QStringLiteral("play") : QStringLiteral("pause")));
+    }
+
+    if (import_options_button != nullptr) {
+        import_options_button->setText(
+            QStringLiteral("import options (%1)")
+                .arg(state.value(QStringLiteral("import_options_summary")).toString()));
+    }
+
+    if (highlight_import_options != nullptr) {
+        highlight_import_options->setText(
+            QStringLiteral("import options (%1)")
+                .arg(state.value(QStringLiteral("import_options_summary")).toString()));
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -7685,9 +8637,9 @@ void HydrusAutoResolutionRuleDialog::set_preview(const QJsonObject &preview) {
     QStringList lines;
     lines.append(status);
 
-    const QString selector = preview.value(QStringLiteral("selector")).toString();
-    if (!selector.isEmpty()) {
-        lines.append(QStringLiteral("selector: %1").arg(selector));
+    const QString selector_text = preview.value(QStringLiteral("selector")).toString();
+    if (!selector_text.isEmpty()) {
+        lines.append(QStringLiteral("selector: %1").arg(selector_text));
     }
 
     const QString search = preview.value(QStringLiteral("search")).toString();

@@ -7925,10 +7925,9 @@ HydrusImportOptionsDialog::HydrusImportOptionsDialog(
 
     if (qEnvironmentVariableIsSet("HYDRUS_QT_IMPORT_OPTIONS_TAB")) {
         const QString wanted = qEnvironmentVariable("HYDRUS_QT_IMPORT_OPTIONS_TAB");
-        const QJsonArray types = data.value(QStringLiteral("types")).toArray();
 
-        for (int index = 0; index < types.size(); ++index) {
-            if (types.at(index).toObject().value(QStringLiteral("key")).toString() == wanted) {
+        for (int index = 0; index < editor.tabs->count(); ++index) {
+            if (editor.tabs->widget(index)->property("option_type").toString() == wanted) {
                 editor.tabs->setCurrentIndex(index);
                 break;
             }
@@ -7942,6 +7941,7 @@ void HydrusImportOptionsDialog::build_editor() {
 
     auto add_page = [this](const QString &key, const QString &title) {
         auto *page = new QWidget(editor.tabs);
+        page->setProperty("option_type", key);
         auto *layout = new QVBoxLayout(page);
 
         auto *use_default = new QCheckBox(

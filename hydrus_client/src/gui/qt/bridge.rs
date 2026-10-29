@@ -103,6 +103,8 @@ pub(crate) mod ffi {
         fn hydrus_show_viewing_stats(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_about(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_export_downloader(window: Pin<&mut HydrusMainWindow>, page_id: &str);
+        fn hydrus_show_file_seed_cache(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_gallery_seed_log(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_import_downloader(window: Pin<&mut HydrusMainWindow>, target: &str);
         fn hydrus_show_manage_tags(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_timestamps(window: Pin<&mut HydrusMainWindow>, json: &str);

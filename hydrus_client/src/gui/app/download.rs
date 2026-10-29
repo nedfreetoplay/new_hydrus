@@ -692,8 +692,7 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
 
             if let Some(page) = state.find_downloader_mut(&job_id) {
                 if let Some(item) = page.item_mut(&url) {
-                    item.status = DownloadItemStatus::Working;
-                    item.note = "downloading".to_string();
+                    item.mark(DownloadItemStatus::Working, "downloading");
                 }
             }
 
@@ -702,6 +701,18 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
         AsyncEvent::Message { job_id, message } => {
             if let Some(page) = state.find_downloader_mut(&job_id) {
                 page.note(message);
+            }
+
+            downloader_commands(state, &job_id)
+        }
+        AsyncEvent::GallerySeed {
+            job_id,
+            url,
+            status,
+            note,
+        } => {
+            if let Some(page) = state.find_downloader_mut(&job_id) {
+                page.upsert_gallery_seed(&url, &status, note);
             }
 
             downloader_commands(state, &job_id)
@@ -739,20 +750,20 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
 
             if let Some(page) = state.find_downloader_mut(&job_id) {
                 if let Some(item) = page.item_mut(&url) {
-                    item.status = if ok {
+                    let status = if ok {
                         DownloadItemStatus::Done
                     } else {
                         DownloadItemStatus::Error
                     };
-                    item.note = note;
+                    item.mark(status, note);
                 } else {
                     let mut item = DownloadItem::new(url.clone());
-                    item.status = if ok {
+                    let status = if ok {
                         DownloadItemStatus::Done
                     } else {
                         DownloadItemStatus::Error
                     };
-                    item.note = note;
+                    item.mark(status, note);
                     page.queue.push(item);
                 }
 

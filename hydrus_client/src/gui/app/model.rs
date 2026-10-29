@@ -6,6 +6,7 @@
 
 use std::sync::Arc;
 
+use hydrus_core::hydrus_time;
 use serde::{Deserialize, Serialize};
 
 use crate::controller::Controller;
@@ -120,15 +121,83 @@ pub struct DownloadItem {
     pub status: DownloadItemStatus,
     #[serde(default)]
     pub note: String,
+    /// When the seed first entered the cache.
+    #[serde(default)]
+    pub created: i64,
+    /// When its status last changed.
+    #[serde(default)]
+    pub modified: i64,
 }
 
 impl DownloadItem {
     pub fn new(url: impl Into<String>) -> Self {
+        let now = hydrus_time::get_now();
+
         Self {
             url: url.into(),
             status: DownloadItemStatus::Pending,
             note: String::new(),
+            created: now,
+            modified: now,
         }
+    }
+
+    pub fn mark(&mut self, status: DownloadItemStatus, note: impl Into<String>) {
+        self.status = status;
+        self.note = note.into();
+        self.modified = hydrus_time::get_now();
+    }
+
+    /// Puts a finished seed back in the queue.
+    pub fn retry(&mut self) {
+        self.mark(DownloadItemStatus::Pending, "waiting");
+    }
+
+    pub fn is_unfinished(&self) -> bool {
+        matches!(
+            self.status,
+            DownloadItemStatus::Pending | DownloadItemStatus::Working
+        )
+    }
+}
+
+/// One gallery or post URL processed by a gallery or watcher page. Python
+/// keeps these in the gallery seed log next to the file seed cache.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GallerySeedEntry {
+    pub url: String,
+    /// `pending`, `working`, `success` or `failed`.
+    #[serde(default = "default_gallery_seed_status")]
+    pub status: String,
+    #[serde(default)]
+    pub note: String,
+    #[serde(default)]
+    pub created: i64,
+    #[serde(default)]
+    pub modified: i64,
+}
+
+fn default_gallery_seed_status() -> String {
+    "pending".to_string()
+}
+
+impl GallerySeedEntry {
+    pub fn new(url: impl Into<String>) -> Self {
+        let now = hydrus_time::get_now();
+
+        Self {
+            url: url.into(),
+            status: default_gallery_seed_status(),
+            note: String::new(),
+            created: now,
+            modified: now,
+        }
+    }
+
+    pub fn mark(&mut self, status: impl Into<String>, note: impl Into<String>) {
+        self.status = status.into();
+        self.note = note.into();
+        self.modified = hydrus_time::get_now();
     }
 }
 
@@ -155,6 +224,9 @@ pub struct DownloaderPage {
     pub last_check: i64,
     pub check_period: i64,
     pub queue: Vec<DownloadItem>,
+    /// Gallery and post URLs handled by this gallery/watcher page.
+    #[serde(default)]
+    pub gallery_seeds: Vec<GallerySeedEntry>,
     pub imported: usize,
     pub failed: usize,
     pub status: String,
@@ -182,6 +254,7 @@ impl DownloaderPage {
             last_check: 0,
             check_period: 3600,
             queue: Vec::new(),
+            gallery_seeds: Vec::new(),
             imported: 0,
             failed: 0,
             status: "ready".to_string(),
@@ -223,6 +296,26 @@ impl DownloaderPage {
 
     pub fn item_mut(&mut self, url: &str) -> Option<&mut DownloadItem> {
         self.queue.iter_mut().find(|item| item.url == url)
+    }
+
+    /// Records or updates one gallery/post URL without creating duplicates.
+    pub fn upsert_gallery_seed(&mut self, url: &str, status: &str, note: impl Into<String>) {
+        let note = note.into();
+
+        if let Some(seed) = self.gallery_seeds.iter_mut().find(|seed| seed.url == url) {
+            seed.mark(status, note);
+            return;
+        }
+
+        let mut seed = GallerySeedEntry::new(url);
+        seed.mark(status, note);
+        // Keep newest first, like the Python log.
+        self.gallery_seeds.insert(0, seed);
+    }
+
+    pub fn clear_finished_gallery_seeds(&mut self) {
+        self.gallery_seeds
+            .retain(|seed| seed.status == "pending" || seed.status == "working");
     }
 }
 

@@ -229,8 +229,16 @@ Rust-цели: `gui/app/import.rs`, `gui/app/import_folders.rs`,
   правила с preview по примеру пути, а успешный импорт добавляет полученные теги
   в этот tag service.
 - [ ] 06.9 Local import review panel.
-- [ ] 06.10 File seed cache UI.
-- [ ] 06.11 Gallery seed log UI.
+- [x] 06.10 File seed cache UI: диалог показывает очередь страницы (status, url,
+  created, modified, note), фильтр по статусу и поиск, сортировку по колонкам,
+  копирование URL, retry failed/selected, remove, clear finished и clear all.
+  Seed-статусы и таймстампы хранятся в `DownloaderPage.queue` и переживают
+  перезапуск через `gui session.json`.
+- [x] 06.11 Gallery seed log UI: страница gallery/watcher ведёт журнал
+  gallery/post URL со статусами pending/working/success/failed и заметкой о
+  числе найденных файлов; worker присылает `GallerySeed` события на каждый
+  обработанный page/post. Диалог повторяет фильтры, сортировку, копирование,
+  retry, remove и clear, журнал сохраняется в сессии.
 - [ ] 06.12 Importer sidebars для HDD/gallery/watcher/simple/URLs.
 - [x] 06.13 «Check all» и полное меню import folders.
 - [ ] 06.14 Parsing scripts/legacy import scripts.

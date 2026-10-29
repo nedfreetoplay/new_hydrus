@@ -35,6 +35,7 @@ pub mod query;
 pub mod render;
 pub mod search;
 pub mod search_history;
+pub mod seeds;
 pub mod services;
 pub mod session;
 pub mod sessions;
@@ -1251,6 +1252,10 @@ impl AppState {
             "downloader_clear" => download::clear(self, target),
             "downloader_retry" => download::retry(self, target, payload),
             "downloader_open_results" => download::open_results(self, target),
+            "file_seed_cache" => seeds::open_file_seed_cache(self, target),
+            "file_seed_cache_action" => seeds::file_seed_action(self, payload),
+            "gallery_seed_log" => seeds::open_gallery_seed_log(self, target),
+            "gallery_seed_log_action" => seeds::gallery_seed_action(self, payload),
             "watcher_check" => download::start(self, target, payload),
             "watcher_auto" => {
                 if let Some(page) = self.find_downloader_mut(target) {

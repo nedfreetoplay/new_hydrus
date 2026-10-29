@@ -81,6 +81,13 @@ pub(crate) enum AsyncEvent {
         job_id: String,
         message: String,
     },
+    /// One gallery or post URL has been processed; feeds the gallery seed log.
+    GallerySeed {
+        job_id: String,
+        url: String,
+        status: String,
+        note: String,
+    },
     Item {
         job_id: String,
         url: String,
@@ -438,11 +445,23 @@ fn run_process_pages(
             job_id: job_id.to_string(),
             message: format!("fetching page {page_url}"),
         });
+        let _ = events.send(AsyncEvent::GallerySeed {
+            job_id: job_id.to_string(),
+            url: page_url.clone(),
+            status: "working".to_string(),
+            note: "fetching".to_string(),
+        });
 
         let Ok((body, _)) = http_get(context, &client, &page_url) else {
             let _ = events.send(AsyncEvent::Message {
                 job_id: job_id.to_string(),
                 message: format!("could not fetch {page_url}"),
+            });
+            let _ = events.send(AsyncEvent::GallerySeed {
+                job_id: job_id.to_string(),
+                url: page_url.clone(),
+                status: "failed".to_string(),
+                note: "could not fetch".to_string(),
             });
             continue;
         };
@@ -454,6 +473,14 @@ fn run_process_pages(
             parser_by_id(site)
         };
         let parsed = parse_gallery_page(&html, &page_url, parser);
+        let page_file_count = parsed.files.len();
+
+        let _ = events.send(AsyncEvent::GallerySeed {
+            job_id: job_id.to_string(),
+            url: page_url.clone(),
+            status: "success".to_string(),
+            note: format!("{page_file_count} file(s) found"),
+        });
 
         if parsed.is_post || parsed.posts.is_empty() {
             for link in parsed.files {
@@ -499,13 +526,35 @@ fn run_process_pages(
                     job_id: job_id.to_string(),
                     message: format!("fetching post {post_url}"),
                 });
+                let _ = events.send(AsyncEvent::GallerySeed {
+                    job_id: job_id.to_string(),
+                    url: post_url.clone(),
+                    status: "working".to_string(),
+                    note: "fetching".to_string(),
+                });
 
                 let Ok((post_body, _)) = http_get(context, &client, &post_url) else {
+                    let _ = events.send(AsyncEvent::GallerySeed {
+                        job_id: job_id.to_string(),
+                        url: post_url.clone(),
+                        status: "failed".to_string(),
+                        note: "could not fetch".to_string(),
+                    });
                     continue;
                 };
 
-                for link in parse_post_page(&String::from_utf8_lossy(&post_body), &post_url, parser)
-                {
+                let post_links =
+                    parse_post_page(&String::from_utf8_lossy(&post_body), &post_url, parser);
+                let post_file_count = post_links.len();
+
+                let _ = events.send(AsyncEvent::GallerySeed {
+                    job_id: job_id.to_string(),
+                    url: post_url.clone(),
+                    status: "success".to_string(),
+                    note: format!("{post_file_count} file(s) found"),
+                });
+
+                for link in post_links {
                     if file_urls.len() >= MAX_GALLERY_FILES {
                         break;
                     }

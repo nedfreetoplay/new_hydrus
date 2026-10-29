@@ -240,6 +240,14 @@ regex'ы с namespace. Import folder хранит такую настройку 
 service (ключ — hex service key) и передаёт её в worker; после успешного импорта
 теги добавляются в соответствующий локальный tag service.
 
+Downloader-страницы хранят файловые seed'ы в `DownloaderPage.queue` и журнал
+gallery/post URL в `DownloaderPage.gallery_seeds`; обе структуры сериализуются в
+`gui session.json`. Диалоги `file seed cache` и `gallery seed log` показывают
+статусы, таймстампы и заметки, умеют фильтровать по статусу/тексту, сортировать,
+копировать URL, повторять неудачные, удалять выбранные и очищать завершённые.
+Worker присылает `GallerySeed` событие на каждый обработанный page/post, поэтому
+журнал заполняется по ходу gallery/watcher импорта.
+
 `gui::app::download` создаёт задания, а `worker` качает прямые URL или страницы
 через site-specific парсеры (`parsing::gallery`: danbooru, gelbooru, e621, rule34,
 safebooru, pixiv, generic). Generic-парсер следует ссылкам страницы и собирает

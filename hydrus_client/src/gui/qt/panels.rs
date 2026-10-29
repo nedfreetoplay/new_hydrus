@@ -144,6 +144,12 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::ExportDownloader(page_id) => {
             ffi::hydrus_export_downloader(window.as_mut(), &page_id);
         }
+        UiCommand::FileSeedCacheDialog(json) => {
+            ffi::hydrus_show_file_seed_cache(window.as_mut(), &json);
+        }
+        UiCommand::GallerySeedLogDialog(json) => {
+            ffi::hydrus_show_gallery_seed_log(window.as_mut(), &json);
+        }
         UiCommand::ImportDownloader(notebook_id) => {
             ffi::hydrus_import_downloader(window.as_mut(), &notebook_id);
         }

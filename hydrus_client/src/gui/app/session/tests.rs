@@ -73,6 +73,8 @@ fn downloaders_and_subscriptions_round_trip() {
         url: "https://example.com/a.jpg".to_string(),
         status: DownloadItemStatus::Done,
         note: "ok".to_string(),
+        created: 0,
+        modified: 0,
     });
     downloader.results.push(vec![0xab, 0xcd]);
     root.add(PageNode::Downloader(downloader));

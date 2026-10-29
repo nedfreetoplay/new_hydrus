@@ -532,6 +532,30 @@ private:
     QString selected_key;
 };
 
+// File seed cache (urls/gallery/simple pages) and gallery seed log. Both share
+// the same table; the gallery log reads the page's gallery seeds instead of the
+// file queue.
+class HydrusSeedCacheDialog : public QDialog {
+public:
+    HydrusSeedCacheDialog(HydrusMainWindow *main, const QJsonObject &state, bool gallery, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void rebuild();
+    void send_action(const QString &action);
+    QStringList selected_urls() const;
+
+    HydrusMainWindow *main = nullptr;
+    bool gallery = false;
+    QJsonObject data;
+    QTableWidget *table = nullptr;
+    QComboBox *filter = nullptr;
+    QLineEdit *search = nullptr;
+    QLabel *subtitle = nullptr;
+    QPushButton *retry_button = nullptr;
+};
+
 // A notebook is a page of pages: tabs, a trailing "+" tab, and the usual
 // close/rename/context-menu behaviour.
 class HydrusNotebook : public QTabWidget {
@@ -587,6 +611,8 @@ private:
     QPushButton *pause_button = nullptr;
     QPushButton *clear_button = nullptr;
     QPushButton *results_button = nullptr;
+    QPushButton *seed_cache_button = nullptr;
+    QPushButton *gallery_log_button = nullptr;
     QPushButton *auto_button = nullptr;
     QLabel *status_label = nullptr;
     QTableWidget *queue = nullptr;
@@ -860,6 +886,8 @@ public:
     void show_duplicate_merge_options(const QJsonObject &state);
     void show_duplicate_custom_action(const QJsonObject &state);
     void show_import_options(const QJsonObject &state);
+    void show_file_seed_cache(const QJsonObject &state);
+    void show_gallery_seed_log(const QJsonObject &state);
     void update_auto_resolution_preview(const QJsonObject &state);
     void show_duplicate_review(const QJsonObject &state);
     void update_duplicate_review(const QJsonObject &state);
@@ -930,6 +958,8 @@ private:
     HydrusDuplicateMergeOptionsDialog *merge_options_dialog = nullptr;
     HydrusDuplicateCustomActionDialog *duplicate_custom_action_dialog = nullptr;
     HydrusImportOptionsDialog *import_options_dialog = nullptr;
+    HydrusSeedCacheDialog *file_seed_cache_dialog = nullptr;
+    HydrusSeedCacheDialog *gallery_seed_log_dialog = nullptr;
     HydrusDuplicateReviewDialog *duplicate_review_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
     QTimer *tick_timer = nullptr;
@@ -974,6 +1004,8 @@ void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_duplicate_merge_options(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_duplicate_custom_action(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_import_options(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_file_seed_cache(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_gallery_seed_log(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_auto_resolution_preview(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_duplicate_review(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_duplicate_review(HydrusMainWindow &window, rust::Str json);

@@ -10,8 +10,9 @@ use serde::{Deserialize, Serialize};
 use crate::gui::session::{GuiSession, UnifiedSession};
 
 use super::model::{
-    DownloadItem, DownloaderKind, DownloaderPage, DuplicateSearchContext, DuplicatesPage, Notebook,
-    PageNode, PlaceholderPage, QueryPage, SubscriptionEntry, SubscriptionsPage,
+    DownloadItem, DownloaderKind, DownloaderPage, DuplicateSearchContext, DuplicatesPage,
+    GallerySeedEntry, Notebook, PageNode, PlaceholderPage, QueryPage, SubscriptionEntry,
+    SubscriptionsPage,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +60,8 @@ pub struct SessionNode {
     pub last_check: Option<i64>,
     #[serde(default)]
     pub queue: Vec<DownloadItem>,
+    #[serde(default)]
+    pub gallery_seeds: Vec<GallerySeedEntry>,
     #[serde(default)]
     pub results: Vec<String>,
     #[serde(default)]
@@ -159,6 +162,7 @@ fn from_notebook(notebook: &Notebook) -> SessionNode {
         check_period: None,
         last_check: None,
         queue: Vec::new(),
+        gallery_seeds: Vec::new(),
         results: Vec::new(),
         fixed_hashes: Vec::new(),
         duplicate_search: None,
@@ -186,6 +190,7 @@ fn from_node(node: &PageNode) -> SessionNode {
                 .unwrap_or_default(),
             duplicate_search: None,
             queue: Vec::new(),
+            gallery_seeds: Vec::new(),
             results: Vec::new(),
             downloader_kind: None,
             input: None,
@@ -224,6 +229,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             check_period: Some(page.check_period),
             last_check: Some(page.last_check),
             queue: page.queue.clone(),
+            gallery_seeds: page.gallery_seeds.clone(),
             results: page.results.iter().map(|hash| hex(hash)).collect(),
             fixed_hashes: Vec::new(),
             duplicate_search: None,
@@ -252,6 +258,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             check_period: None,
             last_check: None,
             queue: Vec::new(),
+            gallery_seeds: Vec::new(),
             results: Vec::new(),
             fixed_hashes: Vec::new(),
             duplicate_search: None,
@@ -280,6 +287,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             check_period: None,
             last_check: None,
             queue: Vec::new(),
+            gallery_seeds: Vec::new(),
             results: Vec::new(),
             fixed_hashes: Vec::new(),
             duplicate_search: Some(page.search_context.clone()),
@@ -308,6 +316,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             check_period: None,
             last_check: None,
             queue: Vec::new(),
+            gallery_seeds: Vec::new(),
             results: Vec::new(),
             fixed_hashes: Vec::new(),
             duplicate_search: None,
@@ -336,6 +345,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             check_period: None,
             last_check: None,
             queue: Vec::new(),
+            gallery_seeds: Vec::new(),
             results: Vec::new(),
             fixed_hashes: Vec::new(),
             duplicate_search: None,
@@ -364,6 +374,7 @@ fn from_node(node: &PageNode) -> SessionNode {
             check_period: None,
             last_check: None,
             queue: Vec::new(),
+            gallery_seeds: Vec::new(),
             results: Vec::new(),
             fixed_hashes: Vec::new(),
             duplicate_search: None,
@@ -429,6 +440,7 @@ fn to_node(node: &SessionNode) -> PageNode {
             page.check_period = node.check_period.unwrap_or(3600);
             page.last_check = node.last_check.unwrap_or(0);
             page.queue = node.queue.clone();
+            page.gallery_seeds = node.gallery_seeds.clone();
             page.results = node.results.iter().filter_map(|hash| unhex(hash)).collect();
 
             // Downloads are not running after a restart.
@@ -436,6 +448,12 @@ fn to_node(node: &SessionNode) -> PageNode {
             for item in &mut page.queue {
                 if matches!(item.status, super::model::DownloadItemStatus::Working) {
                     item.status = super::model::DownloadItemStatus::Pending;
+                }
+            }
+
+            for seed in &mut page.gallery_seeds {
+                if seed.status == "working" {
+                    seed.status = "pending".to_string();
                 }
             }
 

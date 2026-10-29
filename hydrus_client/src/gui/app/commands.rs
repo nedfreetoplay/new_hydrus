@@ -63,6 +63,8 @@ pub enum UiCommand {
     ViewingStatsDialog(String),
     AboutDialog(String),
     ExportDownloader(String),
+    FileSeedCacheDialog(String),
+    GallerySeedLogDialog(String),
     ImportDownloader(String),
     PickFiles,
     PromptUrl,

@@ -15,6 +15,8 @@ fn downloader_definitions_round_trip() {
         url: "https://example.com/1".to_string(),
         status: crate::gui::app::model::DownloadItemStatus::Pending,
         note: String::new(),
+        created: 0,
+        modified: 0,
     });
 
     let json = to_json(&page);

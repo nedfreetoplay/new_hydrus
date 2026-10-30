@@ -1,4 +1,2 @@
 @echo off
-set "PATH=C:\Qt\6.12.0\msvc2022_64\bin;%PATH%"
-%*
-
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0qt-runner.ps1" %*

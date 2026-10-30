@@ -643,6 +643,10 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   - сверено: главное окно (файловая страница), gallery downloader.
   - осталось: subscriptions, duplicates, import/export folders, options dialogs,
     urls/simple/watcher downloader pages, media viewer.
+- [x] 14.9 Переносимая сборка: Qt DLL, плагины и MSVC runtime лежат рядом с exe
+  (`scripts/deploy.ps1`, `qt.conf`, `-Zip`), запуск не зависит от `PATH` и
+  установленного Qt. Проверено на release-сборке с очищенным `PATH`: окно
+  открывается, Qt6Core/VCRUNTIME140 грузятся из папки сборки.
 
 ---
 

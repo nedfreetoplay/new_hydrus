@@ -70,6 +70,41 @@ Python-клиент v692 запускается локально из `hydrus_py
 нативного стиля не используется. Тёмная тема остаётся отдельным QSS в
 `gui/style.rs`.
 
+## Сборка и поставка
+
+Qt подключается динамически, как в Python-клиенте: exe не содержит Qt внутри и
+находит `Qt6Core/Gui/Widgets` рядом с собой. Поэтому для запуска на другой машине
+Qt и MSVC runtime кладутся в ту же папку, а `PATH` пользователя не важен.
+
+Скрипты (все пути Qt/MSVC можно переопределить через окружение):
+
+- `scripts/qt-env.ps1` — общий поиск `vcvars64.bat` и Qt;
+- `scripts/cargo.ps1 build|test|run …` — cargo с MSVC и Qt на `PATH`;
+- `scripts/qt-runner.bat` — runner из `.cargo/config.toml`, чтобы `cargo run` и
+  `cargo test` находили Qt DLL;
+- `scripts/deploy.ps1 [-Profile release|debug] [-OutDir PATH] [-Zip]` —
+  переносимая сборка: `windeployqt` + `qt.conf` + runtime DLL.
+
+Переменные окружения: `HYDRUS_VS_VCVARS`, `HYDRUS_QT_BIN`, `QT_ROOT`, `QMAKE`.
+Без них Qt ищется в `C:\Qt\<версия>\msvc*_64` (сначала `build.rs`, затем
+`qt-env.ps1`). Прямой `cargo build` без `QMAKE`/Qt в `PATH` не работает — для
+этого есть `scripts/cargo.ps1`.
+
+`deploy.ps1` создаёт `dist/hydrus_client` (в git не попадает):
+
+```text
+hydrus_client.exe
+Qt6Core.dll, Qt6Gui.dll, Qt6Widgets.dll, Qt6Network.dll, Qt6Svg.dll
+vcruntime140*.dll, msvcp140*.dll, concrt140.dll   (release)
+qt.conf                  Prefix = ., Plugins = plugins
+plugins/platforms/qwindows.dll и остальные плагины
+```
+
+`qt.conf` задаёт плагины относительно exe, поэтому папку можно запускать из
+любого каталога. `-Zip` дополнительно собирает `dist/hydrus_client.zip`.
+Профиль `debug` кладёт debug-DLL и годится только для локальной проверки:
+debug CRT не распространяется.
+
 ## Страницы
 
 - `PageNode::Query` — файловая страница: запрос, хэши, фокус, статус. Страницы,

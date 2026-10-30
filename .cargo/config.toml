@@ -1,7 +1,2 @@
-[env]
-QMAKE = { value = "C:/Qt/6.12.0/msvc2022_64/bin/qmake.exe", force = false }
-CMAKE_PREFIX_PATH = { value = "C:/Qt/6.12.0/msvc2022_64", force = false }
-
 [target.x86_64-pc-windows-msvc]
 runner = "scripts/qt-runner.bat"
-

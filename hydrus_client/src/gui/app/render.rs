@@ -716,6 +716,12 @@ pub fn status_json(state: &AppState) -> String {
             }
         }
         None => match state.active_downloader() {
+            Some(page)
+                if page.kind == crate::gui::app::model::DownloaderKind::Watcher
+                    && !page.url.is_empty() =>
+            {
+                "no files for this watcher and its publishing settings".to_string()
+            }
             Some(page) if page.kind == crate::gui::app::model::DownloaderKind::Watcher => {
                 "no highlighted watcher".to_string()
             }

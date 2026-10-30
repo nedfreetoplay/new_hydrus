@@ -307,6 +307,36 @@ fn simple_jobs_set_reorders_and_removes_pending_jobs() {
 }
 
 #[test]
+fn watcher_url_add_and_remove_updates_the_page() {
+    let directory = std::env::temp_dir().join(format!(
+        "hydrus_downloader_watcher_{}_{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    let mut state = test_state(&directory);
+    state.root.add(PageNode::Downloader(DownloaderPage::new(
+        "p1",
+        DownloaderKind::Watcher,
+    )));
+
+    let _ = set_watcher_url(&mut state, "p1", "https://example.com/gallery");
+
+    let page = state.find_downloader("p1").unwrap();
+    assert_eq!(page.url, "https://example.com/gallery");
+    assert!(page.subject.is_empty());
+    assert_eq!(page.last_check, 0);
+
+    let _ = remove_watcher(&mut state, "p1");
+
+    let page = state.find_downloader("p1").unwrap();
+    assert!(page.url.is_empty());
+    assert!(page.subject.is_empty());
+
+    drop(state);
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn set_site_updates_the_gallery_page() {
     let directory = std::env::temp_dir().join(format!(
         "hydrus_downloader_set_site_{}_{}",

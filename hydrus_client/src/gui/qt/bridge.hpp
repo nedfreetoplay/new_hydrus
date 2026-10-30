@@ -733,6 +733,7 @@ private:
     QLabel *status_top = nullptr;
     QLabel *status_bottom = nullptr;
     QTableWidget *queue = nullptr;
+    QTableWidget *watcher_table = nullptr;
     QWidget *query_row = nullptr;
     QLineEdit *query = nullptr;
     QWidget *url_row = nullptr;
@@ -751,6 +752,15 @@ private:
     QWidget *input_row = nullptr;
     QLineEdit *url_input = nullptr;
     QToolButton *url_paste = nullptr;
+    QLineEdit *watcher_url = nullptr;
+    QToolButton *watcher_paste = nullptr;
+    QPushButton *checker_options = nullptr;
+    QToolButton *watcher_highlight = nullptr;
+    QToolButton *watcher_clear = nullptr;
+    QToolButton *watcher_files_pause = nullptr;
+    QToolButton *watcher_check_pause = nullptr;
+    QToolButton *watcher_retry = nullptr;
+    QToolButton *watcher_trash = nullptr;
     QToolButton *file_cancel = nullptr;
     QToolButton *search_cancel = nullptr;
     QListWidget *simple_jobs = nullptr;
@@ -765,6 +775,7 @@ private:
     QFrame *highlight_box = nullptr;
     QWidget *highlight_content = nullptr;
     QLineEdit *highlight_query = nullptr;
+    QLabel *highlight_subject = nullptr;
     QWidget *highlight_limit_row = nullptr;
     QSpinBox *highlight_file_limit = nullptr;
     QCheckBox *highlight_no_limit = nullptr;

@@ -1283,6 +1283,11 @@ impl AppState {
             "downloader_jobs_set" => download::jobs_set(self, target, payload),
             "downloader_set_site" => download::set_site(self, target, payload),
             "downloader_set_formula" => download::set_formula(self, target, payload),
+            "watcher_add_url" => download::set_watcher_url(self, target, payload),
+            "watcher_remove" => download::remove_watcher(self, target),
+            "watcher_checker_options" => vec![UiCommand::NotifyMessage(
+                "checker options are not implemented yet".to_string(),
+            )],
             "downloader_clear" => download::clear(self, target),
             "downloader_retry" => download::retry(self, target, payload),
             "downloader_open_results" => download::open_results(self, target),

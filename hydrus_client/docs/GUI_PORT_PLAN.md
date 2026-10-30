@@ -149,6 +149,22 @@ Definition of Done для задачи.
   контент выше окна. Скриншоты: `docs/images/simple_page.png` (Rust) и
   `docs/images/python_simple_page.png`. Осталось: редактор формул (WS-07.11),
   реальный multi-job парсинг, точные иконки Hydrus.
+- 2026-10-30 — watcher сверен с живым Python v692 (окно 1296x839).
+  Страница `watcher` перестроена из одиночной формы в Python-sidebar:
+  `watchers` со статусами (`waiting for new watchers` / `1 watchers - x/y`),
+  таблицей subject/files status/checking status/status/items/added, рядом
+  иконок highlight/clear highlight/pause files/pause checking/`check now`/
+  retry/trash, полем `watcher url` с paste, `checker options` и
+  `import options (all default)`; ниже `highlighted watcher` с `no subject`,
+  URL и вложенными `imports`/`search` (`check log ▾`), внизу `selection tags`.
+  Пустой статус-бар — `no highlighted watcher`, после добавления URL —
+  `no files for this watcher and its publishing settings`. Добавление URL
+  создаёт строку watcher (`* unknown`, `just added`, `now`) и заполняет
+  highlight; `check now` запускает проверку через `watcher_check`.
+  Скриншоты: `docs/images/watcher_page.png` (Rust) и
+  `docs/images/python_watcher_page.png` (Python). Осталось: несколько watcher
+  в таблице, диалог checker options, highlight → media panel, retry ignored,
+  точные иконки.
 
 ## Текущий статус
 
@@ -377,13 +393,16 @@ Rust-цели: `gui/app/import.rs`, `gui/app/import_folders.rs`,
   обработанный page/post. Диалог повторяет фильтры, сортировку, копирование,
   retry, remove и clear, журнал сохраняется в сессии.
 - [~] 06.12 Importer sidebars для HDD/gallery/watcher/simple/URLs.
-  Sidebar-панели gallery, URLs и simple повторяют Python: `gallery downloader` /
-  `url downloader` / `simple downloader` со вложенными `imports` и
-  `search`/`parsing`, file seed cache (`file log ▾`), gallery seed log
-  (`search log ▾` / `parsing log ▾`), network job (gauge, stop, cog),
-  очередь page-задач с ↑/X/↓, поле query/url с paste, formula combo с cog,
-  `import options (all default)`, `selection tags`. Осталось: watcher
-  (таблица watchers, checker options, update-selected) и HDD-панель.
+  Sidebar-панели gallery, watcher, URLs и simple повторяют Python: `gallery
+  downloader` / `watchers` / `url downloader` / `simple downloader` со
+  вложенными `imports` и `search`/`parsing`, file seed cache (`file log ▾`),
+  gallery seed log (`search log ▾` / `check log ▾` / `parsing log ▾`), network
+  job (gauge, stop, cog), таблица watchers с иконками
+  highlight/clear/pause files/pause checking/check now/retry/trash, очередь
+  page-задач с ↑/X/↓, поля query/watcher url/url с paste, formula combo с cog,
+  `checker options`, `import options (all default)`, `selection tags`.
+  Осталось: multi-watcher (сейчас одна строка) и `highlighted watcher` →
+  media panel, диалог checker options, HDD-панель.
 - [x] 06.13 «Check all» и полное меню import folders.
 - [ ] 06.14 Parsing scripts/legacy import scripts.
 - [x] 06.15 Review local imports и repair import locations: тот же review-диалог
@@ -672,9 +691,9 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   и устранить расхождения по «Правилу визуального паритета» (порядок контролов,
   подписи, размеры, отступы, иконки, тема).
   - сверено: главное окно (файловая страница), gallery downloader,
-    url downloader, simple downloader.
+    url downloader, simple downloader, watcher.
   - осталось: subscriptions, duplicates, import/export folders, options dialogs,
-    watcher downloader page, media viewer.
+    media viewer.
 - [x] 14.9 Переносимая сборка: Qt DLL, плагины и MSVC runtime лежат рядом с exe
   (`scripts/deploy.ps1`, `qt.conf`, `-Zip`), запуск не зависит от `PATH` и
   установленного Qt. Проверено на release-сборке с очищенным `PATH`: окно

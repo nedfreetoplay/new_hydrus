@@ -235,6 +235,41 @@ pub fn set_site(state: &mut AppState, page_id: &str, site: &str) -> Vec<UiComman
     update_commands(state, page_id)
 }
 
+pub fn set_watcher_url(state: &mut AppState, page_id: &str, url: &str) -> Vec<UiCommand> {
+    let url = url.trim();
+
+    if url.is_empty() {
+        return vec![UiCommand::NotifyMessage("no url to watch".to_string())];
+    }
+
+    let Some(page) = state.find_downloader_mut(page_id) else {
+        return vec![];
+    };
+
+    page.url = url.to_string();
+    page.last_check = 0;
+    page.status = "just added".to_string();
+
+    update_commands(state, page_id)
+}
+
+pub fn remove_watcher(state: &mut AppState, page_id: &str) -> Vec<UiCommand> {
+    if let Some(page) = state.find_downloader_mut(page_id) {
+        page.url.clear();
+        page.subject.clear();
+        page.queue.clear();
+        page.gallery_seeds.clear();
+        page.results.clear();
+        page.imported = 0;
+        page.failed = 0;
+        page.running = false;
+        page.paused = false;
+        page.status = "waiting for new watchers".to_string();
+    }
+
+    update_commands(state, page_id)
+}
+
 pub fn set_formula(state: &mut AppState, page_id: &str, formula: &str) -> Vec<UiCommand> {
     if let Some(page) = state.find_downloader_mut(page_id) {
         page.formula = formula.to_string();

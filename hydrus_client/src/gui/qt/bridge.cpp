@@ -2955,7 +2955,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     } else if (simple) {
         box_title = QStringLiteral("simple downloader");
     } else if (watcher) {
-        box_title = QStringLiteral("watcher");
+        box_title = QStringLiteral("watchers");
     }
 
     QVBoxLayout *main_layout = nullptr;
@@ -3358,90 +3358,150 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
                 url_input->clear();
             }
         });
-    } else if (!simple) {
-            input_row = new QWidget(main_content);
-            auto *input_layout = new QVBoxLayout(input_row);
-            input_layout->setContentsMargins(0, 0, 0, 0);
-            input_layout->setSpacing(0);
+    } else if (watcher) {
+        // Python's SidebarImporterMultipleWatcher: status labels, the watchers
+        // table with its action icons, the url input and the options buttons.
+        // The imports/search panels live in "highlighted watcher" below.
+        status_top = new QLabel(main_content);
+        status_top->setTextFormat(Qt::PlainText);
+        main_layout->addWidget(status_top);
 
-            input = new QPlainTextEdit(input_row);
-            input->setMinimumHeight(64);
-            input->setMaximumHeight(110);
-            input_layout->addWidget(input);
-            main_layout->addWidget(input_row);
+        status_bottom = new QLabel(main_content);
+        status_bottom->setTextFormat(Qt::PlainText);
+        main_layout->addWidget(status_bottom);
 
-        if (watcher) {
-            subject_row = new QWidget(main_content);
-            auto *subject_layout = new QHBoxLayout(subject_row);
-            subject_layout->setContentsMargins(0, 0, 0, 0);
-            subject_layout->setSpacing(4);
-            subject_layout->addWidget(new QLabel(QStringLiteral("subject"), subject_row), 0);
+        watcher_table = new QTableWidget(main_content);
+        watcher_table->setColumnCount(6);
+        watcher_table->setHorizontalHeaderLabels({QStringLiteral("subject"),
+                                                  QStringLiteral("files status"),
+                                                  QStringLiteral("checking status"),
+                                                  QStringLiteral("status"),
+                                                  QStringLiteral("items"),
+                                                  QStringLiteral("added")});
+        watcher_table->verticalHeader()->setVisible(false);
+        watcher_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+        watcher_table->setSelectionMode(QAbstractItemView::SingleSelection);
+        watcher_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        watcher_table->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
+        watcher_table->setFixedHeight(112);
+        watcher_table->setTextElideMode(Qt::ElideRight);
+        watcher_table->horizontalHeader()->setTextElideMode(Qt::ElideRight);
+        watcher_table->horizontalHeader()->setFixedHeight(24);
 
-            subject = new QLineEdit(subject_row);
-            subject->setPlaceholderText(QStringLiteral("watcher subject"));
-            subject_layout->addWidget(subject, 1);
-            main_layout->addWidget(subject_row);
+        const int watcher_widths[] = {80, 38, 38, 48, 38, 46};
 
-            url_row = new QWidget(main_content);
-            auto *url_layout = new QHBoxLayout(url_row);
-            url_layout->setContentsMargins(0, 0, 0, 0);
-            url_layout->setSpacing(4);
-            url_layout->addWidget(new QLabel(QStringLiteral("page url"), url_row), 0);
-
-            url = new QLineEdit(url_row);
-            url->setPlaceholderText(QStringLiteral("https://example.com/gallery?q={query}"));
-            url_layout->addWidget(url, 1);
-            main_layout->addWidget(url_row);
+        for (int index = 0; index < 6; ++index) {
+            watcher_table->setColumnWidth(index, watcher_widths[index]);
+            watcher_table->horizontalHeader()->setSectionResizeMode(index, QHeaderView::Fixed);
         }
 
-        if (watcher) {
-            site_row = new QWidget(main_content);
-            auto *site_layout = new QHBoxLayout(site_row);
-            site_layout->setContentsMargins(0, 0, 0, 0);
-            site_layout->setSpacing(4);
-            site_layout->addWidget(new QLabel(QStringLiteral("site parser"), site_row), 0);
+        main_layout->addWidget(watcher_table);
 
-            site = new QComboBox(site_row);
-            site_layout->addWidget(site, 1);
-            main_layout->addWidget(site_row);
+        auto *watcher_icons = new QWidget(main_content);
+        auto *watcher_icons_layout = new QHBoxLayout(watcher_icons);
+        watcher_icons_layout->setContentsMargins(0, 0, 0, 0);
+        watcher_icons_layout->setSpacing(2);
+        watcher_icons_layout->addStretch(1);
 
-            connect(site, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
-                if (!main->building) {
-                    main->notify(
-                        QStringLiteral("downloader_set_site"),
-                        id,
-                        site->currentData().toString());
-                }
+        watcher_highlight =
+            row_icon(watcher_icons, QStringLiteral("highlight"), QStringLiteral("highlight"));
+        watcher_icons_layout->addWidget(watcher_highlight, 0);
+        watcher_clear = row_icon(
+            watcher_icons, QStringLiteral("unhighlight"), QStringLiteral("clear highlight"));
+        watcher_icons_layout->addWidget(watcher_clear, 0);
+        watcher_files_pause = row_icon(
+            watcher_icons, QStringLiteral("pause"), QStringLiteral("pause/play files"));
+        watcher_icons_layout->addWidget(watcher_files_pause, 0);
+        watcher_check_pause = row_icon(
+            watcher_icons, QStringLiteral("pause"), QStringLiteral("pause/play checking"));
+        watcher_icons_layout->addWidget(watcher_check_pause, 0);
+
+        auto *check_now = new QPushButton(QStringLiteral("check now"), watcher_icons);
+        check_now->setMinimumHeight(22);
+        watcher_icons_layout->addWidget(check_now, 0);
+
+        watcher_retry =
+            row_icon(watcher_icons, QStringLiteral("retry"), QStringLiteral("retry commands"));
+        watcher_icons_layout->addWidget(watcher_retry, 0);
+        watcher_trash = row_icon(
+            watcher_icons, QStringLiteral("trash"), QStringLiteral("remove selected"));
+        watcher_icons_layout->addWidget(watcher_trash, 0);
+        main_layout->addWidget(watcher_icons);
+
+        auto *watcher_url_row = new QWidget(main_content);
+        auto *watcher_url_layout = new QHBoxLayout(watcher_url_row);
+        watcher_url_layout->setContentsMargins(0, 0, 0, 0);
+        watcher_url_layout->setSpacing(2);
+
+        watcher_url = new QLineEdit(watcher_url_row);
+        watcher_url->setPlaceholderText(QStringLiteral("watcher url"));
+        watcher_url_layout->addWidget(watcher_url, 1);
+        watcher_paste = row_icon(
+            watcher_url_row,
+            QStringLiteral("paste"),
+            QStringLiteral("Paste multiple inputs from the clipboard. Assumes the texts are "
+                           "newline-separated."));
+        watcher_url_layout->addWidget(watcher_paste, 0);
+        main_layout->addWidget(watcher_url_row);
+
+        checker_options = new QPushButton(QStringLiteral("checker options"), main_content);
+        checker_options->setMinimumHeight(22);
+        main_layout->addWidget(checker_options);
+
+        connect(check_now, &QPushButton::clicked, this, [this]() {
+            if (!main->building) {
+                start();
+            }
+        });
+        connect(watcher_highlight, &QToolButton::clicked, this, [this]() {
+            if (watcher_table->rowCount() > 0) {
+                watcher_table->selectRow(0);
+            }
+        });
+        connect(watcher_clear, &QToolButton::clicked, this, [this]() {
+            watcher_table->clearSelection();
+        });
+        connect(watcher_files_pause, &QToolButton::clicked, this, [this]() {
+            main->notify(QStringLiteral("downloader_pause"), id);
+        });
+        connect(watcher_check_pause, &QToolButton::clicked, this, [this]() {
+            main->notify(QStringLiteral("downloader_pause"), id);
+        });
+        connect(watcher_retry, &QToolButton::clicked, this, [this]() {
+            auto *menu = new QMenu(this);
+            menu->setAttribute(Qt::WA_DeleteOnClose);
+            menu->addAction(QStringLiteral("retry failed"), this, [this]() {
+                main->notify(QStringLiteral("downloader_retry"), id);
             });
-        }
+            menu->popup(
+                watcher_retry->mapToGlobal(QPoint(0, watcher_retry->height())));
+        });
+        connect(watcher_trash, &QToolButton::clicked, this, [this]() {
+            main->notify(QStringLiteral("watcher_remove"), id);
+        });
+        connect(watcher_url, &QLineEdit::returnPressed, this, [this]() {
+            const QString text = watcher_url->text().trimmed();
 
-        if (watcher) {
-            period_row = new QWidget(main_content);
-            auto *period_layout = new QHBoxLayout(period_row);
-            period_layout->setContentsMargins(0, 0, 0, 0);
-            period_layout->setSpacing(4);
-            period_layout->addWidget(new QLabel(QStringLiteral("check every"), period_row), 0);
+            if (!text.isEmpty()) {
+                main->notify(QStringLiteral("watcher_add_url"), id, text);
+                watcher_url->clear();
+            }
+        });
+        connect(watcher_paste, &QToolButton::clicked, this, [this]() {
+            const QString text = QApplication::clipboard()->text().trimmed();
 
-            period = new QSpinBox(period_row);
-            period->setRange(60, 2592000);
-            period->setSingleStep(300);
-            period->setValue(3600);
-            period->setSuffix(QStringLiteral(" s"));
-            period_layout->addWidget(period, 1);
-            main_layout->addWidget(period_row);
+            if (!text.isEmpty()) {
+                const QStringList lines = text.split(QRegularExpression(QStringLiteral("[\r\n]+")),
+                                                     Qt::SkipEmptyParts);
 
-            auto_button = new QPushButton(QStringLiteral("automatic checks: off"), main_content);
-            auto_button->setMinimumHeight(24);
-            main_layout->addWidget(auto_button);
-        }
-    }
-
-    if (!urls && !simple) {
-        start_button = new QPushButton(
-            watcher ? QStringLiteral("check now") : QStringLiteral("start"), main_content);
-        start_button->setMinimumHeight(24);
-        start_button->setVisible(!gallery);
-        main_layout->addWidget(start_button);
+                if (!lines.isEmpty()) {
+                    main->notify(QStringLiteral("watcher_add_url"), id, lines.first().trimmed());
+                }
+            }
+        });
+        connect(checker_options, &QPushButton::clicked, this, [this]() {
+            main->notify(QStringLiteral("watcher_checker_options"), id);
+        });
     }
 
     import_options_button = new QPushButton(
@@ -3482,11 +3542,12 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
         });
     }
 
-    if (gallery) {
+    if (gallery || watcher) {
         QVBoxLayout *highlight_layout = nullptr;
         QPushButton *highlight_expand = nullptr;
         highlight_box = make_static_box(
-            QStringLiteral("highlighted query"),
+            gallery ? QStringLiteral("highlighted query")
+                    : QStringLiteral("highlighted watcher"),
             sidebar_content,
             &highlight_layout,
             &highlight_expand);
@@ -3503,6 +3564,16 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
         highlight_query = new QLineEdit(highlight_content);
         highlight_query->setReadOnly(true);
         highlight_query->setFixedHeight(22);
+
+        if (watcher) {
+            highlight_subject = new QLabel(highlight_content);
+            highlight_subject->setTextFormat(Qt::PlainText);
+            QPalette subject_palette = highlight_subject->palette();
+            subject_palette.setColor(QPalette::WindowText, QColor(110, 110, 110));
+            highlight_subject->setPalette(subject_palette);
+            highlight_layout->addWidget(highlight_subject);
+        }
+
         highlight_layout->addWidget(highlight_query);
 
         imports_box = make_status_box(highlight_content,
@@ -3534,10 +3605,12 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
                                      &search_network_percent,
                                      &search_cog,
                                      QStringLiteral("pause/play search"),
-                                     QStringLiteral("search"),
+                                     gallery ? QStringLiteral("search")
+                                             : QStringLiteral("check"),
                                      QStringLiteral("gallery_seed_log"));
 
-        highlight_limit_row = new QWidget(highlight_content);
+        if (gallery) {
+            highlight_limit_row = new QWidget(highlight_content);
         auto *highlight_limit_layout = new QHBoxLayout(highlight_limit_row);
         highlight_limit_layout->setContentsMargins(0, 0, 0, 0);
         highlight_limit_layout->setSpacing(4);
@@ -3573,7 +3646,9 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
         connect(highlight_import_options, &QPushButton::clicked, this, [this]() {
             main->notify(QStringLiteral("downloader_import_options"), id);
         });
-    } else if (!urls) {
+        }
+
+    } else if (simple) {
         imports_box = make_status_box(main_content,
                                       main_layout,
                                       QStringLiteral("imports"),
@@ -4036,7 +4111,7 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (highlight_box != nullptr) {
-        highlight_box->setVisible(gallery);
+        highlight_box->setVisible(gallery || watcher);
     }
 
     if (start_button != nullptr) {
@@ -4118,26 +4193,120 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (highlight_query != nullptr) {
-        highlight_query->setText(state.value(QStringLiteral("query")).toString());
+        highlight_query->setText(
+            watcher ? state.value(QStringLiteral("url")).toString()
+                    : state.value(QStringLiteral("query")).toString());
+    }
+
+    if (highlight_subject != nullptr) {
+        const QString subject = state.value(QStringLiteral("subject")).toString();
+        highlight_subject->setVisible(!state.value(QStringLiteral("url")).toString().isEmpty());
+        highlight_subject->setText(
+            subject.isEmpty() ? QStringLiteral("no subject") : subject);
     }
 
     if (status_top != nullptr) {
-        const bool has_query = !state.value(QStringLiteral("query")).toString().isEmpty()
-                               || !state.value(QStringLiteral("url")).toString().isEmpty();
-        status_top->setText(
-            has_query ? QStringLiteral("1 query - %1/%2").arg(queue_done).arg(queue_count)
-                      : QStringLiteral("waiting for new queries"));
-        QString bottom;
+        if (watcher) {
+            const QString page_url = state.value(QStringLiteral("url")).toString();
 
-        if (has_query) {
-            bottom = QStringLiteral("%1 successful").arg(imported);
+            if (page_url.isEmpty()) {
+                status_top->setText(QStringLiteral("waiting for new watchers"));
+                status_bottom->setText(QString());
+            } else {
+                status_top->setText(
+                    QStringLiteral("1 watchers - %1/%2").arg(queue_done).arg(queue_count));
 
-            if (failed > 0) {
-                bottom += QStringLiteral(", %1 failed").arg(failed);
+                QString bottom;
+
+                if (imported > 0 || failed > 0) {
+                    bottom = QStringLiteral("%1 successful").arg(imported);
+
+                    if (failed > 0) {
+                        bottom += QStringLiteral(", %1 failed").arg(failed);
+                    }
+                }
+
+                status_bottom->setText(bottom);
+            }
+        } else {
+            const bool has_query = !state.value(QStringLiteral("query")).toString().isEmpty()
+                                   || !state.value(QStringLiteral("url")).toString().isEmpty();
+            status_top->setText(
+                has_query ? QStringLiteral("1 query - %1/%2").arg(queue_done).arg(queue_count)
+                          : QStringLiteral("waiting for new queries"));
+            QString bottom;
+
+            if (has_query) {
+                bottom = QStringLiteral("%1 successful").arg(imported);
+
+                if (failed > 0) {
+                    bottom += QStringLiteral(", %1 failed").arg(failed);
+                }
+            }
+
+            status_bottom->setText(bottom);
+        }
+    }
+
+    if (watcher_table != nullptr) {
+        const QString page_url = state.value(QStringLiteral("url")).toString();
+        watcher_table->setRowCount(page_url.isEmpty() ? 0 : 1);
+
+        if (!page_url.isEmpty()) {
+            QString subject = state.value(QStringLiteral("subject")).toString();
+
+            if (subject.isEmpty()) {
+                subject = QStringLiteral("* unknown");
+            }
+
+            const QString files_status =
+                queue_count > 0
+                    ? QStringLiteral("%1/%2").arg(queue_done).arg(queue_count)
+                    : QString();
+            const QString checking_status =
+                paused ? QStringLiteral("paused")
+                       : (running ? QStringLiteral("checking") : QString());
+            QString added;
+
+            const qint64 last_check =
+                static_cast<qint64>(state.value(QStringLiteral("last_check")).toDouble());
+
+            if (last_check > 0) {
+                const qint64 delta = qMax<qint64>(
+                    0, QDateTime::currentSecsSinceEpoch() - last_check);
+
+                if (delta < 60) {
+                    added = QStringLiteral("just now");
+                } else if (delta < 3600) {
+                    added = QStringLiteral("%1 minutes ago").arg(delta / 60);
+                } else if (delta < 86400) {
+                    added = QStringLiteral("%1 hours ago").arg(delta / 3600);
+                } else {
+                    added = QStringLiteral("%1 days ago").arg(delta / 86400);
+                }
+            } else {
+                added = QStringLiteral("now");
+            }
+
+            const QStringList cells = {subject,
+                                       files_status,
+                                       checking_status,
+                                       status,
+                                       QString::number(queue_count),
+                                       added};
+
+            for (int column = 0; column < cells.size(); ++column) {
+                auto *item = watcher_table->item(0, column);
+
+                if (item == nullptr) {
+                    item = new QTableWidgetItem();
+                    watcher_table->setItem(0, column, item);
+                }
+
+                item->setText(cells[column]);
+                item->setToolTip(cells[column]);
             }
         }
-
-        status_bottom->setText(bottom);
     }
 
     if (queue != nullptr) {

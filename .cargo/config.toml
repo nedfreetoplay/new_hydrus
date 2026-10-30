@@ -1,2 +1,5 @@
+# Build/run through scripts/cargo.ps1 (or scripts/deploy.ps1): it locates MSVC
+# and Qt and puts them in the environment. A plain `cargo build` needs QMAKE or
+# the Qt bin directory in PATH; no machine-specific path is stored here.
 [target.x86_64-pc-windows-msvc]
 runner = "scripts/qt-runner.bat"

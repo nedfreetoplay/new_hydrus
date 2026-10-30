@@ -125,6 +125,18 @@ Definition of Done для задачи.
   highlight, точные иконки Hydrus, полноценные multi-query/GUG-редакторы,
   а также отдельная сверка urls/simple/watcher страниц, subscriptions,
   duplicates, import/export folders и options dialogs.
+- 2026-10-30 — urls downloader сверен с живым Python v692 (окно 1296x839).
+  Страница `url import` перестроена в Python-sidebar: `url downloader` с
+  вложенными `imports` (pause, file seed cache с `file log ▾`, gauge, network
+  job `0%`/stop/cog) и `search` (`search log ▾`, gauge, network job), ниже
+  однострочное поле `any url hydrus recognises, or a raw file url` с paste,
+  `import options (all default)` с меню и `selection tags`. Кнопки start нет;
+  Enter/paste пендит URL и очищает поле. Пустой статус-бар — `empty page`;
+  вкладка называется `url import`, а не `urls`. Скриншоты:
+  `docs/images/urls_page.png` (Rust) и `docs/images/python_urls_page.png`.
+  Осталось: добавление новых URL во время работы (сейчас страница занята),
+  точные иконки Hydrus, поведение disabled-панелей. Заодно меню `pending`
+  скрывается, когда нет tag/file repository или IPFS-сервиса, как в Python.
 
 ## Текущий статус
 
@@ -352,7 +364,13 @@ Rust-цели: `gui/app/import.rs`, `gui/app/import_folders.rs`,
   числе найденных файлов; worker присылает `GallerySeed` события на каждый
   обработанный page/post. Диалог повторяет фильтры, сортировку, копирование,
   retry, remove и clear, журнал сохраняется в сессии.
-- [ ] 06.12 Importer sidebars для HDD/gallery/watcher/simple/URLs.
+- [~] 06.12 Importer sidebars для HDD/gallery/watcher/simple/URLs.
+  Sidebar-панели gallery и URLs повторяют Python: `gallery downloader` /
+  `url downloader` со вложенными `imports` и `search`, file seed cache
+  (`file log ▾`), gallery seed log (`search log ▾`), network job (gauge,
+  stop, cog), поле query/url с paste, `import options (all default)`,
+  `selection tags`. Осталось: watcher (таблица watchers, checker options,
+  update-selected) и simple downloader (parsing/queue/formula), HDD-панель.
 - [x] 06.13 «Check all» и полное меню import folders.
 - [ ] 06.14 Parsing scripts/legacy import scripts.
 - [x] 06.15 Review local imports и repair import locations: тот же review-диалог
@@ -640,9 +658,9 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
 - [~] 14.8 Визуальный аудит: пройти по всем экранам, снять скриншоты Rust и Python
   и устранить расхождения по «Правилу визуального паритета» (порядок контролов,
   подписи, размеры, отступы, иконки, тема).
-  - сверено: главное окно (файловая страница), gallery downloader.
+  - сверено: главное окно (файловая страница), gallery downloader, url downloader.
   - осталось: subscriptions, duplicates, import/export folders, options dialogs,
-    urls/simple/watcher downloader pages, media viewer.
+    simple/watcher downloader pages, media viewer.
 - [x] 14.9 Переносимая сборка: Qt DLL, плагины и MSVC runtime лежат рядом с exe
   (`scripts/deploy.ps1`, `qt.conf`, `-Zip`), запуск не зависит от `PATH` и
   установленного Qt. Проверено на release-сборке с очищенным `PATH`: окно

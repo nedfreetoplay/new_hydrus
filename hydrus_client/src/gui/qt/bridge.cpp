@@ -1700,6 +1700,13 @@ QIcon hydrus_small_icon(const QString &kind) {
         QPolygonF triangle;
         triangle << QPointF(4.0, 3.0) << QPointF(13.0, 8.0) << QPointF(4.0, 13.0);
         painter.drawPolygon(triangle);
+    } else if (kind == QStringLiteral("stop")) {
+        painter.setPen(QPen(QColor(130, 130, 130), 1));
+        painter.setBrush(QColor(225, 225, 225));
+        painter.drawEllipse(QRectF(1.5, 1.5, 13.0, 13.0));
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(120, 120, 120));
+        painter.drawRect(QRectF(5.0, 5.0, 6.0, 6.0));
     } else if (kind == QStringLiteral("retry")) {
         painter.setPen(QPen(QColor(70, 70, 70), 1.6));
         painter.setBrush(Qt::NoBrush);
@@ -2389,7 +2396,7 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
     splitter->addWidget(results);
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
-    splitter->setSizes({400, 880});
+    splitter->setSizes({412, 884});
 
     layout->addWidget(splitter);
 
@@ -2717,7 +2724,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     splitter->addWidget(results);
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
-    splitter->setSizes({400, 880});
+    splitter->setSizes({412, 884});
 
     layout->addWidget(splitter);
 
@@ -2875,7 +2882,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
         (*log_button)->setMinimumWidth(78);
         (*log_button)->setToolButtonStyle(Qt::ToolButtonTextOnly);
         (*log_button)->setPopupMode(QToolButton::InstantPopup);
-        (*log_button)->setAutoRaise(true);
+        (*log_button)->setAutoRaise(false);
         (*log_button)->setFocusPolicy(Qt::NoFocus);
 
         auto *log_menu = new QMenu(*log_button);
@@ -3146,8 +3153,212 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
         no_limit = new QCheckBox(QStringLiteral("no limit"), file_limit_row);
         limit_layout->addWidget(no_limit, 0);
         main_layout->addWidget(file_limit_row);
+    } else if (urls) {
+        // Python's SidebarImporterURLs: the "url downloader" box holds an
+        // "imports" box (file seed cache and file network job), a "search" box
+        // (gallery seed log and gallery network job), the url input and the
+        // import options button.
+        QVBoxLayout *imports_layout = nullptr;
+        imports_box = make_static_box(QStringLiteral("imports"), main_content, &imports_layout);
+        imports_layout->setContentsMargins(8, 4, 8, 10);
+        imports_layout->setSpacing(8);
+
+        auto *pause_row = new QWidget(imports_box);
+        auto *pause_row_layout = new QHBoxLayout(pause_row);
+        pause_row_layout->setContentsMargins(0, 0, 0, 0);
+        pause_row_layout->setSpacing(2);
+        pause_row_layout->addStretch(1);
+        files_pause =
+            row_icon(pause_row, QStringLiteral("pause"), QStringLiteral("pause/play files"));
+        pause_row_layout->addWidget(files_pause, 0);
+        imports_layout->addWidget(pause_row);
+
+        auto *file_seed_frame = new QFrame(imports_box);
+        file_seed_frame->setFrameStyle(QFrame::Box | QFrame::Raised);
+        auto *file_seed_layout = new QVBoxLayout(file_seed_frame);
+        file_seed_layout->setContentsMargins(6, 4, 6, 4);
+        file_seed_layout->setSpacing(2);
+
+        imports_status = new QLabel(file_seed_frame);
+        imports_status->setTextFormat(Qt::PlainText);
+        file_seed_layout->addWidget(imports_status);
+
+        auto *file_log_row = new QWidget(file_seed_frame);
+        auto *file_log_layout = new QHBoxLayout(file_log_row);
+        file_log_layout->setContentsMargins(0, 0, 0, 0);
+        file_log_layout->setSpacing(2);
+
+        file_seed_status = new QLabel(file_log_row);
+        file_seed_status->setTextFormat(Qt::PlainText);
+        file_log_layout->addWidget(file_seed_status, 1);
+
+        file_log_button = new QToolButton(file_log_row);
+        file_log_button->setText(QStringLiteral("file log"));
+        file_log_button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        file_log_button->setPopupMode(QToolButton::InstantPopup);
+        file_log_button->setAutoRaise(false);
+        file_log_button->setFocusPolicy(Qt::NoFocus);
+        auto *file_log_menu = new QMenu(file_log_button);
+        file_log_menu->addAction(QStringLiteral("open file log"), this, [this]() {
+            main->notify(QStringLiteral("file_seed_cache"), id);
+        });
+        file_log_menu->addAction(QStringLiteral("clear finished"), this, [this]() {
+            main->notify(QStringLiteral("downloader_clear"), id);
+        });
+        file_log_button->setMenu(file_log_menu);
+        file_log_layout->addWidget(file_log_button, 0);
+        file_seed_layout->addWidget(file_log_row);
+
+        file_progress = new QProgressBar(file_seed_frame);
+        file_progress->setRange(0, 100);
+        file_progress->setValue(0);
+        file_progress->setTextVisible(false);
+        file_progress->setFixedHeight(18);
+        file_seed_layout->addWidget(file_progress);
+
+        imports_layout->addWidget(file_seed_frame);
+
+        auto *file_net_frame = new QFrame(imports_box);
+        file_net_frame->setFrameStyle(QFrame::Box | QFrame::Raised);
+        auto *file_net_layout = new QVBoxLayout(file_net_frame);
+        file_net_layout->setContentsMargins(6, 4, 6, 4);
+        file_net_layout->setSpacing(2);
+
+        auto *file_net_text_row = new QWidget(file_net_frame);
+        auto *file_net_text_layout = new QHBoxLayout(file_net_text_row);
+        file_net_text_layout->setContentsMargins(0, 0, 0, 0);
+        file_net_text_layout->setSpacing(2);
+        auto *file_net_left = new QLabel(file_net_text_row);
+        file_net_left->setTextFormat(Qt::PlainText);
+        file_net_text_layout->addWidget(file_net_left, 1);
+        auto *file_net_right = new QLabel(file_net_text_row);
+        file_net_right->setTextFormat(Qt::PlainText);
+        file_net_text_layout->addWidget(file_net_right, 0);
+        file_net_layout->addWidget(file_net_text_row);
+
+        auto *file_net_gauge_row = new QWidget(file_net_frame);
+        auto *file_net_gauge_layout = new QHBoxLayout(file_net_gauge_row);
+        file_net_gauge_layout->setContentsMargins(0, 0, 0, 0);
+        file_net_gauge_layout->setSpacing(2);
+        file_network_progress = new QProgressBar(file_net_gauge_row);
+        file_network_progress->setRange(0, 100);
+        file_network_progress->setValue(0);
+        file_network_progress->setFormat(QStringLiteral("%p%"));
+        file_network_progress->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        file_network_progress->setFixedHeight(20);
+        file_net_gauge_layout->addWidget(file_network_progress, 1);
+        file_cancel = row_icon(file_net_gauge_row, QStringLiteral("stop"), QStringLiteral("cancel"));
+        file_net_gauge_layout->addWidget(file_cancel, 0);
+        file_cog = row_icon(
+            file_net_gauge_row, QStringLiteral("gear"), QStringLiteral("network job options"));
+        file_net_gauge_layout->addWidget(file_cog, 0);
+        file_net_layout->addWidget(file_net_gauge_row);
+
+        imports_layout->addWidget(file_net_frame);
+        main_layout->addWidget(imports_box);
+
+        QVBoxLayout *search_layout = nullptr;
+        search_box = make_static_box(QStringLiteral("search"), main_content, &search_layout);
+        search_layout->setContentsMargins(8, 4, 8, 10);
+        search_layout->setSpacing(8);
+
+        auto *search_log_row = new QWidget(search_box);
+        auto *search_log_layout = new QHBoxLayout(search_log_row);
+        search_log_layout->setContentsMargins(0, 0, 0, 0);
+        search_log_layout->setSpacing(2);
+
+        search_status = new QLabel(search_log_row);
+        search_status->setTextFormat(Qt::PlainText);
+        search_log_layout->addWidget(search_status, 1);
+
+        search_log_button = new QToolButton(search_log_row);
+        search_log_button->setText(QStringLiteral("search log"));
+        search_log_button->setToolButtonStyle(Qt::ToolButtonTextOnly);
+        search_log_button->setPopupMode(QToolButton::InstantPopup);
+        search_log_button->setAutoRaise(false);
+        search_log_button->setFocusPolicy(Qt::NoFocus);
+        auto *search_log_menu = new QMenu(search_log_button);
+        search_log_menu->addAction(QStringLiteral("open search log"), this, [this]() {
+            main->notify(QStringLiteral("gallery_seed_log"), id);
+        });
+        search_log_menu->addAction(QStringLiteral("clear finished"), this, [this]() {
+            main->notify(QStringLiteral("downloader_clear"), id);
+        });
+        search_log_button->setMenu(search_log_menu);
+        search_log_layout->addWidget(search_log_button, 0);
+        search_layout->addWidget(search_log_row);
+
+        auto *search_net_frame = new QFrame(search_box);
+        search_net_frame->setFrameStyle(QFrame::Box | QFrame::Raised);
+        auto *search_net_layout = new QVBoxLayout(search_net_frame);
+        search_net_layout->setContentsMargins(6, 4, 6, 4);
+        search_net_layout->setSpacing(2);
+
+        auto *search_net_text_row = new QWidget(search_net_frame);
+        auto *search_net_text_layout = new QHBoxLayout(search_net_text_row);
+        search_net_text_layout->setContentsMargins(0, 0, 0, 0);
+        search_net_text_layout->setSpacing(2);
+        auto *search_net_left = new QLabel(search_net_text_row);
+        search_net_left->setTextFormat(Qt::PlainText);
+        search_net_text_layout->addWidget(search_net_left, 1);
+        auto *search_net_right = new QLabel(search_net_text_row);
+        search_net_right->setTextFormat(Qt::PlainText);
+        search_net_text_layout->addWidget(search_net_right, 0);
+        search_net_layout->addWidget(search_net_text_row);
+
+        auto *search_net_gauge_row = new QWidget(search_net_frame);
+        auto *search_net_gauge_layout = new QHBoxLayout(search_net_gauge_row);
+        search_net_gauge_layout->setContentsMargins(0, 0, 0, 0);
+        search_net_gauge_layout->setSpacing(2);
+        search_network_progress = new QProgressBar(search_net_gauge_row);
+        search_network_progress->setRange(0, 100);
+        search_network_progress->setValue(0);
+        search_network_progress->setFormat(QStringLiteral("%p%"));
+        search_network_progress->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        search_network_progress->setFixedHeight(20);
+        search_net_gauge_layout->addWidget(search_network_progress, 1);
+        search_cancel =
+            row_icon(search_net_gauge_row, QStringLiteral("stop"), QStringLiteral("cancel"));
+        search_net_gauge_layout->addWidget(search_cancel, 0);
+        search_cog = row_icon(
+            search_net_gauge_row, QStringLiteral("gear"), QStringLiteral("network job options"));
+        search_net_gauge_layout->addWidget(search_cog, 0);
+        search_net_layout->addWidget(search_net_gauge_row);
+
+        search_layout->addWidget(search_net_frame);
+        main_layout->addWidget(search_box);
+
+        auto *url_input_row = new QWidget(main_content);
+        auto *url_input_layout = new QHBoxLayout(url_input_row);
+        url_input_layout->setContentsMargins(0, 0, 0, 0);
+        url_input_layout->setSpacing(2);
+        url_input = new QLineEdit(url_input_row);
+        url_input->setPlaceholderText(
+            QStringLiteral("any url hydrus recognises, or a raw file url"));
+        url_input_layout->addWidget(url_input, 1);
+        url_paste = row_icon(
+            url_input_row,
+            QStringLiteral("paste"),
+            QStringLiteral("Paste multiple inputs from the clipboard. Assumes the texts are "
+                           "newline-separated."));
+        url_input_layout->addWidget(url_paste, 0);
+        main_layout->addWidget(url_input_row);
+
+        connect(url_input, &QLineEdit::returnPressed, this, [this]() {
+            if (!url_input->text().trimmed().isEmpty()) {
+                start();
+                url_input->clear();
+            }
+        });
+        connect(url_paste, &QToolButton::clicked, this, [this]() {
+            const QString text = QApplication::clipboard()->text().trimmed();
+            if (!text.isEmpty()) {
+                url_input->setText(text);
+                start();
+                url_input->clear();
+            }
+        });
     } else {
-        if (urls || simple) {
             input_row = new QWidget(main_content);
             auto *input_layout = new QVBoxLayout(input_row);
             input_layout->setContentsMargins(0, 0, 0, 0);
@@ -3158,7 +3369,6 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
             input->setMaximumHeight(110);
             input_layout->addWidget(input);
             main_layout->addWidget(input_row);
-        }
 
         if (watcher) {
             subject_row = new QWidget(main_content);
@@ -3226,10 +3436,13 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
         }
     }
 
-    start_button = new QPushButton(watcher ? QStringLiteral("check now") : QStringLiteral("start"), main_content);
-    start_button->setMinimumHeight(24);
-    start_button->setVisible(!gallery);
-    main_layout->addWidget(start_button);
+    if (!urls) {
+        start_button = new QPushButton(
+            watcher ? QStringLiteral("check now") : QStringLiteral("start"), main_content);
+        start_button->setMinimumHeight(24);
+        start_button->setVisible(!gallery);
+        main_layout->addWidget(start_button);
+    }
 
     import_options_button = new QPushButton(
         QStringLiteral("import options (%1)")
@@ -3241,7 +3454,18 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     connect(import_options_button, &QPushButton::clicked, this, [this]() {
         main->notify(QStringLiteral("downloader_import_options"), id);
     });
-    connect(start_button, &QPushButton::clicked, this, [this]() { start(); });
+
+    if (urls) {
+        auto *options_menu = new QMenu(import_options_button);
+        options_menu->addAction(
+            QStringLiteral("edit import options..."), this, [this]() {
+                main->notify(QStringLiteral("downloader_import_options"), id);
+            });
+        import_options_button->setMenu(options_menu);
+    }
+    if (start_button != nullptr) {
+        connect(start_button, &QPushButton::clicked, this, [this]() { start(); });
+    }
 
     if (auto_button != nullptr) {
         connect(auto_button, &QPushButton::clicked, this, [this]() {
@@ -3349,7 +3573,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
         connect(highlight_import_options, &QPushButton::clicked, this, [this]() {
             main->notify(QStringLiteral("downloader_import_options"), id);
         });
-    } else {
+    } else if (!urls) {
         imports_box = make_status_box(main_content,
                                       main_layout,
                                       QStringLiteral("imports"),
@@ -3391,9 +3615,11 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     connect(files_pause, &QToolButton::clicked, this, [this]() {
         main->notify(QStringLiteral("downloader_pause"), id);
     });
-    connect(search_pause, &QToolButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("downloader_pause"), id);
-    });
+    if (search_pause != nullptr) {
+        connect(search_pause, &QToolButton::clicked, this, [this]() {
+            main->notify(QStringLiteral("downloader_pause"), id);
+        });
+    }
 
     const auto network_cog_menu = [this](QToolButton *button) {
         auto *menu = new QMenu(this);
@@ -3454,8 +3680,6 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
                                                             : Qt::DescendingOrder);
     });
 
-    sidebar_layout->addStretch(1);
-
     fill_sites(state.value(QStringLiteral("sites")).toArray());
     update_state(state);
 }
@@ -3476,6 +3700,10 @@ void HydrusDownloaderPage::start() {
 
     if (input != nullptr) {
         payload.insert(QStringLiteral("input"), input->toPlainText());
+    }
+
+    if (url_input != nullptr) {
+        payload.insert(QStringLiteral("input"), url_input->text());
     }
 
     if (url != nullptr) {
@@ -3813,7 +4041,16 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (imports_status != nullptr) {
-        if (imported == 0 && failed == 0) {
+        if (urls) {
+            imports_status->setText(
+                (imported == 0 && failed == 0 && queue_count == 0)
+                    ? QString()
+                    : (failed == 0
+                           ? QStringLiteral("%1 successful").arg(imported)
+                           : QStringLiteral("%1 successful, %2 failed")
+                                 .arg(imported)
+                                 .arg(failed)));
+        } else if (imported == 0 && failed == 0) {
             imports_status->setText(QStringLiteral("no files yet"));
         } else if (failed == 0) {
             imports_status->setText(QStringLiteral("%1 successful").arg(imported));
@@ -3825,7 +4062,8 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
 
     if (file_seed_status != nullptr) {
         file_seed_status->setText(
-            QStringLiteral("%1/%2").arg(queue_done).arg(queue_count));
+            queue_count > 0 ? QStringLiteral("%1/%2").arg(queue_done).arg(queue_count)
+                            : QString());
     }
 
     if (file_progress != nullptr) {
@@ -3839,7 +4077,19 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (search_status != nullptr) {
-        search_status->setText(status.isEmpty() ? QStringLiteral("ready") : status);
+        if (urls) {
+            if (seed_total == 0) {
+                search_status->setText(QString());
+            } else {
+                const int pending = qMax(0, seed_total - seed_success - seed_failed);
+                search_status->setText(
+                    QStringLiteral("%1 successful, %2 pending")
+                        .arg(seed_success)
+                        .arg(pending));
+            }
+        } else {
+            search_status->setText(status.isEmpty() ? QStringLiteral("ready") : status);
+        }
     }
 
     if (search_seed_status != nullptr) {

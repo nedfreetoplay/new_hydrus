@@ -749,6 +749,10 @@ private:
     QCheckBox *no_limit = nullptr;
     QPlainTextEdit *input = nullptr;
     QWidget *input_row = nullptr;
+    QLineEdit *url_input = nullptr;
+    QToolButton *url_paste = nullptr;
+    QToolButton *file_cancel = nullptr;
+    QToolButton *search_cancel = nullptr;
     QPushButton *start_button = nullptr;
     QPushButton *auto_button = nullptr;
     QPushButton *import_options_button = nullptr;

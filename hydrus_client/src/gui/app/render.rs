@@ -53,7 +53,7 @@ pub fn menus_json(state: &AppState) -> String {
         "description": "manage Client API access keys and permissions"
     }));
 
-    let menus = json!([
+    let mut menus = json!([
         {
             "title": "&file",
             "items": [
@@ -197,6 +197,24 @@ pub fn menus_json(state: &AppState) -> String {
             ]
         }
     ]);
+
+    // Python hides the pending menu unless a repository service exists
+    // (`has_pending_services` in ClientGUI).
+    let has_pending_services = !services
+        .get_services(Some(&[
+            ServiceType::TagRepository,
+            ServiceType::FileRepository,
+            ServiceType::Ipfs,
+        ]))
+        .is_empty();
+
+    if !has_pending_services {
+        if let Some(items) = menus.as_array_mut() {
+            items.retain(|menu| {
+                menu.get("title").and_then(Value::as_str) != Some("&pending")
+            });
+        }
+    }
 
     menus.to_string()
 }
@@ -699,7 +717,13 @@ pub fn status_json(state: &AppState) -> String {
             Some(page) if page.kind == crate::gui::app::model::DownloaderKind::Watcher => {
                 "no highlighted watcher".to_string()
             }
-            Some(_) => "no highlighted query".to_string(),
+            Some(page) if page.kind == crate::gui::app::model::DownloaderKind::Gallery => {
+                "no highlighted query".to_string()
+            }
+            Some(page) if page.queue.is_empty() && page.results.is_empty() => {
+                "empty page".to_string()
+            }
+            Some(page) => format!("{} files", page.results.len()),
             None => String::new(),
         },
     };

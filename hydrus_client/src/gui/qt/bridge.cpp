@@ -3358,7 +3358,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
                 url_input->clear();
             }
         });
-    } else {
+    } else if (!simple) {
             input_row = new QWidget(main_content);
             auto *input_layout = new QVBoxLayout(input_row);
             input_layout->setContentsMargins(0, 0, 0, 0);
@@ -3394,7 +3394,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
             main_layout->addWidget(url_row);
         }
 
-        if (watcher || simple) {
+        if (watcher) {
             site_row = new QWidget(main_content);
             auto *site_layout = new QHBoxLayout(site_row);
             site_layout->setContentsMargins(0, 0, 0, 0);
@@ -3436,7 +3436,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
         }
     }
 
-    if (!urls) {
+    if (!urls && !simple) {
         start_button = new QPushButton(
             watcher ? QStringLiteral("check now") : QStringLiteral("start"), main_content);
         start_button->setMinimumHeight(24);
@@ -3592,7 +3592,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
 
         search_box = make_status_box(main_content,
                                      main_layout,
-                                     watcher ? QStringLiteral("search") : QStringLiteral("search"),
+                                     simple ? QStringLiteral("parsing") : QStringLiteral("search"),
                                      &search_status,
                                      &search_seed_status,
                                      &search_pause,
@@ -3602,14 +3602,164 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
                                      &search_network_progress,
                                      &search_network_percent,
                                      &search_cog,
-                                     QStringLiteral("pause/play search"),
-                                     QStringLiteral("search"),
+                                     simple ? QStringLiteral("pause/play queue")
+                                            : QStringLiteral("pause/play search"),
+                                     simple ? QStringLiteral("parsing") : QStringLiteral("search"),
                                      QStringLiteral("gallery_seed_log"));
 
         main_layout->removeWidget(imports_box);
         main_layout->removeWidget(search_box);
         main_layout->insertWidget(0, imports_box);
         main_layout->insertWidget(1, search_box);
+
+        if (simple) {
+            // Python's SidebarImporterSimpleDownloader puts the pending page
+            // queue, the page url input and the formula picker inside "parsing".
+            auto *parsing_layout = qobject_cast<QVBoxLayout *>(search_box->layout());
+
+            if (parsing_layout != nullptr) {
+                auto *jobs_row = new QWidget(search_box);
+                auto *jobs_layout = new QHBoxLayout(jobs_row);
+                jobs_layout->setContentsMargins(0, 0, 0, 0);
+                jobs_layout->setSpacing(2);
+
+                simple_jobs = new QListWidget(jobs_row);
+                simple_jobs->setSelectionMode(QAbstractItemView::ExtendedSelection);
+                simple_jobs->setMinimumHeight(8 * 24);
+                simple_jobs->setMaximumHeight(8 * 24);
+                jobs_layout->addWidget(simple_jobs, 1);
+
+                auto *jobs_buttons = new QWidget(jobs_row);
+                auto *jobs_buttons_layout = new QVBoxLayout(jobs_buttons);
+                jobs_buttons_layout->setContentsMargins(0, 0, 0, 0);
+                jobs_buttons_layout->setSpacing(2);
+
+                auto *job_up = new QPushButton(QString(QChar(0x2191)), jobs_buttons);
+                auto *job_delete = new QPushButton(QStringLiteral("X"), jobs_buttons);
+                auto *job_down = new QPushButton(QString(QChar(0x2193)), jobs_buttons);
+
+                for (QPushButton *button : {job_up, job_delete, job_down}) {
+                    button->setFixedWidth(75);
+                    button->setMinimumHeight(24);
+                    jobs_buttons_layout->addWidget(button, 0, Qt::AlignHCenter);
+                }
+
+                jobs_buttons_layout->addStretch(1);
+                jobs_layout->addWidget(jobs_buttons, 0);
+                parsing_layout->addWidget(jobs_row);
+
+                const auto push_jobs = [this](bool remove_missing) {
+                    QJsonArray urls;
+
+                    for (int row = 0; row < simple_jobs->count(); ++row) {
+                        urls.append(
+                            simple_jobs->item(row)->data(Qt::UserRole).toString());
+                    }
+
+                    QJsonObject payload;
+                    payload.insert(QStringLiteral("urls"), urls);
+                    payload.insert(QStringLiteral("remove_missing"), remove_missing);
+                    main->notify(
+                        QStringLiteral("downloader_jobs_set"), id, json_payload(payload));
+                };
+
+                connect(job_up, &QPushButton::clicked, this, [this, push_jobs]() {
+                    const int row = simple_jobs->currentRow();
+
+                    if (row > 0) {
+                        QListWidgetItem *item = simple_jobs->takeItem(row);
+                        simple_jobs->insertItem(row - 1, item);
+                        simple_jobs->setCurrentRow(row - 1);
+                        push_jobs(false);
+                    }
+                });
+                connect(job_down, &QPushButton::clicked, this, [this, push_jobs]() {
+                    const int row = simple_jobs->currentRow();
+
+                    if (row >= 0 && row < simple_jobs->count() - 1) {
+                        QListWidgetItem *item = simple_jobs->takeItem(row);
+                        simple_jobs->insertItem(row + 1, item);
+                        simple_jobs->setCurrentRow(row + 1);
+                        push_jobs(false);
+                    }
+                });
+                connect(job_delete, &QPushButton::clicked, this, [this, push_jobs]() {
+                    const QList<QListWidgetItem *> selected = simple_jobs->selectedItems();
+
+                    for (QListWidgetItem *item : selected) {
+                        delete simple_jobs->takeItem(simple_jobs->row(item));
+                    }
+
+                    push_jobs(true);
+                });
+
+                auto *page_url_row = new QWidget(search_box);
+                auto *page_url_layout = new QHBoxLayout(page_url_row);
+                page_url_layout->setContentsMargins(0, 0, 0, 0);
+                page_url_layout->setSpacing(2);
+                simple_url = new QLineEdit(page_url_row);
+                simple_url->setPlaceholderText(
+                    QStringLiteral("url to be parsed by the selected formula"));
+                page_url_layout->addWidget(simple_url, 1);
+                simple_paste = row_icon(
+                    page_url_row,
+                    QStringLiteral("paste"),
+                    QStringLiteral("Paste multiple inputs from the clipboard. Assumes the texts "
+                                   "are newline-separated."));
+                page_url_layout->addWidget(simple_paste, 0);
+                parsing_layout->addWidget(page_url_row);
+
+                auto *formula_row = new QWidget(search_box);
+                auto *formula_layout = new QHBoxLayout(formula_row);
+                formula_layout->setContentsMargins(0, 0, 0, 0);
+                formula_layout->setSpacing(2);
+
+                simple_formula = new QComboBox(formula_row);
+                simple_formula->setMinimumWidth(
+                    fontMetrics().horizontalAdvance(QStringLiteral("0000000000")));
+                simple_formula->addItem(
+                    QStringLiteral("all files linked by images in page"));
+                simple_formula->addItem(QStringLiteral("all images embedded in page"));
+                formula_layout->addWidget(simple_formula, 1);
+
+                simple_formula_cog =
+                    row_icon(formula_row, QStringLiteral("gear"), QStringLiteral("formula options"));
+                formula_layout->addWidget(simple_formula_cog, 0);
+                parsing_layout->addWidget(formula_row);
+
+                connect(simple_url, &QLineEdit::returnPressed, this, [this]() {
+                    if (!simple_url->text().trimmed().isEmpty()) {
+                        start();
+                        simple_url->clear();
+                    }
+                });
+                connect(simple_formula,
+                        &QComboBox::currentTextChanged,
+                        this,
+                        [this](const QString &text) {
+                            if (!main->building) {
+                                main->notify(QStringLiteral("downloader_set_formula"), id, text);
+                            }
+                        });
+                connect(simple_paste, &QToolButton::clicked, this, [this]() {
+                    const QString text = QApplication::clipboard()->text().trimmed();
+                    if (!text.isEmpty()) {
+                        simple_url->setText(text);
+                        start();
+                        simple_url->clear();
+                    }
+                });
+                connect(simple_formula_cog, &QToolButton::clicked, this, [this]() {
+                    auto *menu = new QMenu(this);
+                    menu->setAttribute(Qt::WA_DeleteOnClose);
+                    menu->addAction(QStringLiteral("edit formulae"), this, [this]() {
+                        main->notify(QStringLiteral("options"), id);
+                    });
+                    menu->popup(
+                        simple_formula_cog->mapToGlobal(QPoint(0, simple_formula_cog->height())));
+                });
+            }
+        }
     }
 
     connect(files_pause, &QToolButton::clicked, this, [this]() {
@@ -3644,6 +3794,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     auto *tags_box = make_static_box(
         QStringLiteral("selection tags"), sidebar_content, &tags_layout);
     selection_tags_box = tags_box;
+    tags_box->setMinimumHeight(180);
     sidebar_layout->addWidget(tags_box, 1);
 
     tag_sort_type = new QPushButton(QStringLiteral("sort by tag"), tags_box);
@@ -3669,6 +3820,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
 
     selection_tags = new QListWidget(tags_box);
     selection_tags->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    selection_tags->setMinimumHeight(120);
     tags_layout->addWidget(selection_tags, 1);
 
     connect(tag_sort_order, &QPushButton::clicked, this, [this]() {
@@ -3681,6 +3833,11 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     });
 
     fill_sites(state.value(QStringLiteral("sites")).toArray());
+
+    // Make the scroll area aware of the real content minimum; otherwise Qt
+    // squeezes the selection tags box below the viewport instead of scrolling.
+    sidebar_content->setMinimumHeight(sidebar_layout->minimumSize().height());
+
     update_state(state);
 }
 const QString &HydrusDownloaderPage::page_id() const {
@@ -3704,6 +3861,14 @@ void HydrusDownloaderPage::start() {
 
     if (url_input != nullptr) {
         payload.insert(QStringLiteral("input"), url_input->text());
+    }
+
+    if (simple_url != nullptr) {
+        payload.insert(QStringLiteral("input"), simple_url->text());
+    }
+
+    if (simple_formula != nullptr) {
+        payload.insert(QStringLiteral("formula"), simple_formula->currentText());
     }
 
     if (url != nullptr) {
@@ -4041,29 +4206,49 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (imports_status != nullptr) {
-        if (urls) {
-            imports_status->setText(
-                (imported == 0 && failed == 0 && queue_count == 0)
-                    ? QString()
-                    : (failed == 0
-                           ? QStringLiteral("%1 successful").arg(imported)
-                           : QStringLiteral("%1 successful, %2 failed")
-                                 .arg(imported)
-                                 .arg(failed)));
-        } else if (imported == 0 && failed == 0) {
-            imports_status->setText(QStringLiteral("no files yet"));
-        } else if (failed == 0) {
-            imports_status->setText(QStringLiteral("%1 successful").arg(imported));
-        } else {
-            imports_status->setText(
-                QStringLiteral("%1 successful, %2 failed").arg(imported).arg(failed));
-        }
+        imports_status->setText(
+            (imported == 0 && failed == 0 && queue_count == 0)
+                ? QString()
+                : (failed == 0
+                       ? QStringLiteral("%1 successful").arg(imported)
+                       : QStringLiteral("%1 successful, %2 failed")
+                             .arg(imported)
+                             .arg(failed)));
     }
 
     if (file_seed_status != nullptr) {
         file_seed_status->setText(
             queue_count > 0 ? QStringLiteral("%1/%2").arg(queue_done).arg(queue_count)
                             : QString());
+    }
+
+    if (simple_jobs != nullptr) {
+        const QJsonArray pending_jobs = state.value(QStringLiteral("pending_jobs")).toArray();
+        const QString formula_name = simple_formula != nullptr
+                                         ? simple_formula->currentText()
+                                         : QStringLiteral("formula");
+
+        simple_jobs->clear();
+
+        for (const QJsonValue &value : pending_jobs) {
+            const QString job_url = value.toString();
+
+            if (!job_url.isEmpty()) {
+                auto *item = new QListWidgetItem(
+                    QStringLiteral("%1: %2").arg(formula_name).arg(job_url), simple_jobs);
+                item->setData(Qt::UserRole, job_url);
+            }
+        }
+    }
+
+    if (simple_formula != nullptr && !simple_formula->hasFocus()) {
+        const QString formula_name = state.value(QStringLiteral("formula_name")).toString();
+        const int formula_index = simple_formula->findText(formula_name);
+
+        if (formula_index >= 0) {
+            const QSignalBlocker blocker(simple_formula);
+            simple_formula->setCurrentIndex(formula_index);
+        }
     }
 
     if (file_progress != nullptr) {
@@ -4077,24 +4262,20 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (search_status != nullptr) {
-        if (urls) {
-            if (seed_total == 0) {
-                search_status->setText(QString());
-            } else {
-                const int pending = qMax(0, seed_total - seed_success - seed_failed);
-                search_status->setText(
-                    QStringLiteral("%1 successful, %2 pending")
-                        .arg(seed_success)
-                        .arg(pending));
-            }
+        if (seed_total == 0) {
+            search_status->setText(QString());
         } else {
-            search_status->setText(status.isEmpty() ? QStringLiteral("ready") : status);
+            const int pending = qMax(0, seed_total - seed_success - seed_failed);
+            search_status->setText(
+                QStringLiteral("%1 successful, %2 pending")
+                    .arg(seed_success)
+                    .arg(pending));
         }
     }
 
     if (search_seed_status != nullptr) {
         if (seed_total == 0) {
-            search_seed_status->setText(QStringLiteral("no files yet"));
+            search_seed_status->setText(QString());
         } else {
             const int pending = qMax(0, seed_total - seed_success - seed_failed);
             search_seed_status->setText(

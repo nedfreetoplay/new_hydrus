@@ -137,6 +137,18 @@ Definition of Done для задачи.
   Осталось: добавление новых URL во время работы (сейчас страница занята),
   точные иконки Hydrus, поведение disabled-панелей. Заодно меню `pending`
   скрывается, когда нет tag/file repository или IPFS-сервиса, как в Python.
+- 2026-10-30 — simple downloader сверен с живым Python v692 (окно 1296x839).
+  Страница перестроена в Python-sidebar: `simple downloader` с вложенными
+  `imports` (current action/pause, file seed cache, network job) и `parsing`
+  (parser status/pause, `parsing log ▾`, network job, очередь page-задач
+  8 строк с кнопками ↑/X/↓, однострочный `url to be parsed by the selected
+  formula` с paste, formula combo + cog), ниже `import options (all default)`
+  и `selection tags`. Очередь хранится в `page.queue`; порядок и удаление
+  сохраняются действием `downloader_jobs_set`. Списки seed cache/log теперь
+  пустые при отсутствии элементов, как в Python. Sidebar скроллится, когда
+  контент выше окна. Скриншоты: `docs/images/simple_page.png` (Rust) и
+  `docs/images/python_simple_page.png`. Осталось: редактор формул (WS-07.11),
+  реальный multi-job парсинг, точные иконки Hydrus.
 
 ## Текущий статус
 
@@ -365,12 +377,13 @@ Rust-цели: `gui/app/import.rs`, `gui/app/import_folders.rs`,
   обработанный page/post. Диалог повторяет фильтры, сортировку, копирование,
   retry, remove и clear, журнал сохраняется в сессии.
 - [~] 06.12 Importer sidebars для HDD/gallery/watcher/simple/URLs.
-  Sidebar-панели gallery и URLs повторяют Python: `gallery downloader` /
-  `url downloader` со вложенными `imports` и `search`, file seed cache
-  (`file log ▾`), gallery seed log (`search log ▾`), network job (gauge,
-  stop, cog), поле query/url с paste, `import options (all default)`,
-  `selection tags`. Осталось: watcher (таблица watchers, checker options,
-  update-selected) и simple downloader (parsing/queue/formula), HDD-панель.
+  Sidebar-панели gallery, URLs и simple повторяют Python: `gallery downloader` /
+  `url downloader` / `simple downloader` со вложенными `imports` и
+  `search`/`parsing`, file seed cache (`file log ▾`), gallery seed log
+  (`search log ▾` / `parsing log ▾`), network job (gauge, stop, cog),
+  очередь page-задач с ↑/X/↓, поле query/url с paste, formula combo с cog,
+  `import options (all default)`, `selection tags`. Осталось: watcher
+  (таблица watchers, checker options, update-selected) и HDD-панель.
 - [x] 06.13 «Check all» и полное меню import folders.
 - [ ] 06.14 Parsing scripts/legacy import scripts.
 - [x] 06.15 Review local imports и repair import locations: тот же review-диалог
@@ -658,9 +671,10 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
 - [~] 14.8 Визуальный аудит: пройти по всем экранам, снять скриншоты Rust и Python
   и устранить расхождения по «Правилу визуального паритета» (порядок контролов,
   подписи, размеры, отступы, иконки, тема).
-  - сверено: главное окно (файловая страница), gallery downloader, url downloader.
+  - сверено: главное окно (файловая страница), gallery downloader,
+    url downloader, simple downloader.
   - осталось: subscriptions, duplicates, import/export folders, options dialogs,
-    simple/watcher downloader pages, media viewer.
+    watcher downloader page, media viewer.
 - [x] 14.9 Переносимая сборка: Qt DLL, плагины и MSVC runtime лежат рядом с exe
   (`scripts/deploy.ps1`, `qt.conf`, `-Zip`), запуск не зависит от `PATH` и
   установленного Qt. Проверено на release-сборке с очищенным `PATH`: окно

@@ -54,6 +54,11 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
         .and_then(Value::as_str)
         .unwrap_or(&page.site)
         .to_string();
+    let formula = value
+        .get("formula")
+        .and_then(Value::as_str)
+        .unwrap_or(&page.formula)
+        .to_string();
     let subject = value
         .get("subject")
         .and_then(Value::as_str)
@@ -86,6 +91,7 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
     page.url = url.clone();
     page.query = query.clone();
     page.site = site.clone();
+    page.formula = formula.clone();
     page.filter = filter.clone();
     page.subject = subject;
     page.auto_watch = auto;
@@ -225,6 +231,54 @@ pub fn set_site(state: &mut AppState, page_id: &str, site: &str) -> Vec<UiComman
     if let Some(page) = state.find_downloader_mut(page_id) {
         page.site = site.to_string();
     }
+
+    update_commands(state, page_id)
+}
+
+pub fn set_formula(state: &mut AppState, page_id: &str, formula: &str) -> Vec<UiCommand> {
+    if let Some(page) = state.find_downloader_mut(page_id) {
+        page.formula = formula.to_string();
+    }
+
+    update_commands(state, page_id)
+}
+
+pub fn jobs_set(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiCommand> {
+    let value: Value = serde_json::from_str(payload).unwrap_or_else(|_| json!({}));
+    let urls: Vec<String> = value
+        .get("urls")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str().map(str::to_string))
+                .collect()
+        })
+        .unwrap_or_default();
+    let remove_missing = value
+        .get("remove_missing")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    let Some(page) = state.find_downloader_mut(page_id) else {
+        return vec![];
+    };
+
+    let mut remaining = std::mem::take(&mut page.queue);
+    let mut ordered = Vec::with_capacity(remaining.len());
+
+    for url in &urls {
+        if let Some(position) = remaining.iter().position(|item| &item.url == url) {
+            ordered.push(remaining.remove(position));
+        }
+    }
+
+    if !remove_missing {
+        ordered.append(&mut remaining);
+    }
+
+    page.queue = ordered;
+    page.status = format!("{} items in the queue", page.queue.len());
 
     update_commands(state, page_id)
 }

@@ -265,6 +265,48 @@ fn saving_options_for_missing_targets_is_refused() {
 }
 
 #[test]
+fn simple_jobs_set_reorders_and_removes_pending_jobs() {
+    let directory = std::env::temp_dir().join(format!(
+        "hydrus_downloader_jobs_{}_{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    let mut state = test_state(&directory);
+
+    let mut page = DownloaderPage::new("p1", DownloaderKind::Simple);
+    page.queue = vec![
+        DownloadItem::new("https://example.com/a"),
+        DownloadItem::new("https://example.com/b"),
+        DownloadItem::new("https://example.com/c"),
+    ];
+    state.root.add(PageNode::Downloader(page));
+
+    let reordered = r#"{"urls":["https://example.com/c","https://example.com/a"],"remove_missing":false}"#;
+    let _ = jobs_set(&mut state, "p1", reordered);
+
+    let page = state.find_downloader("p1").unwrap();
+    let urls: Vec<&str> = page.queue.iter().map(|item| item.url.as_str()).collect();
+    assert_eq!(
+        urls,
+        vec![
+            "https://example.com/c",
+            "https://example.com/a",
+            "https://example.com/b"
+        ]
+    );
+
+    let removed = r#"{"urls":["https://example.com/c"],"remove_missing":true}"#;
+    let _ = jobs_set(&mut state, "p1", removed);
+
+    let page = state.find_downloader("p1").unwrap();
+    let urls: Vec<&str> = page.queue.iter().map(|item| item.url.as_str()).collect();
+    assert_eq!(urls, vec!["https://example.com/c"]);
+
+    drop(state);
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn set_site_updates_the_gallery_page() {
     let directory = std::env::temp_dir().join(format!(
         "hydrus_downloader_set_site_{}_{}",

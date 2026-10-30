@@ -4,7 +4,9 @@ use serde_json::{Value, json};
 
 use hydrus_core::hydrus_constants::ServiceType;
 
-use super::model::{AppState, DownloaderPage, DuplicatesPage, PageNode, QueryPage};
+use super::model::{
+    AppState, DownloaderKind, DownloaderPage, DuplicatesPage, PageNode, QueryPage,
+};
 use super::query;
 
 pub fn menus_json(state: &AppState) -> String {
@@ -902,7 +904,13 @@ pub fn downloader_json(
     controller: &crate::controller::Controller,
     page: &DownloaderPage,
 ) -> String {
-    let _ = controller;
+    let formula_name = if page.formula.trim().is_empty() {
+        controller
+            .options()
+            .get_string("favourite_simple_downloader_formula")
+    } else {
+        page.formula.clone()
+    };
 
     let queue: Vec<Value> = page
         .queue
@@ -981,6 +989,15 @@ pub fn downloader_json(
         "result_count": page.results.len(),
         "file_limit": page.file_limit,
         "last_check": page.last_check,
+        "formula_name": formula_name,
+        "pending_jobs": if page.kind == DownloaderKind::Simple {
+            page.queue
+                .iter()
+                .map(|item| item.url.clone())
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
+        },
         "queue_count": page.queue.len(),
         "queue_done": queue_done,
         "gallery_seed_count": gallery_total,

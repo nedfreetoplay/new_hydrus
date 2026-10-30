@@ -215,6 +215,9 @@ pub struct DownloaderPage {
     /// Built-in site parser id, or empty/auto to detect it from the URL.
     #[serde(default)]
     pub site: String,
+    /// Selected simple downloader formula name; empty uses the global favourite.
+    #[serde(default)]
+    pub formula: String,
     /// Optional case-insensitive link filter for gallery/watcher parsing.
     pub filter: String,
     pub subject: String,
@@ -252,6 +255,7 @@ impl DownloaderPage {
             url: String::new(),
             query: String::new(),
             site: String::new(),
+            formula: String::new(),
             filter: String::new(),
             subject: String::new(),
             paused: false,

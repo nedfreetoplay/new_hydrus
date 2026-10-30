@@ -753,6 +753,11 @@ private:
     QToolButton *url_paste = nullptr;
     QToolButton *file_cancel = nullptr;
     QToolButton *search_cancel = nullptr;
+    QListWidget *simple_jobs = nullptr;
+    QLineEdit *simple_url = nullptr;
+    QToolButton *simple_paste = nullptr;
+    QComboBox *simple_formula = nullptr;
+    QToolButton *simple_formula_cog = nullptr;
     QPushButton *start_button = nullptr;
     QPushButton *auto_button = nullptr;
     QPushButton *import_options_button = nullptr;

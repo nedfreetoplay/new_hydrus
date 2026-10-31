@@ -24,6 +24,61 @@ Definition of Done для задачи.
    подписи, размеры, отступы, иконки и тема.
 5. `cargo build -p hydrus_client` без предупреждений, тесты зелёные.
 6. Обновлён этот файл и, при необходимости, `docs/ARCHITECTURE.md`.
+7. Задача не добавила новых JSON-швов через cxx; тронутые швы переведены на
+   типизированный мост (R1) либо в задаче записано, почему нет.
+8. Чистая логика текста, предикатов и метрик тронутого экрана живёт в Rust (R2)
+   и покрыта тестом; C++ только применяет готовые значения.
+9. Ни один `.cpp`/`.hpp` в `src/gui/qt` не превышает 600 строк (R3).
+
+## Правила фасада Qt
+
+Обязательны и для новых задач, и для доработки уже написанных экранов.
+Не отменяют «Правило визуального паритета», а дополняют его.
+
+### R1. Типизированный мост вместо JSON-строк
+
+Сейчас через cxx ходят JSON-строки: 59 вызовов `parse_object(` в C++ и 62
+`json_payload(`, 114 разных action-строк, 68 из 79 вариантов `UiCommand` несут
+`String`. Для новых фич это запрещено.
+
+- Передача Rust → Qt: вариант `UiCommand` содержит типизированную структуру из
+  `gui/qt/api.rs` (`#[cxx::bridge]`), а не `serde_json::Value`/`&str`.
+  `panels.rs` больше не сериализует в JSON.
+- Передача Qt → Rust: вместо `notify(QString action, QString target, QString
+  payload)` — типизированное событие (`UiEvent`) или отдельная функция на
+  команду.
+- В C++ нет `QJsonObject` в сигнатурах методов: приходит структура, поля
+  читаются напрямую.
+- Исключение — данные принципиально произвольной формы (дерево страниц, словари
+  опций, которые и в Python живут как `dict`). Но и там JSON остаётся внутри
+  одного поля структуры, а не вместо типа.
+
+Инвариант: число JSON-швов не растёт. На каждом экране, который трогаем по
+плану, швы уменьшаются.
+
+### R2. Чистая логика раскладки живёт в Rust
+
+C++ делает только `setText`/`setEnabled`/`setVisible`/`resize`/`setColumnWidth`
+по готовым значениям. В `gui/app/**` обязано уходить всё, что является функцией
+состояния:
+
+- тексты: форматирование размеров/времени/дат, склонения (`1 file` / `2 files`),
+  статусы, empty-state, подписи кнопок;
+- предикаты: доступность кнопок, видимость секций и вкладок, включённость полей;
+- метрики: ширины колонок, высоты строк, отступы, минимальные размеры, порядок
+  и состав меню;
+- арифметика: проценты, лимиты, счётчики, дедупликация, сортировка.
+
+Критерий: если это записывается как `fn f(&State) -> String/bool/i32/Size`,
+значит это Rust и unit-тест. В C++ остаётся только координация QObject
+(`connect`, `popup`, `exec`).
+
+### R3. Один файл — одна ответственность, ≤ 500 строк
+
+Для `src/gui/qt/**`: цель 500 строк, жёсткий предел 600. Не влезает — делится по
+экрану или слою (layout / state / actions), а не «по первым N строк».
+`bridge.cpp`/`bridge.hpp` разбираются на файлы по карте WS-15.1; общий
+`bridge.hpp` остаётся только точкой подключения cxx.
 
 ## Правило визуального паритета
 
@@ -290,6 +345,7 @@ Definition of Done для задачи.
 | WS-12 | Options framework | `[~]` | P1 | XL | — |
 | WS-13 | UX, уведомления, системная интеграция | `[~]` | P2 | L | WS-01, WS-12 |
 | WS-14 | Финальный parity-аудит | `[ ]` | P0 | M | все |
+| WS-15 | Фасад: разбиение, типизация, раскладка | `[ ]` | P0 | L | — |
 
 Текущее покрытие: базовые сценарии есть, но из ~225 GUI-модулей Python прямой
 аналог имеют единицы. До полной идентичности — все фазы ниже.
@@ -298,7 +354,102 @@ Definition of Done для задачи.
 вид. Их нужно прогнать по «Правилу визуального паритета» и только потом оставлять
 `[x]`; до этого такие пункты считать `[~]`.
 
+WS-15 выполняется раньше остальных фаз: пока фасад не разобран по файлам и не
+типизирован, каждая новая панель снова раздувает `bridge.cpp` и добавляет
+JSON-швы.
+
 ---
+
+## WS-15. Фасад: разбиение, типизация, раскладка
+
+Технический долг Qt-фасада. Правила R1–R3 обязательны для всех задач плана;
+этот раздел переводит на них уже написанный код.
+
+Основание (2026-10-31): `bridge.cpp` — 18 721 строка, `bridge.hpp` — 1 395,
+`bridge.rs` — 344 (109 функций). 121 JSON-шов (59 `parse_object(`, 62
+`json_payload(`), 114 action-строк, 79 вариантов `UiCommand`, из них 68 несут
+`String`.
+
+### 15.1 Разбиение bridge.cpp / bridge.hpp  `[ ]` P0
+
+Карта переноса (строки текущего `bridge.cpp`; суммы приблизительные, цель —
+каждый файл ≤ 600 строк):
+
+| Файл | Что | Строк |
+| --- | --- | --- |
+| `support/strings.cpp` | `to_qstring`, `parse_*`, `json_payload` | ~95 |
+| `support/icons.cpp` | `hydrus_small_icon` + таблица имён файлов | ~330 |
+| `support/widgets.cpp` | `make_static_box`, `make_icon_button`, `make_on_off_button`, `field_row` | ~180 |
+| `support/pairs.cpp` | `pair_hash_item`, `fill_pair_table`, `install_pair_list_actions` | ~160 |
+| `support/sort_options.cpp` | `hydrus_sort_options`, системные предикаты | ~120 |
+| `canvas.cpp` | `HydrusCanvas` | 215 |
+| `thumbnail_grid.cpp` / `thumbnail_grid_dnd.cpp` | сетка + drag&drop и контекстное меню | ~270 / ~300 |
+| `metadata_panel.cpp` | `HydrusMetadataPanel` | 355 |
+| `autocomplete.cpp` | `HydrusAutocompletePopup` | 199 |
+| `query_page_sidebar.cpp` / `query_page_results.cpp` / `query_page_state.cpp` | `HydrusQueryPage` | ~400 / ~400 / ~390 |
+| `downloader_page_layout.cpp` / `_gallery.cpp` / `_importers.cpp` / `_state.cpp` | `HydrusDownloaderPage` | 4 файла |
+| `viewer.cpp` | `HydrusViewerWindow` | 379 |
+| `notebook.cpp` | `HydrusTabBar` + `HydrusNotebook` | 376 |
+| `duplicates_page_sidebar.cpp` / `duplicates_page_media.cpp` | `HydrusDuplicatesPage` | ~450 / ~430 |
+| `auto_resolution_comparators.cpp` / `_rule.cpp` / `_rules.cpp` / `_review.cpp` / `_merge.cpp` / `_custom.cpp` | WS-08 диалоги | 277…340 |
+| `services_helpers.cpp` / `services_dialog.cpp` / `services_server.cpp` | WS-09 | 3 файла |
+| `network_dialog.cpp` / `network_tables.cpp` | WS-09 сеть | 2 файла |
+| `import_options_dialog.cpp` / `import_options_editor.cpp` / `import_options_read.cpp` | 1 188 строк | 3 файла |
+| `import_folder_editor.cpp` / `import_folder_tagging.cpp` | `edit import folder` | 2 файла |
+| `export_folder_editor.cpp` / `export_folder_sidecar.cpp` | `edit export folder` | 2 файла |
+| `main_window_shell.cpp` / `main_window_shortcuts.cpp` / `main_window_dialogs.cpp` | `HydrusMainWindow` | 3 файла |
+| `options_dialog.cpp`, `url_class_dialog.cpp`, `tag_relations_dialog.cpp`, `seed_cache_dialog.cpp`, `command_palette.cpp`, `or_predicate_dialog.cpp`, `page_manager.cpp`, `manage_tags_dialog.cpp`, `timestamps_dialog.cpp`, `notifications_dialog.cpp`, `about_notes_stats.cpp`, `local_import_review.cpp`, `local_import_tagging.cpp`, `filename_tagging.cpp`, `repair_locations.cpp`, `tag_filter.cpp`, `api_permissions.cpp`, `account_types.cpp`, `orphan_files.cpp`, `database_backup.cpp`, `export_review.cpp`, `page_chooser.cpp` | по файлу на диалог | ≤ 350 каждый |
+| `bridge_api.cpp` | свободные `hydrus_*` функции cxx | 498 |
+
+Итог: ≈55 файлов вместо одного. `HydrusMainWindow` остаётся одним классом; его
+методы лежат в файле своего экрана.
+
+- [ ] 15.1.1 Общие хелперы → `gui/qt/support/*`.
+- [ ] 15.1.2 Страницы и экраны → файлы по карте.
+- [ ] 15.1.3 Диалоги → по файлу на диалог.
+- [ ] 15.1.4 `bridge.hpp` → заголовки по тем же группам, `bridge.hpp` — агрегатор.
+  Проверить, что cxx принимает несколько `include!` в одном модуле; если нет —
+  отдельные модули `ffi_pages` / `ffi_dialogs`.
+- [ ] 15.1.5 `hydrus_client/build.rs`: `.cpp_files([...])` на новый набор файлов.
+- [ ] 15.1.6 Проверка: ни один файл > 600 строк, сборка без предупреждений, тесты
+  зелёные, поведение не изменилось.
+
+Правила переноса: в одном коммите только перемещение кода, без правок логики;
+после каждого шага сборка и тесты; проверять `git diff -M` на случайные изменения.
+Перед правкой `bridge.cpp` трогать `src/gui/qt/bridge.rs`, иначе cxx не пересоберёт
+C++.
+
+### 15.2 Типизированный мост  `[ ]` P0
+
+- [ ] 15.2.1 `gui/qt/api.rs`: общие структуры (`PageNode`, `PageState`,
+  `MediaItem`, `StatusBar`, `MenuNode`, `OptionsField`, …), один тип на шов.
+- [ ] 15.2.2 `UiCommand`: 68 `String`-вариантов → типизированные, по экранам,
+  начиная с тех, что правим сейчас.
+- [ ] 15.2.3 `notify(action, target, payload)` → `UiEvent` или отдельная функция
+  на команду.
+- [ ] 15.2.4 Удалить `parse_object`/`json_payload` из C++ и `serde_json` с шва.
+- [ ] 15.2.5 Правило на будущее: новый экран не добавляет `&str`-payload.
+
+### 15.3 Чистая логика раскладки в Rust  `[ ]` P1
+
+Что обязано уехать в Rust уже сейчас (найденные примеры):
+
+- `"just now"` / `"%1 minutes ago"` — строки 4437 и 4492, продублированы;
+- `"%1 successful, %2 failed"` — 4541 и далее, собирается в C++;
+- ширины колонок `{56, 78, 30, 30, 56, 64, 56}`, `{80, 38, 38, 48, 38, 46}`,
+  `{132, 20, 79, 106, 106, 132}` — 3162, 3550, 5649;
+- `pretty_delta` — 15656 и 16367, две копии одного форматтера;
+- `qBound(25, scale, 400)` — 665.
+
+- [ ] 15.3.1 Аудит: выписать все C++-функции и лямбды, которые являются чистыми.
+- [ ] 15.3.2 Перенос форматирования: размеры, длительности, даты, склонения,
+  статусы, empty-state.
+- [ ] 15.3.3 Перенос предикатов `setEnabled`/`setVisible`.
+- [ ] 15.3.4 Перенос метрик: ширины колонок, высоты строк, отступы.
+- [ ] 15.3.5 На каждый перенос — unit-тест в Rust; C++ вызывает готовое значение.
+
+Выход фазы: `bridge.cpp` больше нет, каждый файл фасада ≤ 600 строк, новые экраны
+не добавляют JSON-швов, форматирование и предикаты экранов покрыты Rust-тестами.
 
 ## WS-01. Каркас страниц и сессии
 
@@ -307,7 +458,7 @@ Python: `pages/ClientGUIPages*`, `ClientGUIPagesTreeModel/View`,
 `GUISessionsPanel`.
 
 Rust-цели: `gui/app/model.rs`, `gui/app/session.rs`, `gui/pages.rs`,
-`gui/app/render.rs`, `gui/qt/bridge.*`.
+`gui/app/render.rs`, `gui/qt/` (файлы по карте WS-15.1).
 
 - [x] 01.1 Вкладки: создание, закрытие, переименование, «+».
 - [x] 01.2 Сохранение текущего дерева страниц в `gui session.json` (v3).
@@ -332,7 +483,7 @@ Python: `search/ClientGUIACDropdown`, `ClientGUIPredicates*`,
 `metadata/ClientGUIIncrementalTagging`.
 
 Rust-цели: `gui/app/query.rs`, новый `gui/app/search.rs`,
-`gui/qt/bridge.*`, `db/tag_search`, `db/files_metadata`.
+`gui/qt/` (файлы по карте WS-15.1), `db/tag_search`, `db/files_metadata`.
 
 - [x] 02.1 Текстовый поиск: теги, `-tag`, wildcard, namespace, `system:inbox`,
   `system:archive`, `system:everything`, `system:limit`.
@@ -361,7 +512,7 @@ Python: `pages/ClientGUIMediaResultsPanel*`, `MediaResultsPanelThumbnails`,
 `MediaResultsPanelSortCollect`, `ClientGUIThumbnailLayouts`,
 `pages/ClientGUIMediaResultsPanelMenus`.
 
-Rust-цели: `gui/app/query.rs`, `gui/app/render.rs`, `gui/qt/bridge.*`,
+Rust-цели: `gui/app/query.rs`, `gui/app/render.rs`, `gui/qt/` (файлы по карте WS-15.1),
 новый `gui/app/results.rs`.
 
 - [x] 03.1 Сетка миниатюр и превью.
@@ -389,7 +540,7 @@ Python: `canvas/ClientGUICanvas*`, `ClientGUIMPV`, `ClientGUIQtMediaPlayer`,
 `ClientGUIMediaControls`, `ClientGUIMediaMenus`, `ClientGUIEditTimestamps`,
 `panels/ClientGUIScrolledPanelsEdit` (media view options).
 
-Rust-цели: `gui/qt/bridge.*`, `gui/app/render.rs`, `gui/app/metadata.rs`,
+Rust-цели: `gui/qt/` (файлы по карте WS-15.1), `gui/app/render.rs`, `gui/app/metadata.rs`,
 `client_options`.
 
 - [~] 04.1 Статичные изображения, prev/next, fit, zoom, rotate, fullscreen.
@@ -420,7 +571,7 @@ Python: `metadata/ClientGUIManageTags`, `ManageTagSiblings`,
 `ClientGUITagSuggestions`, `ClientGUIRatings`, `ClientGUIDialogsManage`.
 
 Rust-цели: `gui/app/metadata.rs`, `gui/app/tag_relations.rs`,
-`gui/app/options.rs`, `gui/qt/bridge.*`, `db/tag_display`, `db/tag_relations`.
+`gui/app/options.rs`, `gui/qt/` (файлы по карте WS-15.1), `db/tag_display`, `db/tag_relations`.
 
 - [x] 05.1 Теги по локальным tag-сервисам.
 - [x] 05.2 Добавление/удаление тегов.
@@ -457,7 +608,7 @@ Python: `importing/ClientGUIImport*`, `ImportOptions*`, `ImportFolders`,
 
 Rust-цели: `gui/app/import.rs`, `gui/app/import_folders.rs`,
 `gui/app/worker.rs`, новый `gui/app/import_options.rs`,
-`gui/qt/bridge.*`, `importing/*`.
+`gui/qt/` (файлы по карте WS-15.1), `importing/*`.
 
 - [x] 06.1 Локальный импорт файлов.
 - [x] 06.2 Импорт одного URL.
@@ -530,7 +681,7 @@ Python: `ClientGUIDownloaders`, `parsing/ClientGUIParsing*`,
 
 Rust-цели: `gui/app/download.rs`, `gui/app/model.rs`,
 `parsing/gallery.rs`, новый `gui/app/downloader_editor.rs`,
-`networking/client_networking_url_class.rs`, `gui/qt/bridge.*`.
+`networking/client_networking_url_class.rs`, `gui/qt/` (файлы по карте WS-15.1).
 
 - [x] 07.1 URLs downloader.
 - [x] 07.2 Gallery downloader с встроенными парсерами.
@@ -573,7 +724,7 @@ Python: `duplicates/ClientGUIDuplicate*`, `ClientGUIDuplicates*`,
 `pages/ClientGUISidebarDuplicates`.
 
 Rust-цели: `gui/app/duplicates.rs`, `gui/app/auto_resolution.rs`,
-`gui/app/model.rs`, `gui/qt/bridge.*`, `db/duplicates`.
+`gui/app/model.rs`, `gui/qt/` (файлы по карте WS-15.1), `db/duplicates`.
 
 - [x] 08.1 Очередь пар и просмотр двух файлов.
 - [x] 08.2 Keep A/B, same, not duplicates, delete both, skip.
@@ -613,7 +764,7 @@ Python: `services/ClientGUI*`, `networking/ClientGUIHydrusNetwork`,
 `ClientGUIPanels` (IPFS).
 
 Rust-цели: `gui/app/options.rs`, `services.rs`, `controller.rs`,
-`networking/*`, `api/*`, `gui/qt/bridge.*`.
+`networking/*`, `api/*`, `gui/qt/` (файлы по карте WS-15.1).
 
 - [x] 09.1 Менеджер локальных сервисов: add/rename/delete.
 - [x] 09.2 Локальные file/tag/rating/notes services.
@@ -643,7 +794,7 @@ petitions доступны.
 
 Python: `exporting/ClientGUIExport`, `panels/options/ExportingPanel`.
 
-Rust-цели: новый `gui/app/export.rs`, `gui/qt/bridge.*`, `exporting/*`.
+Rust-цели: новый `gui/app/export.rs`, `gui/qt/` (файлы по карте WS-15.1), `exporting/*`.
 
 - [~] 10.1 Export folders: CRUD и периодический запуск. Менеджер
   (`file -> import/export folders -> manage export folders…`) и диалог одной
@@ -666,7 +817,7 @@ Python: `panels/ClientGUIRepairFileSystemPanel`,
 `panels/options/MaintenanceAndProcessingPanel`, `ClientGUILocalFileImports`.
 
 Rust-цели: `gui/app/mod.rs`, `db/maintenance.rs`, `files/maintenance_executor.rs`,
-`gui/app/options.rs`, `gui/qt/bridge.*`.
+`gui/app/options.rs`, `gui/qt/` (файлы по карте WS-15.1).
 
 - [x] 11.1 `PRAGMA quick_check`.
 - [x] 11.2 `VACUUM`.
@@ -701,7 +852,7 @@ Rust-цели: `gui/app/mod.rs`, `db/maintenance.rs`, `files/maintenance_executo
 
 Python: `panels/options/*` (~37 панелей).
 
-Rust-цели: `gui/app/options.rs`, `client_options`, `gui/qt/bridge.*`.
+Rust-цели: `gui/app/options.rs`, `client_options`, `gui/qt/` (файлы по карте WS-15.1).
 
 - [x] 12.1 Общий диалог options.
 - [x] 12.2 general.
@@ -795,7 +946,7 @@ Python: `ClientGUIPopupMessages`, `ClientGUISystemTray`, `ClientGUISplash`,
 `ClientGUIStyle`, `ClientGUIDragDrop`, `ClientGUITopLevelWindows*`.
 
 Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
-`gui/top_level_windows.rs`, `gui/qt/bridge.*`, новый `gui/app/notifications.rs`,
+`gui/top_level_windows.rs`, `gui/qt/` (файлы по карте WS-15.1), новый `gui/app/notifications.rs`,
 `gui/app/commands.rs`.
 
 - [x] 13.1 Базовый menubar и status bar.
@@ -851,6 +1002,9 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
 
 ## Порядок выполнения
 
+0. **M0 — Фасад:** WS-15.1 (разбиение), затем WS-15.2 (типизация) и WS-15.3
+   (раскладка) — по мере касания экранов. Пока M0 не закрыт, новый экран не
+   добавляет строки в общий файл и новые JSON-швы.
 1. **M1 — Shell parity:** WS-01, WS-12.9, WS-13.5–13.7, WS-13.11–13.13.
 2. **M2 — Search & results:** WS-02, WS-03.
 3. **M3 — Metadata & media:** WS-05, WS-04.
@@ -871,6 +1025,8 @@ results panel selection (WS-03.5), а thread slots (WS-07.18) ждут registry
 - `[x]` ставить только после DoD; при регрессе возвращать `[~]`.
 - `[x]` нельзя ставить, если экран визуально расходится с Python-версией
   (см. «Правило визуального паритета»); такой экран остаётся `[~]`.
+- `[x]` не ставится, если экран добавил JSON-швы, оставил форматирование/предикаты
+  в C++ или раздул файл сверх 600 строк (R1–R3).
 - В конце каждой фазы обновлять таблицу «Текущий статус» и README.
 
 ## WS-14.8 media viewer audit

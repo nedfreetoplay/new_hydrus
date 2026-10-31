@@ -589,6 +589,7 @@ impl AppState {
             "export_folder_review" => export::review(self, payload),
             "export_folder_run_all" => export::run_all(self),
             "export_folder_reveal" => export::reveal(self, payload),
+            "export_folder_test_examples" => export::test_examples(self, payload),
             "create_page" => self.create_page(target, payload),
             "close_page" => self.close_page(target),
             "close_other_pages" => self.close_other_pages(target),

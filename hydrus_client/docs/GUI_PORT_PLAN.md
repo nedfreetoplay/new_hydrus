@@ -227,10 +227,41 @@ Definition of Done для задачи.
   Страница export folders осталась только для старых сессий: из меню и
   chooser страниц она убрана. Скриншоты:
   `docs/images/export_folders_dialog.png` (Rust) и
-  `docs/images/python_export_folders_dialog.png` (Python). Осталось: диалог
-  одной папки `edit export folder` (другая форма), подменю `run export folder
-  now`/пауза, цвет выделения строки (нативный синий против бледно-голубого в
-  Python) и отдельная колонка индикатора сортировки.
+  `docs/images/python_export_folders_dialog.png` (Python). Осталось: подменю
+  `run export folder now`/пауза, цвет выделения строки (нативный синий против
+  бледно-голубого в Python) и отдельная колонка индикатора сортировки.
+- 2026-10-31 — диалог одной export folder сверен с живым Python v692
+  (`EditExportFolderPanel`). `add`, `edit` и двойной клик в менеджере export
+  folders снова открывают не старую Rust-форму, а панель Python: заголовок
+  `edit export folder`, блоки `name and location` (`name:`, `folder path:` +
+  `browse`), `type of export` (help-текст `regular - ... be careful!`, combo
+  `regular`/`synchronise`, красные `trash files in hydrus client after export:`
+  и `EXPERIMENTAL: export symlinks`), `export period` (`run regularly?:` +
+  кнопка `1 day`, `show popup when working regularly?:`, `run on dialog ok:`),
+  `query to export`, `filenames` (`{hash}` и `pattern shortcuts`, который
+  копирует термы в буфер), `sidecar exporting` (тот же help-текст,
+  `overwrite all sidecars on next run:`, `DANGEROUS: always overwrite all
+  sidecars on every run:`, кнопка `no sidecars`, `update test example files`) и
+  `apply`/`cancel` справа внизу. Диалог растягивается по содержимому до
+  доступной высоты, как Python `DialogThatResizes`.
+  Сохранение идёт через прежний `export_folder_save`: пустое имя, пустой путь и
+  битая фраза дают сообщения Python (`You must enter a folder path to export
+  to!`, `Could not parse that export phrase! ...`), имя проходит через
+  `GetNonDupeName` (`export folder (1)`). `synchronise` выключает и снимает
+  `trash...`, `run regularly?` выключает кнопку периода и popup. Модель
+  получила `export_symlinks`, `show_working_popup`, `run_now` и
+  `always_overwrite_sidecars`: symlink-экспорт действительно создаёт ссылки,
+  `run on dialog ok` ставит папку в очередь, `show popup` даёт уведомление,
+  always-overwrite перезаписывает сайдкары на каждом запуске. Скриншоты:
+  `docs/images/export_folder_editor.png` (Rust) и
+  `docs/images/python_export_folder_editor.png` (Python). Осталось: блок
+  query — упрощённый редактор предикатов (нет автодополнения, кнопок
+  `include current/pending tags`, `searching immediately`/`OR`,
+  `my files`/`all known tags` и вкладок `results`/`favourites`/`children`;
+  star/lock сообщают `not implemented yet`); кнопка сайдкаров — выбор из трёх
+  форматов вместо редактора metadata routers, а `update test example files`
+  только считает подходящие файлы; иконки paste/star/clear/lock — рисованные
+  приближения.
 
 ## Текущий статус
 
@@ -606,9 +637,10 @@ Python: `exporting/ClientGUIExport`, `panels/options/ExportingPanel`.
 Rust-цели: новый `gui/app/export.rs`, `gui/qt/bridge.*`, `exporting/*`.
 
 - [~] 10.1 Export folders: CRUD и периодический запуск. Менеджер
-  (`file -> import/export folders -> manage export folders…`) сверен с Python,
-  но диалог редактирования одной папки (`edit export folder`) пока остаётся
-  формой Rust и по «Правилу визуального паритета» не закрыт.
+  (`file -> import/export folders -> manage export folders…`) и диалог одной
+  папки (`edit export folder`) сверены с Python; блок query остаётся
+  упрощённым редактором предикатов без автодополнения, поэтому пункт
+  остаётся частичным.
 - [x] 10.2 Export file patterns/formats.
 - [x] 10.3 Review export files и выбор файлов.
 - [x] 10.4 Sidecar export.
@@ -762,10 +794,11 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   - сверено: главное окно (файловая страница), gallery downloader,
     url downloader, simple downloader, watcher, менеджер подписок
     (`network -> subscriptions…`), duplicates (sidebar; media panel ещё нет),
-    менеджер import folders (`file -> … -> manage import folders…`) и менеджер
-    export folders (`file -> … -> manage export folders…`).
-  - осталось: диалог одной export folder, диалог одной import folder, options
-    dialogs, media viewer, duplicates media panel и preparation/auto-resolution.
+    менеджер import folders (`file -> … -> manage import folders…`), менеджер
+    export folders (`file -> … -> manage export folders…`) и диалог одной
+    export folder (`edit export folder`).
+  - осталось: диалог одной import folder, options dialogs, media viewer,
+    duplicates media panel и preparation/auto-resolution.
 - [x] 14.9 Переносимая сборка: Qt DLL, плагины и MSVC runtime лежат рядом с exe
   (`scripts/deploy.ps1`, `qt.conf`, `-Zip`), запуск не зависит от `PATH` и
   установленного Qt. Проверено на release-сборке с очищенным `PATH`: окно

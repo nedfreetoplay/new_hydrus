@@ -165,6 +165,7 @@ pub(crate) mod ffi {
             payload: &str,
         );
         fn app_tick(window: Pin<&mut HydrusMainWindow>);
+        fn hydrus_validate_export_phrase(phrase: &str) -> String;
     }
 }
 
@@ -188,6 +189,14 @@ fn app_action(
 
 fn app_tick(mut window: Pin<&mut ffi::HydrusMainWindow>) {
     app::handle_tick(window.as_mut());
+}
+
+/// Returns the Python `VetoException` text for an invalid export filename
+/// phrase, or an empty string when the phrase parses.
+fn hydrus_validate_export_phrase(phrase: &str) -> String {
+    app::export::validate_phrase(phrase)
+        .err()
+        .unwrap_or_default()
 }
 
 pub(crate) fn apply_application_settings(

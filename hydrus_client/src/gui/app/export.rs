@@ -40,11 +40,22 @@ pub struct ExportFolderEntry {
     #[serde(default)]
     pub overwrite_sidecars: bool,
     #[serde(default)]
+    pub always_overwrite_sidecars: bool,
+    #[serde(default)]
     pub delete_from_client: bool,
+    /// Python's `EXPERIMENTAL: export symlinks`.
+    #[serde(default)]
+    pub export_symlinks: bool,
     #[serde(default = "default_true")]
     pub run_regularly: bool,
     #[serde(default = "default_period")]
     pub period: i64,
+    /// Python's `show popup when working regularly?`.
+    #[serde(default = "default_true")]
+    pub show_working_popup: bool,
+    /// Python's `run on dialog ok`; cleared when the run starts.
+    #[serde(default)]
+    pub run_now: bool,
     #[serde(default)]
     pub paused: bool,
     #[serde(default)]
@@ -95,9 +106,13 @@ impl ExportFolderEntry {
             export_type: default_type(),
             sidecar_format: default_sidecar(),
             overwrite_sidecars: false,
+            always_overwrite_sidecars: false,
             delete_from_client: false,
+            export_symlinks: false,
             run_regularly: true,
             period: period.max(60),
+            show_working_popup: true,
+            run_now: false,
             paused: false,
             last_check: 0,
             last_exported: 0,
@@ -450,6 +465,30 @@ fn file_is_current(source: &Path, destination: &Path) -> bool {
     }
 }
 
+/// Copies one file, or creates a symlink when the folder asks for it
+/// (Python's `EXPERIMENTAL: export symlinks`).
+fn copy_or_symlink(source: &Path, destination: &Path, symlink: bool) -> std::io::Result<()> {
+    if !symlink {
+        return std::fs::copy(source, destination).map(|_| ());
+    }
+
+    if std::fs::read_link(destination).ok().as_deref() == Some(source) {
+        return Ok(());
+    }
+
+    let _ = std::fs::remove_file(destination);
+
+    #[cfg(windows)]
+    {
+        std::os::windows::fs::symlink_file(source, destination)
+    }
+
+    #[cfg(not(windows))]
+    {
+        std::os::unix::fs::symlink(source, destination)
+    }
+}
+
 fn write_sidecar(
     destination: &Path,
     format: &str,
@@ -633,8 +672,8 @@ pub fn execute_selected(
         if file_is_current(&source, &destination) {
             result.skipped += 1;
         } else {
-            match std::fs::copy(&source, &destination) {
-                Ok(_) => result.exported += 1,
+            match copy_or_symlink(&source, &destination, folder.export_symlinks) {
+                Ok(()) => result.exported += 1,
                 Err(error) => {
                     result.errors.push(format!(
                         "could not copy {}: {error}",
@@ -652,7 +691,7 @@ pub fn execute_selected(
             &folder.sidecar_format,
             &tags,
             &query::urls_for(controller, hash),
-            folder.overwrite_sidecars,
+            folder.overwrite_sidecars || folder.always_overwrite_sidecars,
         ) {
             result.sidecars += 1;
         }
@@ -748,6 +787,81 @@ fn default_phrase_from_options(state: &AppState) -> String {
     }
 }
 
+/// Python's `VetoException` messages from `EditExportFolderPanel.GetValue`.
+pub fn validate_folder_name(name: &str) -> Result<String, String> {
+    let name = name.trim();
+
+    if name.is_empty() {
+        return Err("You must enter a name for this export folder!".to_string());
+    }
+
+    Ok(name.to_string())
+}
+
+pub fn validate_folder_path(path: &str) -> Result<PathBuf, String> {
+    let path = path.trim();
+
+    if path.is_empty() {
+        return Err("You must enter a folder path to export to!".to_string());
+    }
+
+    Ok(PathBuf::from(path))
+}
+
+pub fn validate_phrase(phrase: &str) -> Result<Vec<PhraseTerm>, String> {
+    parse_phrase(phrase).map_err(|error| format!("Could not parse that export phrase! {error}"))
+}
+
+/// The summary the sidecar routers button shows in Python.
+pub fn sidecar_label(format: &str) -> &'static str {
+    match format {
+        "json" => "1 sidecar: tags.json",
+        "text" => "1 sidecar: tags.txt",
+        _ => "no sidecars",
+    }
+}
+
+/// Splits a period into the days/hours/minutes shown by Python's time delta
+/// editor.
+pub fn period_components(seconds: i64) -> (i64, i64, i64) {
+    let seconds = seconds.max(0);
+
+    (
+        seconds / 86_400,
+        seconds % 86_400 / 3_600,
+        seconds % 3_600 / 60,
+    )
+}
+
+pub fn period_from_components(days: i64, hours: i64, minutes: i64) -> i64 {
+    let seconds = days.max(0) * 86_400 + hours.clamp(0, 23) * 3_600 + minutes.clamp(0, 59) * 60;
+
+    // Python's TimeDeltaButton is created with `min = 3 * 60`.
+    seconds.max(180)
+}
+
+/// Python's `GetNonDupeName`: `name (1)`, `name (2)`, ... against casefolded
+/// existing names.
+pub fn non_dupe_name(name: &str, taken: &[String]) -> String {
+    let taken: BTreeSet<String> = taken.iter().map(|name| name.to_lowercase()).collect();
+
+    if !taken.contains(&name.to_lowercase()) {
+        return name.to_string();
+    }
+
+    let mut index = 1;
+
+    loop {
+        let candidate = format!("{name} ({index})");
+
+        if !taken.contains(&candidate.to_lowercase()) {
+            return candidate;
+        }
+
+        index += 1;
+    }
+}
+
 pub fn edit(state: &AppState, payload: &str) -> Vec<UiCommand> {
     let name = payload.trim();
     let existing = state
@@ -759,15 +873,10 @@ pub fn edit(state: &AppState, payload: &str) -> Vec<UiCommand> {
     let folder = match existing {
         Some(folder) => folder_json(&folder),
         None => {
-            let default_path = state
-                .controller
-                .options()
-                .get_noneable_string("export_path")
-                .unwrap_or_default();
             let mut entry = ExportFolderEntry::new(
+                "export folder",
                 "",
-                default_path,
-                3600,
+                86_400,
                 default_phrase_from_options(state),
             );
             entry.query = String::new();
@@ -788,19 +897,36 @@ pub fn save_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         )];
     };
 
-    let path_text = value
-        .get("path")
+    let original = value
+        .get("original")
         .and_then(serde_json::Value::as_str)
         .unwrap_or_default()
-        .trim();
+        .trim()
+        .to_string();
 
-    if path_text.is_empty() {
-        return vec![UiCommand::NotifyMessage(
-            "choose an export folder first".to_string(),
-        )];
-    }
+    let name = match value.get("name").and_then(serde_json::Value::as_str) {
+        Some(name) => match validate_folder_name(name) {
+            Ok(name) => name,
+            Err(error) => return vec![UiCommand::NotifyMessage(error)],
+        },
+        None => {
+            return vec![UiCommand::NotifyMessage(
+                "You must enter a name for this export folder!".to_string(),
+            )]
+        }
+    };
 
-    let path = PathBuf::from(path_text);
+    let path = match value.get("path").and_then(serde_json::Value::as_str) {
+        Some(path) => match validate_folder_path(path) {
+            Ok(path) => path,
+            Err(error) => return vec![UiCommand::NotifyMessage(error)],
+        },
+        None => {
+            return vec![UiCommand::NotifyMessage(
+                "You must enter a folder path to export to!".to_string(),
+            )]
+        }
+    };
 
     if path.exists() && !path.is_dir() {
         return vec![UiCommand::NotifyMessage(format!(
@@ -824,41 +950,33 @@ pub fn save_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         .map(str::to_string)
         .unwrap_or_else(|| default_phrase_from_options(state));
 
-    if let Err(error) = parse_phrase(&phrase) {
-        return vec![UiCommand::NotifyMessage(format!(
-            "invalid filename phrase: {error}"
-        ))];
+    if let Err(error) = validate_phrase(&phrase) {
+        return vec![UiCommand::NotifyMessage(error)];
     }
 
-    let original = value
-        .get("original")
-        .and_then(serde_json::Value::as_str)
-        .unwrap_or_default()
-        .trim();
-    let name = value
-        .get("name")
-        .and_then(serde_json::Value::as_str)
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| {
-            path.file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string()
-        });
+    let taken: Vec<String> = state
+        .export_folders
+        .iter()
+        .filter(|folder| folder.name != original)
+        .map(|folder| folder.name.clone())
+        .collect();
+    let name = non_dupe_name(&name, &taken);
 
     let mut entry = state
         .export_folders
         .iter()
         .find(|folder| folder.name == original)
         .cloned()
-        .unwrap_or_else(|| ExportFolderEntry::new(name.clone(), path.clone(), 3600, phrase.clone()));
+        .unwrap_or_else(|| {
+            ExportFolderEntry::new(name.clone(), path.clone(), 86_400, phrase.clone())
+        });
 
     entry.name = name.clone();
     entry.path = path;
     entry.phrase = phrase;
     apply_payload(&mut entry, &value);
+
+    let start_now = entry.run_now;
 
     state
         .export_folders
@@ -868,7 +986,13 @@ pub fn save_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     state.message = format!("export folder '{name}' saved");
     let _ = persist(state);
 
-    page_commands(state)
+    let mut commands = page_commands(state);
+
+    if start_now {
+        commands = run_now(state, &name);
+    }
+
+    commands
 }
 
 fn apply_payload(entry: &mut ExportFolderEntry, value: &serde_json::Value) {
@@ -903,11 +1027,36 @@ fn apply_payload(entry: &mut ExportFolderEntry, value: &serde_json::Value) {
         entry.overwrite_sidecars = overwrite;
     }
 
+    if let Some(always) = value
+        .get("always_overwrite_sidecars")
+        .and_then(serde_json::Value::as_bool)
+    {
+        entry.always_overwrite_sidecars = always;
+    }
+
     if let Some(delete) = value
         .get("delete_from_client")
         .and_then(serde_json::Value::as_bool)
     {
         entry.delete_from_client = delete;
+    }
+
+    if let Some(symlinks) = value
+        .get("export_symlinks")
+        .and_then(serde_json::Value::as_bool)
+    {
+        entry.export_symlinks = symlinks;
+    }
+
+    if let Some(popup) = value
+        .get("show_working_popup")
+        .and_then(serde_json::Value::as_bool)
+    {
+        entry.show_working_popup = popup;
+    }
+
+    if let Some(run_now) = value.get("run_now").and_then(serde_json::Value::as_bool) {
+        entry.run_now = run_now;
     }
 
     if let Some(regular) = value
@@ -918,7 +1067,7 @@ fn apply_payload(entry: &mut ExportFolderEntry, value: &serde_json::Value) {
     }
 
     if let Some(period) = value.get("period").and_then(serde_json::Value::as_i64) {
-        entry.period = period.max(60);
+        entry.period = period.max(180);
     }
 }
 
@@ -1057,6 +1206,7 @@ pub fn run_now(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     match state.runtime.submit(job) {
         Ok(()) => {
             folder.running = true;
+            folder.run_now = false;
             folder.status = "queued".to_string();
             folder.last_error.clear();
             state.message = format!("export folder '{name}' queued");
@@ -1141,11 +1291,18 @@ pub fn apply_result(
     folder.last_exported = result.exported;
     folder.status = result.message();
     folder.last_error = result.errors.first().cloned().unwrap_or_default();
+    // Python clears the one-shot overwrite flag after a run.
+    folder.overwrite_sidecars = false;
 
     if !result.errors.is_empty() {
+        state.notifications.push(
+            "error",
+            format!("export folder '{name}': {}", result.errors[0]),
+        );
+    } else if folder.show_working_popup {
         state
             .notifications
-            .push("error", format!("export folder '{name}': {}", result.errors[0]));
+            .push("info", format!("export folder '{name}': {}", folder.status));
     }
 
     state.message = format!("export folder '{name}': {}", folder.status);
@@ -1257,11 +1414,21 @@ pub fn folder_json(folder: &ExportFolderEntry) -> serde_json::Value {
         pretty_type.push_str(" and deleting from the client!");
     }
 
-    let pretty_period = if folder.run_regularly {
-        pretty_period(folder.period)
+    let period_label = pretty_period(folder.period);
+
+    let period_text = if folder.run_regularly {
+        period_label.clone()
     } else {
         "not running regularly".to_string()
     };
+
+    let pretty_period = if folder.run_now {
+        format!("{period_text} (running after dialog ok)")
+    } else {
+        period_text
+    };
+
+    let (period_days, period_hours, period_minutes) = period_components(folder.period);
 
     serde_json::json!({
         "name": folder.name,
@@ -1270,10 +1437,19 @@ pub fn folder_json(folder: &ExportFolderEntry) -> serde_json::Value {
         "phrase": folder.phrase,
         "export_type": folder.export_type,
         "sidecar_format": folder.sidecar_format,
+        "sidecar_label": sidecar_label(&folder.sidecar_format),
         "overwrite_sidecars": folder.overwrite_sidecars,
+        "always_overwrite_sidecars": folder.always_overwrite_sidecars,
         "delete_from_client": folder.delete_from_client,
+        "export_symlinks": folder.export_symlinks,
         "run_regularly": folder.run_regularly,
+        "show_working_popup": folder.show_working_popup,
+        "run_now": folder.run_now,
         "period": folder.period,
+        "period_label": period_label,
+        "period_days": period_days,
+        "period_hours": period_hours,
+        "period_minutes": period_minutes,
         "paused": folder.paused,
         "last_check": folder.last_check,
         "last_exported": folder.last_exported,
@@ -1284,6 +1460,43 @@ pub fn folder_json(folder: &ExportFolderEntry) -> serde_json::Value {
         "pretty_type": pretty_type,
         "pretty_period": pretty_period,
     })
+}
+
+/// Python's `HydrusNumbers.ToHumanInt`: thousands separators.
+pub fn human_int(value: usize) -> String {
+    let digits = value.to_string();
+    let mut out = String::with_capacity(digits.len() + digits.len() / 3);
+
+    for (index, character) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index) % 3 == 0 {
+            out.push(',');
+        }
+
+        out.push(character);
+    }
+
+    out
+}
+
+/// Python's sidecar `update test example files` query count.
+pub fn test_examples(state: &AppState, payload: &str) -> Vec<UiCommand> {
+    let query = serde_json::from_str::<serde_json::Value>(payload)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("query")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_default();
+
+    match query::hashes_for(&state.controller, &query, "my files") {
+        Ok(hashes) => vec![UiCommand::NotifyMessage(format!(
+            "got {} files!",
+            human_int(hashes.len())
+        ))],
+        Err(error) => vec![UiCommand::NotifyMessage(format!("search failed: {error}"))],
+    }
 }
 
 /// Python's `HydrusTime.TimeDeltaToPrettyTimeDelta`: up to two units, bigger
@@ -1611,5 +1824,94 @@ mod tests {
         assert!(std::fs::read_to_string(&sidecar).unwrap().contains("new"));
 
         let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn export_folder_editor_messages_match_python() {
+        assert_eq!(
+            validate_folder_path("  ").unwrap_err(),
+            "You must enter a folder path to export to!"
+        );
+        assert_eq!(
+            validate_folder_name(" ").unwrap_err(),
+            "You must enter a name for this export folder!"
+        );
+        assert!(validate_folder_path(r"C:\exports").is_ok());
+        assert_eq!(
+            validate_phrase("{hash").unwrap_err(),
+            "Could not parse that export phrase! the filename phrase has an unclosed '{'"
+        );
+        assert!(validate_phrase("{hash}").is_ok());
+    }
+
+    #[test]
+    fn sidecar_labels_match_python_summary() {
+        assert_eq!(sidecar_label("none"), "no sidecars");
+        assert_eq!(sidecar_label("json"), "1 sidecar: tags.json");
+        assert_eq!(sidecar_label("text"), "1 sidecar: tags.txt");
+        assert_eq!(sidecar_label("other"), "no sidecars");
+    }
+
+    #[test]
+    fn periods_split_into_days_hours_and_minutes() {
+        assert_eq!(period_components(86_400), (1, 0, 0));
+        assert_eq!(period_components(90_060), (1, 1, 1));
+        assert_eq!(period_components(180), (0, 0, 3));
+        assert_eq!(period_from_components(1, 1, 1), 90_060);
+        // Python's TimeDeltaButton has min = 3 * 60.
+        assert_eq!(period_from_components(0, 0, 0), 180);
+        assert_eq!(period_from_components(0, 30, 90), 23 * 3_600 + 59 * 60);
+    }
+
+    #[test]
+    fn duplicate_names_get_python_style_suffixes() {
+        let taken = vec!["export folder".to_string(), "other".to_string()];
+
+        assert_eq!(non_dupe_name("fresh", &taken), "fresh");
+        assert_eq!(non_dupe_name("export folder", &taken), "export folder (1)");
+        assert_eq!(non_dupe_name("EXPORT FOLDER", &taken), "EXPORT FOLDER (1)");
+
+        let taken = vec!["export folder".to_string(), "export folder (1)".to_string()];
+        assert_eq!(non_dupe_name("export folder", &taken), "export folder (2)");
+    }
+
+    #[test]
+    fn file_counts_are_human_formatted() {
+        assert_eq!(human_int(0), "0");
+        assert_eq!(human_int(999), "999");
+        assert_eq!(human_int(1_000), "1,000");
+        assert_eq!(human_int(1_234_567), "1,234,567");
+    }
+
+    #[test]
+    fn editor_payload_carries_the_new_folder_options() {
+        let mut folder = ExportFolderEntry::new("out", ".", 86_400, "{hash}");
+
+        apply_payload(
+            &mut folder,
+            &serde_json::json!({
+                "export_type": "synchronise",
+                "sidecar_format": "text",
+                "overwrite_sidecars": true,
+                "always_overwrite_sidecars": true,
+                "delete_from_client": true,
+                "export_symlinks": true,
+                "show_working_popup": false,
+                "run_now": true,
+                "run_regularly": false,
+                "period": 60,
+            }),
+        );
+
+        assert_eq!(folder.export_type, "synchronise");
+        assert_eq!(folder.sidecar_format, "text");
+        assert!(folder.overwrite_sidecars);
+        assert!(folder.always_overwrite_sidecars);
+        assert!(folder.delete_from_client);
+        assert!(folder.export_symlinks);
+        assert!(!folder.show_working_popup);
+        assert!(folder.run_now);
+        assert!(!folder.run_regularly);
+        assert_eq!(folder.period, 180);
     }
 }

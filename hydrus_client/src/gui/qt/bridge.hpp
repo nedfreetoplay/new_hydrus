@@ -1378,3 +1378,7 @@ void app_action(
     rust::Str payload) noexcept;
 
 void app_tick(HydrusMainWindow &window) noexcept;
+
+// Implemented in Rust: the Python VetoException text for an invalid export
+// filename phrase, or an empty string when the phrase parses.
+rust::String hydrus_validate_export_phrase(rust::Str phrase) noexcept;

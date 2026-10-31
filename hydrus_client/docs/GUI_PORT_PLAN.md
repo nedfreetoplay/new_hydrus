@@ -412,7 +412,8 @@ JSON-швы.
   - 15.1.3a [x] auto_resolution_* (6), services_* (3), network_* (2) (коммит 5d137bf).
   - 15.1.3b [x] import options (3), import/export folder editors (4), main window (3) (коммит 98fc38f).
   - 15.1.3c1 [x] options, url class, tag relations, seed cache, command palette, OR predicate, page manager, manage tags (коммит e4d9f4f).
-- [ ] 15.1.3 Диалоги → по файлу на диалог.
+  - 15.1.3c2 [x] timestamps, notifications, about/notes/stats, local import (2), filename tagging, repair locations, tag filter, api permissions, account types, orphan files, database backup, export review, page chooser (коммит ec0c2c7).
+- [x] 15.1.3 Диалоги → по файлу на диалог.
 - [ ] 15.1.4 `bridge.hpp` → заголовки по тем же группам, `bridge.hpp` — агрегатор.
   Проверить, что cxx принимает несколько `include!` в одном модуле; если нет —
   отдельные модули `ffi_pages` / `ffi_dialogs`.

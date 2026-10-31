@@ -7,5 +7,7 @@
 #include "canvas.hpp"
 #include "metadata_panel.hpp"
 #include "notebook.hpp"
+#include "query_page_sidebar.hpp"
+#include "thumbnail_grid.hpp"
 #include "viewer.hpp"
 

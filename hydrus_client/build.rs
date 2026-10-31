@@ -23,6 +23,11 @@ fn main() {
                 "src/gui/qt/autocomplete.cpp",
                 "src/gui/qt/viewer.cpp",
                 "src/gui/qt/notebook.cpp",
+                "src/gui/qt/thumbnail_grid.cpp",
+                "src/gui/qt/thumbnail_grid_dnd.cpp",
+                "src/gui/qt/query_page_sidebar.cpp",
+                "src/gui/qt/query_page_results.cpp",
+                "src/gui/qt/query_page_state.cpp",
             ])
             .cc_builder(|cc| {
                 cc.flag_if_supported("/utf-8");

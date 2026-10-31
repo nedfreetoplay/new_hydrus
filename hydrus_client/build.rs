@@ -28,6 +28,12 @@ fn main() {
                 "src/gui/qt/query_page_sidebar.cpp",
                 "src/gui/qt/query_page_results.cpp",
                 "src/gui/qt/query_page_state.cpp",
+                "src/gui/qt/downloader_page_layout.cpp",
+                "src/gui/qt/downloader_page_gallery.cpp",
+                "src/gui/qt/downloader_page_importers.cpp",
+                "src/gui/qt/downloader_page_state.cpp",
+                "src/gui/qt/duplicates_page_sidebar.cpp",
+                "src/gui/qt/duplicates_page_media.cpp",
             ])
             .cc_builder(|cc| {
                 cc.flag_if_supported("/utf-8");

@@ -5,6 +5,8 @@
 
 #include "autocomplete.hpp"
 #include "canvas.hpp"
+#include "downloader_page.hpp"
+#include "duplicates_page.hpp"
 #include "metadata_panel.hpp"
 #include "notebook.hpp"
 #include "query_page_sidebar.hpp"

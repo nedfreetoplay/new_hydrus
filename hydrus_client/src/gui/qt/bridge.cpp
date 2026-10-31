@@ -526,6 +526,7 @@ void HydrusCanvas::wheelEvent(QWheelEvent *event) {
 
 HydrusThumbnailGrid::HydrusThumbnailGrid(HydrusMainWindow *main_window, HydrusQueryPage *query_page)
     : QListWidget(query_page), main(main_window), page(query_page) {
+    page_id_value = query_page->page_id();
     setObjectName(QStringLiteral("HydrusThumbnailGrid"));
     setViewMode(QListWidget::IconMode);
     setResizeMode(QListWidget::Adjust);
@@ -548,7 +549,7 @@ HydrusThumbnailGrid::HydrusThumbnailGrid(HydrusMainWindow *main_window, HydrusQu
         "QListWidget#HydrusThumbnailGrid::item:selected { border: 1px solid #01111a; background: #d9f2ff; }"));
 
     connect(this, &QListWidget::currentItemChanged, this, [this](QListWidgetItem *current, QListWidgetItem *) {
-        if (main->building || current == nullptr) {
+        if (main->building || current == nullptr || page == nullptr) {
             return;
         }
 
@@ -576,7 +577,7 @@ HydrusThumbnailGrid::HydrusThumbnailGrid(HydrusMainWindow *main_window, HydrusQu
         const QByteArray payload = QJsonDocument(hashes).toJson(QJsonDocument::Compact);
         main->notify(
             QStringLiteral("selection_changed"),
-            page->page_id(),
+            page_id_value,
             QString::fromUtf8(payload));
     });
 
@@ -589,7 +590,70 @@ HydrusThumbnailGrid::HydrusThumbnailGrid(HydrusMainWindow *main_window, HydrusQu
 
         if (!hash.isEmpty()) {
             QByteArray hash_bytes = hash.toUtf8();
-            QByteArray page_bytes = page->page_id().toUtf8();
+            QByteArray page_bytes = page_id_value.toUtf8();
+            app_action(*main, rust::Str("open_viewer", 11), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
+        }    });
+}
+
+HydrusThumbnailGrid::HydrusThumbnailGrid(HydrusMainWindow *main_window, HydrusDuplicatesPage *dup_page_ptr)
+    : QListWidget(dup_page_ptr), main(main_window), page(nullptr), dup_page(dup_page_ptr) {
+    page_id_value = dup_page_ptr->page_id();
+    setObjectName(QStringLiteral("HydrusThumbnailGrid"));
+    setViewMode(QListWidget::IconMode);
+    setResizeMode(QListWidget::Adjust);
+    setMovement(QListWidget::Static);
+    setUniformItemSizes(true);
+    setSpacing(4);
+    setWordWrap(false);
+    setTextElideMode(Qt::ElideNone);
+    setIconSize(QSize(150, 125));
+    setGridSize(QSize(162, 137));
+    setSelectionMode(QAbstractItemView::ExtendedSelection);
+    setDragEnabled(true);
+    setAcceptDrops(true);
+    setDragDropMode(QAbstractItemView::DragDrop);
+    setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setStyleSheet(QStringLiteral(
+        "QListWidget#HydrusThumbnailGrid { background-color: #ffffff; border: none; }"
+        "QListWidget#HydrusThumbnailGrid::item { border: 1px solid #dfe3e6; background: #ffffff; }"
+        "QListWidget#HydrusThumbnailGrid::item:selected { border: 1px solid #01111a; background: #d9f2ff; }"));
+
+    connect(this, &QListWidget::currentItemChanged, this, [this](QListWidgetItem *current, QListWidgetItem *) {
+        if (main->building || current == nullptr) {
+            return;
+        }
+        // no focused hash tracking for the duplicates page
+    });
+
+    connect(this, &QListWidget::itemSelectionChanged, this, [this]() {
+        if (main->building) {
+            return;
+        }
+
+        QJsonArray hashes;
+
+        for (const QString &hash : selected_hashes()) {
+            hashes.append(hash);
+        }
+
+        const QByteArray payload = QJsonDocument(hashes).toJson(QJsonDocument::Compact);
+        main->notify(
+            QStringLiteral("selection_changed"),
+            page_id_value,
+            QString::fromUtf8(payload));
+    });
+
+    connect(this, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
+        if (main->building || item == nullptr) {
+            return;
+        }
+
+        const QString hash = page_hash_from_item(item);
+
+        if (!hash.isEmpty()) {
+            QByteArray hash_bytes = hash.toUtf8();
+            QByteArray page_bytes = page_id_value.toUtf8();
             app_action(*main, rust::Str("open_viewer", 11), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
         }    });
 }
@@ -6144,79 +6208,12 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     header->addWidget(delete_both);
     layout->addLayout(header);
 
-    auto *splitter = new QSplitter(Qt::Horizontal, this);
+    media_status = new QLabel(right);
+    media_status->setWordWrap(true);
+    layout->addWidget(media_status);
 
-    auto make_side = [&](bool left) {
-        auto *side = new QWidget(splitter);
-        auto *side_layout = new QVBoxLayout(side);
-        side_layout->setContentsMargins(4, 4, 4, 4);
-
-        side->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(side, &QWidget::customContextMenuRequested, this, [this, side, left](const QPoint &pos) {
-            show_group_actions(left ? QStringLiteral("a") : QStringLiteral("b"), side->mapToGlobal(pos));
-        });
-
-        auto *hash_label = new QLabel(side);
-        hash_label->setWordWrap(true);
-        hash_label->setStyleSheet(QStringLiteral("font-family: monospace;"));
-        side_layout->addWidget(hash_label);
-
-        auto *canvas = new HydrusCanvas(side);
-        canvas->setMinimumSize(280, 280);
-        side_layout->addWidget(canvas, 1);
-
-        auto *info_label = new QLabel(side);
-        info_label->setWordWrap(true);
-        side_layout->addWidget(info_label);
-
-        auto *tags_label = new QLabel(QStringLiteral("tags"), side);
-        tags_label->setStyleSheet(QStringLiteral("font-weight: bold;"));
-        side_layout->addWidget(tags_label);
-        auto *tags = new QListWidget(side);
-        tags->setSelectionMode(QAbstractItemView::NoSelection);
-        side_layout->addWidget(tags, 1);
-
-        auto *urls_label = new QLabel(QStringLiteral("urls"), side);
-        urls_label->setStyleSheet(QStringLiteral("font-weight: bold;"));
-        side_layout->addWidget(urls_label);
-        auto *urls = new QListWidget(side);
-        urls->setSelectionMode(QAbstractItemView::NoSelection);
-        urls->setMaximumHeight(80);
-        side_layout->addWidget(urls);
-
-        auto *keep = new QPushButton(QStringLiteral("this is better"), side);
-        keep->setStyleSheet(QStringLiteral("font-weight: bold;"));
-        keep->setToolTip(QStringLiteral("this is better, and delete the other"));
-        side_layout->addWidget(keep);
-
-        auto *keep_both = new QPushButton(QStringLiteral("this is better, but keep both"), side);
-        keep_both->setToolTip(QStringLiteral("set that this file is better and keep both files"));
-        side_layout->addWidget(keep_both);
-
-        if (left) {
-            hash_a = hash_label;
-            canvas_a = canvas;
-            info_a = info_label;
-            tags_a = tags;
-            urls_a = urls;
-            keep_a = keep;
-            keep_a_both = keep_both;
-        } else {
-            hash_b = hash_label;
-            canvas_b = canvas;
-            info_b = info_label;
-            tags_b = tags;
-            urls_b = urls;
-            keep_b = keep;
-            keep_b_both = keep_both;
-        }
-    };
-
-    make_side(true);
-    make_side(false);
-    splitter->setStretchFactor(0, 1);
-    splitter->setStretchFactor(1, 1);
-    layout->addWidget(splitter, 1);
+    grid = new HydrusThumbnailGrid(main, this);
+    layout->addWidget(grid, 1);
 
     auto *bottom = new QHBoxLayout();
     same = new QPushButton(QStringLiteral("they are the same"), this);
@@ -6237,10 +6234,6 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     sidebar->setMinimumHeight(sidebar_layout->minimumSize().height());
     page_splitter->setSizes({440, 872});
 
-    connect(keep_a, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_keep_a")); });
-    connect(keep_a_both, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_keep_a_keep")); });
-    connect(keep_b, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_keep_b")); });
-    connect(keep_b_both, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_keep_b_keep")); });
     connect(same, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_same")); });
     connect(alternates, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_alternates")); });
     connect(custom_action, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_custom_action")); });
@@ -6538,55 +6531,32 @@ void HydrusDuplicatesPage::update_state(const QJsonObject &state) {
 
     if (!pair_value.isObject()) {
         distance->setText(QString());
-        hash_a->setText(QStringLiteral("no pair"));
-        hash_b->setText(QStringLiteral("no pair"));
-        info_a->setText(QStringLiteral("the potential duplicate queue is empty"));
-        info_b->clear();
-        tags_a->clear();
-        tags_b->clear();
-        urls_a->clear();
-        urls_b->clear();
-        canvas_a->clear_image();
-        canvas_b->clear_image();
 
-        for (QPushButton *button : {keep_a, keep_b, same, not_duplicates, skip, delete_both}) {
+        for (QPushButton *button : {same, not_duplicates, skip, delete_both}) {
             button->setEnabled(false);
         }
-
-        return;
-    }
-
-    for (QPushButton *button : {keep_a, keep_b, same, not_duplicates, skip, delete_both}) {
-        button->setEnabled(true);
-    }
-
-    const QJsonObject pair = pair_value.toObject();
-    const QJsonObject a = pair.value(QStringLiteral("a")).toObject();
-    const QJsonObject b = pair.value(QStringLiteral("b")).toObject();
-
-    distance->setText(QStringLiteral("distance %1").arg(pair.value(QStringLiteral("distance")).toInt()));
-
-    auto fill_side = [](const QJsonObject &object, QLabel *hash, QLabel *info, HydrusCanvas *canvas, QListWidget *tags, QListWidget *urls) {
-        hash->setText(object.value(QStringLiteral("hash")).toString());
-        info->setText(object.value(QStringLiteral("info")).toString());
-
-        tags->clear();
-        tags->addItems(json_to_strings(object.value(QStringLiteral("tags")).toArray()));
-
-        urls->clear();
-        urls->addItems(json_to_strings(object.value(QStringLiteral("urls")).toArray()));
-
-        const QString preview = object.value(QStringLiteral("preview")).toString();
-
-        if (!preview.isEmpty() && canvas->load_image(preview)) {
-            return;
+    } else {
+        for (QPushButton *button : {same, not_duplicates, skip, delete_both}) {
+            button->setEnabled(true);
         }
 
-        canvas->clear_image();
-    };
+        const QJsonObject pair = pair_value.toObject();
+        distance->setText(QStringLiteral("distance %1").arg(pair.value(QStringLiteral("distance")).toInt()));
+    }
 
-    fill_side(a, hash_a, info_a, canvas_a, tags_a, urls_a);
-    fill_side(b, hash_b, info_b, canvas_b, tags_b, urls_b);
+    const QJsonArray media = state.value(QStringLiteral("media")).toArray();
+
+    if (grid != nullptr) {
+        grid->set_media(media);
+    }
+
+    if (media_status != nullptr) {
+        if (media.isEmpty()) {
+            media_status->setText(state.value(QStringLiteral("media_empty_status")).toString());
+        } else {
+            media_status->setText(state.value(QStringLiteral("media_count_status")).toString());
+        }
+    }
 }
 
 

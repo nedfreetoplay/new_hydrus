@@ -189,6 +189,7 @@ private:
 class HydrusThumbnailGrid : public QListWidget {
 public:
     HydrusThumbnailGrid(HydrusMainWindow *main, HydrusQueryPage *page);
+    HydrusThumbnailGrid(HydrusMainWindow *main, HydrusDuplicatesPage *page);
 
     void set_media(const QJsonArray &media);
     void set_focused(const QString &hash);
@@ -207,6 +208,8 @@ protected:
 private:
     HydrusMainWindow *main = nullptr;
     HydrusQueryPage *page = nullptr;
+    HydrusDuplicatesPage *dup_page = nullptr;
+    QString page_id_value;
     bool masonry = false;
     bool horizontal = false;
     int scale_percent = 100;
@@ -910,6 +913,8 @@ private:
     HydrusMainWindow *main = nullptr;
     QString id;
     QLabel *status = nullptr;
+    HydrusThumbnailGrid *grid = nullptr;
+    QLabel *media_status = nullptr;
     QLabel *distance = nullptr;
     QComboBox *dupe_search_type = nullptr;
     QLineEdit *search_query_1 = nullptr;

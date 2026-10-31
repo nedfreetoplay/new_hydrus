@@ -6155,23 +6155,70 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     auto *auto_layout = new QVBoxLayout(auto_resolution_tab);
     auto_layout->setContentsMargins(2, 2, 2, 2);
     auto_layout->setSpacing(4);
-    QVBoxLayout *auto_content = nullptr;
-    QPushButton *auto_expand = nullptr;
-    auto *auto_box = make_static_box(QStringLiteral("auto-resolution"),
-                                     auto_resolution_tab,
-                                     &auto_content,
-                                     &auto_expand);
-    auto_layout->addWidget(auto_box);
-    auto *auto_label = new QLabel(QStringLiteral("no auto-resolution rules yet"), auto_box);
-    auto_label->setWordWrap(true);
-    auto_content->addWidget(auto_label);
-    auto *manage_auto = new QPushButton(QStringLiteral("manage auto-resolution..."), auto_box);
-    manage_auto->setMinimumHeight(24);
-    auto_content->addWidget(manage_auto);
-    auto_layout->addStretch(1);
-    connect(manage_auto, &QPushButton::clicked, this, [this]() {
+
+    auto *help_button = new QPushButton(QStringLiteral("?"), auto_resolution_tab);
+    help_button->setFlat(true);
+    auto *help_hbox = new QHBoxLayout();
+    help_hbox->addStretch(1);
+    help_hbox->addWidget(new QLabel(QStringLiteral("help for this panel -->"), auto_resolution_tab));
+    help_hbox->addWidget(help_button);
+    auto_layout->addLayout(help_hbox);
+
+    auto *button_hbox = new QHBoxLayout();
+    auto *auto_refresh_button = new QPushButton(QStringLiteral("refresh"), auto_resolution_tab);
+    auto *cog_button = new QPushButton(QStringLiteral("cog"), auto_resolution_tab);
+    button_hbox->addStretch(1);
+    button_hbox->addWidget(auto_refresh_button);
+    button_hbox->addWidget(cog_button);
+    auto_layout->addLayout(button_hbox);
+
+    auto_rules_status = new QLabel(QStringLiteral("initialising..."), auto_resolution_tab);
+    auto_rules_status->setWordWrap(true);
+    auto_layout->addWidget(auto_rules_status);
+
+    auto_rules_table = new QTableWidget(auto_resolution_tab);
+    auto_rules_table->setColumnCount(3);
+    auto_rules_table->setHorizontalHeaderLabels({
+        QStringLiteral("name"),
+        QStringLiteral("progress"),
+        QStringLiteral("status"),
+    });
+    auto_rules_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    auto_rules_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    auto_rules_table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    auto_rules_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    auto_rules_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    auto_rules_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    auto_rules_table->verticalHeader()->setVisible(false);
+    auto_layout->addWidget(auto_rules_table, 1);
+
+    auto *actions_hbox = new QHBoxLayout();
+    auto *pause_play = new QPushButton(QStringLiteral("pause/play"), auto_resolution_tab);
+    auto *review_actions = new QPushButton(QStringLiteral("review actions"), auto_resolution_tab);
+    auto *edit_rules = new QPushButton(QStringLiteral("edit rules"), auto_resolution_tab);
+    actions_hbox->addWidget(pause_play);
+    actions_hbox->addWidget(review_actions);
+    actions_hbox->addWidget(edit_rules);
+    auto_layout->addLayout(actions_hbox);
+
+    connect(auto_refresh_button, &QPushButton::clicked, this, [this]() {
         main->notify(QStringLiteral("duplicates_rules"));
     });
+    connect(pause_play, &QPushButton::clicked, this, [this]() {
+        // toggle paused state through the rules dialog flow is not available;
+        // request a refresh of the rules list instead
+        main->notify(QStringLiteral("duplicates_rules"));
+    });
+    connect(review_actions, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("duplicates_review"));
+    });
+    connect(edit_rules, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("duplicates_rules"));
+    });
+    connect(help_button, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("docs"));
+    });
+    update_auto_resolution_rules(state);
 
     auto *right = new QWidget(page_splitter);
     auto *layout = new QVBoxLayout(right);
@@ -6564,6 +6611,8 @@ void HydrusDuplicatesPage::update_state(const QJsonObject &state) {
             media_status->setText(state.value(QStringLiteral("media_count_status")).toString());
         }
     }
+
+    update_auto_resolution_rules(state);
 }
 
 
@@ -10638,7 +10687,10 @@ HydrusDuplicatesRulesDialog::HydrusDuplicatesRulesDialog(HydrusMainWindow *main_
 void HydrusDuplicatesRulesDialog::set_state(const QJsonObject &state) {
     data = state;
 
-    const QJsonArray rules = state.value(QStringLiteral("rules")).toArray();
+    QJsonArray rules = state.value(QStringLiteral("auto_rules")).toArray();
+    if (rules.isEmpty()) {
+        rules = state.value(QStringLiteral("rules")).toArray();
+    }
     const int previous_row = table->currentRow();
     table->setRowCount(rules.size());
 
@@ -12737,6 +12789,11 @@ void HydrusMainWindow::show_duplicates_rules(const QJsonObject &state) {
     }
 
     duplicates_rules_dialog->show();
+    for (auto it = duplicates.begin(); it != duplicates.end(); ++it) {
+        if (it.value() != nullptr) {
+            it.value()->update_auto_resolution_rules(state);
+        }
+    }
 }
 
 void HydrusMainWindow::show_duplicate_merge_options(const QJsonObject &state) {
@@ -13255,6 +13312,50 @@ void HydrusMainWindow::update_duplicates(const QString &page_id, const QJsonObje
         page->update_state(state);
     }
 }
+
+void HydrusDuplicatesPage::update_auto_resolution_rules(const QJsonObject &state) {
+    if (auto_rules_table == nullptr) {
+        return;
+    }
+
+    QJsonArray rules = state.value(QStringLiteral("auto_rules")).toArray();
+    if (rules.isEmpty()) {
+        rules = state.value(QStringLiteral("rules")).toArray();
+    }
+    auto_rules_table->setRowCount(rules.size());
+
+    for (int index = 0; index < rules.size(); ++index) {
+        const QJsonObject rule = rules.at(index).toObject();
+
+        for (int column = 0; column < 3; ++column) {
+            if (auto_rules_table->item(index, column) == nullptr) {
+                auto_rules_table->setItem(index, column, new QTableWidgetItem());
+            }
+        }
+
+        auto_rules_table->item(index, 0)->setText(rule.value(QStringLiteral("name")).toString());
+
+        QString progress = rule.value(QStringLiteral("search_summary")).toString();
+        auto_rules_table->item(index, 1)->setText(progress);
+
+        QString status = rule.value(QStringLiteral("paused")).toBool()
+                             ? QStringLiteral("paused")
+                             : QStringLiteral("running");
+        auto_rules_table->item(index, 2)->setText(status);
+    }
+
+    if (auto_rules_status != nullptr) {
+        if (rules.isEmpty()) {
+            auto_rules_status->setText(QStringLiteral("no auto-resolution rules yet"));
+            auto_rules_status->setVisible(true);
+        } else {
+            auto_rules_status->setVisible(false);
+        }
+    }
+
+    auto_rules_table->resizeRowsToContents();
+}
+
 
 void HydrusMainWindow::update_import_folders(const QString &page_id, const QJsonObject &state) {
     if (HydrusImportFoldersPage *page = import_folders.value(page_id, nullptr)) {

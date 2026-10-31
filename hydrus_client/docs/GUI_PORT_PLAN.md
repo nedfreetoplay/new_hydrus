@@ -206,6 +206,7 @@ Definition of Done для задачи.
   `docs/images/python_duplicates_media_panel.png` (Python). Осталось:
   preparation/auto-resolution tabs и групповой режим остаются заглушками.
 - 2026-10-31 - WS-08.5 preparation tab: pure logic for batch splitting, progress percentages, status strings, auto-commit decisions (688 unit tests). Preparation tab is no longer a placeholder; full Python parity (maintenance discovery) not reached, status stays [~].
+- 2026-10-31 - WS-08.6 auto-resolution sidebar tab: replaced placeholder with rule list (name/progress/status), refresh/cog, pause-play/review/edit buttons wired to existing dialogs; pure helpers for status labels/enabled-state (689 unit tests). Visual parity partial; status stays [~] (WS-14.8).
 - 2026-10-31 — менеджер import folders сверен с живым Python v692. В Python это
   не страница, а диалог `file -> import/export folders -> manage import
   folders…` с заголовком `edit import folders` (`EditImportFoldersPanel`).

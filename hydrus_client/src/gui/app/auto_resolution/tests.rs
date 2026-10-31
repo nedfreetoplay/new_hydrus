@@ -544,3 +544,17 @@ fn saved_rules_get_unique_names_and_survive_reload() {
 
     let _ = std::fs::remove_dir_all(directory);
 }
+#[test]
+fn auto_resolution_sidebar_status_helpers() {
+    assert_eq!(rule_status_label(true), "paused");
+    assert_eq!(rule_status_label(false), "running");
+    assert_eq!(rules_initial_status(false), "initialising...");
+    assert_eq!(rules_initial_status(true), "");
+    assert_eq!(rules_empty_status(&[]), "no auto-resolution rules yet");
+    let rule = AutoResolutionRule::default();
+    assert_eq!(rules_empty_status(&[rule]), "");
+    assert!(pause_play_enabled(1));
+    assert!(!pause_play_enabled(0));
+    assert!(review_actions_enabled(2));
+    assert!(!review_actions_enabled(0));
+}

@@ -1738,10 +1738,24 @@ fn duplicates_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
         return vec![];
     };
 
+    let mut duplicates_value: serde_json::Value =
+        serde_json::from_str(&render::duplicates_json(&state.controller, page)).unwrap_or_default();
+    duplicates_value["auto_rules"] = serde_json::json!(
+        state
+            .auto_rules
+            .iter()
+            .map(|rule| serde_json::json!({
+                "name": rule.name,
+                "paused": rule.paused,
+                "search_summary": rule.search_summary(),
+            }))
+            .collect::<Vec<_>>()
+    );
+
     vec![
         UiCommand::UpdateDuplicates(
             page_id.to_string(),
-            render::duplicates_json(&state.controller, page),
+            duplicates_value.to_string(),
         ),
         UiCommand::Status(render::status_json(state)),
     ]

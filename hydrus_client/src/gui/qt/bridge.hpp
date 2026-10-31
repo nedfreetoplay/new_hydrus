@@ -903,6 +903,7 @@ public:
 
     const QString &page_id() const;
     void update_state(const QJsonObject &state);
+    void update_auto_resolution_rules(const QJsonObject &state);
 
 private:
     void act(const QString &action);
@@ -951,6 +952,8 @@ private:
     QPushButton *delete_both = nullptr;
     QPushButton *rules = nullptr;
     QPushButton *merge_options = nullptr;
+    QTableWidget *auto_rules_table = nullptr;
+    QLabel *auto_rules_status = nullptr;
     QSpinBox *batch = nullptr;
     QPushButton *next_batch = nullptr;
 };

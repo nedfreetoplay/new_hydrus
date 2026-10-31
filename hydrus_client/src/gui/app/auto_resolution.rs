@@ -1527,6 +1527,43 @@ pub fn review_apply(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     commands
 }
 
+/// Label shown in the sidebar status column for a rule.
+pub fn rule_status_label(paused: bool) -> &'static str {
+    if paused {
+        "paused"
+    } else {
+        "running"
+    }
+}
+
+/// Whether the pause/play button should be enabled for the current selection.
+pub fn pause_play_enabled(selected: usize) -> bool {
+    selected > 0
+}
+
+/// Whether the review-actions button should be enabled for the current selection.
+pub fn review_actions_enabled(selected: usize) -> bool {
+    selected > 0
+}
+
+/// Status text shown above the rule list while rules have not been loaded yet.
+pub fn rules_initial_status(loaded: bool) -> &'static str {
+    if loaded {
+        ""
+    } else {
+        "initialising..."
+    }
+}
+
+/// Status text shown above the rule list when it is empty.
+pub fn rules_empty_status(rules: &[AutoResolutionRule]) -> &'static str {
+    if rules.is_empty() {
+        "no auto-resolution rules yet"
+    } else {
+        ""
+    }
+}
+
 fn refresh(state: &mut AppState) -> Vec<UiCommand> {
     state.refresh_all();
 

@@ -11,7 +11,7 @@ fn main() {
             .qt_module("Svg")
             .file("src/gui/qt/bridge.rs")
             .include_dir("src/gui/qt")
-            .cpp_file("src/gui/qt/bridge.cpp")
+            .cpp_file("src/gui/qt/bridge_api.cpp")
             .cpp_files([
                 "src/gui/qt/support/strings.cpp",
                 "src/gui/qt/support/icons.cpp",
@@ -55,6 +55,10 @@ fn main() {
                 "src/gui/qt/main_window_shell.cpp",
                 "src/gui/qt/main_window_shortcuts.cpp",
                 "src/gui/qt/main_window_dialogs.cpp",
+                "src/gui/qt/subscriptions_page.cpp",
+                "src/gui/qt/subscriptions_dialog.cpp",
+                "src/gui/qt/import_folders_manager.cpp",
+                "src/gui/qt/export_folders_manager.cpp",
                 "src/gui/qt/options_dialog.cpp",
                 "src/gui/qt/url_class_dialog.cpp",
                 "src/gui/qt/tag_relations_dialog.cpp",

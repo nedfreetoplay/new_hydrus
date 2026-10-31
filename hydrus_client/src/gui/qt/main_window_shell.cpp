@@ -208,12 +208,6 @@ HydrusQueryPage *HydrusMainWindow::find_page(const QString &page_id) const {
     return pages.value(page_id, nullptr);
 }
 
-void HydrusMainWindow::update_page(const QString &page_id, const QJsonObject &state) {
-    if (HydrusQueryPage *page = find_page(page_id)) {
-        page->update_state(state);
-    }
-}
-
 void HydrusMainWindow::update_downloader(const QString &page_id, const QJsonObject &state) {
     if (HydrusDownloaderPage *page = downloaders.value(page_id, nullptr)) {
         page->update_state(state);
@@ -241,17 +235,6 @@ void HydrusMainWindow::update_import_folders(const QString &page_id, const QJson
 void HydrusMainWindow::update_export_folders(const QString &page_id, const QJsonObject &state) {
     if (HydrusExportFoldersPage *page = export_folders.value(page_id, nullptr)) {
         page->update_state(state);
-    }
-}
-
-void HydrusMainWindow::set_selection(
-    const QString &page_id,
-    const QString &hash,
-    const QStringList &tags,
-    const QString &preview_path,
-    const QJsonObject &metadata) {
-    if (HydrusQueryPage *page = find_page(page_id)) {
-        page->set_selection(hash, tags, preview_path, metadata);
     }
 }
 

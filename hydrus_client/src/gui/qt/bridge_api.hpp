@@ -19,6 +19,12 @@ struct MenuBar;
 struct Pages;
 struct PageProgress;
 struct PageTree;
+// WS-15.2.2b: media/selection/viewer seams.
+struct MediaItem;
+struct QueryPageState;
+struct SelectionState;
+struct MetadataState;
+struct ViewerState;
 
 std::unique_ptr<QApplication> new_application();
 int exec_application(QApplication &application);
@@ -43,7 +49,7 @@ void hydrus_set_tag_suggestions(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_autocomplete(HydrusMainWindow &window, rust::Str json);
 void hydrus_set_status(HydrusMainWindow &window, const StatusBar &status);
 void hydrus_build_pages(HydrusMainWindow &window, const Pages &pages);
-void hydrus_update_page(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
+void hydrus_update_page(HydrusMainWindow &window, const QueryPageState &page);
 void hydrus_update_page_progress(HydrusMainWindow &window, const PageProgress &progress);
 void hydrus_update_downloader(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_subscriptions(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
@@ -76,13 +82,7 @@ void hydrus_close_repair_file_locations(HydrusMainWindow &window);
 void hydrus_show_export_folder(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_export_review(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_notes(HydrusMainWindow &window, rust::Str json);
-void hydrus_set_selection(
-    HydrusMainWindow &window,
-    rust::Str page_id,
-    rust::Str hash,
-    rust::Str tags_json,
-    rust::Str preview_path,
-    rust::Str metadata_json);
+void hydrus_set_selection(HydrusMainWindow &window, const SelectionState &selection);
 void hydrus_show_page_chooser(HydrusMainWindow &window, rust::Str notebook_id);
 void hydrus_show_page_manager(HydrusMainWindow &window, const PageTree &tree);
 void hydrus_show_command_palette(HydrusMainWindow &window);
@@ -104,8 +104,8 @@ void hydrus_show_or_dialog(
     rust::Str initial);
 void hydrus_pick_files(HydrusMainWindow &window);
 void hydrus_prompt_url(HydrusMainWindow &window);
-void hydrus_open_viewer(HydrusMainWindow &window, rust::Str json);
-void hydrus_update_viewer(HydrusMainWindow &window, rust::Str viewer_id, rust::Str json);
+void hydrus_open_viewer(HydrusMainWindow &window, const ViewerState &state);
+void hydrus_update_viewer(HydrusMainWindow &window, const ViewerState &state);
 void hydrus_close_viewer(HydrusMainWindow &window, rust::Str viewer_id);
 void hydrus_show_tag_dialog(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_notifications(HydrusMainWindow &window, rust::Str json);
@@ -167,6 +167,42 @@ void app_move_page(
     rust::Str position) noexcept;
 
 void app_close_pages(HydrusMainWindow &window, rust::Vec<rust::String> ids) noexcept;
+
+// Typed reverse seams (WS-15.2.2b): thumbnail grid selection, focus, viewer
+// open and page-to-page drag. Implemented in Rust, same cores as the notify
+// actions.
+void app_set_selection(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Vec<rust::String> hashes) noexcept;
+
+void app_focus_hash(HydrusMainWindow &window, rust::Str page_id, rust::Str hash) noexcept;
+
+void app_open_viewer(HydrusMainWindow &window, rust::Str page_id, rust::Str hash) noexcept;
+
+void app_add_hashes(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Vec<rust::String> hashes) noexcept;
+
+// Typed reverse seams (WS-15.2.2b): metadata panel tag/rating/notes actions.
+// Implemented in Rust, same cores as tag_add/tag_remove, rating_set and
+// notes_manage.
+void app_tag_edit(
+    HydrusMainWindow &window,
+    rust::Str hash,
+    rust::Str service,
+    rust::Str tag,
+    bool add) noexcept;
+
+void app_set_rating(
+    HydrusMainWindow &window,
+    rust::Str hash,
+    rust::Str service,
+    rust::Str action,
+    double value) noexcept;
+
+void app_manage_notes(HydrusMainWindow &window, rust::Str hash) noexcept;
 
 // Implemented in Rust: the Python VetoException text for an invalid export
 // filename phrase, or an empty string when the phrase parses.

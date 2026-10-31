@@ -24,23 +24,24 @@ class HydrusCanvas;
 class HydrusMainWindow;
 class HydrusThumbnailGrid;
 
+// WS-15.2.2b: QueryPageState/SelectionState are owned by Rust (api.rs); the
+// typed bodies live in typed_media.cpp, so only forward declarations here.
+struct QueryPageState;
+struct SelectionState;
+
 // Page construction lives in query_page_sidebar.cpp, results and autocomplete
 // handling in query_page_results.cpp, state and commands in query_page_state.cpp.
 // One media page, laid out like Hydrus: search/preview sidebar on the left and
 // the thumbnail grid on the right.
 class HydrusQueryPage : public QWidget {
 public:
-    HydrusQueryPage(HydrusMainWindow *main, const QString &page_id, const QJsonObject &state);
+    HydrusQueryPage(HydrusMainWindow *main, const QString &page_id, const QueryPageState &state);
 
     const QString &page_id() const;
 
-    void update_state(const QJsonObject &state);
+    void update_state(const QueryPageState &state);
     void update_progress(bool loading);
-    void set_selection(
-        const QString &hash,
-        const QStringList &tags,
-        const QString &preview_path,
-        const QJsonObject &metadata);
+    void set_selection(const SelectionState &selection);
     void set_suggestions(const QStringList &suggestions);
     void show_autocomplete(const QJsonObject &state);
     void insert_autocomplete(const QString &text);

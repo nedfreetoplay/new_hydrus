@@ -337,6 +337,112 @@ pub fn handle_close_pages(mut window: Pin<&mut ffi::HydrusMainWindow>, ids: Vec<
     }
 }
 
+/// Typed reverse seams (WS-15.2.2b): thumbnail grid selection, focus, viewer
+/// open and page-to-page drag. Each reuses the same core as its `"..."`
+/// notify action, without any JSON payload.
+pub fn handle_set_selection(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    hashes: &[String],
+) {
+    let commands = with_state_mut(|state| state.set_selection(page_id, hashes));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_focus_hash(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    hash: &str,
+) {
+    let commands = with_state_mut(|state| state.focus(page_id, hash));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_open_viewer(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    hash: &str,
+) {
+    let commands = with_state_mut(|state| state.open_viewer(page_id, hash));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_add_hashes(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    hashes: &[String],
+) {
+    let commands = with_state_mut(|state| state.add_hashes(page_id, hashes));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+/// Typed reverse seams (WS-15.2.2b): metadata panel tag/rating/notes actions.
+pub fn handle_tag_edit(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    hash: &str,
+    service: &str,
+    tag: &str,
+    add: bool,
+) {
+    let commands =
+        with_state_mut(|state| crate::gui::app::metadata::set_tag_typed(state, hash, service, tag, add));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_set_rating(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    hash: &str,
+    service: &str,
+    action: &str,
+    value: f64,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::metadata::set_rating_typed(state, hash, service, action, value)
+    });
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_manage_notes(mut window: Pin<&mut ffi::HydrusMainWindow>, hash: &str) {
+    let commands =
+        with_state_mut(|state| crate::gui::app::metadata::manage_notes_typed(state, hash));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
 fn record_notifications(commands: &[UiCommand]) {
     with_state_mut(|state| {
         for command in commands {
@@ -522,15 +628,8 @@ impl AppState {
                 commands
             }
             "selection_changed" => {
-                if let Some(page) = self.find_query_mut(target) {
-                    let hashes: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
-                    page.selected = hashes
-                        .iter()
-                        .filter_map(|hash| query::unhex(hash))
-                        .collect();
-                }
-
-                vec![self.status_command()]
+                let hashes: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
+                self.set_selection(target, &hashes)
             }
             "new_page_menu" => {
                 let notebook = if target.is_empty() {
@@ -751,11 +850,10 @@ impl AppState {
                 let mut commands = vec![UiCommand::Menus(render::menus(self))];
 
                 if let Some(page) = self.find_query(target) {
-                    let import = self.import_queue.clone();
-                    commands.push(UiCommand::UpdatePage(
-                        target.to_string(),
-                        render::query_state(&controller, page, Some(&import)).to_string(),
-                    ));
+                    commands.push(UiCommand::UpdatePage(render::query_page_state(
+                        &controller,
+                        page,
+                    )));
                     commands.push(UiCommand::Defer {
                         action: "run_query".to_string(),
                         target: target.to_string(),
@@ -769,9 +867,8 @@ impl AppState {
             }
             "run_query" => {
                 let controller = self.controller.clone();
-                let import = self.import_queue.clone();
 
-                let json = {
+                let state = {
                     let Some(page) = self.find_query_mut(target) else {
                         return vec![UiCommand::NotifyMessage(
                             "page is not a file page".to_string(),
@@ -780,11 +877,11 @@ impl AppState {
 
                     page.loading = false;
                     query::refresh_page(&controller, page);
-                    render::query_state(&controller, page, Some(&import)).to_string()
+                    render::query_page_state(&controller, page)
                 };
 
                 vec![
-                    UiCommand::UpdatePage(target.to_string(), json),
+                    UiCommand::UpdatePage(state),
                     self.status_command(),
                 ]
             }
@@ -824,13 +921,12 @@ impl AppState {
                 }
 
                 let mut commands = vec![UiCommand::Menus(render::menus(self))];
-                let import = self.import_queue.clone();
 
                 if let Some(page) = self.find_query(target) {
-                    commands.push(UiCommand::UpdatePage(
-                        target.to_string(),
-                        render::query_state(&controller, page, Some(&import)).to_string(),
-                    ));
+                    commands.push(UiCommand::UpdatePage(render::query_page_state(
+                        &controller,
+                        page,
+                    )));
                     commands.push(UiCommand::Defer {
                         action: "run_query".to_string(),
                         target: target.to_string(),
@@ -1236,32 +1332,7 @@ impl AppState {
             }
             "add_hashes_to_page" => {
                 let hashes: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
-                let mut parsed: Vec<Vec<u8>> = hashes
-                    .iter()
-                    .filter_map(|hash| query::unhex(hash))
-                    .collect();
-                parsed.retain(|hash| !hash.is_empty());
-
-                if parsed.is_empty() {
-                    return vec![UiCommand::NotifyMessage(
-                        "no files were dragged".to_string(),
-                    )];
-                }
-
-                let controller = self.controller.clone();
-                let import = self.import_queue.clone();
-                let Some(page) = self.find_query_mut(target) else {
-                    return vec![UiCommand::NotifyMessage("page is missing".to_string())];
-                };
-
-                query::append_hashes(page, parsed);
-
-                let json = render::query_state(&controller, page, Some(&import)).to_string();
-
-                vec![
-                    UiCommand::UpdatePage(target.to_string(), json),
-                    self.status_command(),
-                ]
+                self.add_hashes(target, &hashes)
             }
             "focus_hash" => self.focus(target, payload),
             "open_viewer" => self.open_viewer(target, payload),
@@ -1701,14 +1772,13 @@ impl AppState {
 
     pub(crate) fn refresh_page_commands(&mut self, page_id: &str) -> Vec<UiCommand> {
         let controller = self.controller.clone();
-        let import = self.import_queue.clone();
 
         if let Some(page) = self.find_query_mut(page_id) {
             query::refresh_page(&controller, page);
-            let json = render::query_state(&controller, page, Some(&import)).to_string();
+            let state = render::query_page_state(&controller, page);
 
             return vec![
-                UiCommand::UpdatePage(page_id.to_string(), json),
+                UiCommand::UpdatePage(state),
                 self.status_command(),
             ];
         }
@@ -1768,8 +1838,7 @@ impl AppState {
         controller: &Controller,
         page_id: &str,
     ) -> Vec<UiCommand> {
-        let import = self.import_queue.clone();
-        let json = {
+        let state = {
             let Some(page) = self.find_query_mut(page_id) else {
                 return vec![UiCommand::NotifyMessage(
                     "page is not a file page".to_string(),
@@ -1777,31 +1846,30 @@ impl AppState {
             };
 
             query::refresh_page(controller, page);
-            render::query_state(controller, page, Some(&import)).to_string()
+            render::query_page_state(controller, page)
         };
 
         vec![
-            UiCommand::UpdatePage(page_id.to_string(), json),
+            UiCommand::UpdatePage(state),
             self.status_command(),
         ]
     }
 
     pub(crate) fn refresh_commands(&mut self) -> Vec<UiCommand> {
         let controller = self.controller.clone();
-        let import = self.import_queue.clone();
         let ids = self.query_ids();
         let mut commands = Vec::new();
 
         for id in ids {
-            let json = {
+            let state = {
                 let Some(page) = self.find_query_mut(&id) else {
                     continue;
                 };
                 query::refresh_page(&controller, page);
-                render::query_state(&controller, page, Some(&import)).to_string()
+                render::query_page_state(&controller, page)
             };
 
-            commands.push(UiCommand::UpdatePage(id, json));
+            commands.push(UiCommand::UpdatePage(state));
         }
 
         commands.push(self.status_command());
@@ -2166,6 +2234,49 @@ impl AppState {
         ]
     }
 
+    /// Typed core behind `"selection_changed"` and `app_set_selection`
+    /// (WS-15.2.2b): replaces the current selection with the given hex hashes.
+    fn set_selection(&mut self, page_id: &str, hashes: &[String]) -> Vec<UiCommand> {
+        if let Some(page) = self.find_query_mut(page_id) {
+            page.selected = hashes
+                .iter()
+                .filter_map(|hash| query::unhex(hash))
+                .collect();
+        }
+
+        vec![self.status_command()]
+    }
+
+    /// Typed core behind `"add_hashes_to_page"` and `app_add_hashes`
+    /// (WS-15.2.2b): appends dropped hashes to the page results.
+    fn add_hashes(&mut self, page_id: &str, hashes: &[String]) -> Vec<UiCommand> {
+        let mut parsed: Vec<Vec<u8>> = hashes
+            .iter()
+            .filter_map(|hash| query::unhex(hash))
+            .collect();
+        parsed.retain(|hash| !hash.is_empty());
+
+        if parsed.is_empty() {
+            return vec![UiCommand::NotifyMessage(
+                "no files were dragged".to_string(),
+            )];
+        }
+
+        let controller = self.controller.clone();
+        let Some(page) = self.find_query_mut(page_id) else {
+            return vec![UiCommand::NotifyMessage("page is missing".to_string())];
+        };
+
+        query::append_hashes(page, parsed);
+
+        let state = render::query_page_state(&controller, page);
+
+        vec![
+            UiCommand::UpdatePage(state),
+            self.status_command(),
+        ]
+    }
+
     fn focus(&mut self, page_id: &str, hash_hex: &str) -> Vec<UiCommand> {
         let controller = self.controller.clone();
 
@@ -2173,34 +2284,16 @@ impl AppState {
             return vec![];
         };
 
-        let (tags_json, preview_path, metadata_json) = {
+        {
             let Some(page) = self.find_query_mut(page_id) else {
                 return vec![];
             };
 
             page.focused = Some(hash.clone());
-
-            let tags = query::selection_tags(&controller, &hash);
-            let preview = query::preview_path(&controller, &hash)
-                .map(|path| path.display().to_string())
-                .unwrap_or_default();
-            let metadata = metadata::metadata_json(&controller, &hash);
-
-            (
-                serde_json::to_string(&tags).unwrap_or_else(|_| "[]".to_string()),
-                preview,
-                metadata.to_string(),
-            )
         };
 
         vec![
-            UiCommand::SetSelection {
-                page_id: page_id.to_string(),
-                hash: query::hex(&hash),
-                tags_json,
-                preview_path,
-                metadata_json,
-            },
+            UiCommand::SetSelection(render::selection_state(&controller, page_id, &hash)),
             self.status_command(),
         ]
     }
@@ -2218,7 +2311,7 @@ impl AppState {
             return vec![UiCommand::NotifyMessage("page is missing".to_string())];
         };
 
-        let json = render::viewer_json(&controller, &viewer_id, page, &hash);
+        let json = render::viewer_state(&controller, &viewer_id, page, &hash);
 
         record_viewing(&controller, &hash, 0, true);
 
@@ -2279,10 +2372,10 @@ impl AppState {
                 return vec![];
             };
 
-            render::viewer_json(&controller, viewer_id, page, &next)
+            render::viewer_state(&controller, viewer_id, page, &next)
         };
 
-        let mut commands = vec![UiCommand::UpdateViewer(viewer_id.to_string(), json)];
+        let mut commands = vec![UiCommand::UpdateViewer(json)];
 
         if self.active.as_deref() == Some(context.page_id.as_str()) {
             commands.extend(self.focus(&context.page_id, &query::hex(&next)));

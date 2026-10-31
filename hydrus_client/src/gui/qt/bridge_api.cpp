@@ -214,8 +214,8 @@ void hydrus_build_pages(HydrusMainWindow &window, const Pages &pages) {
     window.build_pages(pages);
 }
 
-void hydrus_update_page(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
-    window.update_page(to_qstring(page_id), parse_object(json));
+void hydrus_update_page(HydrusMainWindow &window, const QueryPageState &page) {
+    window.update_page(page);
 }
 
 void hydrus_update_page_progress(HydrusMainWindow &window, const PageProgress &progress) {
@@ -346,19 +346,8 @@ void hydrus_show_notes(HydrusMainWindow &window, rust::Str json) {
     window.show_notes(parse_object(json));
 }
 
-void hydrus_set_selection(
-    HydrusMainWindow &window,
-    rust::Str page_id,
-    rust::Str hash,
-    rust::Str tags_json,
-    rust::Str preview_path,
-    rust::Str metadata_json) {
-    window.set_selection(
-        to_qstring(page_id),
-        to_qstring(hash),
-        json_to_strings(parse_array(tags_json)),
-        to_qstring(preview_path),
-        parse_object(metadata_json));
+void hydrus_set_selection(HydrusMainWindow &window, const SelectionState &selection) {
+    window.set_selection(selection);
 }
 
 void hydrus_show_page_chooser(HydrusMainWindow &window, rust::Str notebook_id) {
@@ -389,12 +378,12 @@ void hydrus_prompt_url(HydrusMainWindow &window) {
     window.prompt_url();
 }
 
-void hydrus_open_viewer(HydrusMainWindow &window, rust::Str json) {
-    window.open_viewer(parse_object(json));
+void hydrus_open_viewer(HydrusMainWindow &window, const ViewerState &state) {
+    window.open_viewer(state);
 }
 
-void hydrus_update_viewer(HydrusMainWindow &window, rust::Str viewer_id, rust::Str json) {
-    window.update_viewer(to_qstring(viewer_id), parse_object(json));
+void hydrus_update_viewer(HydrusMainWindow &window, const ViewerState &state) {
+    window.update_viewer(state);
 }
 
 void hydrus_close_viewer(HydrusMainWindow &window, rust::Str viewer_id) {

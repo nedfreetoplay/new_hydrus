@@ -24,9 +24,7 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
             ffi::hydrus_show_autocomplete(window.as_mut(), &json);
         }
         UiCommand::BuildPages(pages) => ffi::hydrus_build_pages(window.as_mut(), &pages),
-        UiCommand::UpdatePage(page_id, json) => {
-            ffi::hydrus_update_page(window.as_mut(), &page_id, &json);
-        }
+        UiCommand::UpdatePage(state) => ffi::hydrus_update_page(window.as_mut(), &state),
         UiCommand::PageProgress(progress) => {
             ffi::hydrus_update_page_progress(window.as_mut(), &progress);
         }
@@ -123,21 +121,8 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
             ffi::hydrus_show_export_review(window.as_mut(), &json);
         }
         UiCommand::NotesDialog(json) => ffi::hydrus_show_notes(window.as_mut(), &json),
-        UiCommand::SetSelection {
-            page_id,
-            hash,
-            tags_json,
-            preview_path,
-            metadata_json,
-        } => {
-            ffi::hydrus_set_selection(
-                window.as_mut(),
-                &page_id,
-                &hash,
-                &tags_json,
-                &preview_path,
-                &metadata_json,
-            );
+        UiCommand::SetSelection(selection) => {
+            ffi::hydrus_set_selection(window.as_mut(), &selection);
         }
         UiCommand::Status(status) => ffi::hydrus_set_status(window.as_mut(), &status),
         UiCommand::ShowPageChooser(notebook_id) => {
@@ -191,9 +176,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         }
         UiCommand::PickFiles => ffi::hydrus_pick_files(window.as_mut()),
         UiCommand::PromptUrl => ffi::hydrus_prompt_url(window.as_mut()),
-        UiCommand::OpenViewer(json) => ffi::hydrus_open_viewer(window.as_mut(), &json),
-        UiCommand::UpdateViewer(viewer_id, json) => {
-            ffi::hydrus_update_viewer(window.as_mut(), &viewer_id, &json);
+        UiCommand::OpenViewer(state) => ffi::hydrus_open_viewer(window.as_mut(), &state),
+        UiCommand::UpdateViewer(state) => {
+            ffi::hydrus_update_viewer(window.as_mut(), &state);
         }
         UiCommand::CloseViewer(viewer_id) => {
             ffi::hydrus_close_viewer(window.as_mut(), &viewer_id);

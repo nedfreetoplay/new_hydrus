@@ -472,10 +472,12 @@ pub fn refresh_hash(state: &mut AppState, hash: &[u8]) -> Vec<UiCommand> {
     for (viewer_id, context) in &state.viewers {
         if context.hash == hash {
             if let Some(page) = state.find_query(&context.page_id) {
-                commands.push(UiCommand::UpdateViewer(
-                    viewer_id.clone(),
-                    render::viewer_json(&state.controller, viewer_id, page, hash),
-                ));
+                commands.push(UiCommand::UpdateViewer(render::viewer_state(
+                    &state.controller,
+                    viewer_id,
+                    page,
+                    hash,
+                )));
             }
         }
     }
@@ -637,19 +639,31 @@ pub fn tag_action(state: &mut AppState, add: bool, payload: &str) -> Vec<UiComma
         return vec![UiCommand::NotifyMessage("invalid tag payload".to_string())];
     };
 
-    let Some(hash) = value
+    let hash = value
         .get("hash")
         .and_then(Value::as_str)
-        .and_then(query::unhex)
-    else {
-        return vec![UiCommand::NotifyMessage("invalid file hash".to_string())];
-    };
-
+        .unwrap_or_default();
     let service = value
         .get("service")
         .and_then(Value::as_str)
         .unwrap_or_default();
     let tag = value.get("tag").and_then(Value::as_str).unwrap_or_default();
+
+    set_tag_typed(state, hash, service, tag, add)
+}
+
+/// Typed core behind `"tag_add"`/`"tag_remove"` and `app_tag_edit`
+/// (WS-15.2.2b): adds or removes one tag on one file.
+pub fn set_tag_typed(
+    state: &mut AppState,
+    hash_hex: &str,
+    service: &str,
+    tag: &str,
+    add: bool,
+) -> Vec<UiCommand> {
+    let Some(hash) = query::unhex(hash_hex) else {
+        return vec![UiCommand::NotifyMessage("invalid file hash".to_string())];
+    };
 
     set_tag(state, &hash, service, tag, add)
 }
@@ -661,14 +675,10 @@ pub fn rating_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         )];
     };
 
-    let Some(hash) = value
+    let hash = value
         .get("hash")
         .and_then(Value::as_str)
-        .and_then(query::unhex)
-    else {
-        return vec![UiCommand::NotifyMessage("invalid file hash".to_string())];
-    };
-
+        .unwrap_or_default();
     let service = value
         .get("service")
         .and_then(Value::as_str)
@@ -678,6 +688,21 @@ pub fn rating_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         .and_then(Value::as_str)
         .unwrap_or("clear");
     let rating = value.get("value").and_then(Value::as_f64).unwrap_or(0.0);
+
+    set_rating_typed(state, hash, service, action, rating)
+}
+
+/// Typed core behind `"rating_set"` and `app_set_rating` (WS-15.2.2b).
+pub fn set_rating_typed(
+    state: &mut AppState,
+    hash_hex: &str,
+    service: &str,
+    action: &str,
+    rating: f64,
+) -> Vec<UiCommand> {
+    let Some(hash) = query::unhex(hash_hex) else {
+        return vec![UiCommand::NotifyMessage("invalid file hash".to_string())];
+    };
 
     set_rating(state, &hash, service, action, rating)
 }
@@ -689,17 +714,17 @@ pub fn notes_action(state: &mut AppState, payload: &str, save: bool) -> Vec<UiCo
         )];
     };
 
-    let Some(hash) = value
-        .get("hash")
-        .and_then(Value::as_str)
-        .and_then(query::unhex)
-    else {
+    let Some(hash_hex) = value.get("hash").and_then(Value::as_str) else {
         return vec![UiCommand::NotifyMessage("invalid file hash".to_string())];
     };
 
     if !save {
-        return manage_notes(state, &hash);
+        return manage_notes_typed(state, hash_hex);
     }
+
+    let Some(hash) = query::unhex(hash_hex) else {
+        return vec![UiCommand::NotifyMessage("invalid file hash".to_string())];
+    };
 
     let mut values = BTreeMap::new();
 
@@ -720,6 +745,15 @@ pub fn notes_action(state: &mut AppState, payload: &str, save: bool) -> Vec<UiCo
     }
 
     save_notes(state, &hash, &values)
+}
+
+/// Typed core behind `"notes_manage"` and `app_manage_notes` (WS-15.2.2b).
+pub fn manage_notes_typed(state: &mut AppState, hash_hex: &str) -> Vec<UiCommand> {
+    let Some(hash) = query::unhex(hash_hex) else {
+        return vec![UiCommand::NotifyMessage("invalid file hash".to_string())];
+    };
+
+    manage_notes(state, &hash)
 }
 
 /// Resolves the active selection, for menu actions.

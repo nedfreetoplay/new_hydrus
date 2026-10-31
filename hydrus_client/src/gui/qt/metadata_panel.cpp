@@ -94,208 +94,11 @@ HydrusMetadataPanel::HydrusMetadataPanel(HydrusMainWindow *main_window, QWidget 
     connect(tags, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *) { remove_selected_tags(); });
 }
 
-void HydrusMetadataPanel::set_state(const QJsonObject &metadata) {
-    data = metadata;
-    hash = metadata.value(QStringLiteral("hash")).toString();
-
-    const QString previous = services->currentData().toString();
-    QSignalBlocker blocker(services);
-    services->clear();
-
-    const QJsonArray tag_services = metadata.value(QStringLiteral("tag_services")).toArray();
-
-    for (const QJsonValue &value : tag_services) {
-        const QJsonObject service = value.toObject();
-        services->addItem(
-            service.value(QStringLiteral("name")).toString(),
-            service.value(QStringLiteral("key")).toString());
-    }
-
-    if (services->count() == 0) {
-        services->addItem(QStringLiteral("no local tag service"), QString());
-    }
-
-    if (!previous.isEmpty()) {
-        const int index = services->findData(previous);
-
-        if (index >= 0) {
-            services->setCurrentIndex(index);
-        }
-    }
-
-    blocker.unblock();
-    rebuild_tags();
-    rebuild_ratings(metadata.value(QStringLiteral("ratings")).toArray());
-
-    notes->clear();
-
-    for (const QJsonValue &value : metadata.value(QStringLiteral("notes")).toArray()) {
-        const QJsonObject note = value.toObject();
-        QString text = note.value(QStringLiteral("text")).toString().simplified();
-
-        if (text.size() > 100) {
-            text = text.left(100) + QStringLiteral("...");
-        }
-
-        notes->addItem(QStringLiteral("%1: %2").arg(note.value(QStringLiteral("name")).toString(), text));
-    }
-
-    const QJsonArray note_array = metadata.value(QStringLiteral("notes")).toArray();
-
-    if (note_array.isEmpty()) {
-        notes->addItem(QStringLiteral("no notes"));
-    }
-}
+// WS-15.2.2b: set_state/rebuild_tags/rebuild_ratings moved to typed_media.cpp
+// (typed MetadataState; the QJsonObject seam is gone).
 
 void HydrusMetadataPanel::set_suggestions(const QStringList &suggestions) {
     completer->setModel(new QStringListModel(suggestions, completer));
-}
-
-void HydrusMetadataPanel::rebuild_tags() {
-    tags->clear();
-
-    const QString key = services->currentData().toString();
-    const QJsonArray tag_services = data.value(QStringLiteral("tag_services")).toArray();
-    const QString filter = tag_filter->text().trimmed();
-
-    for (const QJsonValue &value : tag_services) {
-        const QJsonObject service = value.toObject();
-
-        if (service.value(QStringLiteral("key")).toString() != key) {
-            continue;
-        }
-
-        const bool show_display = display_tags->isChecked();
-        const QJsonArray names = service.value(
-            show_display ? QStringLiteral("display_tags") : QStringLiteral("tags")).toArray();
-        const QJsonObject sources = service.value(QStringLiteral("display_tag_sources")).toObject();
-
-        for (const QJsonValue &tag : names) {
-            const QString text = tag.toString();
-
-            if (filter.isEmpty() || text.contains(filter, Qt::CaseInsensitive)) {
-                auto *item = new QListWidgetItem(text, tags);
-
-                if (show_display) {
-                    const QStringList storage = json_to_strings(
-                        sources.value(text).toArray());
-
-                    if (!storage.isEmpty()) {
-                        item->setToolTip(QStringLiteral("storage tags: %1").arg(
-                            storage.join(QStringLiteral(", "))));
-                    }
-                }
-            }
-        }
-
-        break;
-    }
-}
-
-void HydrusMetadataPanel::rebuild_ratings(const QJsonArray &ratings_value) {
-    while (QLayoutItem *item = ratings_layout->takeAt(0)) {
-        if (QWidget *widget = item->widget()) {
-            widget->deleteLater();
-        }
-
-        delete item;
-    }
-
-    if (ratings_value.isEmpty()) {
-        auto *label = new QLabel(QStringLiteral("No rating services. Create one in services."), ratings);
-        label->setWordWrap(true);
-        ratings_layout->addWidget(label);
-    }
-
-    for (const QJsonValue &value : ratings_value) {
-        const QJsonObject rating = value.toObject();
-        const QString service = rating.value(QStringLiteral("key")).toString();
-        const QString kind = rating.value(QStringLiteral("kind")).toString();
-        const QString name = rating.value(QStringLiteral("name")).toString();
-
-        auto *row = new QWidget(ratings);
-        auto *row_layout = new QVBoxLayout(row);
-        row_layout->setContentsMargins(0, 0, 0, 0);
-        row_layout->setSpacing(2);
-
-        auto *caption = new QLabel(name, row);
-        caption->setStyleSheet(QStringLiteral("font-weight: bold;"));
-        row_layout->addWidget(caption);
-
-        if (kind == QStringLiteral("numerical")) {
-            const double current = rating.value(QStringLiteral("value")).toDouble();
-            auto *slider_row = new QWidget(row);
-            auto *slider_layout = new QHBoxLayout(slider_row);
-            slider_layout->setContentsMargins(0, 0, 0, 0);
-            auto *slider = new QSlider(Qt::Horizontal, slider_row);
-            slider->setRange(0, 100);
-            slider->setValue(static_cast<int>(current * 100.0 + 0.5));
-            auto *label = new QLabel(QStringLiteral("%1%").arg(slider->value()), slider_row);
-            label->setMinimumWidth(42);
-            slider_layout->addWidget(slider, 1);
-            slider_layout->addWidget(label);
-            connect(slider, &QSlider::valueChanged, label, [label](int value) {
-                label->setText(QStringLiteral("%1%").arg(value));
-            });
-            connect(slider, &QSlider::sliderReleased, this, [this, service, slider]() {
-                send_rating(service, QStringLiteral("set"), slider->value() / 100.0);
-            });
-            row_layout->addWidget(slider_row);
-        } else if (kind == QStringLiteral("like")) {
-            auto *buttons = new QWidget(row);
-            auto *buttons_layout = new QHBoxLayout(buttons);
-            buttons_layout->setContentsMargins(0, 0, 0, 0);
-            auto *like = new QPushButton(QStringLiteral("like"), buttons);
-            auto *dislike = new QPushButton(QStringLiteral("dislike"), buttons);
-            auto *clear = new QPushButton(QStringLiteral("clear"), buttons);
-            const QString current = rating.value(QStringLiteral("value")).toString();
-            like->setCheckable(true);
-            dislike->setCheckable(true);
-            like->setChecked(current == QStringLiteral("like"));
-            dislike->setChecked(current == QStringLiteral("dislike"));
-            connect(like, &QPushButton::clicked, this, [this, service]() {
-                send_rating(service, QStringLiteral("like"));
-            });
-            connect(dislike, &QPushButton::clicked, this, [this, service]() {
-                send_rating(service, QStringLiteral("dislike"));
-            });
-            connect(clear, &QPushButton::clicked, this, [this, service]() {
-                send_rating(service, QStringLiteral("clear"));
-            });
-            buttons_layout->addWidget(like);
-            buttons_layout->addWidget(dislike);
-            buttons_layout->addWidget(clear);
-            buttons_layout->addStretch(1);
-            row_layout->addWidget(buttons);
-        } else {
-            auto *buttons = new QWidget(row);
-            auto *buttons_layout = new QHBoxLayout(buttons);
-            buttons_layout->setContentsMargins(0, 0, 0, 0);
-            auto *minus = new QPushButton(QStringLiteral("-1"), buttons);
-            auto *plus = new QPushButton(QStringLiteral("+1"), buttons);
-            auto *clear = new QPushButton(QStringLiteral("clear"), buttons);
-            auto *label = new QLabel(QStringLiteral("value: %1").arg(rating.value(QStringLiteral("value")).toInt()), buttons);
-            connect(minus, &QPushButton::clicked, this, [this, service]() {
-                send_rating(service, QStringLiteral("set"), -1.0);
-            });
-            connect(plus, &QPushButton::clicked, this, [this, service]() {
-                send_rating(service, QStringLiteral("set"), 1.0);
-            });
-            connect(clear, &QPushButton::clicked, this, [this, service]() {
-                send_rating(service, QStringLiteral("clear"));
-            });
-            buttons_layout->addWidget(minus);
-            buttons_layout->addWidget(plus);
-            buttons_layout->addWidget(clear);
-            buttons_layout->addWidget(label);
-            buttons_layout->addStretch(1);
-            row_layout->addWidget(buttons);
-        }
-
-        ratings_layout->addWidget(row);
-    }
-
-    ratings_layout->addStretch(1);
 }
 
 void HydrusMetadataPanel::send_tag(const QString &tag, bool add) {
@@ -303,15 +106,15 @@ void HydrusMetadataPanel::send_tag(const QString &tag, bool add) {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("hash"), hash);
-    payload.insert(QStringLiteral("service"), services->currentData().toString());
-    payload.insert(QStringLiteral("tag"), tag.trimmed());
-
-    main->notify(
-        add ? QStringLiteral("tag_add") : QStringLiteral("tag_remove"),
-        QString(),
-        json_payload(payload));
+    const QByteArray hash_bytes = hash.toUtf8();
+    const QByteArray service_bytes = services->currentData().toString().toUtf8();
+    const QByteArray tag_bytes = tag.trimmed().toUtf8();
+    app_tag_edit(
+        *main,
+        rust::Str(hash_bytes.constData(), hash_bytes.size()),
+        rust::Str(service_bytes.constData(), service_bytes.size()),
+        rust::Str(tag_bytes.constData(), tag_bytes.size()),
+        add);
 
     if (add) {
         if (tags->findItems(tag.trimmed(), Qt::MatchExactly).isEmpty()) {
@@ -329,13 +132,15 @@ void HydrusMetadataPanel::send_rating(const QString &service, const QString &act
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("hash"), hash);
-    payload.insert(QStringLiteral("service"), service);
-    payload.insert(QStringLiteral("action"), action);
-    payload.insert(QStringLiteral("value"), value);
-
-    main->notify(QStringLiteral("rating_set"), QString(), json_payload(payload));
+    const QByteArray hash_bytes = hash.toUtf8();
+    const QByteArray service_bytes = service.toUtf8();
+    const QByteArray action_bytes = action.toUtf8();
+    app_set_rating(
+        *main,
+        rust::Str(hash_bytes.constData(), hash_bytes.size()),
+        rust::Str(service_bytes.constData(), service_bytes.size()),
+        rust::Str(action_bytes.constData(), action_bytes.size()),
+        value);
 }
 
 void HydrusMetadataPanel::add_tag() {
@@ -366,7 +171,6 @@ void HydrusMetadataPanel::edit_notes() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("hash"), hash);
-    main->notify(QStringLiteral("notes_manage"), QString(), json_payload(payload));
+    const QByteArray hash_bytes = hash.toUtf8();
+    app_manage_notes(*main, rust::Str(hash_bytes.constData(), hash_bytes.size()));
 }

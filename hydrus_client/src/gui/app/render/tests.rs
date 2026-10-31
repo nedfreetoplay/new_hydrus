@@ -431,3 +431,147 @@ fn query_progress_maps_running_and_idle_import() {
     assert_eq!(missing.importing_done, 0);
     assert_eq!(missing.count, 1);
 }
+
+// WS-15.2.2b: the typed query-page seam carries predicates, focused hash,
+// media rows and thumbnail options without any JSON.
+#[test]
+fn typed_query_page_state_carries_media_and_focus() {
+    let (directory, state) = testing_state("typed_page");
+    let controller = &state.controller;
+
+    let mut page = QueryPage::new("p1", "files", "my files");
+    page.query = "red, system:everything".to_string();
+    page.hashes = vec![vec![7], vec![8]];
+    page.focused = Some(vec![7]);
+    page.loading = true;
+
+    let typed = query_page_state(controller, &page);
+
+    assert_eq!(typed.page_id, "p1");
+    assert_eq!(typed.query, "red, system:everything");
+    assert_eq!(typed.predicates, vec!["red", "system:everything"]);
+    assert_eq!(typed.focused, "07");
+    assert!(typed.loading);
+    assert_eq!(typed.tags, Vec::<String>::new());
+    assert_eq!(typed.thumb_scale_percent, 100);
+    assert!(!typed.thumb_masonry);
+    assert!(!typed.thumb_horizontal);
+
+    assert_eq!(typed.media.len(), 2);
+    assert_eq!(typed.media[0].hash, "07");
+    assert_eq!(typed.media[1].hash, "08");
+    assert!(!typed.media[0].inbox);
+    assert!(!typed.media[0].duplicate);
+    assert!(!typed.media[0].has_rating);
+    assert_eq!(typed.media[0].rating, 0.0);
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn typed_query_page_state_clamps_thumbnail_scale() {
+    let (directory, state) = testing_state("typed_scale");
+    let controller = &state.controller;
+
+    let mut options = controller.options();
+    options.set_integer("thumbnail_scale_percent", 500);
+    options.set_boolean("thumbnail_layout_masonry", true);
+    options.set_boolean("thumbnail_scroll_horizontal", true);
+    controller.replace_options(options);
+
+    let page = QueryPage::new("p1", "files", "my files");
+    let typed = query_page_state(controller, &page);
+
+    assert_eq!(typed.thumb_scale_percent, 400);
+    assert!(typed.thumb_masonry);
+    assert!(typed.thumb_horizontal);
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn typed_media_items_match_legacy_json() {
+    let (directory, state) = testing_state("typed_parity");
+    let controller = &state.controller;
+
+    let mut page = QueryPage::new("p1", "files", "my files");
+    page.hashes = vec![vec![7], vec![8]];
+
+    let typed = crate::gui::app::query::media_items(controller, &page);
+    let legacy = crate::gui::app::query::media_json(controller, &page);
+
+    assert_eq!(typed.len(), legacy.len());
+
+    for (item, value) in typed.iter().zip(legacy.iter()) {
+        assert_eq!(item.hash, value["hash"].as_str().unwrap());
+        assert_eq!(item.thumb, value["thumb"].as_str().unwrap());
+        assert_eq!(item.file, value["file"].as_str().unwrap());
+        assert_eq!(item.url, value["url"].as_str().unwrap_or_default());
+        assert_eq!(item.inbox, value["inbox"].as_bool().unwrap());
+        assert_eq!(item.duplicate, value["duplicate"].as_bool().unwrap());
+        assert_eq!(item.has_rating, !value["rating"].is_null());
+    }
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn typed_selection_state_carries_focus_tags_and_preview() {
+    let (directory, state) = testing_state("typed_selection");
+    let controller = &state.controller;
+
+    let selection = selection_state(controller, "p1", &[7]);
+
+    assert_eq!(selection.page_id, "p1");
+    assert_eq!(selection.hash, "07");
+    assert_eq!(selection.tags, Vec::<String>::new());
+    assert_eq!(selection.preview_path, "");
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn typed_metadata_state_is_empty_for_unknown_hash() {
+    let (directory, state) = testing_state("typed_metadata");
+    let controller = &state.controller;
+
+    let metadata = metadata_state(controller, &[9; 32]);
+
+    assert_eq!(metadata.hash, "0909090909090909090909090909090909090909090909090909090909090909");
+    assert!(metadata.tag_services.is_empty());
+    assert!(metadata.ratings.is_empty());
+    assert!(metadata.notes.is_empty());
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+// WS-15.2.2b: the typed viewer seam formats the window title and status line
+// in Rust; C++ only applies the ready strings.
+#[test]
+fn typed_viewer_state_formats_title_and_info() {
+    let (directory, state) = testing_state("typed_viewer");
+    let controller = &state.controller;
+
+    let mut page = QueryPage::new("p1", "files", "my files");
+    page.hashes = vec![vec![7], vec![8], vec![9]];
+
+    let viewer = viewer_state(controller, "v1", &page, &[7]);
+
+    assert_eq!(viewer.viewer_id, "v1");
+    assert_eq!(viewer.page_id, "p1");
+    assert_eq!(viewer.hash, "07");
+    assert_eq!(viewer.title, "files - 1/3");
+    assert_eq!(viewer.info, "no metadata - file 1/3");
+    assert!(!viewer.always_on_top);
+    assert!(!viewer.frameless);
+    assert!(viewer.zoom_step_percent >= 5 && viewer.zoom_step_percent <= 200);
+
+    let mut options = controller.options();
+    options.set_integer("media_viewer_zoom_step_percent", 500);
+    controller.replace_options(options);
+    let clamped = viewer_state(controller, "v1", &page, &[8]);
+    assert_eq!(clamped.zoom_step_percent, 200);
+    assert_eq!(clamped.title, "files - 2/3");
+
+    let _ = std::fs::remove_dir_all(directory);
+}

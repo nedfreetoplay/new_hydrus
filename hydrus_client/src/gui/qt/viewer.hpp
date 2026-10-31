@@ -2,7 +2,6 @@
 
 // WS-15.1.2a: HydrusViewerWindow moved verbatim from bridge.cpp (move-only split).
 
-#include <QJsonObject>
 #include <QString>
 #include <QWidget>
 
@@ -15,14 +14,18 @@ class HydrusCanvas;
 class HydrusMainWindow;
 class HydrusMetadataPanel;
 
+// WS-15.2.2b: ViewerState is owned by Rust (api.rs); the typed constructor
+// and update_state bodies live in typed_media.cpp.
+struct ViewerState;
+
 // Media viewer frame: canvas plus a tag sidebar, as in Hydrus' canvas frame.
 class HydrusViewerWindow : public QWidget {
 public:
-    HydrusViewerWindow(HydrusMainWindow *main, const QJsonObject &state);
+    HydrusViewerWindow(HydrusMainWindow *main, const ViewerState &state);
 
     const QString &viewer_id() const;
 
-    void update_state(const QJsonObject &state);
+    void update_state(const ViewerState &state);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;

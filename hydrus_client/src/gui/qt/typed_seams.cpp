@@ -18,6 +18,7 @@
 #include "support/strings.hpp"
 
 #include <QAction>
+#include <QByteArray>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -26,6 +27,9 @@
 #include <QFont>
 #include <QFormLayout>
 #include <QHeaderView>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -178,6 +182,10 @@ namespace {
 // WS-15.2.2a: parses the per-screen JSON blobs kept inside PageRow.state
 // (R1 exception: arbitrary per-screen shape until later subtasks).
 QJsonObject parse_string(const rust::String &text);
+// WS-15.2.2b: converts the query page-tree blob to the typed QueryPageState
+// consumed by HydrusQueryPage. Field reads mirror the old QJsonObject seam
+// one to one; the blob itself stays one JSON field (R1 exception).
+QueryPageState to_query_state(const QJsonObject &state);
 } // namespace
 
 // WS-15.2.2a: main-menu bar as flat rows. Depth 0 rows are top-level menus;
@@ -323,7 +331,7 @@ void HydrusMainWindow::populate_notebook(
                 nested);
             populate_notebook(nested, state, cursor, depth + 1, to_qstring(row.current));
         } else if (row.kind == PageKind::Query) {
-            auto *page = new HydrusQueryPage(this, page_id, parse_string(row.state));
+            auto *page = new HydrusQueryPage(this, page_id, to_query_state(parse_string(row.state)));
             this->pages.insert(page_id, page);
             notebook->add_page_widget(
                 page_id, title.isEmpty() ? QStringLiteral("files") : title, page);
@@ -381,6 +389,61 @@ namespace {
 
 QJsonObject parse_string(const rust::String &text) {
     return parse_object(rust::Str(text.data(), text.size()));
+}
+
+QueryPageState to_query_state(const QJsonObject &state) {
+    QueryPageState out;
+
+    const auto assign = [](rust::String &field, const QJsonValue &text) {
+        const QByteArray bytes = text.toString().toUtf8();
+        field = rust::String(bytes.constData());
+    };
+
+    assign(out.page_id, state.value(QStringLiteral("page_id")));
+    assign(out.query, state.value(QStringLiteral("query")));
+    assign(out.location, state.value(QStringLiteral("location")));
+    assign(out.tag_service, state.value(QStringLiteral("tag_service")));
+    assign(out.sort, state.value(QStringLiteral("sort")));
+    out.sort_ascending = state.value(QStringLiteral("sort_ascending")).toBool(true);
+    assign(out.focused, state.value(QStringLiteral("focused")));
+    out.loading = state.value(QStringLiteral("loading")).toBool(false);
+
+    for (const QJsonValue &value : state.value(QStringLiteral("tag_services")).toArray()) {
+        const QByteArray bytes = value.toString().toUtf8();
+        out.tag_services.push_back(rust::String(bytes.constData()));
+    }
+
+    for (const QJsonValue &value : state.value(QStringLiteral("predicates")).toArray()) {
+        const QByteArray bytes = value.toString().toUtf8();
+        out.predicates.push_back(rust::String(bytes.constData()));
+    }
+
+    for (const QJsonValue &value : state.value(QStringLiteral("tags")).toArray()) {
+        const QByteArray bytes = value.toString().toUtf8();
+        out.tags.push_back(rust::String(bytes.constData()));
+    }
+
+    const QJsonObject thumbnails = state.value(QStringLiteral("thumbnails")).toObject();
+    out.thumb_scale_percent = static_cast<int32_t>(thumbnails.value(QStringLiteral("scale_percent")).toInt(100));
+    out.thumb_masonry = thumbnails.value(QStringLiteral("masonry")).toBool(false);
+    out.thumb_horizontal = thumbnails.value(QStringLiteral("horizontal")).toBool(false);
+
+    for (const QJsonValue &value : state.value(QStringLiteral("media")).toArray()) {
+        const QJsonObject object = value.toObject();
+        MediaItem item;
+        assign(item.hash, object.value(QStringLiteral("hash")));
+        assign(item.thumb, object.value(QStringLiteral("thumb")));
+        assign(item.file, object.value(QStringLiteral("file")));
+        assign(item.url, object.value(QStringLiteral("url")));
+        item.inbox = object.value(QStringLiteral("inbox")).toBool(false);
+        item.duplicate = object.value(QStringLiteral("duplicate")).toBool(false);
+        const QJsonValue rating = object.value(QStringLiteral("rating"));
+        item.has_rating = object.contains(QStringLiteral("rating")) && !rating.isNull();
+        item.rating = rating.toDouble(0.0);
+        out.media.push_back(item);
+    }
+
+    return out;
 }
 
 QString page_kind_name(PageKind kind) {

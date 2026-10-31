@@ -65,6 +65,11 @@ struct MenuBar;
 struct Pages;
 struct PageProgress;
 struct PageTree;
+// WS-15.2.2b: media/selection/viewer seams (typed bodies in typed_media.cpp).
+struct QueryPageState;
+struct SelectionState;
+struct MetadataState;
+struct ViewerState;
 
 class HydrusMainWindow : public QMainWindow {
 public:
@@ -74,7 +79,7 @@ public:
     void set_status(const StatusBar &status);
     void set_menus(const MenuBar &menus);
     void build_pages(const Pages &pages);
-    void update_page(const QString &page_id, const QJsonObject &state);
+    void update_page(const QueryPageState &page);
     void update_page_progress(const PageProgress &progress);
     void update_downloader(const QString &page_id, const QJsonObject &state);
     void update_subscriptions(const QString &page_id, const QJsonObject &state);
@@ -88,19 +93,14 @@ public:
     void update_export_folders(const QString &page_id, const QJsonObject &state);
     void show_export_folders_dialog(const QJsonObject &state);
     void update_export_folders_dialog(const QJsonObject &state);
-    void set_selection(
-        const QString &page_id,
-        const QString &hash,
-        const QStringList &tags,
-        const QString &preview_path,
-        const QJsonObject &metadata);
+    void set_selection(const SelectionState &selection);
     void set_tag_suggestions(const QStringList &suggestions);
     const QStringList &suggestions() const;
     void show_autocomplete(const QJsonObject &state);
     void show_page_chooser(const QString &notebook_id);
     void prompt_url();
-    void open_viewer(const QJsonObject &state);
-    void update_viewer(const QString &viewer_id, const QJsonObject &state);
+    void open_viewer(const ViewerState &state);
+    void update_viewer(const ViewerState &state);
     void close_viewer(const QString &viewer_id);
     void show_tag_dialog(const QJsonObject &state);
     void show_notifications(const QJsonObject &state);

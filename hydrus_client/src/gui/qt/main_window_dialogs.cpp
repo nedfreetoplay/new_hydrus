@@ -25,31 +25,8 @@ void HydrusMainWindow::prompt_url() {
     }
 }
 
-void HydrusMainWindow::open_viewer(const QJsonObject &state) {
-    const QString viewer_id = state.value(QStringLiteral("viewer_id")).toString();
-
-    if (viewer_id.isEmpty()) {
-        return;
-    }
-
-    if (HydrusViewerWindow *existing = viewers.value(viewer_id, nullptr)) {
-        existing->update_state(state);
-        existing->raise();
-        existing->activateWindow();
-        return;
-    }
-
-    auto *viewer = new HydrusViewerWindow(this, state);
-    viewer->setAttribute(Qt::WA_DeleteOnClose, true);
-    viewers.insert(viewer_id, viewer);
-    viewer->show();
-}
-
-void HydrusMainWindow::update_viewer(const QString &viewer_id, const QJsonObject &state) {
-    if (HydrusViewerWindow *viewer = viewers.value(viewer_id, nullptr)) {
-        viewer->update_state(state);
-    }
-}
+// WS-15.2.2b: open_viewer/update_viewer bodies moved to typed_media.cpp
+// (typed ViewerState; the QJsonObject seam is gone).
 
 void HydrusMainWindow::close_viewer(const QString &viewer_id) {
     if (HydrusViewerWindow *viewer = viewers.value(viewer_id, nullptr)) {
@@ -128,23 +105,8 @@ void HydrusMainWindow::update_duplicate_review(const QJsonObject &state) {
     }
 }
 
-void HydrusMainWindow::show_tag_dialog(const QJsonObject &state) {
-    QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("manage metadata"));
-    dialog.resize(460, 620);
-
-    auto *layout = new QVBoxLayout(&dialog);
-    auto *panel = new HydrusMetadataPanel(this, &dialog);
-    panel->set_suggestions(suggestions());
-    panel->set_state(state.value(QStringLiteral("metadata")).toObject());
-    layout->addWidget(panel, 1);
-
-    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::accept);
-    layout->addWidget(buttons);
-
-    dialog.exec();
-}
+// WS-15.2.2b: show_tag_dialog moved to typed_media.cpp (the dialog envelope
+// is still JSON, but the metadata panel takes a typed MetadataState).
 
 void HydrusMainWindow::show_services(const QJsonObject &state) {
     if (services_dialog == nullptr) {

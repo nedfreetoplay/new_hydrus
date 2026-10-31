@@ -2,6 +2,8 @@
 
 // WS-15.1.2b: HydrusThumbnailGrid moved verbatim from bridge.hpp/bridge.cpp (move-only split).
 
+#include "rust/cxx.h"
+
 #include <QJsonArray>
 #include <QListWidget>
 #include <QString>
@@ -16,6 +18,11 @@ class HydrusDuplicatesPage;
 class HydrusMainWindow;
 class HydrusQueryPage;
 
+// WS-15.2.2b: MediaItem is owned by Rust (api.rs); the typed set_media body
+// lives in typed_media.cpp. The QJsonArray overload stays for the duplicates
+// media seam until its own subtask.
+struct MediaItem;
+
 // The thumbnail grid. Hydrus uses a custom graphics scene; a uniform-icon
 // QListWidget gives the same grid behaviour with much less code.
 class HydrusThumbnailGrid : public QListWidget {
@@ -23,6 +30,7 @@ public:
     HydrusThumbnailGrid(HydrusMainWindow *main, HydrusQueryPage *page);
     HydrusThumbnailGrid(HydrusMainWindow *main, HydrusDuplicatesPage *page);
 
+    void set_media(const rust::Vec<MediaItem> &media);
     void set_media(const QJsonArray &media);
     void set_focused(const QString &hash);
     void set_layout(bool masonry, bool horizontal, int scale_percent);

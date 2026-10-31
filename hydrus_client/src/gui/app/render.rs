@@ -10,8 +10,9 @@ use super::model::{
 };
 use super::query;
 use crate::gui::qt::api::ffi::{
-    AboutInfo, MenuBar, MenuEntry, PageKind, PageProgress, PageRow, PageTree, PageTreeRow, Pages,
-    StatusBar, ViewingStatRow, ViewingStats,
+    AboutInfo, MenuBar, MenuEntry, MetadataState, NoteState, PageKind, PageProgress,
+    PageRow, PageTree, PageTreeRow, Pages, QueryPageState, RatingKind, RatingState, SelectionState,
+    StatusBar, TagServiceState, TagSource, ViewerState, ViewingStatRow, ViewingStats,
 };
 
 fn menu_title(entries: &mut Vec<MenuEntry>, title: &str) {
@@ -1490,12 +1491,147 @@ pub fn viewing_stats(controller: &crate::controller::Controller, hash: &[u8]) ->
 #[cfg(test)]
 mod tests;
 
-pub fn viewer_json(
+/// Typed file-page contents for `UiCommand::UpdatePage` (WS-15.2.2b).
+/// Same source data as `query_state` (which stays for the page-tree blob),
+/// minus the fields C++ never reads.
+pub fn query_page_state(
+    controller: &crate::controller::Controller,
+    page: &QueryPage,
+) -> QueryPageState {
+    let focused = page
+        .focused
+        .as_ref()
+        .map(|hash| query::hex(hash))
+        .unwrap_or_default();
+
+    let tags = page
+        .focused
+        .as_ref()
+        .map(|hash| query::selection_tags(controller, hash))
+        .unwrap_or_default();
+
+    let options = controller.options();
+
+    QueryPageState {
+        page_id: page.id.clone(),
+        query: page.query.clone(),
+        location: page.location.clone(),
+        tag_service: page.tag_service.clone(),
+        tag_services: query::local_tag_service_names(controller),
+        sort: page.sort.clone(),
+        sort_ascending: page.sort_ascending,
+        focused,
+        tags,
+        predicates: page
+            .query
+            .split(',')
+            .map(str::trim)
+            .filter(|part| !part.is_empty())
+            .map(str::to_string)
+            .collect(),
+        media: query::media_items(controller, page),
+        loading: page.loading,
+        thumb_scale_percent: options.get_integer("thumbnail_scale_percent").clamp(25, 400) as i32,
+        thumb_masonry: options.get_boolean("thumbnail_layout_masonry"),
+        thumb_horizontal: options.get_boolean("thumbnail_scroll_horizontal"),
+    }
+}
+
+/// Typed focus/selection update for `UiCommand::SetSelection` (WS-15.2.2b).
+pub fn selection_state(
+    controller: &crate::controller::Controller,
+    page_id: &str,
+    hash: &[u8],
+) -> SelectionState {
+    SelectionState {
+        page_id: page_id.to_string(),
+        hash: query::hex(hash),
+        tags: query::selection_tags(controller, hash),
+        preview_path: query::preview_path(controller, hash)
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
+    }
+}
+
+/// Typed metadata panel contents (WS-15.2.2b). Same source data as
+/// `metadata::metadata_json` (which stays for the tag dialog), minus the
+/// JSON shapes the bridge cannot carry: the display-tag sources map becomes
+/// a flat vector of pairs and every rating row carries a numeric kind.
+pub fn metadata_state(controller: &crate::controller::Controller, hash: &[u8]) -> MetadataState {
+    let Some(hash_id) = query::hash_id_for(controller, hash) else {
+        return MetadataState {
+            hash: query::hex(hash),
+            tag_services: Vec::new(),
+            ratings: Vec::new(),
+            notes: Vec::new(),
+        };
+    };
+
+    let tag_services = super::metadata::tag_services(controller, hash_id)
+        .into_iter()
+        .map(|service| TagServiceState {
+            key: service.key,
+            name: service.name,
+            tags: service.tags,
+            display_tags: service.display_tags,
+            sources: service
+                .display_tag_sources
+                .into_iter()
+                .map(|(display, storage)| TagSource { display, storage })
+                .collect(),
+        })
+        .collect();
+
+    let ratings = super::metadata::rating_services(controller, hash_id)
+        .into_iter()
+        .map(|service| match service.kind.as_str() {
+            "numerical" => RatingState {
+                key: service.key,
+                name: service.name,
+                kind: RatingKind::Numerical,
+                value_num: service.value.as_f64().unwrap_or(0.0),
+                value_text: String::new(),
+                value_int: 0,
+            },
+            "like" => RatingState {
+                key: service.key,
+                name: service.name,
+                kind: RatingKind::Like,
+                value_num: 0.0,
+                value_text: service.value.as_str().unwrap_or_default().to_string(),
+                value_int: 0,
+            },
+            _ => RatingState {
+                key: service.key,
+                name: service.name,
+                kind: RatingKind::IncDec,
+                value_num: 0.0,
+                value_text: String::new(),
+                value_int: service.value.as_i64().unwrap_or(0),
+            },
+        })
+        .collect();
+
+    let notes = crate::db::notes::get_notes(controller.db().db(), hash_id)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, text)| NoteState { name, text })
+        .collect();
+
+    MetadataState {
+        hash: query::hex(hash),
+        tag_services,
+        ratings,
+        notes,
+    }
+}
+
+pub fn viewer_state(
     controller: &crate::controller::Controller,
     viewer_id: &str,
     page: &QueryPage,
     hash: &[u8],
-) -> String {
+) -> ViewerState {
     let position = query::viewer_position(page, hash);
     let total = page.hashes.len();
     let path = query::preview_path(controller, hash)
@@ -1539,28 +1675,25 @@ pub fn viewer_json(
         || options.get_boolean("always_start_media_viewers_always_on_top");
     let frameless = options.get_boolean("always_start_media_viewers_frameless");
 
-    json!({
-        "viewer_id": viewer_id,
-        "page_id": page.id,
-        "hash": query::hex(hash),
-        "title": format!("{} - {}/{}", page.title, position + 1, total),
-        "path": path,
-        "file_path": file_path,
-        "url": url,
-        "previous_path": previous_path,
-        "next_path": next_path,
-        "tags": query::selection_tags(controller, hash),
-        "metadata": super::metadata::metadata_json(controller, hash),
-        "info": format!("{info} - file {}/{}", position + 1, total),
-        "always_on_top": always_on_top,
-        "frameless": frameless,
-        "muted": options.get_boolean("media_viewer_audio_mute"),
-        "recenter": options.get_boolean("media_viewer_recenter_media_on_window_resize"),
-        "zoom_step_percent": options.get_integer("media_viewer_zoom_step_percent").clamp(5, 200),
-        "prefetch_previous": options.get_integer("media_viewer_prefetch_num_previous").clamp(0, 25),
-        "prefetch_next": options.get_integer("media_viewer_prefetch_num_next").clamp(0, 25),
-    })
-    .to_string()
+    ViewerState {
+        viewer_id: viewer_id.to_string(),
+        page_id: page.id.clone(),
+        hash: query::hex(hash),
+        title: format!("{} - {}/{}", page.title, position + 1, total),
+        path,
+        file_path,
+        url,
+        previous_path,
+        next_path,
+        info: format!("{info} - file {}/{}", position + 1, total),
+        always_on_top,
+        frameless,
+        recenter: options.get_boolean("media_viewer_recenter_media_on_window_resize"),
+        zoom_step_percent: options
+            .get_integer("media_viewer_zoom_step_percent")
+            .clamp(5, 200) as i32,
+        metadata: metadata_state(controller, hash),
+    }
 }
 
 pub fn downloader_json(

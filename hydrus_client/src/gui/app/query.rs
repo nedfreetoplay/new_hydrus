@@ -11,6 +11,7 @@ use crate::db::{files_metadata, files_storage, mappings, master, url_map};
 
 use super::model::QueryPage;
 use super::search;
+use crate::gui::qt::api::ffi::MediaItem;
 
 pub const MAX_DISPLAYED_FILES: usize = 1000;
 
@@ -493,7 +494,10 @@ pub fn all_tags(controller: &Controller) -> Vec<String> {
         .unwrap_or_default()
 }
 
-pub fn media_json(controller: &Controller, page: &QueryPage) -> Vec<serde_json::Value> {
+/// Typed thumbnail rows of a file page (WS-15.2.2b). `media_json` below
+/// serializes the same rows for the page-tree blob (R1 exception); the live
+/// update seam takes these structs directly.
+pub fn media_items(controller: &Controller, page: &QueryPage) -> Vec<MediaItem> {
     let db = controller.db().db();
     let mut duplicate_ids = BTreeSet::new();
 
@@ -542,14 +546,32 @@ pub fn media_json(controller: &Controller, page: &QueryPage) -> Vec<serde_json::
                 .next()
                 .unwrap_or_default();
 
+            MediaItem {
+                hash: hex(hash),
+                thumb,
+                file,
+                url,
+                inbox,
+                duplicate,
+                has_rating: rating.is_some(),
+                rating: rating.unwrap_or(0.0),
+            }
+        })
+        .collect()
+}
+
+pub fn media_json(controller: &Controller, page: &QueryPage) -> Vec<serde_json::Value> {
+    media_items(controller, page)
+        .into_iter()
+        .map(|item| {
             serde_json::json!({
-                "hash": hex(hash),
-                "thumb": thumb,
-                "file": file,
-                "url": url,
-                "inbox": inbox,
-                "duplicate": duplicate,
-                "rating": rating,
+                "hash": item.hash,
+                "thumb": item.thumb,
+                "file": item.file,
+                "url": item.url,
+                "inbox": item.inbox,
+                "duplicate": item.duplicate,
+                "rating": item.has_rating.then_some(item.rating),
             })
         })
         .collect()

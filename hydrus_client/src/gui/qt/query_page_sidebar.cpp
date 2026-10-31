@@ -30,7 +30,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
-HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &page_id, const QJsonObject &state)
+HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &page_id, const QueryPageState &state)
     : QWidget(), main(main_window), id(page_id) {
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);

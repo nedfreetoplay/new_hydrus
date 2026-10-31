@@ -97,10 +97,18 @@ void HydrusThumbnailGrid::dragMoveEvent(QDragMoveEvent *event) {
 void HydrusThumbnailGrid::dropEvent(QDropEvent *event) {
     if (event->mimeData()->hasFormat(QStringLiteral("application/x-hydrus-files"))) {
         const QByteArray payload = event->mimeData()->data(QStringLiteral("application/x-hydrus-files"));
-        main->notify(
-            QStringLiteral("add_hashes_to_page"),
-            page->page_id(),
-            QString::fromUtf8(payload));
+        rust::Vec<rust::String> hashes;
+
+        for (const QJsonValue &value : QJsonDocument::fromJson(payload).array()) {
+            const QByteArray bytes = value.toString().toUtf8();
+            hashes.push_back(rust::String(bytes.constData()));
+        }
+
+        const QByteArray page_bytes = page_id_value.toUtf8();
+        app_add_hashes(
+            *main,
+            rust::Str(page_bytes.constData(), page_bytes.size()),
+            std::move(hashes));
         event->acceptProposedAction();
         return;
     }
@@ -221,12 +229,8 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
     }
 
     if (chosen == notes) {
-        QJsonObject payload;
-        payload.insert(QStringLiteral("hash"), hash);
-        main->notify(
-            QStringLiteral("notes_manage"),
-            QString(),
-            QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)));
+        const QByteArray hash_bytes = hash.toUtf8();
+        app_manage_notes(*main, rust::Str(hash_bytes.constData(), hash_bytes.size()));
         return;
     }
 
@@ -259,18 +263,19 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
     }
 
     if (chosen == like || chosen == dislike || chosen == clear_rating) {
-        QJsonObject payload;
-        payload.insert(QStringLiteral("hash"), hash);
-        payload.insert(
-            QStringLiteral("action"),
-            chosen == like ? QStringLiteral("like")
-                           : chosen == dislike ? QStringLiteral("dislike")
-                                               : QStringLiteral("clear"));
-        payload.insert(QStringLiteral("value"), chosen == like ? 1.0 : 0.0);
-        main->notify(
-            QStringLiteral("rating_set"),
-            QString(),
-            QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)));
+        // Parity: the old JSON seam sent no service key here, so the service
+        // stays empty and Rust reports "rating service is missing".
+        const QByteArray hash_bytes = hash.toUtf8();
+        const QString action = chosen == like ? QStringLiteral("like")
+            : chosen == dislike ? QStringLiteral("dislike")
+                                : QStringLiteral("clear");
+        const QByteArray action_bytes = action.toUtf8();
+        app_set_rating(
+            *main,
+            rust::Str(hash_bytes.constData(), hash_bytes.size()),
+            rust::Str(),
+            rust::Str(action_bytes.constData(), action_bytes.size()),
+            chosen == like ? 1.0 : 0.0);
         return;
     }
 

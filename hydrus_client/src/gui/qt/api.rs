@@ -165,6 +165,144 @@ pub(crate) mod ffi {
         count: i64,
     }
 
+    /// One thumbnail of a file page (WS-15.2.2b).
+    ///
+    /// `rating` travels with an explicit `has_rating` flag instead of JSON
+    /// null; C++ formats the badge exactly like the old JSON seam
+    /// (`QString::number(rating, 'g', 3)`), so the quirk stays in one place.
+    #[derive(Clone, Debug, PartialEq)]
+    struct MediaItem {
+        hash: String,
+        thumb: String,
+        file: String,
+        url: String,
+        inbox: bool,
+        duplicate: bool,
+        has_rating: bool,
+        rating: f64,
+    }
+
+    /// File page contents for `update_page` (WS-15.2.2b).
+    ///
+    /// Only fields the C++ side reads. The old JSON seam also carried
+    /// `status`, `empty_text`, `metadata`, `count` and `importing`: `status`
+    /// travels via `Status`, progress via `PageProgress`, and the metadata
+    /// object was ignored by the query page (`Q_UNUSED`), so they are gone.
+    #[derive(Clone, Debug, PartialEq)]
+    struct QueryPageState {
+        page_id: String,
+        query: String,
+        location: String,
+        tag_service: String,
+        tag_services: Vec<String>,
+        sort: String,
+        sort_ascending: bool,
+        focused: String,
+        tags: Vec<String>,
+        predicates: Vec<String>,
+        media: Vec<MediaItem>,
+        loading: bool,
+        thumb_scale_percent: i32,
+        thumb_masonry: bool,
+        thumb_horizontal: bool,
+    }
+
+    /// One display-tag row with its storage tags for the tooltip (WS-15.2.2b).
+    ///
+    /// Maps do not cross the bridge, so the `display_tag_sources` object of
+    /// the old JSON seam becomes a flat vector of pairs.
+    #[derive(Clone, Debug, PartialEq)]
+    struct TagSource {
+        display: String,
+        storage: Vec<String>,
+    }
+
+    /// One tag service of the metadata panel (WS-15.2.2b).
+    #[derive(Clone, Debug, PartialEq)]
+    struct TagServiceState {
+        key: String,
+        name: String,
+        tags: Vec<String>,
+        display_tags: Vec<String>,
+        sources: Vec<TagSource>,
+    }
+
+    /// Rating service flavour (WS-15.2.2b). Numeric enum, no `Option`:
+    /// every row carries all three value slots and C++ reads the one its
+    /// `kind` selects. Absence is zero/empty, never JSON null.
+    #[derive(Debug)]
+    enum RatingKind {
+        Numerical,
+        Like,
+        IncDec,
+    }
+
+    /// One rating service of the metadata panel (WS-15.2.2b).
+    #[derive(Clone, Debug, PartialEq)]
+    struct RatingState {
+        key: String,
+        name: String,
+        kind: RatingKind,
+        value_num: f64,
+        value_text: String,
+        value_int: i64,
+    }
+
+    /// One note of the metadata panel (WS-15.2.2b).
+    #[derive(Clone, Debug, PartialEq)]
+    struct NoteState {
+        name: String,
+        text: String,
+    }
+
+    /// Metadata panel contents: focused file plus its tag services, rating
+    /// services and notes (WS-15.2.2b). Shared by the viewer seam; the query
+    /// page never showed it (its old `set_selection` ignored the object).
+    #[derive(Clone, Debug, PartialEq)]
+    struct MetadataState {
+        hash: String,
+        tag_services: Vec<TagServiceState>,
+        ratings: Vec<RatingState>,
+        notes: Vec<NoteState>,
+    }
+
+    /// Focus/selection update of a file page (WS-15.2.2b).
+    ///
+    /// The old JSON seam carried a metadata object that the query page
+    /// ignored (`Q_UNUSED(metadata_state)`), so the struct keeps only what
+    /// C++ applies: focused hash, selection tags and the preview path.
+    #[derive(Clone, Debug, PartialEq)]
+    struct SelectionState {
+        page_id: String,
+        hash: String,
+        tags: Vec<String>,
+        preview_path: String,
+    }
+
+    /// Media viewer contents (WS-15.2.2b).
+    ///
+    /// Only fields the C++ side reads. The old JSON seam also carried `tags`,
+    /// `muted` and `prefetch_*`: none of them was consumed by the viewer
+    /// window, so they are gone.
+    #[derive(Clone, Debug, PartialEq)]
+    struct ViewerState {
+        viewer_id: String,
+        page_id: String,
+        hash: String,
+        title: String,
+        path: String,
+        file_path: String,
+        url: String,
+        previous_path: String,
+        next_path: String,
+        info: String,
+        always_on_top: bool,
+        frameless: bool,
+        recenter: bool,
+        zoom_step_percent: i32,
+        metadata: MetadataState,
+    }
+
     unsafe extern "C++" {
         include!("bridge.hpp");
 
@@ -195,7 +333,7 @@ pub(crate) mod ffi {
         fn hydrus_show_autocomplete(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_set_status(window: Pin<&mut HydrusMainWindow>, status: &StatusBar);
         fn hydrus_build_pages(window: Pin<&mut HydrusMainWindow>, pages: &Pages);
-        fn hydrus_update_page(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
+        fn hydrus_update_page(window: Pin<&mut HydrusMainWindow>, page: &QueryPageState);
         fn hydrus_update_page_progress(window: Pin<&mut HydrusMainWindow>, progress: &PageProgress);
         fn hydrus_update_downloader(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
         fn hydrus_update_subscriptions(
@@ -238,14 +376,7 @@ pub(crate) mod ffi {
         fn hydrus_show_export_folder(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_export_review(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_notes(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_set_selection(
-            window: Pin<&mut HydrusMainWindow>,
-            page_id: &str,
-            hash: &str,
-            tags_json: &str,
-            preview_path: &str,
-            metadata_json: &str,
-        );
+        fn hydrus_set_selection(window: Pin<&mut HydrusMainWindow>, selection: &SelectionState);
         fn hydrus_show_page_chooser(window: Pin<&mut HydrusMainWindow>, notebook_id: &str);
         fn hydrus_show_page_manager(window: Pin<&mut HydrusMainWindow>, tree: &PageTree);
         fn hydrus_show_command_palette(window: Pin<&mut HydrusMainWindow>);
@@ -266,8 +397,8 @@ pub(crate) mod ffi {
         fn hydrus_show_or_dialog(window: Pin<&mut HydrusMainWindow>, page_id: &str, initial: &str);
         fn hydrus_pick_files(window: Pin<&mut HydrusMainWindow>);
         fn hydrus_prompt_url(window: Pin<&mut HydrusMainWindow>);
-        fn hydrus_open_viewer(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_update_viewer(window: Pin<&mut HydrusMainWindow>, viewer_id: &str, json: &str);
+        fn hydrus_open_viewer(window: Pin<&mut HydrusMainWindow>, state: &ViewerState);
+        fn hydrus_update_viewer(window: Pin<&mut HydrusMainWindow>, state: &ViewerState);
         fn hydrus_close_viewer(window: Pin<&mut HydrusMainWindow>, viewer_id: &str);
         fn hydrus_show_tag_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_notifications(window: Pin<&mut HydrusMainWindow>, json: &str);
@@ -333,6 +464,35 @@ pub(crate) mod ffi {
         );
         /// Typed reverse seam (WS-15.2.2a): manage-pages dialog close actions.
         fn app_close_pages(window: Pin<&mut HydrusMainWindow>, ids: Vec<String>);
+        /// Typed reverse seams (WS-15.2.2b): thumbnail grid selection, focus,
+        /// viewer open and page-to-page drag. Same cores as the `"..."` notify
+        /// actions, without any JSON payload.
+        fn app_set_selection(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            hashes: Vec<String>,
+        );
+        fn app_focus_hash(window: Pin<&mut HydrusMainWindow>, page_id: &str, hash: &str);
+        fn app_open_viewer(window: Pin<&mut HydrusMainWindow>, page_id: &str, hash: &str);
+        fn app_add_hashes(window: Pin<&mut HydrusMainWindow>, page_id: &str, hashes: Vec<String>);
+        /// Typed reverse seams (WS-15.2.2b): metadata panel tag/rating/notes
+        /// actions. Same cores as `tag_add`/`tag_remove`, `rating_set` and
+        /// `notes_manage`, without any JSON payload.
+        fn app_tag_edit(
+            window: Pin<&mut HydrusMainWindow>,
+            hash: &str,
+            service: &str,
+            tag: &str,
+            add: bool,
+        );
+        fn app_set_rating(
+            window: Pin<&mut HydrusMainWindow>,
+            hash: &str,
+            service: &str,
+            action: &str,
+            value: f64,
+        );
+        fn app_manage_notes(window: Pin<&mut HydrusMainWindow>, hash: &str);
         fn hydrus_validate_export_phrase(phrase: &str) -> String;
         fn hydrus_static_dir() -> String;
     }
@@ -364,6 +524,56 @@ fn app_move_page(
 
 fn app_close_pages(mut window: Pin<&mut ffi::HydrusMainWindow>, ids: Vec<String>) {
     crate::gui::app::handle_close_pages(window.as_mut(), ids);
+}
+
+/// Typed reverse seams (WS-15.2.2b): media/selection/viewer actions from the
+/// thumbnail grid, the query page and the metadata panel.
+fn app_set_selection(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    hashes: Vec<String>,
+) {
+    crate::gui::app::handle_set_selection(window.as_mut(), page_id, &hashes);
+}
+
+fn app_focus_hash(mut window: Pin<&mut ffi::HydrusMainWindow>, page_id: &str, hash: &str) {
+    crate::gui::app::handle_focus_hash(window.as_mut(), page_id, hash);
+}
+
+fn app_open_viewer(mut window: Pin<&mut ffi::HydrusMainWindow>, page_id: &str, hash: &str) {
+    crate::gui::app::handle_open_viewer(window.as_mut(), page_id, hash);
+}
+
+fn app_add_hashes(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    hashes: Vec<String>,
+) {
+    crate::gui::app::handle_add_hashes(window.as_mut(), page_id, &hashes);
+}
+
+fn app_tag_edit(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    hash: &str,
+    service: &str,
+    tag: &str,
+    add: bool,
+) {
+    crate::gui::app::handle_tag_edit(window.as_mut(), hash, service, tag, add);
+}
+
+fn app_set_rating(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    hash: &str,
+    service: &str,
+    action: &str,
+    value: f64,
+) {
+    crate::gui::app::handle_set_rating(window.as_mut(), hash, service, action, value);
+}
+
+fn app_manage_notes(mut window: Pin<&mut ffi::HydrusMainWindow>, hash: &str) {
+    crate::gui::app::handle_manage_notes(window.as_mut(), hash);
 }
 
 /// Returns the Python `VetoException` text for an invalid export filename

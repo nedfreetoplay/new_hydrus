@@ -159,8 +159,7 @@ pub fn action(state: &mut AppState, payload: &str, add: bool) -> Vec<UiCommand> 
     for (viewer_id, context) in &state.viewers {
         if let Some(page) = state.find_query(&context.page_id) {
             commands.push(UiCommand::UpdateViewer(
-                viewer_id.clone(),
-                render::viewer_json(&state.controller, viewer_id, page, &context.hash),
+                render::viewer_state(&state.controller, viewer_id, page, &context.hash),
             ));
         }
     }

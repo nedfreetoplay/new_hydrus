@@ -8,7 +8,8 @@
 //! per screen in WS-15.2.2.
 
 use crate::gui::qt::api::ffi::{
-    AboutInfo, MenuBar, PageProgress, PageTree, Pages, StatusBar, ViewingStats,
+    AboutInfo, MenuBar, PageProgress, PageTree, Pages, QueryPageState, SelectionState, StatusBar,
+    ViewerState, ViewingStats,
 };
 
 #[derive(Debug, Clone)]
@@ -17,7 +18,7 @@ pub enum UiCommand {
     TagSuggestions(String),
     Autocomplete(String),
     BuildPages(Pages),
-    UpdatePage(String, String),
+    UpdatePage(QueryPageState),
     PageProgress(PageProgress),
     Defer {
         action: String,
@@ -52,13 +53,7 @@ pub enum UiCommand {
     CloseRepairFileLocations,
     ExportFolderDialog(String),
     ExportReviewDialog(String),
-    SetSelection {
-        page_id: String,
-        hash: String,
-        tags_json: String,
-        preview_path: String,
-        metadata_json: String,
-    },
+    SetSelection(SelectionState),
     Status(StatusBar),
     ShowPageChooser(String),
     PageManagerDialog(PageTree),
@@ -88,8 +83,8 @@ pub enum UiCommand {
     ImportDownloader(String),
     PickFiles,
     PromptUrl,
-    OpenViewer(String),
-    UpdateViewer(String, String),
+    OpenViewer(ViewerState),
+    UpdateViewer(ViewerState),
     CloseViewer(String),
     TagDialog(String),
     ManageTagsDialog(String),

@@ -410,6 +410,7 @@ JSON-швы.
   - 15.1.2b [x] thumbnail_grid (+dnd), query_page (sidebar/results/state) (коммит 1b1f0d8).
   - 15.1.2c [x] downloader_page (layout/gallery/importers/state), duplicates_page (sidebar/media) (коммит 388aaf5).
   - 15.1.3a [x] auto_resolution_* (6), services_* (3), network_* (2) (коммит 5d137bf).
+  - 15.1.3b [x] import options (3), import/export folder editors (4), main window (3) (коммит 98fc38f).
 - [ ] 15.1.3 Диалоги → по файлу на диалог.
 - [ ] 15.1.4 `bridge.hpp` → заголовки по тем же группам, `bridge.hpp` — агрегатор.
   Проверить, что cxx принимает несколько `include!` в одном модуле; если нет —

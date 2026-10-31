@@ -392,16 +392,16 @@ Python: `canvas/ClientGUICanvas*`, `ClientGUIMPV`, `ClientGUIQtMediaPlayer`,
 Rust-цели: `gui/qt/bridge.*`, `gui/app/render.rs`, `gui/app/metadata.rs`,
 `client_options`.
 
-- [x] 04.1 Статичные изображения, prev/next, fit, zoom, rotate, fullscreen.
-- [x] 04.2 Metadata sidebar в viewer.
+- [~] 04.1 Статичные изображения, prev/next, fit, zoom, rotate, fullscreen.
+- [~] 04.2 Metadata sidebar в viewer.
 - [x] 04.3 Базовые media options (zoom step, recenter, always-on-top, frameless).
 - [ ] 04.4 MPV backend для видео.
 - [ ] 04.5 QtMediaPlayer fallback и audio playback.
 - [~] 04.6 GIF/WebP/animation bar и pause/play.
-- [x] 04.7 Hover frames: top archive/delete/filter, top-right, tags, notes,
+- [~] 04.7 Hover frames: top archive/delete/filter, top-right, tags, notes,
   ratings.
 - [ ] 04.8 Duplicate filter canvas.
-- [x] 04.9 Zoom modes menu, pan modes, background colour/checkerboard.
+- [~] 04.9 Zoom modes menu, pan modes, background colour/checkerboard.
 - [x] 04.10 Prefetch previous/next.
 - [~] 04.11 Open externally и embed button.
 - [x] 04.12 Восстановление размера/позиции viewer.
@@ -838,3 +838,6 @@ results panel selection (WS-03.5), а thread slots (WS-07.18) ждут registry
 - `[x]` нельзя ставить, если экран визуально расходится с Python-версией
   (см. «Правило визуального паритета»); такой экран остаётся `[~]`.
 - В конце каждой фазы обновлять таблицу «Текущий статус» и README.
+
+## WS-14.8 media viewer audit
+- 2026-10-31: visual audit against Python v692; hover panels/background/status text reviewed. WS-04.1/04.2/04.7/04.9/04.13 marked [~]. Screenshots: docs/images/media_viewer.png, docs/images/python_media_viewer.png.

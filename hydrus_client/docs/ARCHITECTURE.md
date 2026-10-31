@@ -46,10 +46,44 @@ gallery/watcher/subscription страниц ставятся в очередь. 
 deadlock/повторный borrow. Менеджеры сервисов и сети немодальные: команда
 `ServicesDialog`/`NetworkDialog` обновляет уже открытое окно, а не открывает второе.
 
-C++-фасад (`bridge.hpp`/`bridge.cpp`) использует обычные Qt Widgets. JSON
-передаётся только через границу cxx: дерево страниц, состояние query/downloader/
+C++-фасад (`gui/qt`) использует обычные Qt Widgets. JSON передаётся только
+через границу cxx: дерево страниц, состояние query/downloader/
 duplicates/subscriptions, меню, статус-бар и данные вьюера. Никакой бизнес-логики
 в C++ нет.
+
+### Структура `gui/qt` (WS-15.1)
+
+Монолит `bridge.cpp`/`bridge.hpp` разобран: `bridge.cpp` удалён, осталось
+65 `.cpp` + 40 `.hpp` (+11 в `support/`). Каждый файл ≤ 600 строк (жёсткий
+предел R3), один файл — одна ответственность (экран или слой).
+
+- `support/` — общий клей: строки/JSON (`strings`), иконки (`icons`), виджеты
+  (`widgets`), пары дубликатов (`pairs`), сортировки и системные предикаты
+  (`sort_options`); `support.hpp` — их агрегатор.
+- Страницы: `canvas`, `notebook`, `viewer`, `autocomplete`, `metadata_panel`,
+  `thumbnail_grid(+_dnd)`, `query_page_(sidebar|results|state)`,
+  `downloader_page_(layout|gallery|importers|state)`,
+  `duplicates_page_(sidebar|media)`.
+- Диалоги: по файлу на диалог (`options_dialog`, `services_*`, `network_*`,
+  `import_options_*`, `import_folder_*`, `export_folder_*`, …).
+- Менеджеры: `subscriptions_page` / `subscriptions_dialog`,
+  `import_folders_manager`, `export_folders_manager` (диалог + legacy-страница).
+- `main_window_(shell|shortcuts|dialogs)` — методы `HydrusMainWindow` по темам;
+  сам класс один, объявлен в `main_window.hpp`, методы лежат в файле экрана.
+- `bridge_api.cpp` / `bridge_api.hpp` — свободный клей cxx
+  (`hydrus_*`, splash, qapp); `screens.hpp` + `bridge.hpp` — тонкие агрегаторы.
+
+Граница cxx — один модуль `#[cxx::bridge] mod ffi` в `bridge.rs` с одним
+`include!("bridge.hpp")`: агрегатор подтягивает все заголовки, поэтому
+разделять мост на `ffi_pages`/`ffi_dialogs` не понадобилось. Новые экраны
+добавляют свой `.hpp`/`.cpp` и строчку в `build.rs` (`.cpp_files([...])`),
+а не код в общий файл.
+
+Правила R1–R3 в применении к `gui/qt`: R1 — новые швы только типизированные
+(варианты `UiCommand` со структурами из `gui/qt/api.rs`, без `QJsonObject` в
+сигнатурах; число JSON-швов не растёт); R2 — чистые форматирование/предикаты/
+метрики живут в `gui/app/**` с unit-тестами, C++ только применяет значения;
+R3 — новый файл не больше 600 строк, иначе делится по экрану или слою.
 
 Вёрстка обязана повторять Python-экран, а не быть «похожей формой»: тот же набор
 и порядок контролов, дословные подписи и заголовки, те же размеры/минимальные

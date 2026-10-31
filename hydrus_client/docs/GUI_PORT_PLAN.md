@@ -370,7 +370,7 @@ JSON-швы.
 `json_payload(`), 114 action-строк, 79 вариантов `UiCommand`, из них 68 несут
 `String`.
 
-### 15.1 Разбиение bridge.cpp / bridge.hpp  `[ ]` P0
+### 15.1 Разбиение bridge.cpp / bridge.hpp  `[x]` P0
 
 Карта переноса (строки текущего `bridge.cpp`; суммы приблизительные, цель —
 каждый файл ≤ 600 строк):
@@ -414,12 +414,25 @@ JSON-швы.
   - 15.1.3c1 [x] options, url class, tag relations, seed cache, command palette, OR predicate, page manager, manage tags (коммит e4d9f4f).
   - 15.1.3c2 [x] timestamps, notifications, about/notes/stats, local import (2), filename tagging, repair locations, tag filter, api permissions, account types, orphan files, database backup, export review, page chooser (коммит ec0c2c7).
 - [x] 15.1.3 Диалоги → по файлу на диалог.
-- [ ] 15.1.4 `bridge.hpp` → заголовки по тем же группам, `bridge.hpp` — агрегатор.
-  Проверить, что cxx принимает несколько `include!` в одном модуле; если нет —
-  отдельные модули `ffi_pages` / `ffi_dialogs`.
-- [ ] 15.1.5 `hydrus_client/build.rs`: `.cpp_files([...])` на новый набор файлов.
-- [ ] 15.1.6 Проверка: ни один файл > 600 строк, сборка без предупреждений, тесты
-  зелёные, поведение не изменилось.
+- [x] 15.1.4 `bridge.hpp` → заголовки по тем же группам, `bridge.hpp` — агрегатор
+  (47 строк). cxx оставлен одним модулем с одним `include!`: агрегатор подтягивает
+  все заголовки, разбиение на `ffi_pages`/`ffi_dialogs` не понадобилось.
+- [x] 15.1.5 `hydrus_client/build.rs`: `.cpp_files([...])` на новый набор файлов;
+  `bridge.cpp` удалён, остатки разложены в `subscriptions_page/dialog`,
+  `import/export_folders_manager`, `main_window_dialogs`, `bridge_api`.
+- [x] 15.1.6 Проверка: ни один файл > 600 строк (максимум
+  `downloader_page_state.cpp` — 599), сборка без предупреждений, тесты зелёные
+  (708 passed), поведение не изменилось (только перемещение кода + два
+  добавленных `#include <QClipboard>`).
+
+Итог 15.1: вместо монолита 18 721 строка (`bridge.cpp`) + 1 395 (`bridge.hpp`)
+получилось 65 `.cpp` + 40 `.hpp` (+11 в `support/`). `bridge.cpp` больше нет:
+свободный клей cxx живёт в `bridge_api.cpp` (576 строк), класс `HydrusMainWindow`
+остался один (объявлен в `main_window.hpp`), его методы лежат в `.cpp` своих
+экранов. `bridge.hpp` — тонкий агрегатор (свои заголовки + `screens.hpp` +
+`main_window.hpp` + `bridge_api.hpp`), cxx-модуль один (`mod ffi` в `bridge.rs`).
+Все критерии разбиения выполнены; типизация швов (15.2) и перенос логики в Rust
+(15.3) — отдельные фазы.
 
 Правила переноса: в одном коммите только перемещение кода, без правок логики;
 после каждого шага сборка и тесты; проверять `git diff -M` на случайные изменения.

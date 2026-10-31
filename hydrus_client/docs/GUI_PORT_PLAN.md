@@ -753,6 +753,23 @@ Rust-цели: `gui/app/options.rs`, `client_options`, `gui/qt/bridge.*`.
 Выход фазы: options покрывают все панели Hydrus, поиск по настройкам работает,
 значения сохраняются.
 
+### WS-12 shell/general audit (2026-10-31)
+
+- WS-12.1/12.2/12.9: options dialog shell and `general` panel audited against
+  live Python v692. Shell: title `options`, search box placeholder
+  `Search options... (Experimental!)` with top/bottom placement driven by
+  `options_search_bar_top_of_window`, buttons `apply`/`cancel` with Hydrus accept/cancel
+  object names, help tooltips on every general field. General tab rebuilt from a field
+  registry (`GENERAL_FIELDS`) with verbatim labels/help from Python panels (gui pages,
+  thumbnails, media playback, popup, advanced). Added `remember_options_window_panel`
+  and `options_search_bar_top_of_window` fields. Pure helpers: `panel_order`,
+  `panel_title`, `general_field`, `general_labels`, `general_help`,
+  `format_field_value` with unit tests.
+- Screenshots: docs/images/options_general.png (Rust), docs/images/python_options_general.png (Python).
+- Remaining differences: Rust keeps the consolidated tab model instead of Python's
+  left panel list/completer; other ~30 panels untouched; icons approximate.
+- Tests: 697 unit + 2 integration + 1 ignored.
+
 ## WS-13. UX, уведомления, системная интеграция
 
 Python: `ClientGUIPopupMessages`, `ClientGUISystemTray`, `ClientGUISplash`,

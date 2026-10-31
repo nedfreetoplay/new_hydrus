@@ -7495,12 +7495,21 @@ public:
         resize(720, 600);
 
         auto *layout = new QVBoxLayout(this);
-        search = new QLineEdit(this);
-        search->setPlaceholderText(QStringLiteral("search options..."));
-        layout->addWidget(search);
+
+        const bool search_bar_top = state.value(QStringLiteral("search_bar_top")).toBool(true);
 
         auto *tabs = new QTabWidget(this);
-        layout->addWidget(tabs, 1);
+
+        search = new QLineEdit(this);
+        search->setPlaceholderText(QStringLiteral("Search options... (Experimental!)"));
+
+        if (search_bar_top) {
+            layout->addWidget(search);
+            layout->addWidget(tabs, 1);
+        } else {
+            layout->addWidget(tabs, 1);
+            layout->addWidget(search);
+        }
 
         const QJsonArray tab_array = state.value(QStringLiteral("tabs")).toArray();
 
@@ -7522,6 +7531,10 @@ public:
                 entry.label = label;
                 auto *label_widget = new QLabel(label, page);
                 entry.label_widget = label_widget;
+                const QString help = field.value(QStringLiteral("help")).toString();
+                if (!help.isEmpty()) {
+                    label_widget->setToolTip(help);
+                }
                 const QJsonValue value = field.value(QStringLiteral("value"));
 
                 if (entry.type == QStringLiteral("bool")) {
@@ -7547,6 +7560,9 @@ public:
                     entry.input_widget = readonly;
                 }
 
+                if (!help.isEmpty() && entry.input_widget != nullptr) {
+                    entry.input_widget->setToolTip(help);
+                }
                 fields.append(entry);
             }
 
@@ -7587,6 +7603,14 @@ public:
         });
 
         auto *buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel, this);
+        if (buttons->button(QDialogButtonBox::Save) != nullptr) {
+            buttons->button(QDialogButtonBox::Save)->setObjectName(QStringLiteral("HydrusAccept"));
+            buttons->button(QDialogButtonBox::Save)->setText(QStringLiteral("apply"));
+        }
+        if (buttons->button(QDialogButtonBox::Cancel) != nullptr) {
+            buttons->button(QDialogButtonBox::Cancel)->setObjectName(QStringLiteral("HydrusCancel"));
+            buttons->button(QDialogButtonBox::Cancel)->setText(QStringLiteral("cancel"));
+        }
         connect(buttons, &QDialogButtonBox::accepted, this, [this]() { apply(); });
         connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
         layout->addWidget(buttons);

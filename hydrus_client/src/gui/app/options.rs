@@ -9,41 +9,150 @@ use crate::client_options::ClientOptions;
 use crate::gui::app::{AppState, UiCommand, render};
 use crate::networking::client_networking_url_class::PathComponent;
 
+#[derive(Debug, Clone, Copy)]
+pub struct GeneralField {
+    pub key: &'static str,
+    pub label: &'static str,
+    pub help: &'static str,
+    pub kind: &'static str,
+}
+
+pub static GENERAL_FIELDS: &[GeneralField] = &[
+    GeneralField {
+        key: "confirm_all_page_closes",
+        label: "confirm closing pages",
+        help: "With this, you will always be asked, even on single page closures of simple file pages.",
+        kind: "bool",
+    },
+    GeneralField {
+        key: "set_search_focus_on_page_change",
+        label: "focus the search box on page change",
+        help: "Set it so whenever you switch between pages, the keyboard focus immediately moves to the tag autocomplete or search text input.",
+        kind: "bool",
+    },
+    GeneralField {
+        key: "show_extended_single_file_info_in_status_bar",
+        label: "show full file info in the status bar",
+        help: "This will show, any time you have a single thumbnail selected, the file info summary you normally see in the top hover window of the media viewer in the main gui status bar. Check the \"media viewer hovers\" options panel to edit what this summary includes.",
+        kind: "bool",
+    },
+    GeneralField {
+        key: "always_loop_gifs",
+        label: "loop gifs",
+        help: "Some GIFS and APNGs have metadata specifying how many times they should be played, usually 1. Uncheck this to obey that number.",
+        kind: "bool",
+    },
+    GeneralField {
+        key: "advanced_mode",
+        label: "show advanced controls",
+        help: "This controls a variety of different features across the program, too many to list neatly. The plan is to blow this single option out into many granular options on this page.\n\nThis plan is failing!",
+        kind: "bool",
+    },
+    GeneralField {
+        key: "max_page_name_chars",
+        label: "maximum page name characters",
+        help: "Max characters to display in a page name.",
+        kind: "int",
+    },
+    GeneralField {
+        key: "popup_message_character_width",
+        label: "popup message width",
+        help: "Approximate max width of popup messages (in characters).",
+        kind: "int",
+    },
+    GeneralField {
+        key: "remember_options_window_panel",
+        label: "remember last open options panel",
+        help: "This will cause the options window (this one) to reopen at the last panel you were looking at when it was closed.",
+        kind: "bool",
+    },
+    GeneralField {
+        key: "options_search_bar_top_of_window",
+        label: "options search bar at top of window",
+        help: "Relocate the built in options search bar. Requires applying and re-opening this dialog to update.",
+        kind: "bool",
+    },
+];
+
+pub fn general_field(key: &str) -> Option<&'static GeneralField> {
+    GENERAL_FIELDS.iter().find(|field| field.key == key)
+}
+
+pub fn general_labels() -> Vec<&'static str> {
+    GENERAL_FIELDS.iter().map(|field| field.label).collect()
+}
+
+pub fn general_help(key: &str) -> &'static str {
+    general_field(key).map(|field| field.help).unwrap_or("")
+}
+
+pub fn panel_order() -> &'static [&'static str] {
+    &[
+        "general", "notifications", "statistics", "files", "exporting", "tags",
+        "thumbnails", "media", "maintenance", "downloads", "network", "api",
+    ]
+}
+
+pub fn panel_title(name: &str) -> &'static str {
+    match name {
+        "general" => "general",
+        "notifications" => "popup notifications",
+        "statistics" => "file viewing statistics",
+        "files" => "files and import",
+        "exporting" => "exporting",
+        "tags" => "tag presentation",
+        "thumbnails" => "thumbnails",
+        "media" => "media viewer",
+        "maintenance" => "file maintenance",
+        "downloads" => "downloaders",
+        "network" => "network",
+        "api" => "client api",
+        _ => "",
+    }
+}
+
+pub fn format_field_value(kind: &str, value: &Value) -> String {
+    match kind {
+        "bool" => {
+            if value.as_bool().unwrap_or(false) {
+                "yes".to_string()
+            } else {
+                "no".to_string()
+            }
+        }
+        "int" => value.as_i64().unwrap_or(0).to_string(),
+        "string" => value.as_str().unwrap_or("").to_string(),
+        "readonly" => value.as_str().unwrap_or("").to_string(),
+        _ => String::new(),
+    }
+}
+
 pub fn options_json(state: &AppState) -> String {
     let controller = &state.controller;
     let options = controller.options();
 
     let mut tabs = Vec::new();
 
-    tabs.push(tab(
-        "general",
-        "general",
-        vec![
-            boolean(&options, "confirm_all_page_closes", "confirm closing pages"),
-            boolean(
-                &options,
-                "set_search_focus_on_page_change",
-                "focus the search box on page change",
-            ),
-            boolean(
-                &options,
-                "show_extended_single_file_info_in_status_bar",
-                "show full file info in the status bar",
-            ),
-            boolean(&options, "always_loop_gifs", "loop gifs"),
-            boolean(&options, "advanced_mode", "show advanced controls"),
-            integer(
-                &options,
-                "max_page_name_chars",
-                "maximum page name characters",
-            ),
-            integer(
-                &options,
-                "popup_message_character_width",
-                "popup message width",
-            ),
-        ],
-    ));
+    let mut general_fields = Vec::new();
+    for field in GENERAL_FIELDS {
+        let value = match field.kind {
+            "bool" => json!(options.get_boolean(field.key)),
+            "int" => json!(options.get_integer(field.key)),
+            "string" => json!(options.get_string(field.key)),
+            _ => json!(null),
+        };
+        general_fields.push(json!({
+            "key": field.key,
+            "label": field.label,
+            "type": field.kind,
+            "value": value,
+            "help": field.help,
+        }));
+    }
+    tabs.push(tab("general", "general", general_fields));
+
+    // search bar placement is driven by the general option of the same name
+    let search_bar_top = options.get_boolean("options_search_bar_top_of_window");
 
     tabs.push(tab(
         "notifications",
@@ -379,6 +488,7 @@ pub fn options_json(state: &AppState) -> String {
     json!({
         "tabs": tabs,
         "title": "options",
+        "search_bar_top": search_bar_top,
     })
     .to_string()
 }
@@ -889,4 +999,62 @@ fn random_hex_32() -> String {
     let mut bytes = [0u8; 32];
     rand::thread_rng().fill_bytes(&mut bytes);
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn panel_order_starts_with_general() {
+        let order = panel_order();
+        assert_eq!(order[0], "general");
+        assert!(order.contains(&"api"));
+        assert_eq!(order.len(), 12);
+    }
+
+    #[test]
+    fn panel_title_lookup() {
+        assert_eq!(panel_title("general"), "general");
+        assert_eq!(panel_title("media"), "media viewer");
+        assert_eq!(panel_title("nope"), "");
+    }
+
+    #[test]
+    fn general_field_label_lookup() {
+        let field = general_field("advanced_mode").expect("field exists");
+        assert_eq!(field.label, "show advanced controls");
+        assert_eq!(field.kind, "bool");
+        assert!(general_field("does_not_exist").is_none());
+    }
+
+    #[test]
+    fn general_labels_include_expected() {
+        let labels = general_labels();
+        assert!(labels.contains(&"confirm closing pages"));
+        assert!(labels.contains(&"loop gifs"));
+    }
+
+    #[test]
+    fn general_help_lookup() {
+        assert!(general_help("always_loop_gifs").contains("GIF"));
+        assert_eq!(general_help("missing"), "");
+    }
+
+    #[test]
+    fn format_field_value_bool() {
+        assert_eq!(format_field_value("bool", &json!(true)), "yes");
+        assert_eq!(format_field_value("bool", &json!(false)), "no");
+    }
+
+    #[test]
+    fn format_field_value_int() {
+        assert_eq!(format_field_value("int", &json!(42)), "42");
+    }
+
+    #[test]
+    fn format_field_value_string() {
+        assert_eq!(format_field_value("string", &json!("abc")), "abc");
+    }
 }

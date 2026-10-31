@@ -385,3 +385,5 @@ pub fn run_application(controller: Arc<Controller>) {
 pub(crate) fn open_path(path: &str) {
     ffi::hydrus_open_path(path);
 }
+
+

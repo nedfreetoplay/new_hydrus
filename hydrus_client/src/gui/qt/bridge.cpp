@@ -14413,7 +14413,7 @@ void HydrusMainWindow::show_about(const QJsonObject &state) {
     layout->addWidget(title);
 
     auto *subtitle = new QLabel(
-        QStringLiteral("Rust/Qt client Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р Р†РІР‚С›РЎС›Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В· software v%1 Р В Р’В Р вЂ™Р’В Р В Р вЂ Р В РІР‚С™Р Р†РІР‚С›РЎС›Р В Р’В Р Р†Р вЂљРІвЂћСћР В РІР‚в„ўР вЂ™Р’В· network v%2")
+        QStringLiteral("Rust/Qt client · software v%1 · network v%2")
             .arg(state.value(QStringLiteral("software_version")).toInt())
             .arg(state.value(QStringLiteral("network_version")).toInt()),
         &dialog);
@@ -17963,7 +17963,7 @@ void HydrusOrphanFilesDialog::set_state(const QJsonObject &state) {
     }
 
     table->resizeRowsToContents();
-    status->setText(QStringLiteral("%1 � %2 file(s), %3 thumbnail(s), %4")
+    status->setText(QStringLiteral("%1 — %2 file(s), %3 thumbnail(s), %4")
                         .arg(state.value(QStringLiteral("status")).toString())
                         .arg(state.value(QStringLiteral("files")).toInt())
                         .arg(state.value(QStringLiteral("thumbnails")).toInt())

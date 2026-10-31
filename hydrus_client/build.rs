@@ -3,13 +3,22 @@ use std::path::{Path, PathBuf};
 fn main() {
     configure_qt_environment();
 
-    cxx_qt_build::CxxQtBuilder::new()
-        .qt_module("Widgets")
-        .qt_module("Svg")
-        .file("src/gui/qt/bridge.rs")
-        .include_dir("src/gui/qt")
-        .cpp_file("src/gui/qt/bridge.cpp")
-        .build();
+    // The C++ sources are UTF-8; the MSVC default is the system code page, which
+    // would turn literals like "·" into mojibake on a non-UTF-8 Windows locale.
+    unsafe {
+        cxx_qt_build::CxxQtBuilder::new()
+            .qt_module("Widgets")
+            .qt_module("Svg")
+            .file("src/gui/qt/bridge.rs")
+            .include_dir("src/gui/qt")
+            .cpp_file("src/gui/qt/bridge.cpp")
+            .cc_builder(|cc| {
+                cc.flag_if_supported("/utf-8");
+                cc.flag_if_supported("-finput-charset=UTF-8");
+                cc.flag_if_supported("-fexec-charset=UTF-8");
+            })
+            .build();
+    }
 }
 
 /// Locate the Qt installation used by this checkout. An explicit QMAKE or

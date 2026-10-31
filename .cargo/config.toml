@@ -1,5 +1,11 @@
-# Build/run through scripts/cargo.ps1 (or scripts/deploy.ps1): it locates MSVC
-# and Qt and puts them in the environment. A plain `cargo build` needs QMAKE or
-# the Qt bin directory in PATH; no machine-specific path is stored here.
+# cxx-qt needs qmake to find Qt at build time. The default below matches the
+# Qt version the README documents; a real QMAKE / CMAKE_PREFIX_PATH environment
+# variable (or scripts/cargo.ps1, which discovers Qt dynamically) still wins.
+# scripts/cargo.ps1 also loads the MSVC environment, so use it when cl.exe is
+# not discoverable by the cc crate.
+[env]
+QMAKE = "C:/Qt/6.12.0/msvc2022_64/bin/qmake.exe"
+CMAKE_PREFIX_PATH = "C:/Qt/6.12.0/msvc2022_64"
+
 [target.x86_64-pc-windows-msvc]
 runner = "scripts/qt-runner.bat"

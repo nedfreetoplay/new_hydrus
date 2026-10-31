@@ -19,4 +19,12 @@
 #include "export_folder.hpp"
 #include "import_folder.hpp"
 #include "import_options.hpp"
+#include "command_palette.hpp"
+#include "manage_tags_dialog.hpp"
+#include "options_dialog.hpp"
+#include "or_predicate_dialog.hpp"
+#include "page_manager.hpp"
+#include "seed_cache_dialog.hpp"
+#include "tag_relations_dialog.hpp"
+#include "url_class_dialog.hpp"
 

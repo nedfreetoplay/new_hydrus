@@ -55,6 +55,14 @@ fn main() {
                 "src/gui/qt/main_window_shell.cpp",
                 "src/gui/qt/main_window_shortcuts.cpp",
                 "src/gui/qt/main_window_dialogs.cpp",
+                "src/gui/qt/options_dialog.cpp",
+                "src/gui/qt/url_class_dialog.cpp",
+                "src/gui/qt/tag_relations_dialog.cpp",
+                "src/gui/qt/seed_cache_dialog.cpp",
+                "src/gui/qt/command_palette.cpp",
+                "src/gui/qt/or_predicate_dialog.cpp",
+                "src/gui/qt/page_manager.cpp",
+                "src/gui/qt/manage_tags_dialog.cpp",
             ])
             .cc_builder(|cc| {
                 cc.flag_if_supported("/utf-8");

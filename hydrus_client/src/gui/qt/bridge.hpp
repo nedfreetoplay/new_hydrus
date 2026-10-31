@@ -63,6 +63,7 @@ class HydrusAutoResolutionRuleDialog;
 class HydrusDuplicateReviewDialog;
 class HydrusDuplicateMergeOptionsDialog;
 class HydrusTagRelationsDialog;
+class HydrusSeedCacheDialog;
 class QTabBar;
 class QCompleter;
 class QVBoxLayout;
@@ -74,27 +75,6 @@ class QMovie;
 class QSystemTrayIcon;
 
 
-// Tag sibling/parent editor. One service at a time, like Hydrus' dialog.
-class HydrusTagRelationsDialog : public QDialog {
-public:
-    HydrusTagRelationsDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
-
-    void set_state(const QJsonObject &state);
-
-private:
-    void rebuild();
-    void add_relation();
-    void remove_selected();
-    QTableWidget *current_table() const;
-    QString current_relation() const;
-
-    HydrusMainWindow *main = nullptr;
-    QJsonObject data;
-    QComboBox *services = nullptr;
-    QTabWidget *tabs = nullptr;
-    QTableWidget *siblings = nullptr;
-    QTableWidget *parents = nullptr;
-};
 
 // Import folders manager page.
 class HydrusImportFoldersPage : public QWidget {
@@ -130,29 +110,6 @@ private:
     QLabel *status = nullptr;
 };
 
-// File seed cache (urls/gallery/simple pages) and gallery seed log. Both share
-// the same table; the gallery log reads the page's gallery seeds instead of the
-// file queue.
-class HydrusSeedCacheDialog : public QDialog {
-public:
-    HydrusSeedCacheDialog(HydrusMainWindow *main, const QJsonObject &state, bool gallery, QWidget *parent = nullptr);
-
-    void set_state(const QJsonObject &state);
-
-private:
-    void rebuild();
-    void send_action(const QString &action);
-    QStringList selected_urls() const;
-
-    HydrusMainWindow *main = nullptr;
-    bool gallery = false;
-    QJsonObject data;
-    QTableWidget *table = nullptr;
-    QComboBox *filter = nullptr;
-    QLineEdit *search = nullptr;
-    QLabel *subtitle = nullptr;
-    QPushButton *retry_button = nullptr;
-};
 
 // Local import review panel: parse paths, show good/bad/sidecar rows, then
 // import the good ones (optionally deleting the originals).

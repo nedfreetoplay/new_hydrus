@@ -14,7 +14,7 @@ pub mod style;
 pub mod time;
 pub mod top_level_windows;
 
-mod qt;
+pub(crate) mod qt;
 
 use std::sync::Arc;
 

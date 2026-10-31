@@ -441,7 +441,7 @@ pub(crate) fn open_hashes_page(
 
     vec![
         UiCommand::BuildPages(render::pages_json(state)),
-        UiCommand::Status(render::status_json(state)),
+        UiCommand::Status(render::status(state)),
     ]
 }
 
@@ -938,7 +938,7 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
             state.message = message;
 
             let mut commands = state.query_progress_commands();
-            commands.push(UiCommand::Status(render::status_json(state)));
+            commands.push(UiCommand::Status(render::status(state)));
             commands
         }
         AsyncEvent::ImportFinished {
@@ -1001,7 +1001,7 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
             }
 
             commands.extend(state.query_progress_commands());
-            commands.push(UiCommand::Status(render::status_json(state)));
+            commands.push(UiCommand::Status(render::status(state)));
             commands
         }
         AsyncEvent::ExportFinished {
@@ -1208,7 +1208,7 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
                 commands.extend(state.refresh_commands());
             }
 
-            commands.push(UiCommand::Status(render::status_json(state)));
+            commands.push(UiCommand::Status(render::status(state)));
             commands
         }
     }
@@ -1231,7 +1231,7 @@ fn downloader_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
 
 fn update_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
     let mut commands = downloader_commands(state, page_id);
-    commands.push(UiCommand::Status(render::status_json(state)));
+    commands.push(UiCommand::Status(render::status(state)));
     commands
 }
 
@@ -1249,7 +1249,7 @@ fn subscriptions_commands(state: &AppState, _page_id: &str) -> Vec<UiCommand> {
     commands.push(UiCommand::UpdateSubscriptionsDialog(
         render::subscriptions_json(state, ""),
     ));
-    commands.push(UiCommand::Status(render::status_json(state)));
+    commands.push(UiCommand::Status(render::status(state)));
     commands
 }
 

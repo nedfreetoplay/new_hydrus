@@ -10,6 +10,12 @@ class QApplication;
 class QSplashScreen;
 class HydrusMainWindow;
 
+// WS-15.2.1: typed seams; the structs are forward-declared here and owned by
+// Rust (api.rs, generated <hydrus_client/src/gui/qt/api.cxx.h>).
+struct StatusBar;
+struct AboutInfo;
+struct ViewingStats;
+
 std::unique_ptr<QApplication> new_application();
 int exec_application(QApplication &application);
 void quit_application(QApplication &application);
@@ -31,7 +37,7 @@ void hydrus_resize_window(HydrusMainWindow &window, int width, int height);
 void hydrus_set_menus(HydrusMainWindow &window, rust::Str json);
 void hydrus_set_tag_suggestions(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_autocomplete(HydrusMainWindow &window, rust::Str json);
-void hydrus_set_status(HydrusMainWindow &window, rust::Str json);
+void hydrus_set_status(HydrusMainWindow &window, const StatusBar &status);
 void hydrus_build_pages(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_page(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_page_progress(
@@ -102,8 +108,8 @@ void hydrus_update_viewer(HydrusMainWindow &window, rust::Str viewer_id, rust::S
 void hydrus_close_viewer(HydrusMainWindow &window, rust::Str viewer_id);
 void hydrus_show_tag_dialog(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_notifications(HydrusMainWindow &window, rust::Str json);
-void hydrus_show_viewing_stats(HydrusMainWindow &window, rust::Str json);
-void hydrus_show_about(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_viewing_stats(HydrusMainWindow &window, const ViewingStats &state);
+void hydrus_show_about(HydrusMainWindow &window, const AboutInfo &state);
 void hydrus_export_downloader(HydrusMainWindow &window, rust::Str page_id);
 void hydrus_import_downloader(HydrusMainWindow &window, rust::Str target);
 void hydrus_show_manage_tags(HydrusMainWindow &window, rust::Str json);

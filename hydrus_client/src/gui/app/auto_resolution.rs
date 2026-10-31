@@ -1570,7 +1570,7 @@ fn refresh(state: &mut AppState) -> Vec<UiCommand> {
     let mut commands = state.refresh_commands();
     commands.push(UiCommand::DuplicatesRulesDialog(dialog_json(state)));
     commands.push(UiCommand::BuildPages(render::pages_json(state)));
-    commands.push(UiCommand::Status(render::status_json(state)));
+    commands.push(UiCommand::Status(render::status(state)));
 
     commands
 }

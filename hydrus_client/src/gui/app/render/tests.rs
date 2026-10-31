@@ -79,7 +79,7 @@ fn maintenance_json_lists_queued_jobs() {
 }
 
 #[test]
-fn about_json_reports_versions_and_paths() {
+fn about_reports_versions_and_paths() {
     let directory = std::env::temp_dir().join(format!(
         "hydrus_gui_about_{}_{}",
         std::process::id(),
@@ -89,22 +89,22 @@ fn about_json_reports_versions_and_paths() {
     controller.init_model().unwrap();
 
     let state = crate::gui::app::model::AppState::new(std::sync::Arc::new(controller));
-    let json: Value = serde_json::from_str(&about_json(&state)).unwrap();
+    let info = about(&state);
 
-    assert_eq!(json["software_version"], 689);
-    assert_eq!(json["network_version"], 20);
-    assert!(json["db_version"].as_i64().unwrap() > 0);
-    assert!(json["sqlite"].as_str().unwrap().starts_with('3'));
-    assert_eq!(json["db_dir"], directory.display().to_string());
-    assert_eq!(json["api"], "stopped");
-    assert!(json["services"].as_i64().unwrap() > 0);
-    assert!(json["site"].as_str().unwrap().starts_with("https://"));
+    assert_eq!(info.software_version, 689);
+    assert_eq!(info.network_version, 20);
+    assert!(info.db_version > 0);
+    assert!(info.sqlite.starts_with('3'));
+    assert_eq!(info.db_dir, directory.display().to_string());
+    assert_eq!(info.api, "stopped");
+    assert!(info.services > 0);
+    assert!(info.site.starts_with("https://"));
 
     let _ = std::fs::remove_dir_all(directory);
 }
 
 #[test]
-fn viewing_stats_json_lists_media_and_preview() {
+fn viewing_stats_lists_media_and_preview() {
     let directory = std::env::temp_dir().join(format!(
         "hydrus_gui_viewing_stats_{}_{}",
         std::process::id(),
@@ -119,19 +119,84 @@ fn viewing_stats_json_lists_media_and_preview() {
     files_viewing_stats::add_viewing_stats(db, hash_id, 0, 4, 2000, Some(1_700_000_000_000))
         .unwrap();
 
-    let json: Value = serde_json::from_str(&viewing_stats_json(&controller, &hash)).unwrap();
-    let rows = json["rows"].as_array().unwrap();
+    let stats = viewing_stats(&controller, &hash);
 
     assert_eq!(
-        json["hash"],
+        stats.hash,
         "7171717171717171717171717171717171717171717171717171717171717171"
     );
-    assert_eq!(rows.len(), 2);
-    assert_eq!(rows[0]["canvas"], "media");
-    assert_eq!(rows[0]["views"], 4);
-    assert_eq!(rows[0]["viewtime"], 2);
-    assert_eq!(rows[1]["canvas"], "preview");
-    assert_eq!(rows[1]["views"], 0);
+    assert_eq!(stats.rows.len(), 2);
+    assert_eq!(stats.rows[0].canvas, "media");
+    assert_eq!(stats.rows[0].views, 4);
+    assert_eq!(stats.rows[0].viewtime_secs, 2);
+    assert_eq!(stats.rows[1].canvas, "preview");
+    assert_eq!(stats.rows[1].views, 0);
 
     let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn status_text_helpers_cover_query_downloader_and_busy() {
+    let mut page = QueryPage::new("p1", "files", "my files");
+    page.hashes = vec![vec![1], vec![2], vec![3]];
+    page.status = "searching".to_string();
+
+    page.focused = Some(vec![2]);
+    page.selected = Vec::new();
+    assert_eq!(query_page_media_text(&page), "2/3 - searching");
+
+    page.focused = None;
+    page.selected = vec![vec![1], vec![2]];
+    assert_eq!(query_page_media_text(&page), "2 selected - searching");
+
+    let mut watcher = crate::gui::app::model::DownloaderPage::new(
+        "d1",
+        crate::gui::app::model::DownloaderKind::Watcher,
+    );
+    assert_eq!(
+        downloader_page_media_text(&watcher),
+        "no highlighted watcher"
+    );
+    watcher.url = "https://example.com/feed".to_string();
+    assert_eq!(
+        downloader_page_media_text(&watcher),
+        "no files for this watcher and its publishing settings"
+    );
+
+    let gallery = crate::gui::app::model::DownloaderPage::new(
+        "d2",
+        crate::gui::app::model::DownloaderKind::Gallery,
+    );
+    assert_eq!(
+        downloader_page_media_text(&gallery),
+        "no highlighted query"
+    );
+
+    let idle_import = ImportQueueState {
+        running: false,
+        done: 0,
+        total: 0,
+        imported: 0,
+        failed: 0,
+        message: String::new(),
+    };
+    assert_eq!(busy_text(&idle_import, None), "");
+    assert_eq!(idle_text(""), "idle");
+    assert_eq!(idle_text("1/2"), "");
+    assert_eq!(bandwidth_text(false), "0B");
+    assert_eq!(bandwidth_text(true), "network paused");
+
+    let running_import = ImportQueueState {
+        running: true,
+        done: 1,
+        total: 2,
+        imported: 1,
+        failed: 0,
+        message: String::new(),
+    };
+    assert_eq!(busy_text(&running_import, None), "1/2");
+    assert_eq!(
+        busy_text(&idle_import, Some(("gallery", 3, 7))),
+        "gallery: 3/7"
+    );
 }

@@ -405,7 +405,7 @@ fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::UpdateOrphanFiles(dialog_json(state)),
         UiCommand::Menus(render::menus_json(state)),
-        UiCommand::Status(render::status_json(state)),
+        UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
     ]
 }
@@ -415,7 +415,7 @@ fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
         UiCommand::NotifyMessage(message.into()),
         UiCommand::UpdateOrphanFiles(dialog_json(state)),
         UiCommand::Menus(render::menus_json(state)),
-        UiCommand::Status(render::status_json(state)),
+        UiCommand::Status(render::status(state)),
     ]
 }
 

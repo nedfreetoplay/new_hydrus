@@ -470,7 +470,7 @@ fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
 fn refresh_menus(state: &AppState) -> Vec<UiCommand> {
     vec![
         UiCommand::Menus(render::menus_json(state)),
-        UiCommand::Status(render::status_json(state)),
+        UiCommand::Status(render::status(state)),
     ]
 }
 

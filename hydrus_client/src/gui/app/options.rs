@@ -810,13 +810,13 @@ pub fn apply_options(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 
     let mut commands = vec![
         UiCommand::Menus(render::menus_json(state)),
-        UiCommand::Status(render::status_json(state)),
+        UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(state.message.clone()),
     ];
 
     if state.controller.network_paused() {
         state.message = "network is paused".to_string();
-        commands.push(UiCommand::Status(render::status_json(state)));
+        commands.push(UiCommand::Status(render::status(state)));
     }
 
     commands
@@ -1182,7 +1182,7 @@ fn network_commands(state: &AppState) -> Vec<UiCommand> {
     vec![
         UiCommand::NetworkDialog(network_json(state)),
         UiCommand::Menus(render::menus_json(state)),
-        UiCommand::Status(render::status_json(state)),
+        UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(state.message.clone()),
     ]
 }

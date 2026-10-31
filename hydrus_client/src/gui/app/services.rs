@@ -1154,7 +1154,7 @@ fn service_commands(state: &AppState, message: impl Into<String>) -> Vec<UiComma
     vec![
         UiCommand::UpdateServices(services_json(state)),
         UiCommand::Menus(render::menus_json(state)),
-        UiCommand::Status(render::status_json(state)),
+        UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
     ]
 }

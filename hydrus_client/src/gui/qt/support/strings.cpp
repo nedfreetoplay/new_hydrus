@@ -7,6 +7,10 @@ QString to_qstring(rust::Str text) {
     return QString::fromUtf8(text.data(), static_cast<int>(text.size()));
 }
 
+QString to_qstring(const rust::String &text) {
+    return QString::fromUtf8(text.data(), static_cast<int>(text.size()));
+}
+
 QString from_rust(rust::Str text) {
     return QString::fromUtf8(text.data(), static_cast<int>(text.size()));
 }

@@ -56,12 +56,16 @@ class HydrusLocalImportReviewDialog;
 class HydrusLocalImportTaggingDialog;
 class HydrusRepairFileLocationsDialog;
 
+struct StatusBar;
+struct AboutInfo;
+struct ViewingStats;
+
 class HydrusMainWindow : public QMainWindow {
 public:
     explicit HydrusMainWindow(QWidget *parent = nullptr);
 
     void build_shell();
-    void set_status(const QJsonObject &status);
+    void set_status(const StatusBar &status);
     void set_menus(const QJsonArray &menus);
     void build_pages(const QJsonObject &pages);
     void update_page(const QString &page_id, const QJsonObject &state);
@@ -94,8 +98,8 @@ public:
     void close_viewer(const QString &viewer_id);
     void show_tag_dialog(const QJsonObject &state);
     void show_notifications(const QJsonObject &state);
-    void show_viewing_stats(const QJsonObject &state);
-    void show_about(const QJsonObject &state);
+    void show_viewing_stats(const ViewingStats &state);
+    void show_about(const AboutInfo &state);
     void show_notes(const QJsonObject &state);
     void show_duplicates_rules(const QJsonObject &state);
     void show_duplicate_merge_options(const QJsonObject &state);

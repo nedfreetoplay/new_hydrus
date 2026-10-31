@@ -3,7 +3,7 @@
 
 use std::pin::Pin;
 
-use super::bridge::ffi;
+use super::api::ffi;
 use crate::gui::app::UiCommand;
 
 type Window<'a> = Pin<&'a mut ffi::HydrusMainWindow>;
@@ -139,7 +139,7 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
                 &metadata_json,
             );
         }
-        UiCommand::Status(json) => ffi::hydrus_set_status(window.as_mut(), &json),
+        UiCommand::Status(status) => ffi::hydrus_set_status(window.as_mut(), &status),
         UiCommand::ShowPageChooser(notebook_id) => {
             ffi::hydrus_show_page_chooser(window.as_mut(), &notebook_id);
         }
@@ -171,11 +171,11 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::NotificationsDialog(json) => {
             ffi::hydrus_show_notifications(window.as_mut(), &json);
         }
-        UiCommand::ViewingStatsDialog(json) => {
-            ffi::hydrus_show_viewing_stats(window.as_mut(), &json);
+        UiCommand::ViewingStatsDialog(state) => {
+            ffi::hydrus_show_viewing_stats(window.as_mut(), &state);
         }
-        UiCommand::AboutDialog(json) => {
-            ffi::hydrus_show_about(window.as_mut(), &json);
+        UiCommand::AboutDialog(state) => {
+            ffi::hydrus_show_about(window.as_mut(), &state);
         }
         UiCommand::ExportDownloader(page_id) => {
             ffi::hydrus_export_downloader(window.as_mut(), &page_id);

@@ -510,7 +510,7 @@ pub fn copy_tags(state: &mut AppState) -> Vec<UiCommand> {
 
     vec![
         UiCommand::SetClipboard(tags.join("\n")),
-        UiCommand::Status(render::status_json(state)),
+        UiCommand::Status(render::status(state)),
     ]
 }
 
@@ -559,7 +559,7 @@ pub fn apply_tags_selection(state: &mut AppState, payload: &str) -> Vec<UiComman
 
     let mut commands = state.refresh_commands();
     commands.push(UiCommand::NotifyMessage(state.message.clone()));
-    commands.push(UiCommand::Status(render::status_json(state)));
+    commands.push(UiCommand::Status(render::status(state)));
 
     if let Some(page) = state.find_query(&page_id) {
         if let Some(hash) = page.focused.clone() {

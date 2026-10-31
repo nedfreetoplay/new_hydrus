@@ -222,7 +222,7 @@ pub fn save_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 
     vec![
         UiCommand::NotifyMessage("import options saved".to_string()),
-        UiCommand::Status(render::status_json(state)),
+        UiCommand::Status(render::status(state)),
     ]
 }
 

@@ -9,7 +9,7 @@ fn main() {
         cxx_qt_build::CxxQtBuilder::new()
             .qt_module("Widgets")
             .qt_module("Svg")
-            .file("src/gui/qt/bridge.rs")
+            .file("src/gui/qt/api.rs")
             .include_dir("src/gui/qt")
             .cpp_file("src/gui/qt/bridge_api.cpp")
             .cpp_files([
@@ -77,8 +77,7 @@ fn main() {
                 "src/gui/qt/account_types.cpp",
                 "src/gui/qt/orphan_files.cpp",
                 "src/gui/qt/database_backup.cpp",
-                "src/gui/qt/stats_dialog.cpp",
-                "src/gui/qt/about_dialog.cpp",
+                "src/gui/qt/typed_seams.cpp",
                 "src/gui/qt/notes_dialog.cpp",
                 "src/gui/qt/tag_filter.cpp",
                 "src/gui/qt/export_review.cpp",

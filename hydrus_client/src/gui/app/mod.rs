@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 
 use crate::controller::Controller;
 use crate::db::{files_storage, files_timestamps, files_viewing_stats, mappings, master_tags};
-use crate::gui::qt::bridge::ffi;
+use crate::gui::qt::api::ffi;
 use crate::gui::qt::panels;
 
 pub mod api_permissions;
@@ -82,7 +82,7 @@ pub fn initial_commands() -> Vec<UiCommand> {
             UiCommand::Menus(render::menus_json(state)),
             UiCommand::TagSuggestions(tags),
             UiCommand::BuildPages(render::pages_json(state)),
-            UiCommand::Status(render::status_json(state)),
+            UiCommand::Status(render::status(state)),
         ];
 
         if state
@@ -360,7 +360,7 @@ pub(crate) fn maintenance_tick(state: &mut AppState) -> Vec<UiCommand> {
     }
 
     state.message = format!("file maintenance: {done} done, {failed} failed");
-    vec![UiCommand::Status(render::status_json(state))]
+    vec![UiCommand::Status(render::status(state))]
 }
 
 pub(crate) fn run_maintenance(state: &mut AppState, limit: usize) -> (usize, usize) {
@@ -437,7 +437,7 @@ fn with_state<R>(call: impl FnOnce(&AppState) -> R) -> R {
 
 impl AppState {
     fn status_command(&self) -> UiCommand {
-        UiCommand::Status(render::status_json(self))
+        UiCommand::Status(render::status(self))
     }
 
     /// Progress-only updates for every file page; used while imports change
@@ -932,7 +932,7 @@ impl AppState {
                     hash
                 };
 
-                vec![UiCommand::ViewingStatsDialog(render::viewing_stats_json(
+                vec![UiCommand::ViewingStatsDialog(render::viewing_stats(
                     &self.controller,
                     &hash_bytes,
                 ))]
@@ -1380,7 +1380,7 @@ impl AppState {
                 commands.push(UiCommand::DuplicatesRulesDialog(
                     auto_resolution::dialog_json(self),
                 ));
-                commands.push(UiCommand::Status(render::status_json(self)));
+                commands.push(UiCommand::Status(render::status(self)));
                 commands
             }
             action if action.starts_with("duplicates_") => {
@@ -1418,7 +1418,7 @@ impl AppState {
             "docs" => vec![UiCommand::OpenUrl(
                 "https://hydrusnetwork.github.io/hydrus/".to_string(),
             )],
-            "about" => vec![UiCommand::AboutDialog(render::about_json(self))],
+            "about" => vec![UiCommand::AboutDialog(render::about(self))],
             "db_info" => {
                 let version = self.controller.db().get_version().unwrap_or(0);
                 let services = self.controller.services().get_num_services();

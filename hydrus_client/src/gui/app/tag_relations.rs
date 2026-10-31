@@ -169,7 +169,7 @@ pub fn action(state: &mut AppState, payload: &str, add: bool) -> Vec<UiCommand> 
         state,
         relation_name(relation),
     )));
-    commands.push(UiCommand::Status(render::status_json(state)));
+    commands.push(UiCommand::Status(render::status(state)));
     commands
 }
 

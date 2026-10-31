@@ -1,3 +1,4 @@
+pub(crate) mod api;
 pub(crate) mod bridge;
 pub(crate) mod panels;
 

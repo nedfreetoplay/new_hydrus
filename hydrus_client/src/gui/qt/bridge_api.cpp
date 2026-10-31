@@ -206,8 +206,8 @@ void hydrus_show_autocomplete(HydrusMainWindow &window, rust::Str json) {
     window.show_autocomplete(parse_object(json));
 }
 
-void hydrus_set_status(HydrusMainWindow &window, rust::Str json) {
-    window.set_status(parse_object(json));
+void hydrus_set_status(HydrusMainWindow &window, const StatusBar &status) {
+    window.set_status(status);
 }
 
 void hydrus_build_pages(HydrusMainWindow &window, rust::Str json) {
@@ -409,12 +409,12 @@ void hydrus_show_notifications(HydrusMainWindow &window, rust::Str json) {
     window.show_notifications(parse_object(json));
 }
 
-void hydrus_show_viewing_stats(HydrusMainWindow &window, rust::Str json) {
-    window.show_viewing_stats(parse_object(json));
+void hydrus_show_viewing_stats(HydrusMainWindow &window, const ViewingStats &state) {
+    window.show_viewing_stats(state);
 }
 
-void hydrus_show_about(HydrusMainWindow &window, rust::Str json) {
-    window.show_about(parse_object(json));
+void hydrus_show_about(HydrusMainWindow &window, const AboutInfo &state) {
+    window.show_about(state);
 }
 
 void hydrus_export_downloader(HydrusMainWindow &window, rust::Str page_id) {

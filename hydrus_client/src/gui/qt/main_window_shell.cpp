@@ -178,19 +178,6 @@ void HydrusMainWindow::build_shell() {
     }
 }
 
-void HydrusMainWindow::set_status(const QJsonObject &status) {
-    const QString media = status.value(QStringLiteral("media")).toString();
-    const QString message = status.value(QStringLiteral("message")).toString();
-
-    status_media->setText(media.isEmpty() ? message : media);
-    status_media->setToolTip(message.isEmpty() ? media : message);
-    status_bandwidth->setText(status.value(QStringLiteral("bandwidth")).toString());
-    status_idle->setText(status.value(QStringLiteral("idle")).toString());
-    status_hydrus_busy->setText(status.value(QStringLiteral("hydrus_busy")).toString());
-    status_cpu_busy->setText(status.value(QStringLiteral("cpu_busy")).toString());
-    status_db->setText(status.value(QStringLiteral("db")).toString());
-}
-
 void HydrusMainWindow::set_menus(const QJsonArray &menus) {
     menuBar()->clear();
 

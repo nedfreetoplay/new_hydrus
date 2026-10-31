@@ -5,9 +5,11 @@ use serde_json::{Value, json};
 use hydrus_core::hydrus_constants::ServiceType;
 
 use super::model::{
-    AppState, DownloaderKind, DownloaderPage, DuplicatesPage, PageNode, QueryPage,
+    AppState, DownloaderKind, DownloaderPage, DuplicatesPage, ImportQueueState, PageNode,
+    QueryPage,
 };
 use super::query;
+use crate::gui::qt::api::ffi::{AboutInfo, StatusBar, ViewingStatRow, ViewingStats};
 
 pub fn menus_json(state: &AppState) -> String {
     let services = state.controller.services();
@@ -663,7 +665,7 @@ pub fn maintenance_json(state: &AppState) -> String {
     text
 }
 
-pub fn about_json(state: &AppState) -> String {
+pub fn about(state: &AppState) -> AboutInfo {
     let controller = &state.controller;
     let db = controller.db().db();
     let sqlite: String = db
@@ -676,96 +678,122 @@ pub fn about_json(state: &AppState) -> String {
         .and_then(|path| path.parent().map(|parent| parent.display().to_string()))
         .unwrap_or_default();
 
-    json!({
-        "title": "about",
-        "software_version": hydrus_core::hydrus_constants::SOFTWARE_VERSION,
-        "network_version": hydrus_core::hydrus_constants::NETWORK_VERSION,
-        "client_api_version": hydrus_core::hydrus_constants::CLIENT_API_VERSION,
-        "db_version": controller.db().get_version().unwrap_or(0),
-        "db_dir": controller.db_dir().display().to_string(),
-        "install_dir": install_dir,
-        "services": controller.services().get_num_services(),
-        "locations": controller.files_manager().locations().len(),
-        "shortcuts": controller.shortcuts().len(),
-        "api": controller.api_status().unwrap_or_else(|| "stopped".to_string()),
-        "sqlite": sqlite,
-        "rust": env!("CARGO_PKG_VERSION"),
-        "license": "Hydrus is free software, released under the WTFPL.",
-        "site": "https://hydrusnetwork.github.io/hydrus/",
-        "credits": "Hydrus Network by the Hydrus developer and contributors.",
-    })
-    .to_string()
+    AboutInfo {
+        software_version: hydrus_core::hydrus_constants::SOFTWARE_VERSION,
+        network_version: hydrus_core::hydrus_constants::NETWORK_VERSION,
+        client_api_version: hydrus_core::hydrus_constants::CLIENT_API_VERSION,
+        db_version: controller.db().get_version().unwrap_or(0),
+        db_dir: controller.db_dir().display().to_string(),
+        install_dir,
+        services: controller.services().get_num_services() as i32,
+        locations: controller.files_manager().locations().len() as i32,
+        shortcuts: controller.shortcuts().len() as i32,
+        api: controller
+            .api_status()
+            .unwrap_or_else(|| "stopped".to_string()),
+        sqlite,
+        rust_crate: env!("CARGO_PKG_VERSION").to_string(),
+        license: "Hydrus is free software, released under the WTFPL.".to_string(),
+        site: "https://hydrusnetwork.github.io/hydrus/".to_string(),
+        credits: "Hydrus Network by the Hydrus developer and contributors.".to_string(),
+    }
 }
 
-pub fn status_json(state: &AppState) -> String {
-    let media = match state.active_query() {
-        Some(page) => {
-            let position = page
-                .focused
-                .as_ref()
-                .map(|hash| {
-                    let index = query::viewer_position(page, hash);
-                    format!("{}/{} - ", index + 1, page.hashes.len())
-                })
-                .unwrap_or_default();
+/// Status-bar media text for a query page: `3/12 - ` from the focused file,
+/// `N selected - ` when several files are selected (R2: pure, tested).
+pub fn query_page_media_text(page: &QueryPage) -> String {
+    let position = page
+        .focused
+        .as_ref()
+        .map(|hash| {
+            let index = query::viewer_position(page, hash);
+            format!("{}/{} - ", index + 1, page.hashes.len())
+        })
+        .unwrap_or_default();
 
-            if page.selected.len() > 1 {
-                format!("{} selected - {}", page.selected.len(), page.status)
-            } else {
-                format!("{position}{}", page.status)
-            }
-        }
+    if page.selected.len() > 1 {
+        format!("{} selected - {}", page.selected.len(), page.status)
+    } else {
+        format!("{position}{}", page.status)
+    }
+}
+
+/// Empty-state media text for a downloader page (R2: pure, tested).
+pub fn downloader_page_media_text(page: &DownloaderPage) -> String {
+    if page.kind == DownloaderKind::Watcher && !page.url.is_empty() {
+        "no files for this watcher and its publishing settings".to_string()
+    } else if page.kind == DownloaderKind::Watcher {
+        "no highlighted watcher".to_string()
+    } else if page.kind == DownloaderKind::Gallery {
+        "no highlighted query".to_string()
+    } else if page.queue.is_empty() && page.results.is_empty() {
+        "empty page".to_string()
+    } else {
+        format!("{} files", page.results.len())
+    }
+}
+
+/// `done/total` while the import queue runs, otherwise `title: done/total`
+/// of the running downloader, otherwise empty (R2: pure, tested).
+pub fn busy_text(import: &ImportQueueState, running: Option<(&str, usize, usize)>) -> String {
+    if import.running {
+        format!("{}/{}", import.done, import.total)
+    } else if let Some((title, done, total)) = running {
+        format!("{title}: {done}/{total}")
+    } else {
+        String::new()
+    }
+}
+
+/// `"idle"` when nothing is busy, otherwise empty (R2: pure, tested).
+pub fn idle_text(busy: &str) -> String {
+    if busy.is_empty() {
+        "idle".to_string()
+    } else {
+        String::new()
+    }
+}
+
+/// `"network paused"` when paused, otherwise the `0B` placeholder the Python
+/// client shows before bandwidth accounting (R2: pure, tested).
+pub fn bandwidth_text(network_paused: bool) -> String {
+    if network_paused {
+        "network paused".to_string()
+    } else {
+        "0B".to_string()
+    }
+}
+
+pub fn status(state: &AppState) -> StatusBar {
+    let media = match state.active_query() {
+        Some(page) => query_page_media_text(page),
         None => match state.active_downloader() {
-            Some(page)
-                if page.kind == crate::gui::app::model::DownloaderKind::Watcher
-                    && !page.url.is_empty() =>
-            {
-                "no files for this watcher and its publishing settings".to_string()
-            }
-            Some(page) if page.kind == crate::gui::app::model::DownloaderKind::Watcher => {
-                "no highlighted watcher".to_string()
-            }
-            Some(page) if page.kind == crate::gui::app::model::DownloaderKind::Gallery => {
-                "no highlighted query".to_string()
-            }
-            Some(page) if page.queue.is_empty() && page.results.is_empty() => {
-                "empty page".to_string()
-            }
-            Some(page) => format!("{} files", page.results.len()),
+            Some(page) => downloader_page_media_text(page),
             None => String::new(),
         },
     };
 
-    let mut busy = String::new();
+    let running = running_downloader(state);
+    let busy = busy_text(
+        &state.import_queue,
+        running
+            .as_ref()
+            .map(|(title, done, total)| (title.as_str(), *done, *total)),
+    );
 
-    if state.import_queue.running {
-        busy = format!("{}/{}", state.import_queue.done, state.import_queue.total);
-    } else if let Some((title, done, total)) = running_downloader(state) {
-        busy = format!("{title}: {done}/{total}");
+    StatusBar {
+        message: state.message.clone(),
+        media,
+        bandwidth: bandwidth_text(state.controller.network_paused()),
+        idle: idle_text(&busy),
+        hydrus_busy: if busy.is_empty() {
+            String::new()
+        } else {
+            "working".to_string()
+        },
+        cpu_busy: String::new(),
+        db: String::new(),
     }
-
-    let idle = if busy.is_empty() {
-        "idle".to_string()
-    } else {
-        String::new()
-    };
-
-    let bandwidth = if state.controller.network_paused() {
-        "network paused".to_string()
-    } else {
-        "0B".to_string()
-    };
-
-    json!({
-        "message": state.message,
-        "media": media,
-        "bandwidth": bandwidth,
-        "idle": idle,
-        "hydrus_busy": if busy.is_empty() { String::new() } else { "working".to_string() },
-        "cpu_busy": "",
-        "db": "",
-    })
-    .to_string()
 }
 
 fn running_downloader(state: &AppState) -> Option<(String, usize, usize)> {
@@ -803,9 +831,12 @@ fn running_downloader(state: &AppState) -> Option<(String, usize, usize)> {
     })
 }
 
-pub fn viewing_stats_json(controller: &crate::controller::Controller, hash: &[u8]) -> String {
+pub fn viewing_stats(controller: &crate::controller::Controller, hash: &[u8]) -> ViewingStats {
     let Some(hash_id) = query::hash_id_for(controller, hash) else {
-        return json!({"hash": query::hex(hash), "rows": []}).to_string();
+        return ViewingStats {
+            hash: query::hex(hash),
+            rows: Vec::new(),
+        };
     };
 
     let db = controller.db().db();
@@ -815,19 +846,22 @@ pub fn viewing_stats_json(controller: &crate::controller::Controller, hash: &[u8
         let stats = crate::db::files_viewing_stats::get_viewing_stats(db, hash_id, canvas_type)
             .unwrap_or_default();
 
-        rows.push(json!({
-            "canvas": name,
-            "last_viewed": hydrus_core::hydrus_time::timestamp_to_pretty_time(
+        rows.push(ViewingStatRow {
+            canvas: name.to_string(),
+            last_viewed: hydrus_core::hydrus_time::timestamp_to_pretty_time(
                 stats.last_viewed_timestamp_ms.map(|value| value as f64 / 1000.0),
                 false,
                 true,
             ),
-            "views": stats.views,
-            "viewtime": stats.viewtime_ms / 1000,
-        }));
+            views: stats.views,
+            viewtime_secs: stats.viewtime_ms / 1000,
+        });
     }
 
-    json!({"hash": query::hex(hash), "rows": rows}).to_string()
+    ViewingStats {
+        hash: query::hex(hash),
+        rows,
+    }
 }
 
 #[cfg(test)]

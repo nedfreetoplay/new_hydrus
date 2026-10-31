@@ -2,6 +2,12 @@
 //!
 //! Commands are plain data and never hold a borrow of `AppState`, which keeps
 //! dialogs and other re-entrant Qt callbacks safe.
+//!
+//! Typed seams (WS-15.2.1) carry shared structs from `crate::gui::qt::api`
+//! instead of JSON strings; the remaining `String` payloads are converted
+//! per screen in WS-15.2.2.
+
+use crate::gui::qt::api::ffi::{AboutInfo, StatusBar, ViewingStats};
 
 #[derive(Debug, Clone)]
 pub enum UiCommand {
@@ -51,7 +57,7 @@ pub enum UiCommand {
         preview_path: String,
         metadata_json: String,
     },
-    Status(String),
+    Status(StatusBar),
     ShowPageChooser(String),
     PageManagerDialog(String),
     CommandPalette,
@@ -72,8 +78,8 @@ pub enum UiCommand {
         initial: String,
     },
     NotificationsDialog(String),
-    ViewingStatsDialog(String),
-    AboutDialog(String),
+    ViewingStatsDialog(ViewingStats),
+    AboutDialog(AboutInfo),
     ExportDownloader(String),
     FileSeedCacheDialog(String),
     GallerySeedLogDialog(String),

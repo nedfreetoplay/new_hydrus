@@ -1589,7 +1589,7 @@ fn page_commands(state: &AppState) -> Vec<UiCommand> {
 
     // No-op in Qt when the manager dialog is closed.
     commands.push(UiCommand::UpdateExportFoldersDialog(dialog_json(state)));
-    commands.push(UiCommand::Status(render::status_json(state)));
+    commands.push(UiCommand::Status(render::status(state)));
     commands
 }
 

@@ -1188,7 +1188,7 @@ pub fn save_merge_options_action(state: &mut AppState, payload: &str) -> Vec<UiC
 
             vec![
                 UiCommand::NotifyMessage(format!("{} merge options saved", kind.label())),
-                UiCommand::Status(render::status_json(state)),
+                UiCommand::Status(render::status(state)),
             ]
         }
         Err(error) => vec![UiCommand::NotifyMessage(format!(
@@ -1757,7 +1757,7 @@ fn duplicates_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
             page_id.to_string(),
             duplicates_value.to_string(),
         ),
-        UiCommand::Status(render::status_json(state)),
+        UiCommand::Status(render::status(state)),
     ]
 }
 

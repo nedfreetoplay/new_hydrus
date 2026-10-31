@@ -10,6 +10,7 @@
 
 // WS-15.1.1: string/JSON helpers moved verbatim from bridge.cpp.
 QString to_qstring(rust::Str text);
+QString to_qstring(const rust::String &text);
 QString from_rust(rust::Str text);
 QJsonObject parse_object(rust::Str text);
 QJsonArray parse_array(rust::Str text);

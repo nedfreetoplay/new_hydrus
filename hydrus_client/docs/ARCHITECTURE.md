@@ -102,6 +102,25 @@ plugins/platforms/qwindows.dll и остальные плагины
 
 `qt.conf` задаёт плагины относительно exe, поэтому папку можно запускать из
 любого каталога. `-Zip` дополнительно собирает `dist/hydrus_client.zip`.
+
+## Vendored static assets
+
+В корне репозитория лежит папка `static/` — копия `hydrus/static` Python-клиента
+(иконки, QSS, формы звёзд и т.д.), нужна для визуального паритета. `deploy.ps1`
+копирует её рядом с exe (`dist/hydrus_client/static`).
+
+Разрешение пути: `gui::app::static_assets::resolve_static_dir()` ищет в порядке:
+1. переменная окружения `HYDRUS_STATIC_DIR`;
+2. `<каталог exe>/static`;
+3. `<корень репозитория>/static` (dev-сборки через `CARGO_MANIFEST_DIR`).
+
+Qt-слой получает путь через `ffi::hydrus_static_dir()`. `hydrus_small_icon(kind)`
+и `HydrusPageManager::icon_for(kind)` сначала пытаются загрузить реальный файл
+по таблице соответствий (например `paste` → `paste.png`, `star` → `star.svg`,
+`gear` → `cog.svg`), кэшируя `QIcon` по пути; если файл или каталог отсутствует,
+используется прежний нарисованный fallback, поэтому приложение работает и без
+`static/`. SVG требует плагин `imageformats/qsvg.dll` (deploy.ps1 копирует его,
+если `windeployqt` не положил).
 Профиль `debug` кладёт debug-DLL и годится только для локальной проверки:
 debug CRT не распространяется.
 

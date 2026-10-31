@@ -166,6 +166,7 @@ pub(crate) mod ffi {
         );
         fn app_tick(window: Pin<&mut HydrusMainWindow>);
         fn hydrus_validate_export_phrase(phrase: &str) -> String;
+        fn hydrus_static_dir() -> String;
     }
 }
 
@@ -196,6 +197,12 @@ fn app_tick(mut window: Pin<&mut ffi::HydrusMainWindow>) {
 fn hydrus_validate_export_phrase(phrase: &str) -> String {
     app::export::validate_phrase(phrase)
         .err()
+        .unwrap_or_default()
+}
+
+fn hydrus_static_dir() -> String {
+    crate::gui::app::static_assets::resolve_static_dir()
+        .map(|path| path.to_string_lossy().to_string())
         .unwrap_or_default()
 }
 

@@ -41,6 +41,7 @@ pub mod seeds;
 pub mod services;
 pub mod session;
 pub mod sessions;
+pub mod static_assets;
 pub mod tag_filter;
 pub mod tag_relations;
 pub mod worker;

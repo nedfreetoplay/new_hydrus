@@ -121,6 +121,31 @@ $platforms = Join-Path $OutDir 'plugins\platforms'
 $platform = Get-ChildItem $platforms -Filter 'qwindows*.dll' -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $platform) { throw 'The Windows platform plugin was not deployed' }
 
+# vendored Hydrus static assets (icons, stylesheets, ...) next to the exe
+$staticSrc = Join-Path $root 'static'
+$staticDst = Join-Path $OutDir 'static'
+if (Test-Path $staticSrc) {
+    if (Test-Path $staticDst) { Remove-Item -Recurse -Force $staticDst }
+    Copy-Item -Recurse -Force $staticSrc $staticDst
+    Write-Host 'Copied vendored static assets'
+} else {
+    Write-Warning 'static/ not found; icons fall back to painted approximations'
+}
+
+# SVG image format plugin (needed for *.svg icons such as star.svg / cog.svg)
+$imageFormats = Join-Path $OutDir 'plugins\imageformats'
+if (-not (Test-Path $imageFormats)) { New-Item -ItemType Directory -Force -Path $imageFormats | Out-Null }
+if (-not (Test-Path (Join-Path $imageFormats 'qsvg.dll'))) {
+    $qtPlugins = Join-Path (Split-Path -Parent $qtBin) 'plugins\imageformats'
+    $sourceSvg = Join-Path $qtPlugins 'qsvg.dll'
+    if (Test-Path $sourceSvg) {
+        Copy-Item -Force $sourceSvg (Join-Path $imageFormats 'qsvg.dll')
+        Write-Host 'Copied qsvg imageformat plugin'
+    } else {
+        Write-Warning "qsvg.dll not found in $qtPlugins"
+    }
+}
+
 if ($Zip) {
     $zipPath = "$OutDir.zip"
     if (Test-Path $zipPath) { Remove-Item -Force $zipPath }

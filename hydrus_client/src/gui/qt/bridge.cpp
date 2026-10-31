@@ -27,6 +27,7 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QIcon>
+#include <QHash>
 #include <QInputDialog>
 #include <QJsonDocument>
 #include <QJsonParseError>
@@ -1718,7 +1719,81 @@ QFrame *make_static_box(
     return box;
 }
 
+static QString hydrus_small_icon_file_name(const QString &kind) {
+    static const QHash<QString, QString> mapping = {
+        {QStringLiteral("paste"), QStringLiteral("paste.png")},
+        {QStringLiteral("star"), QStringLiteral("star.svg")},
+        {QStringLiteral("pause"), QStringLiteral("pause.png")},
+        {QStringLiteral("play"), QStringLiteral("play.png")},
+        {QStringLiteral("stop"), QStringLiteral("stop.png")},
+        {QStringLiteral("refresh"), QStringLiteral("refresh.png")},
+        {QStringLiteral("gear"), QStringLiteral("cog.svg")},
+        {QStringLiteral("trash"), QStringLiteral("trash.png")},
+        {QStringLiteral("highlight"), QStringLiteral("highlight.png")},
+        {QStringLiteral("unhighlight"), QStringLiteral("clear_highlight.png")},
+        {QStringLiteral("clear_highlight"), QStringLiteral("clear_highlight.png")},
+        {QStringLiteral("help"), QStringLiteral("help.png")},
+        {QStringLiteral("lock"), QStringLiteral("lock.png")},
+        {QStringLiteral("lock_open"), QStringLiteral("lock_open.png")},
+        {QStringLiteral("zoom_in"), QStringLiteral("zoom_in.png")},
+        {QStringLiteral("zoom_out"), QStringLiteral("zoom_out.png")},
+        {QStringLiteral("zoom_switch"), QStringLiteral("zoom_switch.png")},
+        {QStringLiteral("fullscreen_switch"), QStringLiteral("fullscreen_switch.svg")},
+        {QStringLiteral("file_pause"), QStringLiteral("file_pause.png")},
+        {QStringLiteral("file_play"), QStringLiteral("file_play.png")},
+        {QStringLiteral("gallery_pause"), QStringLiteral("gallery_pause.png")},
+        {QStringLiteral("gallery_play"), QStringLiteral("gallery_play.png")},
+        {QStringLiteral("retry"), QStringLiteral("retry.svg")},
+        {QStringLiteral("link"), QStringLiteral("link.png")},
+        {QStringLiteral("notes"), QStringLiteral("notes.png")},
+        {QStringLiteral("ipfs"), QStringLiteral("ipfs.png")},
+        {QStringLiteral("inbox"), QStringLiteral("inbox.png")},
+        {QStringLiteral("archive"), QStringLiteral("archive.png")},
+        {QStringLiteral("to_inbox"), QStringLiteral("to_inbox.png")},
+        {QStringLiteral("undelete"), QStringLiteral("undelete.png")},
+        {QStringLiteral("move"), QStringLiteral("move.png")},
+        {QStringLiteral("open_externally"), QStringLiteral("open_externally.png")},
+        {QStringLiteral("check"), QStringLiteral("check.png")},
+        {QStringLiteral("eye"), QStringLiteral("eye.svg")},
+        {QStringLiteral("eye_closed"), QStringLiteral("eye_closed.svg")},
+        {QStringLiteral("position_first"), QStringLiteral("position_first.svg")},
+        {QStringLiteral("position_previous"), QStringLiteral("position_previous.svg")},
+        {QStringLiteral("position_next"), QStringLiteral("position_next.svg")},
+        {QStringLiteral("position_last"), QStringLiteral("position_last.svg")},
+        {QStringLiteral("position_random"), QStringLiteral("position_random.svg")},
+        {QStringLiteral("page_of_pages"), QStringLiteral("page_of_pages.png")},
+        {QStringLiteral("thumbnails"), QStringLiteral("thumbnails.png")},
+        {QStringLiteral("listctrl"), QStringLiteral("listctrl.png")},
+        {QStringLiteral("import_options_stack_chart"), QStringLiteral("import_options_stack_chart.svg")},
+        {QStringLiteral("copy"), QStringLiteral("copy.png")},
+        {QStringLiteral("hydrus"), QStringLiteral("hydrus.png")},
+        {QStringLiteral("hydrus_32"), QStringLiteral("hydrus_32.png")},
+    };
+    return mapping.value(kind);
+}
+
 QIcon hydrus_small_icon(const QString &kind) {
+    const QString file_name = hydrus_small_icon_file_name(kind);
+    if (!file_name.isEmpty()) {
+        const rust::String dir_rust = hydrus_static_dir();
+        const QString dir = QString::fromUtf8(dir_rust.data(), static_cast<int>(dir_rust.size()));
+        if (!dir.isEmpty()) {
+            const QString path = QDir(dir).filePath(file_name);
+            if (QFileInfo::exists(path)) {
+                static QHash<QString, QIcon> cache;
+                auto it = cache.find(path);
+                if (it != cache.end()) {
+                    return it.value();
+                }
+                QIcon icon(path);
+                if (!icon.isNull()) {
+                    cache.insert(path, icon);
+                    return icon;
+                }
+            }
+        }
+    }
+
     QPixmap pixmap(16, 16);
     pixmap.fill(Qt::transparent);
 
@@ -13692,6 +13767,27 @@ public:
 
 private:
     QIcon icon_for(const QString &kind) const {
+        const QString file_name = hydrus_small_icon_file_name(kind);
+        if (!file_name.isEmpty()) {
+            const rust::String dir_rust = hydrus_static_dir();
+            const QString dir = QString::fromUtf8(dir_rust.data(), static_cast<int>(dir_rust.size()));
+            if (!dir.isEmpty()) {
+                const QString path = QDir(dir).filePath(file_name);
+                if (QFileInfo::exists(path)) {
+                    static QHash<QString, QIcon> cache;
+                    auto it = cache.find(path);
+                    if (it != cache.end()) {
+                        return it.value();
+                    }
+                    QIcon icon(path);
+                    if (!icon.isNull()) {
+                        cache.insert(path, icon);
+                        return icon;
+                    }
+                }
+            }
+        }
+
         if (kind == QStringLiteral("notebook")) {
             return style()->standardIcon(QStyle::SP_DirIcon);
         }

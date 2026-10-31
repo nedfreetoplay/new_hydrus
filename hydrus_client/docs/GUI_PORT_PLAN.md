@@ -122,7 +122,7 @@ Definition of Done для задачи.
   найденных ссылок. Скриншоты: `docs/images/gallery_page.png` (Rust) и
   `docs/images/python_gallery_page.png` (Python). Осталось: точная ширина колонок
   и элизия заголовков, включённое состояние disabled-панелей при пустом
-  highlight, точные иконки Hydrus, полноценные multi-query/GUG-редакторы,
+  highlight, полноценные multi-query/GUG-редакторы,
   а также отдельная сверка urls/simple/watcher страниц, subscriptions,
   duplicates, import/export folders и options dialogs.
 - 2026-10-30 — urls downloader сверен с живым Python v692 (окно 1296x839).
@@ -135,7 +135,7 @@ Definition of Done для задачи.
   вкладка называется `url import`, а не `urls`. Скриншоты:
   `docs/images/urls_page.png` (Rust) и `docs/images/python_urls_page.png`.
   Осталось: добавление новых URL во время работы (сейчас страница занята),
-  точные иконки Hydrus, поведение disabled-панелей. Заодно меню `pending`
+  поведение disabled-панелей. Заодно меню `pending`
   скрывается, когда нет tag/file repository или IPFS-сервиса, как в Python.
 - 2026-10-30 — simple downloader сверен с живым Python v692 (окно 1296x839).
   Страница перестроена в Python-sidebar: `simple downloader` с вложенными
@@ -148,7 +148,7 @@ Definition of Done для задачи.
   пустые при отсутствии элементов, как в Python. Sidebar скроллится, когда
   контент выше окна. Скриншоты: `docs/images/simple_page.png` (Rust) и
   `docs/images/python_simple_page.png`. Осталось: редактор формул (WS-07.11),
-  реальный multi-job парсинг, точные иконки Hydrus.
+  реальный multi-job парсинг.
 - 2026-10-30 — watcher сверен с живым Python v692 (окно 1296x839).
   Страница `watcher` перестроена из одиночной формы в Python-sidebar:
   `watchers` со статусами (`waiting for new watchers` / `1 watchers - x/y`),
@@ -164,7 +164,7 @@ Definition of Done для задачи.
   Скриншоты: `docs/images/watcher_page.png` (Rust) и
   `docs/images/python_watcher_page.png` (Python). Осталось: несколько watcher
   в таблице, диалог checker options, highlight → media panel, retry ignored,
-  точные иконки.
+  
 - 2026-10-31 — менеджер подписок сверен с живым Python v692. В Python нет
   страницы подписок: `network -> subscriptions…` открывает диалог
   `manage subscriptions` (`EditSubscriptionsPanel`). Rust теперь делает то же:
@@ -196,7 +196,7 @@ Definition of Done для задачи.
   Скриншоты: `docs/images/duplicates_page.png` (Rust) и
   `docs/images/python_duplicates_page.png` (Python). Осталось: media panel
   результатов, полноценный preparation-панель, auto-resolution-редактор,
-  групповой режим и точные иконки.
+  групповой режим.
 - 2026-10-31 — media results panel страницы duplicates реализован (WS-08 /
   WS-14.8): правая часть теперь использует существующий thumbnail grid
   (`HydrusThumbnailGrid`) и показывает уникальные хэши пар в порядке
@@ -219,7 +219,7 @@ Definition of Done для задачи.
   `HydrusCancel` (#800000); заголовки таблиц теперь выровнены влево, как в
   Python. Скриншоты: `docs/images/import_folders_dialog.png` (Rust) и
   `docs/images/python_import_folders_dialog.png` (Python). Осталось: подменю check-now по папкам.
-- 2026-10-31 — диалог редактирования одной import folder сверен с живым Python v692. `add`, `edit` и двойной клик в менеджере import folders теперь открывают панель Python: заголовок `edit import folder`, блок `folder options` (`name:`, `folder path:` + `browse`, `search subdirectories:`, `currently paused (if set, will not ever do any work):`, `check regularly?:`, `check period:` с кнопкой периода, `recent modified time skip period:` с кнопкой периода с секундами, `check on manage dialog ok:`, `show a popup while working:`, `publish presented files to a popup button:` и `publish presented files to a page:`), `source file actions` (`when a file imports successfully:` и т.д. с combo `delete the source file` / `leave the source file alone, do not reattempt it` / `move the source file` и путь назначения, включаемый только при `move`) и `metadata import` (`filename tagging:` со списком и `add`/`edit`/`remove`, `sidecar importing:`). Периоды редактируются отдельным диалогом дней/часов/минут (и секунд для skip), минимум 3 минуты и 1 секунда. Сохранение идёт через прежний `import_folder_save`: пустой путь даёт `You must enter a path to import from!`, пустые пути move-назначений дают соответствующие сообщения Python, имя проходит через `GetNonDupeName` (`import folder (1)`). Модель получила `check_now`; `check_regularly` выключает кнопку периода. Скриншоты: `docs/images/import_folder_editor.png` (Rust) и `docs/images/python_import_folder_editor.png` (Python). Осталось: кнопка `import options` (specific container) не выведена, `review currently cached import paths` (file seed cache) и `sidecar importing` (metadata routers) не реализованы; иконки нарисованы приближённо.
+- 2026-10-31 — диалог редактирования одной import folder сверен с живым Python v692. `add`, `edit` и двойной клик в менеджере import folders теперь открывают панель Python: заголовок `edit import folder`, блок `folder options` (`name:`, `folder path:` + `browse`, `search subdirectories:`, `currently paused (if set, will not ever do any work):`, `check regularly?:`, `check period:` с кнопкой периода, `recent modified time skip period:` с кнопкой периода с секундами, `check on manage dialog ok:`, `show a popup while working:`, `publish presented files to a popup button:` и `publish presented files to a page:`), `source file actions` (`when a file imports successfully:` и т.д. с combo `delete the source file` / `leave the source file alone, do not reattempt it` / `move the source file` и путь назначения, включаемый только при `move`) и `metadata import` (`filename tagging:` со списком и `add`/`edit`/`remove`, `sidecar importing:`). Периоды редактируются отдельным диалогом дней/часов/минут (и секунд для skip), минимум 3 минуты и 1 секунда. Сохранение идёт через прежний `import_folder_save`: пустой путь даёт `You must enter a path to import from!`, пустые пути move-назначений дают соответствующие сообщения Python, имя проходит через `GetNonDupeName` (`import folder (1)`). Модель получила `check_now`; `check_regularly` выключает кнопку периода. Скриншоты: `docs/images/import_folder_editor.png` (Rust) и `docs/images/python_import_folder_editor.png` (Python). Осталось: кнопка `import options` (specific container) не выведена, `review currently cached import paths` (file seed cache) и `sidecar importing` (metadata routers) не реализованы; иконки — реальные из static/ (WS-14.8).
 - 2026-10-31 — менеджер export folders сверен с живым Python v692. В Python это
   не страница, а диалог `file -> import/export folders -> manage export
   folders…` с заголовком `edit export folders` (`EditExportFoldersPanel`).
@@ -269,7 +269,7 @@ Definition of Done для задачи.
   `my files`/`all known tags` и вкладок `results`/`favourites`/`children`;
   star/lock сообщают `not implemented yet`); кнопка сайдкаров — выбор из трёх
   форматов вместо редактора metadata routers, а `update test example files`
-  только считает подходящие файлы; иконки paste/star/clear/lock — рисованные
+  только считает подходящие файлы; иконки paste/star/clear/lock — реальные из static/
   приближения.
 
 ## Текущий статус
@@ -875,3 +875,4 @@ results panel selection (WS-03.5), а thread slots (WS-07.18) ждут registry
 
 ## WS-14.8 media viewer audit
 - 2026-10-31: visual audit against Python v692; hover panels/background/status text reviewed. WS-04.1/04.2/04.7/04.9/04.13 marked [~]. Screenshots: docs/images/media_viewer.png, docs/images/python_media_viewer.png.
+- 2026-10-31 — WS-14.8: vendored Hydrus static/ (315 files, v692) into repo root; resolver hydrus_client/src/gui/app/static_assets.rs (env HYDRUS_STATIC_DIR, <exe>/static, <repo>/static); hydrus_small_icon/icon_for now load real files with painted fallback; deploy.ps1 copies static/ and qsvg plugin. Tests 708+2+1ignored. Screenshots: docs/images/icons_real_main_window.png.

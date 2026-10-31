@@ -12,6 +12,13 @@ fn main() {
             .file("src/gui/qt/bridge.rs")
             .include_dir("src/gui/qt")
             .cpp_file("src/gui/qt/bridge.cpp")
+            .cpp_files([
+                "src/gui/qt/support/strings.cpp",
+                "src/gui/qt/support/icons.cpp",
+                "src/gui/qt/support/widgets.cpp",
+                "src/gui/qt/support/pairs.cpp",
+                "src/gui/qt/support/sort_options.cpp",
+            ])
             .cc_builder(|cc| {
                 cc.flag_if_supported("/utf-8");
                 cc.flag_if_supported("-finput-charset=UTF-8");

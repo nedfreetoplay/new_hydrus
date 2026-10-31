@@ -74,7 +74,7 @@ void HydrusQueryPage::update_state(const QJsonObject &state) {
         thumbnails.value(QStringLiteral("horizontal")).toBool(false),
         thumbnails.value(QStringLiteral("scale_percent")).toInt(100));
     grid->set_media(state.value(QStringLiteral("media")).toArray());
-    update_progress(state);
+    update_progress(state.value(QStringLiteral("loading")).toBool());
 
     if (!focused.isEmpty()) {
         grid->set_focused(focused);

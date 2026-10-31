@@ -11,7 +11,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMenu>
-#include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QSettings>
@@ -178,68 +177,6 @@ void HydrusMainWindow::build_shell() {
     }
 }
 
-void HydrusMainWindow::set_menus(const QJsonArray &menus) {
-    menuBar()->clear();
-
-    for (const QJsonValue &value : menus) {
-        const QJsonObject menu_object = value.toObject();
-        auto *menu = menuBar()->addMenu(menu_object.value(QStringLiteral("title")).toString());
-        menu->setToolTipsVisible(true);
-
-        std::function<void(QMenu *, const QJsonArray &)> add_items;
-
-        add_items = [this, &add_items](QMenu *menu_target, const QJsonArray &items) {
-            for (const QJsonValue &item_value : items) {
-                const QJsonObject item = item_value.toObject();
-
-                if (item.value(QStringLiteral("separator")).toBool()) {
-                    menu_target->addSeparator();
-                    continue;
-                }
-
-                const QJsonArray children = item.value(QStringLiteral("items")).toArray();
-
-                if (!children.isEmpty()) {
-                    auto *submenu = menu_target->addMenu(item.value(QStringLiteral("label")).toString());
-                    submenu->setToolTipsVisible(true);
-                    add_items(submenu, children);
-                    continue;
-                }
-
-                const QString label = item.value(QStringLiteral("label")).toString();
-                const QString action_id = item.value(QStringLiteral("action")).toString();
-                const QString item_target = item.value(QStringLiteral("target")).toString();
-                const QString payload = item.value(QStringLiteral("payload")).toString();
-
-                if (label.isEmpty()) {
-                    continue;
-                }
-
-                auto *action = menu_target->addAction(label);
-                action->setEnabled(item.value(QStringLiteral("enabled")).toBool(true));
-
-                if (item.value(QStringLiteral("checkable")).toBool(false)) {
-                    action->setCheckable(true);
-                    action->setChecked(item.value(QStringLiteral("checked")).toBool(false));
-                }
-
-                const QString tooltip = item.value(QStringLiteral("description")).toString();
-
-                if (!tooltip.isEmpty()) {
-                    action->setToolTip(tooltip);
-                }
-
-                connect(action, &QAction::triggered, this, [this, action_id, item_target, payload]() {
-                    if (!action_id.isEmpty()) {
-                        notify(action_id, item_target, payload);
-                    }
-                });
-            }
-        };
-
-        add_items(menu, menu_object.value(QStringLiteral("items")).toArray());
-    }
-}
 
 void HydrusMainWindow::clear_notebook(HydrusNotebook *notebook) {
     notebook->clear_pages();
@@ -266,93 +203,6 @@ void HydrusMainWindow::show_autocomplete(const QJsonObject &state) {
     }
 }
 
-void HydrusMainWindow::build_pages(const QJsonObject &object) {
-    if (root == nullptr) {
-        return;
-    }
-
-    building = true;
-
-    pages.clear();
-    downloaders.clear();
-    subscriptions.clear();
-    duplicates.clear();
-    import_folders.clear();
-    export_folders.clear();
-    notebooks.clear();
-    notebooks.insert(QStringLiteral("root"), root);
-
-    clear_notebook(root);
-
-    const QJsonObject root_object = object.value(QStringLiteral("root")).toObject();
-    populate_notebook(root, root_object);
-
-    QString current = root->current_page_id();
-    QString parent = QStringLiteral("root");
-
-    while (HydrusNotebook *nested = notebooks.value(current, nullptr)) {
-        parent = current;
-        current = nested->current_page_id();
-    }
-
-    active_page = current;
-    active_notebook = parent;
-
-    building = false;
-}
-
-void HydrusMainWindow::populate_notebook(HydrusNotebook *notebook, const QJsonObject &object) {
-    const QJsonArray children = object.value(QStringLiteral("children")).toArray();
-
-    for (const QJsonValue &value : children) {
-        const QJsonObject child = value.toObject();
-        const QString kind = child.value(QStringLiteral("kind")).toString();
-        const QString page_id = child.value(QStringLiteral("id")).toString();
-        const QString title = child.value(QStringLiteral("title")).toString();
-
-        if (kind == QStringLiteral("notebook")) {
-            auto *nested = new HydrusNotebook(this, page_id, notebook);
-            notebooks.insert(page_id, nested);
-            notebook->add_page_widget(page_id, title.isEmpty() ? QStringLiteral("page of pages") : title, nested);
-            populate_notebook(nested, child);
-        } else if (kind == QStringLiteral("query")) {
-            auto *page = new HydrusQueryPage(this, page_id, child.value(QStringLiteral("state")).toObject());
-            pages.insert(page_id, page);
-            notebook->add_page_widget(page_id, title.isEmpty() ? QStringLiteral("files") : title, page);
-        } else if (kind == QStringLiteral("downloader")) {
-            auto *page = new HydrusDownloaderPage(this, page_id, child.value(QStringLiteral("state")).toObject());
-            downloaders.insert(page_id, page);
-            notebook->add_page_widget(page_id, title.isEmpty() ? QStringLiteral("download") : title, page);
-        } else if (kind == QStringLiteral("subscriptions")) {
-            auto *page = new HydrusSubscriptionsPage(this, page_id, child.value(QStringLiteral("state")).toObject());
-            subscriptions.insert(page_id, page);
-            notebook->add_page_widget(page_id, title.isEmpty() ? QStringLiteral("subscriptions") : title, page);
-        } else if (kind == QStringLiteral("duplicates")) {
-            auto *page = new HydrusDuplicatesPage(this, page_id, child.value(QStringLiteral("state")).toObject());
-            duplicates.insert(page_id, page);
-            notebook->add_page_widget(page_id, title.isEmpty() ? QStringLiteral("duplicates") : title, page);
-        } else if (kind == QStringLiteral("import_folders")) {
-            auto *page = new HydrusImportFoldersPage(this, page_id, child.value(QStringLiteral("state")).toObject());
-            import_folders.insert(page_id, page);
-            notebook->add_page_widget(page_id, title.isEmpty() ? QStringLiteral("import folders") : title, page);
-        } else if (kind == QStringLiteral("export_folders")) {
-            auto *page = new HydrusExportFoldersPage(this, page_id, child.value(QStringLiteral("state")).toObject());
-            export_folders.insert(page_id, page);
-            notebook->add_page_widget(page_id, title.isEmpty() ? QStringLiteral("export folders") : title, page);
-        } else {
-            const QString message = child.value(QStringLiteral("state")).toObject().value(QStringLiteral("message")).toString();
-            auto *placeholder = new QWidget(notebook);
-            auto *layout = new QVBoxLayout(placeholder);
-            auto *label = new QLabel(message.isEmpty() ? QStringLiteral("Unknown page type.") : message, placeholder);
-            label->setAlignment(Qt::AlignCenter);
-            label->setWordWrap(true);
-            layout->addWidget(label);
-            notebook->add_page_widget(page_id, title.isEmpty() ? QStringLiteral("page") : title, placeholder);
-        }
-    }
-
-    notebook->finalize_notebook(object.value(QStringLiteral("current")).toString());
-}
 
 HydrusQueryPage *HydrusMainWindow::find_page(const QString &page_id) const {
     return pages.value(page_id, nullptr);
@@ -361,12 +211,6 @@ HydrusQueryPage *HydrusMainWindow::find_page(const QString &page_id) const {
 void HydrusMainWindow::update_page(const QString &page_id, const QJsonObject &state) {
     if (HydrusQueryPage *page = find_page(page_id)) {
         page->update_state(state);
-    }
-}
-
-void HydrusMainWindow::update_page_progress(const QString &page_id, const QJsonObject &state) {
-    if (HydrusQueryPage *page = find_page(page_id)) {
-        page->update_progress(state);
     }
 }
 

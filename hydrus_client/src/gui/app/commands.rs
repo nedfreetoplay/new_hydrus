@@ -7,16 +7,18 @@
 //! instead of JSON strings; the remaining `String` payloads are converted
 //! per screen in WS-15.2.2.
 
-use crate::gui::qt::api::ffi::{AboutInfo, StatusBar, ViewingStats};
+use crate::gui::qt::api::ffi::{
+    AboutInfo, MenuBar, PageProgress, PageTree, Pages, StatusBar, ViewingStats,
+};
 
 #[derive(Debug, Clone)]
 pub enum UiCommand {
-    Menus(String),
+    Menus(MenuBar),
     TagSuggestions(String),
     Autocomplete(String),
-    BuildPages(String),
+    BuildPages(Pages),
     UpdatePage(String, String),
-    PageProgress(String, String),
+    PageProgress(PageProgress),
     Defer {
         action: String,
         target: String,
@@ -59,7 +61,7 @@ pub enum UiCommand {
     },
     Status(StatusBar),
     ShowPageChooser(String),
-    PageManagerDialog(String),
+    PageManagerDialog(PageTree),
     CommandPalette,
     PromptText {
         action: String,

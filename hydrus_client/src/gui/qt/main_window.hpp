@@ -18,6 +18,8 @@
 #include <QTimer>
 #include <QWidget>
 
+#include <cstddef>
+
 class QCompleter;
 class QMovie;
 class QTabBar;
@@ -59,6 +61,10 @@ class HydrusRepairFileLocationsDialog;
 struct StatusBar;
 struct AboutInfo;
 struct ViewingStats;
+struct MenuBar;
+struct Pages;
+struct PageProgress;
+struct PageTree;
 
 class HydrusMainWindow : public QMainWindow {
 public:
@@ -66,10 +72,10 @@ public:
 
     void build_shell();
     void set_status(const StatusBar &status);
-    void set_menus(const QJsonArray &menus);
-    void build_pages(const QJsonObject &pages);
+    void set_menus(const MenuBar &menus);
+    void build_pages(const Pages &pages);
     void update_page(const QString &page_id, const QJsonObject &state);
-    void update_page_progress(const QString &page_id, const QJsonObject &state);
+    void update_page_progress(const PageProgress &progress);
     void update_downloader(const QString &page_id, const QJsonObject &state);
     void update_subscriptions(const QString &page_id, const QJsonObject &state);
     void show_subscriptions_dialog(const QJsonObject &state);
@@ -154,7 +160,12 @@ protected:
 public:
 
 private:
-    void populate_notebook(HydrusNotebook *notebook, const QJsonObject &object);
+    void populate_notebook(
+        HydrusNotebook *notebook,
+        const Pages &pages,
+        size_t &cursor,
+        int depth,
+        const QString &current);
     void clear_notebook(HydrusNotebook *notebook);
     void build_shortcuts();
 

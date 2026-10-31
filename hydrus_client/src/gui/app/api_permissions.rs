@@ -215,7 +215,7 @@ pub fn delete(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::UpdateApiPermissions(permissions_json(state)),
-        UiCommand::Menus(render::menus_json(state)),
+        UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
     ]
@@ -225,7 +225,7 @@ fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     let mut commands = vec![UiCommand::NotifyMessage(message.into())];
     commands.extend([
         UiCommand::UpdateApiPermissions(permissions_json(state)),
-        UiCommand::Menus(render::menus_json(state)),
+        UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
     ]);
     commands

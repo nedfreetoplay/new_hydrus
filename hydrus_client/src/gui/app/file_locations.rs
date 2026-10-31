@@ -296,7 +296,7 @@ pub fn apply(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     vec![
         UiCommand::CloseRepairFileLocations,
         UiCommand::NotifyMessage("file locations repaired".to_string()),
-        UiCommand::Menus(render::menus_json(state)),
+        UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
     ]
 }

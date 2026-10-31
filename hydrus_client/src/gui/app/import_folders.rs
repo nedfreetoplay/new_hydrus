@@ -682,7 +682,7 @@ pub fn create_page(state: &mut AppState, notebook_id: &str) -> Vec<UiCommand> {
 fn page_commands(state: &AppState) -> Vec<UiCommand> {
     let ids: Vec<String> = state.import_folder_page_ids().into_iter().collect();
 
-    let mut commands = vec![UiCommand::BuildPages(render::pages_json(state))];
+    let mut commands = vec![UiCommand::BuildPages(render::pages(state))];
 
     for id in ids {
         commands.push(UiCommand::UpdateImportFolders(

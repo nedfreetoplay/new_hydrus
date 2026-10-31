@@ -1153,7 +1153,7 @@ fn refresh_admin(state: &mut AppState) {
 fn service_commands(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::UpdateServices(services_json(state)),
-        UiCommand::Menus(render::menus_json(state)),
+        UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
     ]

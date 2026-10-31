@@ -159,7 +159,7 @@ fn human_bytes(bytes: u64) -> String {
 fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::UpdateDatabaseBackup(dialog_json(state)),
-        UiCommand::Menus(render::menus_json(state)),
+        UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
     ]
@@ -169,7 +169,7 @@ fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::NotifyMessage(message.into()),
         UiCommand::UpdateDatabaseBackup(dialog_json(state)),
-        UiCommand::Menus(render::menus_json(state)),
+        UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
     ]
 }

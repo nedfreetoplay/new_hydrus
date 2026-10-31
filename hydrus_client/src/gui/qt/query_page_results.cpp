@@ -121,9 +121,7 @@ bool HydrusQueryPage::eventFilter(QObject *watched, QEvent *event) {
     return QWidget::eventFilter(watched, event);
 }
 
-void HydrusQueryPage::update_progress(const QJsonObject &state) {
-    const bool loading = state.value(QStringLiteral("loading")).toBool();
-
+void HydrusQueryPage::update_progress(bool loading) {
     if (loading) {
         loading_panel->setGeometry(results->rect());
         loading_panel->raise();

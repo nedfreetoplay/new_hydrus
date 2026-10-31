@@ -24,8 +24,8 @@ void hydrus_show_or_dialog(HydrusMainWindow &window, rust::Str page_id, rust::St
     show_or_predicate_dialog(window, to_qstring(page_id), to_qstring(initial));
 }
 
-void hydrus_show_page_manager(HydrusMainWindow &window, rust::Str json) {
-    HydrusPageManager manager(&window, parse_object(json), &window);
+void hydrus_show_page_manager(HydrusMainWindow &window, const PageTree &tree) {
+    HydrusPageManager manager(&window, tree, &window);
     manager.exec();
 }
 
@@ -194,8 +194,8 @@ void hydrus_resize_window(HydrusMainWindow &window, int width, int height) {
     window.resize(width, height);
 }
 
-void hydrus_set_menus(HydrusMainWindow &window, rust::Str json) {
-    window.set_menus(parse_array(json));
+void hydrus_set_menus(HydrusMainWindow &window, const MenuBar &menus) {
+    window.set_menus(menus);
 }
 
 void hydrus_set_tag_suggestions(HydrusMainWindow &window, rust::Str json) {
@@ -210,16 +210,16 @@ void hydrus_set_status(HydrusMainWindow &window, const StatusBar &status) {
     window.set_status(status);
 }
 
-void hydrus_build_pages(HydrusMainWindow &window, rust::Str json) {
-    window.build_pages(parse_object(json));
+void hydrus_build_pages(HydrusMainWindow &window, const Pages &pages) {
+    window.build_pages(pages);
 }
 
 void hydrus_update_page(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
     window.update_page(to_qstring(page_id), parse_object(json));
 }
 
-void hydrus_update_page_progress(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
-    window.update_page_progress(to_qstring(page_id), parse_object(json));
+void hydrus_update_page_progress(HydrusMainWindow &window, const PageProgress &progress) {
+    window.update_page_progress(progress);
 }
 
 void hydrus_update_downloader(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {

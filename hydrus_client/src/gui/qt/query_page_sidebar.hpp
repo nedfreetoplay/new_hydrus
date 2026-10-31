@@ -35,7 +35,7 @@ public:
     const QString &page_id() const;
 
     void update_state(const QJsonObject &state);
-    void update_progress(const QJsonObject &state);
+    void update_progress(bool loading);
     void set_selection(
         const QString &hash,
         const QStringList &tags,

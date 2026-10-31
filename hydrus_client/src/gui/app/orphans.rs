@@ -404,7 +404,7 @@ fn parse_paths(payload: &str) -> Result<Vec<PathBuf>, String> {
 fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::UpdateOrphanFiles(dialog_json(state)),
-        UiCommand::Menus(render::menus_json(state)),
+        UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
     ]
@@ -414,7 +414,7 @@ fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::NotifyMessage(message.into()),
         UiCommand::UpdateOrphanFiles(dialog_json(state)),
-        UiCommand::Menus(render::menus_json(state)),
+        UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
     ]
 }

@@ -1,7 +1,11 @@
 use super::*;
 use crate::controller::Controller;
 use crate::db::{files_viewing_stats, master};
-use crate::gui::app::model::{ImportQueueState, QueryPage};
+use crate::gui::app::model::{
+    DownloaderKind, DownloaderPage, ImportQueueState, Notebook, PageNode, PlaceholderPage,
+    QueryPage,
+};
+use crate::gui::qt::api::ffi::PageKind;
 
 #[test]
 fn query_state_carries_count_loading_and_thumbnail_options() {
@@ -199,4 +203,231 @@ fn status_text_helpers_cover_query_downloader_and_busy() {
         busy_text(&idle_import, Some(("gallery", 3, 7))),
         "gallery: 3/7"
     );
+}
+
+fn testing_state(name: &str) -> (std::path::PathBuf, crate::gui::app::model::AppState) {
+    let directory = std::env::temp_dir().join(format!(
+        "hydrus_gui_1522a_{name}_{}_{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    let controller = std::sync::Arc::new(Controller::new(&directory).unwrap());
+    controller.init_model().unwrap();
+    let state = crate::gui::app::model::AppState::new(controller);
+    (directory, state)
+}
+
+fn entry<'entries>(
+    menus: &'entries MenuBar,
+    action: &str,
+) -> &'entries crate::gui::qt::api::ffi::MenuEntry {
+    menus
+        .entries
+        .iter()
+        .find(|entry| entry.action == action)
+        .unwrap_or_else(|| panic!("menu action {action} is missing"))
+}
+
+#[test]
+fn menus_flat_rows_keep_order_and_predicates() {
+    let (directory, state) = testing_state("menus");
+
+    let menus = menus(&state);
+
+    let titles: Vec<&str> = menus
+        .entries
+        .iter()
+        .filter(|entry| entry.depth == 0)
+        .map(|entry| entry.title.as_str())
+        .collect();
+    assert_eq!(
+        titles,
+        vec![
+            "&file",
+            "&undo",
+            "&pages",
+            "&database",
+            "&network",
+            "&services",
+            "&tags",
+            "&help"
+        ],
+        "fresh database has no repository services, so &pending stays hidden"
+    );
+
+    let undo = entry(&menus, "undo");
+    assert!(!undo.enabled);
+
+    for action in ["history_back", "history_forward", "undo_search", "redo_search"] {
+        assert!(!entry(&menus, action).enabled, "{action} starts disabled");
+    }
+
+    let pause = entry(&menus, "pause_network");
+    assert!(pause.checkable);
+    assert!(!pause.checked);
+
+    let palette = entry(&menus, "command_palette");
+    assert_eq!(palette.tooltip, "Ctrl+K");
+
+    // Submenu contents sit one depth below their submenu row.
+    let load = menus
+        .entries
+        .iter()
+        .position(|entry| entry.label == "load" && entry.is_submenu)
+        .expect("sessions load submenu is missing");
+    assert_eq!(menus.entries[load].depth, 2);
+    assert_eq!(menus.entries[load + 1].label, "no saved sessions");
+    assert!(!menus.entries[load + 1].enabled);
+    assert_eq!(menus.entries[load + 1].depth, 3);
+
+    let recent = menus
+        .entries
+        .iter()
+        .position(|entry| entry.label == "recent searches" && entry.is_submenu)
+        .expect("recent searches submenu is missing");
+    assert_eq!(menus.entries[recent + 1].label, "no recent searches");
+    assert!(!menus.entries[recent + 1].enabled);
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn pages_flat_rows_keep_notebook_tree() {
+    let (directory, mut state) = testing_state("pages");
+
+    let mut nested = Notebook::new("nb1", "nested");
+    nested.current = Some("p2".to_string());
+    nested.children.push(PageNode::Query(QueryPage::new("p2", "files", "my files")));
+    nested
+        .children
+        .push(PageNode::Downloader(DownloaderPage::new(
+            "d1",
+            DownloaderKind::Gallery,
+        )));
+
+    let mut p1 = QueryPage::new("p1", "files", "my files");
+    p1.hashes = vec![vec![1], vec![2]];
+    state.root.children.clear();
+    state.root.children.push(PageNode::Query(p1));
+    state.root.children.push(PageNode::Notebook(nested));
+    state.root.current = Some("p1".to_string());
+    state.active = Some("p2".to_string());
+
+    let pages = pages(&state);
+
+    assert_eq!(pages.current, "p1");
+    assert_eq!(pages.rows.len(), 4);
+
+    assert_eq!(pages.rows[0].id, "p1");
+    assert_eq!(pages.rows[0].kind, PageKind::Query);
+    assert_eq!(pages.rows[0].depth, 0);
+
+    assert_eq!(pages.rows[1].id, "nb1");
+    assert_eq!(pages.rows[1].kind, PageKind::Notebook);
+    assert_eq!(pages.rows[1].current, "p2");
+    assert_eq!(pages.rows[1].depth, 0);
+
+    assert_eq!(pages.rows[2].id, "p2");
+    assert_eq!(pages.rows[2].kind, PageKind::Query);
+    assert_eq!(pages.rows[2].depth, 1);
+
+    assert_eq!(pages.rows[3].id, "d1");
+    assert_eq!(pages.rows[3].kind, PageKind::Downloader);
+    assert_eq!(pages.rows[3].depth, 1);
+
+    // The per-screen blob stays JSON inside one field; the envelope is typed.
+    let query: serde_json::Value = serde_json::from_str(&pages.rows[0].state).unwrap();
+    assert_eq!(query["count"], 2);
+    let gallery: serde_json::Value = serde_json::from_str(&pages.rows[3].state).unwrap();
+    assert_eq!(gallery["page_id"], "d1");
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn page_manager_flat_rows_carry_counts_and_active() {
+    let (directory, mut state) = testing_state("manager");
+
+    let mut nested = Notebook::new("nb1", "nested");
+    let mut p2 = QueryPage::new("p2", "files", "my files");
+    p2.hashes = vec![vec![9]];
+    nested.children.push(PageNode::Query(p2));
+    nested.children.push(PageNode::Placeholder(PlaceholderPage {
+        id: "ph1".to_string(),
+        title: "old".to_string(),
+        message: "gone".to_string(),
+        status: String::new(),
+    }));
+
+    let mut p1 = QueryPage::new("p1", "files", "my files");
+    p1.hashes = vec![vec![1], vec![2], vec![3]];
+    state.root.children.clear();
+    state.root.children.push(PageNode::Query(p1));
+    state.root.children.push(PageNode::Notebook(nested));
+    state.active = Some("p2".to_string());
+
+    let tree = page_manager(&state);
+
+    assert_eq!(tree.rows.len(), 4);
+    assert_eq!(tree.rows[0].id, "p1");
+    assert_eq!(tree.rows[0].kind, PageKind::Query);
+    assert_eq!(tree.rows[0].count, 3);
+    assert!(!tree.rows[0].active);
+
+    assert_eq!(tree.rows[1].kind, PageKind::Notebook);
+    assert_eq!(tree.rows[1].count, 2);
+    assert!(!tree.rows[1].active);
+
+    assert_eq!(tree.rows[2].id, "p2");
+    assert_eq!(tree.rows[2].depth, 1);
+    assert_eq!(tree.rows[2].count, 1);
+    assert!(tree.rows[2].active);
+
+    assert_eq!(tree.rows[3].kind, PageKind::Placeholder);
+    assert_eq!(tree.rows[3].depth, 1);
+    assert_eq!(tree.rows[3].count, 0);
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn query_progress_maps_running_and_idle_import() {
+    let mut page = QueryPage::new("p1", "files", "my files");
+    page.hashes = vec![vec![1]];
+    page.loading = true;
+
+    let import = ImportQueueState {
+        running: true,
+        done: 2,
+        total: 5,
+        imported: 1,
+        failed: 0,
+        message: "importing".to_string(),
+    };
+
+    let running = query_progress(&page, Some(&import));
+    assert_eq!(running.page_id, "p1");
+    assert!(running.loading);
+    assert_eq!(running.importing_done, 2);
+    assert_eq!(running.importing_total, 5);
+    assert_eq!(running.importing_message, "importing");
+    assert_eq!(running.count, 1);
+
+    // An idle queue is zero/empty, never JSON null.
+    let idle = ImportQueueState {
+        running: false,
+        done: 2,
+        total: 5,
+        imported: 0,
+        failed: 0,
+        message: "stale".to_string(),
+    };
+    let stopped = query_progress(&page, Some(&idle));
+    assert_eq!(stopped.importing_done, 0);
+    assert_eq!(stopped.importing_total, 0);
+    assert_eq!(stopped.importing_message, "");
+
+    let missing = query_progress(&page, None);
+    assert_eq!(missing.importing_done, 0);
+    assert_eq!(missing.count, 1);
 }

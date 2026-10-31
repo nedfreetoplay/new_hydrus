@@ -79,9 +79,9 @@ pub fn initial_commands() -> Vec<UiCommand> {
             .unwrap_or_else(|_| "[]".to_string());
 
         let mut commands = vec![
-            UiCommand::Menus(render::menus_json(state)),
+            UiCommand::Menus(render::menus(state)),
             UiCommand::TagSuggestions(tags),
-            UiCommand::BuildPages(render::pages_json(state)),
+            UiCommand::BuildPages(render::pages(state)),
             UiCommand::Status(render::status(state)),
         ];
 
@@ -302,8 +302,44 @@ pub fn handle_action(
 ) {
     let commands = with_state_mut(|state| state.dispatch(action, target, payload));
 
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+/// Typed reverse seam (WS-15.2.2a): tab drag & drop between notebooks.
+/// Same core as the `"move_page"` notify, without any JSON payload.
+pub fn handle_move_page(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    source: &str,
+    target: &str,
+    position: &str,
+) {
+    let commands = with_state_mut(|state| state.page_move_request(source, target, position));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+/// Typed reverse seam (WS-15.2.2a): manage-pages dialog close actions.
+pub fn handle_close_pages(mut window: Pin<&mut ffi::HydrusMainWindow>, ids: Vec<String>) {
+    let commands = with_state_mut(|state| state.close_pages(&ids));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+fn record_notifications(commands: &[UiCommand]) {
     with_state_mut(|state| {
-        for command in &commands {
+        for command in commands {
             if let UiCommand::NotifyMessage(text) = command {
                 state.notifications.push("info", text);
                 let limit = state
@@ -315,10 +351,6 @@ pub fn handle_action(
             }
         }
     });
-
-    for command in commands {
-        panels::execute(window.as_mut(), command);
-    }
 }
 
 /// Qt timer tick: drains background download/import events and runs due
@@ -447,10 +479,10 @@ impl AppState {
             .into_iter()
             .filter_map(|id| {
                 let page = self.find_query(&id)?;
-                Some(UiCommand::PageProgress(
-                    id,
-                    render::query_progress_json(page, Some(&self.import_queue)),
-                ))
+                Some(UiCommand::PageProgress(render::query_progress(
+                    page,
+                    Some(&self.import_queue),
+                )))
             })
             .collect()
     }
@@ -484,7 +516,7 @@ impl AppState {
                 let mut commands = vec![self.status_command()];
 
                 if self.select_page(target) {
-                    commands.insert(0, UiCommand::Menus(render::menus_json(self)));
+                    commands.insert(0, UiCommand::Menus(render::menus(self)));
                 }
 
                 commands
@@ -594,19 +626,37 @@ impl AppState {
             "create_page" => self.create_page(target, payload),
             "close_page" => self.close_page(target),
             "close_other_pages" => self.close_other_pages(target),
-            "move_page" => self.page_move(target, payload),
+            "move_page" => {
+                let request: Value = match serde_json::from_str(payload) {
+                    Ok(value) => value,
+                    Err(_) => {
+                        return vec![UiCommand::NotifyMessage(
+                            "move request is invalid".to_string(),
+                        )];
+                    }
+                };
+
+                let drop_target = request
+                    .get("target")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default();
+                let position = request
+                    .get("position")
+                    .and_then(Value::as_str)
+                    .unwrap_or("after");
+
+                self.page_move_request(target, drop_target, position)
+            }
             "duplicate_page" => self.duplicate_page_command(target),
             "history_back" => self.navigate_history(true),
             "history_forward" => self.navigate_history(false),
-            "page_manager" => vec![UiCommand::PageManagerDialog(render::page_manager_json(
-                self,
-            ))],
+            "page_manager" => vec![UiCommand::PageManagerDialog(render::page_manager(self))],
             "command_palette" => vec![UiCommand::CommandPalette],
             "page_manager_activate" => {
                 if self.select_page(target) {
                     vec![
-                        UiCommand::BuildPages(render::pages_json(self)),
-                        UiCommand::Menus(render::menus_json(self)),
+                        UiCommand::BuildPages(render::pages(self)),
+                        UiCommand::Menus(render::menus(self)),
                         self.status_command(),
                     ]
                 } else {
@@ -615,13 +665,7 @@ impl AppState {
             }
             "page_manager_close" => {
                 let ids: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
-                let mut commands = Vec::new();
-
-                for id in ids {
-                    commands.extend(self.close_page(&id));
-                }
-
-                commands
+                self.close_pages(&ids)
             }
             "session_save_as" => vec![UiCommand::PromptText {
                 action: "session_save".to_string(),
@@ -633,7 +677,7 @@ impl AppState {
                 Ok(name) => {
                     self.message = format!("saved session '{name}'");
                     vec![
-                        UiCommand::Menus(render::menus_json(self)),
+                        UiCommand::Menus(render::menus(self)),
                         self.status_command(),
                     ]
                 }
@@ -646,7 +690,7 @@ impl AppState {
                 Ok(name) => {
                     self.message = format!("backed up session as '{name}'");
                     vec![
-                        UiCommand::Menus(render::menus_json(self)),
+                        UiCommand::Menus(render::menus(self)),
                         self.status_command(),
                     ]
                 }
@@ -668,7 +712,7 @@ impl AppState {
                 Ok(()) => {
                     self.message = format!("deleted session '{target}'");
                     vec![
-                        UiCommand::Menus(render::menus_json(self)),
+                        UiCommand::Menus(render::menus(self)),
                         self.status_command(),
                     ]
                 }
@@ -704,7 +748,7 @@ impl AppState {
                 search_history::record(&mut self.search_history, payload);
                 let _ = search_history::persist(self);
 
-                let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
+                let mut commands = vec![UiCommand::Menus(render::menus(self))];
 
                 if let Some(page) = self.find_query(target) {
                     let import = self.import_queue.clone();
@@ -779,7 +823,7 @@ impl AppState {
                     return vec![UiCommand::NotifyMessage("no page selected".to_string())];
                 }
 
-                let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
+                let mut commands = vec![UiCommand::Menus(render::menus(self))];
                 let import = self.import_queue.clone();
 
                 if let Some(page) = self.find_query(target) {
@@ -804,7 +848,7 @@ impl AppState {
             "notifications_clear" => {
                 self.notifications.clear();
                 vec![
-                    UiCommand::Menus(render::menus_json(self)),
+                    UiCommand::Menus(render::menus(self)),
                     self.status_command(),
                 ]
             }
@@ -852,7 +896,7 @@ impl AppState {
                     Ok(()) => {
                         self.message = format!("exported downloader to {}", path.display());
                         vec![
-                            UiCommand::Menus(render::menus_json(self)),
+                            UiCommand::Menus(render::menus(self)),
                             self.status_command(),
                         ]
                     }
@@ -911,8 +955,8 @@ impl AppState {
                 self.message = "imported downloader definition".to_string();
 
                 vec![
-                    UiCommand::Menus(render::menus_json(self)),
-                    UiCommand::BuildPages(render::pages_json(self)),
+                    UiCommand::Menus(render::menus(self)),
+                    UiCommand::BuildPages(render::pages(self)),
                     self.status_command(),
                 ]
             }
@@ -953,7 +997,7 @@ impl AppState {
                     return vec![UiCommand::NotifyMessage("no page selected".to_string())];
                 }
 
-                let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
+                let mut commands = vec![UiCommand::Menus(render::menus(self))];
                 commands.extend(self.replace_query_and_refresh(&controller, &page_id));
                 commands
             }
@@ -973,7 +1017,7 @@ impl AppState {
                     return vec![UiCommand::NotifyMessage("no page selected".to_string())];
                 }
 
-                let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
+                let mut commands = vec![UiCommand::Menus(render::menus(self))];
                 commands.extend(self.replace_query_and_refresh(&controller, &page_id));
                 commands
             }
@@ -993,7 +1037,7 @@ impl AppState {
                     return vec![UiCommand::NotifyMessage("no page selected".to_string())];
                 }
 
-                let mut commands = vec![UiCommand::Menus(render::menus_json(self))];
+                let mut commands = vec![UiCommand::Menus(render::menus(self))];
                 commands.extend(self.replace_query_and_refresh(&controller, &page_id));
                 commands
             }
@@ -1141,7 +1185,7 @@ impl AppState {
                 self.message = format!("saved favourite search '{name}'");
 
                 vec![
-                    UiCommand::Menus(render::menus_json(self)),
+                    UiCommand::Menus(render::menus(self)),
                     self.status_command(),
                 ]
             }
@@ -1186,7 +1230,7 @@ impl AppState {
                 }
 
                 vec![
-                    UiCommand::Menus(render::menus_json(self)),
+                    UiCommand::Menus(render::menus(self)),
                     self.status_command(),
                 ]
             }
@@ -1634,8 +1678,8 @@ impl AppState {
                 Some(id) => {
                     self.message = format!("restored page '{id}'");
                     vec![
-                        UiCommand::Menus(render::menus_json(self)),
-                        UiCommand::BuildPages(render::pages_json(self)),
+                        UiCommand::Menus(render::menus(self)),
+                        UiCommand::BuildPages(render::pages(self)),
                         self.status_command(),
                     ]
                 }
@@ -1877,7 +1921,7 @@ impl AppState {
         self.record_history(&page_id);
 
         vec![
-            UiCommand::BuildPages(render::pages_json(self)),
+            UiCommand::BuildPages(render::pages(self)),
             self.status_command(),
         ]
     }
@@ -1933,7 +1977,7 @@ impl AppState {
                 model::current_leaf(&self.root).or_else(|| model::first_page_id(&self.root));
         }
 
-        commands.push(UiCommand::BuildPages(render::pages_json(self)));
+        commands.push(UiCommand::BuildPages(render::pages(self)));
         commands.push(self.status_command());
 
         commands
@@ -1987,37 +2031,19 @@ impl AppState {
         }
 
         self.active = Some(page_id.to_string());
-        commands.push(UiCommand::BuildPages(render::pages_json(self)));
+        commands.push(UiCommand::BuildPages(render::pages(self)));
         commands.push(self.status_command());
 
         commands
     }
 
-    fn page_move(&mut self, page_id: &str, payload: &str) -> Vec<UiCommand> {
-        let request: Value = match serde_json::from_str(payload) {
-            Ok(value) => value,
-            Err(_) => {
-                return vec![UiCommand::NotifyMessage(
-                    "move request is invalid".to_string(),
-                )];
-            }
-        };
-
-        let target = request
-            .get("target")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        let position = request
-            .get("position")
-            .and_then(Value::as_str)
-            .unwrap_or("after");
-
+    fn page_move_request(&mut self, page_id: &str, target: &str, position: &str) -> Vec<UiCommand> {
         match self.move_page(page_id, target, position) {
             Ok(()) => {
                 self.record_history(page_id);
                 vec![
-                    UiCommand::BuildPages(render::pages_json(self)),
-                    UiCommand::Menus(render::menus_json(self)),
+                    UiCommand::BuildPages(render::pages(self)),
+                    UiCommand::Menus(render::menus(self)),
                     self.status_command(),
                 ]
             }
@@ -2025,13 +2051,23 @@ impl AppState {
         }
     }
 
+    fn close_pages(&mut self, ids: &[String]) -> Vec<UiCommand> {
+        let mut commands = Vec::new();
+
+        for id in ids {
+            commands.extend(self.close_page(id));
+        }
+
+        commands
+    }
+
     fn duplicate_page_command(&mut self, page_id: &str) -> Vec<UiCommand> {
         match self.duplicate_page(page_id) {
             Ok(id) => {
                 self.record_history(&id);
                 vec![
-                    UiCommand::BuildPages(render::pages_json(self)),
-                    UiCommand::Menus(render::menus_json(self)),
+                    UiCommand::BuildPages(render::pages(self)),
+                    UiCommand::Menus(render::menus(self)),
                     self.status_command(),
                 ]
             }
@@ -2050,8 +2086,8 @@ impl AppState {
             Some(id) => {
                 self.select_page(&id);
                 vec![
-                    UiCommand::BuildPages(render::pages_json(self)),
-                    UiCommand::Menus(render::menus_json(self)),
+                    UiCommand::BuildPages(render::pages(self)),
+                    UiCommand::Menus(render::menus(self)),
                     self.status_command(),
                 ]
             }
@@ -2078,8 +2114,8 @@ impl AppState {
             self.refresh_all();
             self.message = format!("appended {added} page groups from '{name}'");
             return vec![
-                UiCommand::Menus(render::menus_json(self)),
-                UiCommand::BuildPages(render::pages_json(self)),
+                UiCommand::Menus(render::menus(self)),
+                UiCommand::BuildPages(render::pages(self)),
                 self.status_command(),
             ];
         }
@@ -2097,8 +2133,8 @@ impl AppState {
             viewer_ids.into_iter().map(UiCommand::CloseViewer).collect();
 
         self.message = format!("loaded session '{name}'");
-        commands.push(UiCommand::Menus(render::menus_json(self)));
-        commands.push(UiCommand::BuildPages(render::pages_json(self)));
+        commands.push(UiCommand::Menus(render::menus(self)));
+        commands.push(UiCommand::BuildPages(render::pages(self)));
         commands.push(self.status_command());
 
         commands
@@ -2125,7 +2161,7 @@ impl AppState {
         }
 
         vec![
-            UiCommand::BuildPages(render::pages_json(self)),
+            UiCommand::BuildPages(render::pages(self)),
             self.status_command(),
         ]
     }
@@ -2701,7 +2737,7 @@ impl AppState {
             )));
             self.active = Some(id);
             self.refresh_all();
-            commands.push(UiCommand::BuildPages(render::pages_json(self)));
+            commands.push(UiCommand::BuildPages(render::pages(self)));
         }
 
         commands.push(self.status_command());
@@ -2730,7 +2766,7 @@ impl AppState {
         self.active = Some(id.clone());
 
         let payload = serde_json::json!({"input": url}).to_string();
-        let mut commands = vec![UiCommand::BuildPages(render::pages_json(self))];
+        let mut commands = vec![UiCommand::BuildPages(render::pages(self))];
         commands.extend(download::start(self, &id, &payload));
         commands
     }

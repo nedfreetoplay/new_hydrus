@@ -15,6 +15,10 @@ class HydrusMainWindow;
 struct StatusBar;
 struct AboutInfo;
 struct ViewingStats;
+struct MenuBar;
+struct Pages;
+struct PageProgress;
+struct PageTree;
 
 std::unique_ptr<QApplication> new_application();
 int exec_application(QApplication &application);
@@ -34,16 +38,13 @@ void show_hydrus_main_window(HydrusMainWindow &window);
 
 void hydrus_set_title(HydrusMainWindow &window, rust::Str title);
 void hydrus_resize_window(HydrusMainWindow &window, int width, int height);
-void hydrus_set_menus(HydrusMainWindow &window, rust::Str json);
+void hydrus_set_menus(HydrusMainWindow &window, const MenuBar &menus);
 void hydrus_set_tag_suggestions(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_autocomplete(HydrusMainWindow &window, rust::Str json);
 void hydrus_set_status(HydrusMainWindow &window, const StatusBar &status);
-void hydrus_build_pages(HydrusMainWindow &window, rust::Str json);
+void hydrus_build_pages(HydrusMainWindow &window, const Pages &pages);
 void hydrus_update_page(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
-void hydrus_update_page_progress(
-    HydrusMainWindow &window,
-    rust::Str page_id,
-    rust::Str json);
+void hydrus_update_page_progress(HydrusMainWindow &window, const PageProgress &progress);
 void hydrus_update_downloader(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_subscriptions(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_show_subscriptions_dialog(HydrusMainWindow &window, rust::Str json);
@@ -83,7 +84,7 @@ void hydrus_set_selection(
     rust::Str preview_path,
     rust::Str metadata_json);
 void hydrus_show_page_chooser(HydrusMainWindow &window, rust::Str notebook_id);
-void hydrus_show_page_manager(HydrusMainWindow &window, rust::Str json);
+void hydrus_show_page_manager(HydrusMainWindow &window, const PageTree &tree);
 void hydrus_show_command_palette(HydrusMainWindow &window);
 void hydrus_prompt_text(
     HydrusMainWindow &window,
@@ -156,6 +157,16 @@ void app_action(
     rust::Str payload) noexcept;
 
 void app_tick(HydrusMainWindow &window) noexcept;
+
+// Typed reverse seams (WS-15.2.2a): tab drag & drop and manage-pages close
+// actions. Implemented in Rust, same core as the notify actions.
+void app_move_page(
+    HydrusMainWindow &window,
+    rust::Str source,
+    rust::Str target,
+    rust::Str position) noexcept;
+
+void app_close_pages(HydrusMainWindow &window, rust::Vec<rust::String> ids) noexcept;
 
 // Implemented in Rust: the Python VetoException text for an invalid export
 // filename phrase, or an empty string when the phrase parses.

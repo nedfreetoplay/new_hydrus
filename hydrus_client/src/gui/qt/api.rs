@@ -68,6 +68,103 @@ pub(crate) mod ffi {
         rows: Vec<ViewingStatRow>,
     }
 
+    /// One flat entry of the main-window menu bar (WS-15.2.2a).
+    ///
+    /// The menu tree is flattened in Rust with an explicit `depth`:
+    /// `0` is a top-level menu (`title`), deeper rows are its items.
+    /// A submenu row (`is_submenu`) owns the rows that follow it at
+    /// `depth + 1`; a separator row (`is_separator`) only carries `depth`.
+    #[derive(Clone, Debug, PartialEq)]
+    struct MenuEntry {
+        depth: i32,
+        title: String,
+        label: String,
+        action: String,
+        target: String,
+        payload: String,
+        tooltip: String,
+        enabled: bool,
+        checkable: bool,
+        checked: bool,
+        is_separator: bool,
+        is_submenu: bool,
+    }
+
+    /// Main-window menu bar: the whole menu tree as flat rows.
+    #[derive(Clone, Debug, PartialEq)]
+    struct MenuBar {
+        entries: Vec<MenuEntry>,
+    }
+
+    /// Page kind for the page/tree seams (WS-15.2.2a). Numeric enum, no
+    /// `Option`: every row carries a concrete kind.
+    #[derive(Debug)]
+    enum PageKind {
+        Notebook,
+        Query,
+        Downloader,
+        Subscriptions,
+        Duplicates,
+        ImportFolders,
+        ExportFolders,
+        Placeholder,
+    }
+
+    /// One page row of the notebook tree (WS-15.2.2a).
+    ///
+    /// The envelope is typed; `state` keeps the per-screen JSON blob inside
+    /// one field (R1 exception: arbitrary per-screen shape) until each
+    /// screen converts its own seam in later WS-15.2.2 subtasks.
+    #[derive(Clone, Debug, PartialEq)]
+    struct PageRow {
+        id: String,
+        title: String,
+        kind: PageKind,
+        current: String,
+        depth: i32,
+        state: String,
+    }
+
+    /// Notebook contents for `build_pages`: root current page plus the
+    /// whole tree as flat preorder rows.
+    #[derive(Clone, Debug, PartialEq)]
+    struct Pages {
+        current: String,
+        rows: Vec<PageRow>,
+    }
+
+    /// One row of the manage-pages dialog tree (WS-15.2.2a).
+    #[derive(Clone, Debug, PartialEq)]
+    struct PageTreeRow {
+        id: String,
+        title: String,
+        kind: PageKind,
+        count: i64,
+        active: bool,
+        depth: i32,
+    }
+
+    /// Manage-pages dialog: the whole page tree as flat preorder rows.
+    #[derive(Clone, Debug, PartialEq)]
+    struct PageTree {
+        rows: Vec<PageTreeRow>,
+    }
+
+    /// Incremental progress of a file page (WS-15.2.2a).
+    ///
+    /// C++ currently consumes only `loading` (as the JSON seam did); the
+    /// import counters travel typed for the follow-up seams. Absence of an
+    /// import is zero/empty, never JSON null.
+    #[derive(Clone, Debug, PartialEq)]
+    struct PageProgress {
+        page_id: String,
+        loading: bool,
+        importing_done: i64,
+        importing_total: i64,
+        importing_message: String,
+        count: i64,
+    }
+
     unsafe extern "C++" {
         include!("bridge.hpp");
 
@@ -93,17 +190,13 @@ pub(crate) mod ffi {
 
         fn hydrus_set_title(window: Pin<&mut HydrusMainWindow>, title: &str);
         fn hydrus_resize_window(window: Pin<&mut HydrusMainWindow>, width: i32, height: i32);
-        fn hydrus_set_menus(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_set_menus(window: Pin<&mut HydrusMainWindow>, menus: &MenuBar);
         fn hydrus_set_tag_suggestions(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_autocomplete(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_set_status(window: Pin<&mut HydrusMainWindow>, status: &StatusBar);
-        fn hydrus_build_pages(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_build_pages(window: Pin<&mut HydrusMainWindow>, pages: &Pages);
         fn hydrus_update_page(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
-        fn hydrus_update_page_progress(
-            window: Pin<&mut HydrusMainWindow>,
-            page_id: &str,
-            json: &str,
-        );
+        fn hydrus_update_page_progress(window: Pin<&mut HydrusMainWindow>, progress: &PageProgress);
         fn hydrus_update_downloader(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
         fn hydrus_update_subscriptions(
             window: Pin<&mut HydrusMainWindow>,
@@ -154,7 +247,7 @@ pub(crate) mod ffi {
             metadata_json: &str,
         );
         fn hydrus_show_page_chooser(window: Pin<&mut HydrusMainWindow>, notebook_id: &str);
-        fn hydrus_show_page_manager(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_page_manager(window: Pin<&mut HydrusMainWindow>, tree: &PageTree);
         fn hydrus_show_command_palette(window: Pin<&mut HydrusMainWindow>);
         fn hydrus_prompt_text(
             window: Pin<&mut HydrusMainWindow>,
@@ -231,6 +324,15 @@ pub(crate) mod ffi {
             payload: &str,
         );
         fn app_tick(window: Pin<&mut HydrusMainWindow>);
+        /// Typed reverse seam (WS-15.2.2a): tab drag & drop between notebooks.
+        fn app_move_page(
+            window: Pin<&mut HydrusMainWindow>,
+            source: &str,
+            target: &str,
+            position: &str,
+        );
+        /// Typed reverse seam (WS-15.2.2a): manage-pages dialog close actions.
+        fn app_close_pages(window: Pin<&mut HydrusMainWindow>, ids: Vec<String>);
         fn hydrus_validate_export_phrase(phrase: &str) -> String;
         fn hydrus_static_dir() -> String;
     }
@@ -249,6 +351,19 @@ fn app_action(
 
 fn app_tick(mut window: Pin<&mut ffi::HydrusMainWindow>) {
     crate::gui::app::handle_tick(window.as_mut());
+}
+
+fn app_move_page(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    source: &str,
+    target: &str,
+    position: &str,
+) {
+    crate::gui::app::handle_move_page(window.as_mut(), source, target, position);
+}
+
+fn app_close_pages(mut window: Pin<&mut ffi::HydrusMainWindow>, ids: Vec<String>) {
+    crate::gui::app::handle_close_pages(window.as_mut(), ids);
 }
 
 /// Returns the Python `VetoException` text for an invalid export filename

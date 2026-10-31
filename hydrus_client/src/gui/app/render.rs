@@ -9,198 +9,606 @@ use super::model::{
     QueryPage,
 };
 use super::query;
-use crate::gui::qt::api::ffi::{AboutInfo, StatusBar, ViewingStatRow, ViewingStats};
+use crate::gui::qt::api::ffi::{
+    AboutInfo, MenuBar, MenuEntry, PageKind, PageProgress, PageRow, PageTree, PageTreeRow, Pages,
+    StatusBar, ViewingStatRow, ViewingStats,
+};
 
-pub fn menus_json(state: &AppState) -> String {
+fn menu_title(entries: &mut Vec<MenuEntry>, title: &str) {
+    entries.push(MenuEntry {
+        depth: 0,
+        title: title.to_string(),
+        label: String::new(),
+        action: String::new(),
+        target: String::new(),
+        payload: String::new(),
+        tooltip: String::new(),
+        enabled: true,
+        checkable: false,
+        checked: false,
+        is_separator: false,
+        is_submenu: false,
+    });
+}
+
+fn menu_separator(entries: &mut Vec<MenuEntry>, depth: i32) {
+    entries.push(MenuEntry {
+        depth,
+        title: String::new(),
+        label: String::new(),
+        action: String::new(),
+        target: String::new(),
+        payload: String::new(),
+        tooltip: String::new(),
+        enabled: true,
+        checkable: false,
+        checked: false,
+        is_separator: true,
+        is_submenu: false,
+    });
+}
+
+fn menu_submenu(entries: &mut Vec<MenuEntry>, depth: i32, label: &str) {
+    entries.push(MenuEntry {
+        depth,
+        title: String::new(),
+        label: label.to_string(),
+        action: String::new(),
+        target: String::new(),
+        payload: String::new(),
+        tooltip: String::new(),
+        enabled: true,
+        checkable: false,
+        checked: false,
+        is_separator: false,
+        is_submenu: true,
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
+fn menu_action(
+    entries: &mut Vec<MenuEntry>,
+    depth: i32,
+    label: &str,
+    action: &str,
+    target: &str,
+    payload: &str,
+    tooltip: &str,
+    enabled: bool,
+) {
+    entries.push(MenuEntry {
+        depth,
+        title: String::new(),
+        label: label.to_string(),
+        action: action.to_string(),
+        target: target.to_string(),
+        payload: payload.to_string(),
+        tooltip: tooltip.to_string(),
+        enabled,
+        checkable: false,
+        checked: false,
+        is_separator: false,
+        is_submenu: false,
+    });
+}
+
+fn menu_toggle(
+    entries: &mut Vec<MenuEntry>,
+    depth: i32,
+    label: &str,
+    action: &str,
+    tooltip: &str,
+    checked: bool,
+) {
+    entries.push(MenuEntry {
+        depth,
+        title: String::new(),
+        label: label.to_string(),
+        action: action.to_string(),
+        target: String::new(),
+        payload: String::new(),
+        tooltip: tooltip.to_string(),
+        enabled: true,
+        checkable: true,
+        checked,
+        is_separator: false,
+        is_submenu: false,
+    });
+}
+
+fn menu_disabled(entries: &mut Vec<MenuEntry>, depth: i32, label: &str) {
+    menu_action(entries, depth, label, "", "", "", "", false);
+}
+
+/// Flat, typed main-window menu bar (WS-15.2.2a): the same tree the JSON
+/// seam carried, with `depth` marking submenus. Predicates (`enabled`,
+/// `checked`, hidden `&pending`) already lived here in Rust; C++ only
+/// rebuilds `QMenu`s from the rows.
+pub fn menus(state: &AppState) -> MenuBar {
     let services = state.controller.services();
-    let mut service_entries: Vec<Value> = services
-        .get_services(None)
-        .into_iter()
-        .map(|service| {
-            json!({
-                "label": service.name,
-                "action": format!("service_info:{}", service.name),
-                "description": "show information about this service",
-            })
-        })
-        .collect();
+    let mut entries = Vec::new();
 
-    let tag_filter_entries: Vec<Value> = services
-        .get_services(Some(&[ServiceType::TagRepository, ServiceType::LocalTag]))
-        .into_iter()
-        .map(|service| {
-            json!({
-                "label": service.name,
-                "action": format!("tag_filter:{}", query::hex(&service.service_key)),
-                "description": "edit the tag filter and purge tags",
-            })
-        })
-        .collect();
+    menu_title(&mut entries, "&file");
+    menu_action(
+        &mut entries,
+        1,
+        "import files...",
+        "import_files",
+        "",
+        "",
+        "Add new files to the database.",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "import options...",
+        "import_options",
+        "",
+        "",
+        "Choose file filters, destinations, tags, notes and presentation.",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "import url...",
+        "import_url",
+        "",
+        "",
+        "Download one file from a URL and import it.",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "manage import folders\u{2026}",
+        "manage_import_folders",
+        "",
+        "",
+        "Manage folders from which the client can automatically import.",
+        true,
+    );
+    menu_submenu(&mut entries, 1, "import folders");
+    import_folder_menu_entries(state, &mut entries, 2);
+    menu_submenu(&mut entries, 1, "export folders");
+    export_folder_menu_entries(state, &mut entries, 2);
+    menu_separator(&mut entries, 1);
+    menu_submenu(&mut entries, 1, "open");
+    menu_action(
+        &mut entries,
+        2,
+        "installation directory",
+        "open_install_dir",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        2,
+        "database directory",
+        "open_db_dir",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_separator(&mut entries, 1);
+    menu_action(&mut entries, 1, "options...", "options", "", "", "", true);
+    menu_separator(&mut entries, 1);
+    menu_action(&mut entries, 1, "exit", "exit", "", "", "", true);
 
-    if !tag_filter_entries.is_empty() {
-        service_entries.push(json!({"separator": true}));
-        service_entries.push(json!({
-            "label": "tag filters",
-            "items": tag_filter_entries,
-        }));
-    }
+    menu_title(&mut entries, "&undo");
+    menu_action(
+        &mut entries,
+        1,
+        "undo",
+        "undo",
+        "",
+        "",
+        "Restore the most recently closed page.",
+        !state.closed_pages.is_empty(),
+    );
 
-    service_entries.push(json!({"separator": true}));
-    service_entries.push(json!({
-        "label": "manage services...",
-        "action": "manage_services",
-        "description": "local services are managed here"
-    }));
-    service_entries.push(json!({
-        "label": "client api permissions...",
-        "action": "api_permissions",
-        "description": "manage Client API access keys and permissions"
-    }));
+    menu_title(&mut entries, "&pages");
+    menu_action(&mut entries, 1, "new page...", "new_page", "", "", "", true);
+    menu_submenu(&mut entries, 1, "download");
+    menu_action(
+        &mut entries,
+        2,
+        "new url download page",
+        "new_urls",
+        "",
+        "",
+        "Download direct file URLs.",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        2,
+        "new watcher page",
+        "new_watcher",
+        "",
+        "",
+        "Watch a page for new files.",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        2,
+        "new gallery page",
+        "new_gallery",
+        "",
+        "",
+        "Parse a gallery page and download its files.",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        2,
+        "new simple downloader page",
+        "new_simple",
+        "",
+        "",
+        "Parse page links and download the files they point to.",
+        true,
+    );
+    menu_action(&mut entries, 1, "refresh", "refresh_page", "", "", "", true);
+    menu_separator(&mut entries, 1);
+    menu_action(
+        &mut entries,
+        1,
+        "back",
+        "history_back",
+        "",
+        "",
+        "",
+        state.history.can_back(),
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "forward",
+        "history_forward",
+        "",
+        "",
+        "",
+        state.history.can_forward(),
+    );
+    menu_separator(&mut entries, 1);
+    menu_action(
+        &mut entries,
+        1,
+        "undo search",
+        "undo_search",
+        "",
+        "",
+        "",
+        state
+            .active_query()
+            .is_some_and(|page| !page.query_undo.is_empty()),
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "redo search",
+        "redo_search",
+        "",
+        "",
+        "",
+        state
+            .active_query()
+            .is_some_and(|page| !page.query_redo.is_empty()),
+    );
+    menu_submenu(&mut entries, 1, "recent searches");
+    recent_search_entries(state, &mut entries, 2);
+    menu_separator(&mut entries, 1);
+    menu_action(&mut entries, 1, "new page of pages", "new_notebook", "", "", "", true);
+    menu_action(
+        &mut entries,
+        1,
+        "new duplicates processing page",
+        "new_duplicates",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_separator(&mut entries, 1);
+    menu_action(&mut entries, 1, "manage pages...", "page_manager", "", "", "", true);
+    menu_action(&mut entries, 1, "duplicate page", "duplicate_page", "", "", "", true);
+    menu_separator(&mut entries, 1);
+    menu_action(&mut entries, 1, "close page", "close_page", "", "", "", true);
+    menu_action(
+        &mut entries,
+        1,
+        "close other pages",
+        "close_other_pages",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_separator(&mut entries, 1);
+    menu_submenu(&mut entries, 1, "favourite searches");
+    favourite_menu_entries(state, &mut entries, 2);
+    menu_separator(&mut entries, 1);
+    menu_submenu(&mut entries, 1, "sessions");
+    session_menu_entries(state, &mut entries, 2);
 
-    let mut menus = json!([
-        {
-            "title": "&file",
-            "items": [
-                {"label": "import files...", "action": "import_files", "description": "Add new files to the database."},
-                {"label": "import options...", "action": "import_options", "description": "Choose file filters, destinations, tags, notes and presentation for imports."},
-                {"label": "import url...", "action": "import_url", "description": "Download one file from a URL and import it."},
-                {"label": "manage import folders\u{2026}", "action": "manage_import_folders", "description": "Manage folders from which the client can automatically import."},
-                {"label": "import folders", "items": import_folder_menu_items(state)},
-                {"label": "export folders", "items": export_folder_menu_items(state)},
-                {"separator": true},
-                {"label": "open", "items": [
-                    {"label": "installation directory", "action": "open_install_dir"},
-                    {"label": "database directory", "action": "open_db_dir"}
-                ]},
-                {"separator": true},
-                {"label": "options...", "action": "options"},
-                {"separator": true},
-                {"label": "exit", "action": "exit"}
-            ]
-        },
-        {
-            "title": "&undo",
-            "items": [
-                {"label": "undo", "action": "undo", "enabled": !state.closed_pages.is_empty(),
-                 "description": "Restore the most recently closed page."}
-            ]
-        },
-        {
-            "title": "&pages",
-            "items": [
-                {"label": "new page...", "action": "new_page"},
-                {"label": "download", "items": [
-                    {"label": "new url download page", "action": "new_urls", "description": "Download direct file URLs."},
-                    {"label": "new watcher page", "action": "new_watcher", "description": "Watch a page for new files."},
-                    {"label": "new gallery page", "action": "new_gallery", "description": "Parse a gallery page and download its files."},
-                    {"label": "new simple downloader page", "action": "new_simple", "description": "Parse page links and download the files they point to."}
-                ]},
-                {"label": "refresh", "action": "refresh_page"},
-                {"separator": true},
-                {"label": "back", "action": "history_back", "enabled": state.history.can_back()},
-                {"label": "forward", "action": "history_forward", "enabled": state.history.can_forward()},
-                {"separator": true},
-                {"label": "undo search", "action": "undo_search",
-                 "enabled": state.active_query().is_some_and(|page| !page.query_undo.is_empty())},
-                {"label": "redo search", "action": "redo_search",
-                 "enabled": state.active_query().is_some_and(|page| !page.query_redo.is_empty())},
-                {"label": "recent searches", "items": recent_search_items(state)},
-                {"separator": true},
-                {"label": "new page of pages", "action": "new_notebook"},
-                {"label": "new duplicates processing page", "action": "new_duplicates"},
-                {"separator": true},
-                {"label": "manage pages...", "action": "page_manager"},
-                {"label": "duplicate page", "action": "duplicate_page"},
-                {"separator": true},
-                {"label": "close page", "action": "close_page"},
-                {"label": "close other pages", "action": "close_other_pages"},
-                {"separator": true},
-                {"label": "favourite searches", "items": favourite_menu_items(state)},
-                {"separator": true},
-                {"label": "sessions", "items": session_menu_items(state)}
-            ]
-        },
-        {
-            "title": "&database",
-            "items": [
-                {"label": "database directory", "action": "open_db_dir"},
-                {"label": "show database info", "action": "db_info"},
-                {"label": "back up database...", "action": "db_backup_open",
-                 "description": "Copy client.db to the configured backup directory."},
-                {"separator": true},
-                {"label": "maintenance", "items": [
-                    {"label": "check database", "action": "db_check"},
-                    {"label": "analyze database", "action": "db_analyze"},
-                    {"label": "vacuum database", "action": "db_vacuum"},
-                    {"label": "review vacuum data", "action": "db_vacuum_info"},
-                    {"label": "review deferred deletes", "action": "db_deferred_deletes"},
-                    {"label": "fix missing archive times", "action": "db_fix_archive_times"},
-                    {"separator": true},
-                    {"label": "review file maintenance jobs", "action": "db_file_maintenance"},
-                    {"label": "run file maintenance jobs", "action": "db_run_file_maintenance"},
-                    {"separator": true},
-                    {"label": "clear orphan files...", "action": "orphan_files_scan"},
-                    {"separator": true},
-                    {"label": "review local imports...", "action": "import_files"},
-                    {"label": "repair file locations...", "action": "repair_file_locations"},
-                    {"separator": true},
-                    {"label": "how boned am I?", "action": "db_stats"}
-                ]}
-            ]
-        },
-        {
-            "title": "&network",
-            "items": [
-                {"label": "manage network...", "action": "options_network"},
-                {"label": "pause all new network traffic", "action": "pause_network", "checkable": true, "checked": state.controller.network_paused()},
-                {"label": "subscriptions\u{2026}", "action": "manage_subscriptions", "description": "Change the queries you want the client to regularly import from."},
-                {"separator": true},
-                {"label": "export downloader definition...", "action": "downloader_export"},
-                {"label": "import downloader definition...", "action": "downloader_import"}
-            ]
-        },
-        {
-            "title": "&services",
-            "items": service_entries
-        },
-        {
-            "title": "&tags",
-            "items": [
-                {"label": "manage tags...", "action": "manage_tags_active"},
-                {"label": "manage notes...", "action": "manage_notes_active"},
-                {"label": "edit timestamps...", "action": "edit_timestamps"},
-                {"separator": true},
-                {"label": "copy tags", "action": "copy_tags"},
-                {"label": "paste tags...", "action": "paste_tags_prompt"},
-                {"label": "apply tags to selection...", "action": "apply_tags_selection"},
-                {"separator": true},
-                {"label": "duplicate auto-resolution...", "action": "duplicates_rules"},
-                {"label": "review duplicate pending decisions...", "action": "duplicates_review"},
-                {"separator": true},
-                {"label": "manage tag siblings...", "action": "tag_siblings"},
-                {"label": "manage tag parents...", "action": "tag_parents"}
-            ]
-        },
-        {
-            "title": "&pending",
-            "items": [
-                {"label": "pending uploads", "action": "pending", "enabled": false}
-            ]
-        },
-        {
-            "title": "&help",
-            "items": [
-                {"label": "documentation", "action": "docs"},
-                {"label": "popup messages...", "action": "notifications"},
-                {"label": "command palette...", "action": "command_palette", "description": "Ctrl+K"},
-                {"label": "about", "action": "about"},
-                {"separator": true},
-                {"label": "debug", "items": [
-                    {"label": "show database info", "action": "db_info"}
-                ]}
-            ]
-        }
-    ]);
+    menu_title(&mut entries, "&database");
+    menu_action(
+        &mut entries,
+        1,
+        "database directory",
+        "open_db_dir",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "show database info",
+        "db_info",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "back up database...",
+        "db_backup_open",
+        "",
+        "",
+        "Copy client.db to the configured backup directory.",
+        true,
+    );
+    menu_separator(&mut entries, 1);
+    menu_submenu(&mut entries, 1, "maintenance");
+    menu_action(&mut entries, 2, "check database", "db_check", "", "", "", true);
+    menu_action(&mut entries, 2, "analyze database", "db_analyze", "", "", "", true);
+    menu_action(&mut entries, 2, "vacuum database", "db_vacuum", "", "", "", true);
+    menu_action(
+        &mut entries,
+        2,
+        "review vacuum data",
+        "db_vacuum_info",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        2,
+        "review deferred deletes",
+        "db_deferred_deletes",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        2,
+        "fix missing archive times",
+        "db_fix_archive_times",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_separator(&mut entries, 2);
+    menu_action(
+        &mut entries,
+        2,
+        "review file maintenance jobs",
+        "db_file_maintenance",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        2,
+        "run file maintenance jobs",
+        "db_run_file_maintenance",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_separator(&mut entries, 2);
+    menu_action(
+        &mut entries,
+        2,
+        "clear orphan files...",
+        "orphan_files_scan",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_separator(&mut entries, 2);
+    menu_action(
+        &mut entries,
+        2,
+        "review local imports...",
+        "import_files",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        2,
+        "repair file locations...",
+        "repair_file_locations",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_separator(&mut entries, 2);
+    menu_action(&mut entries, 2, "how boned am I?", "db_stats", "", "", "", true);
+
+    menu_title(&mut entries, "&network");
+    menu_action(
+        &mut entries,
+        1,
+        "manage network...",
+        "options_network",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_toggle(
+        &mut entries,
+        1,
+        "pause all new network traffic",
+        "pause_network",
+        "",
+        state.controller.network_paused(),
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "subscriptions\u{2026}",
+        "manage_subscriptions",
+        "",
+        "",
+        "Change the queries you want the client to regularly import from.",
+        true,
+    );
+    menu_separator(&mut entries, 1);
+    menu_action(
+        &mut entries,
+        1,
+        "export downloader definition...",
+        "downloader_export",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "import downloader definition...",
+        "downloader_import",
+        "",
+        "",
+        "",
+        true,
+    );
+
+    menu_title(&mut entries, "&services");
+    service_menu_entries(&services, &mut entries);
+
+    menu_title(&mut entries, "&tags");
+    menu_action(
+        &mut entries,
+        1,
+        "manage tags...",
+        "manage_tags_active",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "manage notes...",
+        "manage_notes_active",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "edit timestamps...",
+        "edit_timestamps",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_separator(&mut entries, 1);
+    menu_action(&mut entries, 1, "copy tags", "copy_tags", "", "", "", true);
+    menu_action(
+        &mut entries,
+        1,
+        "paste tags...",
+        "paste_tags_prompt",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "apply tags to selection...",
+        "apply_tags_selection",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_separator(&mut entries, 1);
+    menu_action(
+        &mut entries,
+        1,
+        "duplicate auto-resolution...",
+        "duplicates_rules",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "review duplicate pending decisions...",
+        "duplicates_review",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_separator(&mut entries, 1);
+    menu_action(
+        &mut entries,
+        1,
+        "manage tag siblings...",
+        "tag_siblings",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "manage tag parents...",
+        "tag_parents",
+        "",
+        "",
+        "",
+        true,
+    );
 
     // Python hides the pending menu unless a repository service exists
     // (`has_pending_services` in ClientGUI).
@@ -212,173 +620,341 @@ pub fn menus_json(state: &AppState) -> String {
         ]))
         .is_empty();
 
-    if !has_pending_services {
-        if let Some(items) = menus.as_array_mut() {
-            items.retain(|menu| {
-                menu.get("title").and_then(Value::as_str) != Some("&pending")
-            });
+    if has_pending_services {
+        menu_title(&mut entries, "&pending");
+        menu_action(&mut entries, 1, "pending uploads", "pending", "", "", "", false);
+    }
+
+    menu_title(&mut entries, "&help");
+    menu_action(&mut entries, 1, "documentation", "docs", "", "", "", true);
+    menu_action(
+        &mut entries,
+        1,
+        "popup messages...",
+        "notifications",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "command palette...",
+        "command_palette",
+        "",
+        "",
+        "Ctrl+K",
+        true,
+    );
+    menu_action(&mut entries, 1, "about", "about", "", "", "", true);
+    menu_separator(&mut entries, 1);
+    menu_submenu(&mut entries, 1, "debug");
+    menu_action(
+        &mut entries,
+        2,
+        "show database info",
+        "db_info",
+        "",
+        "",
+        "",
+        true,
+    );
+
+    MenuBar { entries }
+}
+
+fn service_menu_entries(
+    services: &crate::services::ServicesManager,
+    entries: &mut Vec<MenuEntry>,
+) {
+    for service in services.get_services(None) {
+        menu_action(
+            entries,
+            1,
+            &service.name,
+            &format!("service_info:{}", service.name),
+            "",
+            "",
+            "show information about this service",
+            true,
+        );
+    }
+
+    let tag_filter_services = services.get_services(Some(&[
+        ServiceType::TagRepository,
+        ServiceType::LocalTag,
+    ]));
+
+    if !tag_filter_services.is_empty() {
+        menu_separator(entries, 1);
+        menu_submenu(entries, 1, "tag filters");
+        for service in tag_filter_services {
+            menu_action(
+                entries,
+                2,
+                &service.name,
+                &format!("tag_filter:{}", query::hex(&service.service_key)),
+                "",
+                "",
+                "edit the tag filter and purge tags",
+                true,
+            );
         }
     }
 
-    menus.to_string()
+    menu_separator(entries, 1);
+    menu_action(
+        entries,
+        1,
+        "manage services...",
+        "manage_services",
+        "",
+        "",
+        "local services are managed here",
+        true,
+    );
+    menu_action(
+        entries,
+        1,
+        "client api permissions...",
+        "api_permissions",
+        "",
+        "",
+        "manage Client API access keys and permissions",
+        true,
+    );
 }
 
-fn import_folder_menu_items(state: &AppState) -> Vec<Value> {
-    let mut items = vec![
-        json!({"label": "check all", "action": "import_folder_check_all"}),
-        json!({"separator": true}),
-    ];
+
+fn import_folder_menu_entries(
+    state: &AppState,
+    entries: &mut Vec<MenuEntry>,
+    depth: i32,
+) {
+    menu_action(entries, depth, "check all", "import_folder_check_all", "", "", "", true);
+    menu_separator(entries, depth);
 
     for folder in &state.import_folders {
-        items.push(json!({
-            "label": folder.name,
-            "action": "import_folder_check",
-            "payload": folder.name,
-        }));
+        menu_action(
+            entries,
+            depth,
+            &folder.name,
+            "import_folder_check",
+            "",
+            &folder.name,
+            "",
+            true,
+        );
     }
 
     if state.import_folders.is_empty() {
-        items.push(json!({"label": "no import folders", "action": "", "enabled": false}));
+        menu_disabled(entries, depth, "no import folders");
     }
-
-    items
 }
 
-fn export_folder_menu_items(state: &AppState) -> Vec<Value> {
-    let mut items = vec![
-        json!({"label": "manage export folders\u{2026}", "action": "manage_export_folders", "description": "Manage folders to which the client can automatically export."}),
-        json!({
-            "label": "run all export folders",
-            "action": "export_folder_run_all",
-            "enabled": !state.export_folders.is_empty(),
-        }),
-        json!({"separator": true}),
-    ];
+fn export_folder_menu_entries(
+    state: &AppState,
+    entries: &mut Vec<MenuEntry>,
+    depth: i32,
+) {
+    menu_action(
+        entries,
+        depth,
+        "manage export folders\u{2026}",
+        "manage_export_folders",
+        "",
+        "",
+        "Manage folders to which the client can automatically export.",
+        true,
+    );
+    menu_action(
+        entries,
+        depth,
+        "run all export folders",
+        "export_folder_run_all",
+        "",
+        "",
+        "",
+        !state.export_folders.is_empty(),
+    );
+    menu_separator(entries, depth);
 
     for folder in &state.export_folders {
-        items.push(json!({
-            "label": folder.name,
-            "action": "export_folder_run",
-            "payload": folder.name,
-            "enabled": !folder.running && !folder.paused,
-            "description": folder.status,
-        }));
+        menu_action(
+            entries,
+            depth,
+            &folder.name,
+            "export_folder_run",
+            "",
+            &folder.name,
+            &folder.status,
+            !folder.running && !folder.paused,
+        );
     }
 
     if state.export_folders.is_empty() {
-        items.push(json!({"label": "no export folders", "action": "", "enabled": false}));
+        menu_disabled(entries, depth, "no export folders");
     }
-
-    items
 }
 
-fn recent_search_items(state: &AppState) -> Vec<Value> {
-    let mut items = Vec::new();
-
+fn recent_search_entries(state: &AppState, entries: &mut Vec<MenuEntry>, depth: i32) {
     for query in state.search_history.iter().take(15) {
-        items.push(json!({
-            "label": query,
-            "action": "apply_search_history",
-            "target": query,
-        }));
+        menu_action(
+            entries,
+            depth,
+            query,
+            "apply_search_history",
+            query,
+            "",
+            "",
+            true,
+        );
     }
 
-    if items.is_empty() {
-        items.push(json!({"label": "no recent searches", "action": "", "enabled": false}));
+    if state.search_history.is_empty() {
+        menu_disabled(entries, depth, "no recent searches");
     }
-
-    items
 }
 
-fn favourite_menu_items(state: &AppState) -> Vec<Value> {
-    let mut items = Vec::new();
+fn favourite_menu_entries(state: &AppState, entries: &mut Vec<MenuEntry>, depth: i32) {
+    for favourite in &state.favourites {
+        menu_action(
+            entries,
+            depth,
+            &format!("{} — {}", favourite.name, favourite.query),
+            "favourite_apply",
+            &favourite.name,
+            "",
+            "",
+            true,
+        );
+    }
+
+    if state.favourites.is_empty() {
+        menu_disabled(entries, depth, "no favourite searches");
+    }
+
+    menu_separator(entries, depth);
+    menu_action(
+        entries,
+        depth,
+        "save current search...",
+        "favourite_save",
+        "",
+        "",
+        "Store the current query, file domain and tag service.",
+        true,
+    );
+
+    menu_submenu(entries, depth, "delete");
 
     for favourite in &state.favourites {
-        items.push(json!({
-            "label": format!("{} — {}", favourite.name, favourite.query),
-            "action": "favourite_apply",
-            "target": favourite.name,
-        }));
+        menu_action(
+            entries,
+            depth + 1,
+            &favourite.name,
+            "favourite_delete",
+            &favourite.name,
+            "",
+            "",
+            true,
+        );
     }
 
-    if items.is_empty() {
-        items.push(json!({"label": "no favourite searches", "action": "", "enabled": false}));
+    if state.favourites.is_empty() {
+        menu_disabled(entries, depth + 1, "no favourite searches");
     }
-
-    items.push(json!({"separator": true}));
-    items.push(json!({
-        "label": "save current search...",
-        "action": "favourite_save",
-        "description": "Store the current query, file domain and tag service."
-    }));
-
-    let mut delete = Vec::new();
-
-    for favourite in &state.favourites {
-        delete.push(json!({
-            "label": favourite.name,
-            "action": "favourite_delete",
-            "target": favourite.name,
-        }));
-    }
-
-    if delete.is_empty() {
-        delete.push(json!({"label": "no favourite searches", "action": "", "enabled": false}));
-    }
-
-    items.push(json!({"label": "delete", "items": delete}));
-
-    items
 }
 
-fn session_menu_items(state: &AppState) -> Vec<Value> {
-    let mut items = vec![
-        json!({"label": "save current as...", "action": "session_save_as",
-               "description": "Save the open pages under a new session name."}),
-        json!({"label": "backup current", "action": "session_backup",
-               "description": "Copy the open pages into the backup folder."}),
-        json!({"separator": true}),
-    ];
+fn session_menu_entries(state: &AppState, entries: &mut Vec<MenuEntry>, depth: i32) {
+    menu_action(
+        entries,
+        depth,
+        "save current as...",
+        "session_save_as",
+        "",
+        "",
+        "Save the open pages under a new session name.",
+        true,
+    );
+    menu_action(
+        entries,
+        depth,
+        "backup current",
+        "session_backup",
+        "",
+        "",
+        "Copy the open pages into the backup folder.",
+        true,
+    );
+    menu_separator(entries, depth);
 
-    let mut load = Vec::new();
-    let mut append = Vec::new();
-    let mut delete = Vec::new();
+    let sessions = super::sessions::list(state);
+    let empty = sessions.is_empty();
 
-    for session in super::sessions::list(state) {
+    menu_submenu(entries, depth, "load");
+    for session in &sessions {
         let label = format!("{} ({} pages)", session.name, session.pages);
-        load.push(json!({"label": label, "action": "session_load", "target": session.name}));
-        append.push(json!({"label": label, "action": "session_append", "target": session.name}));
-        delete.push(json!({"label": label, "action": "session_delete", "target": session.name}));
+        menu_action(entries, depth + 1, &label, "session_load", &session.name, "", "", true);
+    }
+    if empty {
+        menu_disabled(entries, depth + 1, "no saved sessions");
     }
 
-    if load.is_empty() {
-        load.push(json!({"label": "no saved sessions", "action": "", "enabled": false}));
-        append.push(json!({"label": "no saved sessions", "action": "", "enabled": false}));
-        delete.push(json!({"label": "no saved sessions", "action": "", "enabled": false}));
+    menu_submenu(entries, depth, "append");
+    for session in &sessions {
+        let label = format!("{} ({} pages)", session.name, session.pages);
+        menu_action(
+            entries,
+            depth + 1,
+            &label,
+            "session_append",
+            &session.name,
+            "",
+            "",
+            true,
+        );
+    }
+    if empty {
+        menu_disabled(entries, depth + 1, "no saved sessions");
     }
 
-    items.push(json!({"label": "load", "items": load}));
-    items.push(json!({"label": "append", "items": append}));
-
+    menu_submenu(entries, depth, "append backup");
     let backups = super::sessions::list_backups(state);
-    let mut append_backup = Vec::new();
-
-    for backup in backups {
-        append_backup.push(json!({
-            "label": format!("{} ({} pages)", backup.name, backup.pages),
-            "action": "session_append_backup",
-            "target": backup.name
-        }));
+    for backup in &backups {
+        menu_action(
+            entries,
+            depth + 1,
+            &format!("{} ({} pages)", backup.name, backup.pages),
+            "session_append_backup",
+            &backup.name,
+            "",
+            "",
+            true,
+        );
+    }
+    if backups.is_empty() {
+        menu_disabled(entries, depth + 1, "no backups");
     }
 
-    if append_backup.is_empty() {
-        append_backup.push(json!({"label": "no backups", "action": "", "enabled": false}));
+    menu_submenu(entries, depth, "delete");
+    for session in &sessions {
+        let label = format!("{} ({} pages)", session.name, session.pages);
+        menu_action(
+            entries,
+            depth + 1,
+            &label,
+            "session_delete",
+            &session.name,
+            "",
+            "",
+            true,
+        );
     }
-
-    items.push(json!({"label": "append backup", "items": append_backup}));
-    items.push(json!({"label": "delete", "items": delete}));
-
-    items
+    if empty {
+        menu_disabled(entries, depth + 1, "no saved sessions");
+    }
 }
 
 pub fn notifications_json(state: &AppState) -> String {
@@ -403,157 +979,202 @@ pub fn notifications_json(state: &AppState) -> String {
     json!({"count": state.notifications.len(), "entries": entries}).to_string()
 }
 
-pub fn page_manager_json(state: &AppState) -> String {
-    json!({"root": manager_node(state, &state.root)}).to_string()
-}
-fn manager_node(state: &AppState, notebook: &super::model::Notebook) -> Value {
-    let children: Vec<Value> = notebook
-        .children
-        .iter()
-        .map(|child| manager_item(state, child))
-        .collect();
-
-    json!({
-        "id": notebook.id,
-        "kind": "notebook",
-        "title": notebook.title,
-        "count": children.len(),
-        "active": state.active.as_deref() == Some(notebook.id.as_str()),
-        "children": children,
-    })
+/// Manage-pages dialog tree as flat preorder rows (WS-15.2.2a).
+/// `count` is the per-kind item count the old JSON seam carried; `active`
+/// marks the selected page (rendered bold).
+pub fn page_manager(state: &AppState) -> PageTree {
+    let mut rows = Vec::new();
+    manager_rows(state, &state.root, 0, &mut rows);
+    PageTree { rows }
 }
 
-fn manager_item(state: &AppState, node: &PageNode) -> Value {
+fn manager_rows(
+    state: &AppState,
+    notebook: &super::model::Notebook,
+    depth: i32,
+    rows: &mut Vec<PageTreeRow>,
+) {
+    for child in &notebook.children {
+        manager_item_rows(state, child, depth, rows);
+    }
+}
+
+fn manager_item_rows(
+    state: &AppState,
+    node: &PageNode,
+    depth: i32,
+    rows: &mut Vec<PageTreeRow>,
+) {
+    let active = state.active.as_deref() == Some(node.id());
     match node {
-        PageNode::Notebook(notebook) => manager_node(state, notebook),
-        PageNode::Query(page) => json!({
-            "id": page.id,
-            "kind": "query",
-            "title": page.title,
-            "count": page.hashes.len(),
-            "active": state.active.as_deref() == Some(page.id.as_str()),
-            "children": [],
+        PageNode::Notebook(notebook) => {
+            rows.push(PageTreeRow {
+                id: notebook.id.clone(),
+                title: notebook.title.clone(),
+                kind: PageKind::Notebook,
+                count: notebook.children.len() as i64,
+                active: state.active.as_deref() == Some(notebook.id.as_str()),
+                depth,
+            });
+            manager_rows(state, notebook, depth + 1, rows);
+        }
+        PageNode::Query(page) => rows.push(PageTreeRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::Query,
+            count: page.hashes.len() as i64,
+            active,
+            depth,
         }),
-        PageNode::Downloader(page) => json!({
-            "id": page.id,
-            "kind": "downloader",
-            "title": page.title,
-            "count": page.results.len(),
-            "active": state.active.as_deref() == Some(page.id.as_str()),
-            "children": [],
+        PageNode::Downloader(page) => rows.push(PageTreeRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::Downloader,
+            count: page.results.len() as i64,
+            active,
+            depth,
         }),
-        PageNode::Subscriptions(page) => json!({
-            "id": page.id,
-            "kind": "subscriptions",
-            "title": page.title,
-            "count": state.subscriptions.len(),
-            "active": state.active.as_deref() == Some(page.id.as_str()),
-            "children": [],
+        PageNode::Subscriptions(page) => rows.push(PageTreeRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::Subscriptions,
+            count: state.subscriptions.len() as i64,
+            active,
+            depth,
         }),
-        PageNode::Duplicates(page) => json!({
-            "id": page.id,
-            "kind": "duplicates",
-            "title": page.title,
-            "count": page.pairs.len(),
-            "active": state.active.as_deref() == Some(page.id.as_str()),
-            "children": [],
+        PageNode::Duplicates(page) => rows.push(PageTreeRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::Duplicates,
+            count: page.pairs.len() as i64,
+            active,
+            depth,
         }),
-        PageNode::ImportFolders(page) => json!({
-            "id": page.id,
-            "kind": "import_folders",
-            "title": page.title,
-            "count": state.import_folders.len(),
-            "active": state.active.as_deref() == Some(page.id.as_str()),
-            "children": [],
+        PageNode::ImportFolders(page) => rows.push(PageTreeRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::ImportFolders,
+            count: state.import_folders.len() as i64,
+            active,
+            depth,
         }),
-        PageNode::ExportFolders(page) => json!({
-            "id": page.id,
-            "kind": "export_folders",
-            "title": page.title,
-            "count": state.export_folders.len(),
-            "active": state.active.as_deref() == Some(page.id.as_str()),
-            "children": [],
+        PageNode::ExportFolders(page) => rows.push(PageTreeRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::ExportFolders,
+            count: state.export_folders.len() as i64,
+            active,
+            depth,
         }),
-        PageNode::Placeholder(page) => json!({
-            "id": page.id,
-            "kind": "placeholder",
-            "title": page.title,
-            "count": 0,
-            "active": state.active.as_deref() == Some(page.id.as_str()),
-            "children": [],
+        PageNode::Placeholder(page) => rows.push(PageTreeRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::Placeholder,
+            count: 0,
+            active,
+            depth,
         }),
     }
 }
 
-pub fn pages_json(state: &AppState) -> String {
-    json!({"root": notebook_node(state, &state.root)}).to_string()
+/// Notebook contents for `build_pages` as flat preorder rows (WS-15.2.2a).
+/// The envelope (id/title/kind/current/depth) is typed; `state` keeps the
+/// per-screen JSON blob inside one field (R1 exception) until each screen
+/// converts its own seam in later WS-15.2.2 subtasks.
+pub fn pages(state: &AppState) -> Pages {
+    let mut rows = Vec::new();
+    pages_rows(state, &state.root, 0, &mut rows);
+    Pages {
+        current: state.root.current.clone().unwrap_or_default(),
+        rows,
+    }
 }
 
-fn notebook_node(state: &AppState, notebook: &super::model::Notebook) -> Value {
-    let children: Vec<Value> = notebook
-        .children
-        .iter()
-        .map(|child| node_json(state, child))
-        .collect();
-
-    json!({
-        "id": notebook.id,
-        "kind": "notebook",
-        "title": notebook.title,
-        "current": notebook.current,
-        "children": children,
-    })
+fn pages_rows(
+    state: &AppState,
+    notebook: &super::model::Notebook,
+    depth: i32,
+    rows: &mut Vec<PageRow>,
+) {
+    for child in &notebook.children {
+        page_row(state, child, depth, rows);
+    }
 }
 
-fn node_json(state: &AppState, node: &PageNode) -> Value {
+fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRow>) {
     match node {
-        PageNode::Query(page) => json!({
-            "id": page.id,
-            "kind": "query",
-            "title": page.title,
-            "state": query_state(&state.controller, page, Some(&state.import_queue)),
+        PageNode::Query(page) => rows.push(PageRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::Query,
+            current: String::new(),
+            depth,
+            state: serde_json::to_string(&query_state(
+                &state.controller,
+                page,
+                Some(&state.import_queue),
+            ))
+            .unwrap_or_else(|_| "{}".to_string()),
         }),
-        PageNode::Notebook(notebook) => notebook_node(state, notebook),
-        PageNode::Downloader(page) => json!({
-            "id": page.id,
-            "kind": "downloader",
-            "title": page.title,
-            "state": serde_json::from_str::<Value>(&downloader_json(&state.controller, page))
-                .unwrap_or(Value::Null),
+        PageNode::Notebook(notebook) => {
+            rows.push(PageRow {
+                id: notebook.id.clone(),
+                title: notebook.title.clone(),
+                kind: PageKind::Notebook,
+                current: notebook.current.clone().unwrap_or_default(),
+                depth,
+                state: String::new(),
+            });
+            pages_rows(state, notebook, depth + 1, rows);
+        }
+        PageNode::Downloader(page) => rows.push(PageRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::Downloader,
+            current: String::new(),
+            depth,
+            state: downloader_json(&state.controller, page),
         }),
-        PageNode::Subscriptions(page) => json!({
-            "id": page.id,
-            "kind": "subscriptions",
-            "title": page.title,
-            "state": serde_json::from_str::<Value>(&subscriptions_json(state, &page.id))
-                .unwrap_or(Value::Null),
+        PageNode::Subscriptions(page) => rows.push(PageRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::Subscriptions,
+            current: String::new(),
+            depth,
+            state: subscriptions_json(state, &page.id),
         }),
-        PageNode::Duplicates(page) => json!({
-            "id": page.id,
-            "kind": "duplicates",
-            "title": page.title,
-            "state": serde_json::from_str::<Value>(&duplicates_json(&state.controller, page))
-                .unwrap_or(Value::Null),
+        PageNode::Duplicates(page) => rows.push(PageRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::Duplicates,
+            current: String::new(),
+            depth,
+            state: duplicates_json(&state.controller, page),
         }),
-        PageNode::ImportFolders(page) => json!({
-            "id": page.id,
-            "kind": "import_folders",
-            "title": page.title,
-            "state": serde_json::from_str::<Value>(&super::import_folders::rules_json(state, &page.id))
-                .unwrap_or(Value::Null),
+        PageNode::ImportFolders(page) => rows.push(PageRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::ImportFolders,
+            current: String::new(),
+            depth,
+            state: super::import_folders::rules_json(state, &page.id),
         }),
-        PageNode::ExportFolders(page) => json!({
-            "id": page.id,
-            "kind": "export_folders",
-            "title": page.title,
-            "state": serde_json::from_str::<Value>(&super::export::folders_json(state, &page.id))
-                .unwrap_or(Value::Null),
+        PageNode::ExportFolders(page) => rows.push(PageRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::ExportFolders,
+            current: String::new(),
+            depth,
+            state: super::export::folders_json(state, &page.id),
         }),
-        PageNode::Placeholder(page) => json!({
-            "id": page.id,
-            "kind": "placeholder",
-            "title": page.title,
-            "state": {"message": page.message},
+        PageNode::Placeholder(page) => rows.push(PageRow {
+            id: page.id.clone(),
+            title: page.title.clone(),
+            kind: PageKind::Placeholder,
+            current: String::new(),
+            depth,
+            state: serde_json::to_string(&serde_json::json!({"message": page.message}))
+                .unwrap_or_else(|_| "{}".to_string()),
         }),
     }
 }
@@ -632,17 +1253,19 @@ fn importing_json(import: Option<&super::model::ImportQueueState>) -> Value {
 
 /// Small incremental payload sent while imports run, so the results panel can
 /// show progress without rebuilding the whole thumbnail list.
-pub fn query_progress_json(
+pub fn query_progress(
     page: &QueryPage,
     import: Option<&super::model::ImportQueueState>,
-) -> String {
-    json!({
-        "page_id": page.id,
-        "loading": page.loading,
-        "importing": importing_json(import),
-        "count": page.hashes.len(),
-    })
-    .to_string()
+) -> PageProgress {
+    let running = import.filter(|queue| queue.running);
+    PageProgress {
+        page_id: page.id.clone(),
+        loading: page.loading,
+        importing_done: running.map(|queue| queue.done as i64).unwrap_or(0),
+        importing_total: running.map(|queue| queue.total as i64).unwrap_or(0),
+        importing_message: running.map(|queue| queue.message.clone()).unwrap_or_default(),
+        count: page.hashes.len() as i64,
+    }
 }
 
 pub fn maintenance_json(state: &AppState) -> String {

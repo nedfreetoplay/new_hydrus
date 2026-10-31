@@ -6,7 +6,6 @@
 #include <QApplication>
 #include <QDrag>
 #include <QInputDialog>
-#include <QJsonDocument>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMimeData>
@@ -92,24 +91,30 @@ void HydrusTabBar::dropEvent(QDropEvent *event) {
             return;
         }
 
-        const QString source = QString::fromUtf8(event->mimeData()->data(kPageMimeType));
-        const int index = tabAt(event->position().toPoint());
-
-        QJsonObject request;
-        request.insert(QStringLiteral("target"), notebook->notebook_id());
-        request.insert(QStringLiteral("position"), QStringLiteral("inside"));
-
-        if (index >= 0 && index < count() - 1) {
-            const QString target = tabData(index).toString();
-
-            if (!target.isEmpty() && target != QStringLiteral("__plus__") && target != source) {
-                request.insert(QStringLiteral("target"), target);
-                request.insert(QStringLiteral("position"), QStringLiteral("before"));
-            }
-        }
-
-        const QByteArray payload = QJsonDocument(request).toJson(QJsonDocument::Compact);
-        main->notify(QStringLiteral("move_page"), source, QString::fromUtf8(payload));
+        const QString source = QString::fromUtf8(event->mimeData()->data(kPageMimeType));
+
+        QString drop_target = notebook->notebook_id();
+        QString position = QStringLiteral("inside");
+
+        const int index = tabAt(event->position().toPoint());
+
+        if (index >= 0 && index < count() - 1) {
+            const QString target = tabData(index).toString();
+
+            if (!target.isEmpty() && target != QStringLiteral("__plus__") && target != source) {
+                drop_target = target;
+                position = QStringLiteral("before");
+            }
+        }
+
+        const QByteArray source_bytes = source.toUtf8();
+        const QByteArray target_bytes = drop_target.toUtf8();
+        const QByteArray position_bytes = position.toUtf8();
+        app_move_page(
+            *main,
+            rust::Str(source_bytes.constData(), source_bytes.size()),
+            rust::Str(target_bytes.constData(), target_bytes.size()),
+            rust::Str(position_bytes.constData(), position_bytes.size()));
         event->acceptProposedAction();
     }
 

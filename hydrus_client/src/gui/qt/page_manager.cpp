@@ -2,6 +2,8 @@
 
 // WS-15.1.3c1: page manager moved from bridge.cpp (move-only split; inline
 // methods outlined, no logic change).
+// WS-15.2.2a: dialog contents arrive as a typed PageTree (ctor and tree
+// building live in typed_seams.cpp); close actions call app_close_pages.
 
 #include "bridge.hpp"
 #include "support/support.hpp"
@@ -11,62 +13,13 @@
 #include <QFont>
 #include <QHeaderView>
 #include <QHBoxLayout>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonValue>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QStyle>
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
-HydrusPageManager::HydrusPageManager(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
-    : QDialog(parent), main(main_window) {
-    setWindowTitle(QStringLiteral("manage pages"));
-    resize(560, 560);
-
-    auto *layout = new QVBoxLayout(this);
-
-    filter = new QLineEdit(this);
-    filter->setPlaceholderText(QStringLiteral("filter pages..."));
-    layout->addWidget(filter);
-
-    tree = new QTreeWidget(this);
-    tree->setColumnCount(3);
-    tree->setHeaderLabels({QStringLiteral("page"), QStringLiteral("type"), QStringLiteral("files")});
-    tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-    tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    tree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    layout->addWidget(tree, 1);
-
-    auto *buttons = new QHBoxLayout();
-    auto *activate = new QPushButton(QStringLiteral("activate"), this);
-    auto *close_selected = new QPushButton(QStringLiteral("close selected"), this);
-    auto *close_all = new QPushButton(QStringLiteral("close all"), this);
-    auto *close_dialog = new QPushButton(QStringLiteral("close"), this);
-
-    buttons->addWidget(activate);
-    buttons->addWidget(close_selected);
-    buttons->addWidget(close_all);
-    buttons->addStretch(1);
-    buttons->addWidget(close_dialog);
-    layout->addLayout(buttons);
-
-    build(state.value(QStringLiteral("root")).toObject());
-
-    connect(filter, &QLineEdit::textChanged, this, [this](const QString &text) {
-        apply_filter(text.trimmed());
-    });
-    connect(activate, &QPushButton::clicked, this, [this]() { activate_current(); });
-    connect(close_selected, &QPushButton::clicked, this, [this]() { close_selected_pages(); });
-    connect(close_all, &QPushButton::clicked, this, [this]() { close_all_pages(); });
-    connect(close_dialog, &QPushButton::clicked, this, &QDialog::reject);
-    connect(tree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem *, int) {
-        activate_current();
-    });
-}
+#include <utility>
 
 QIcon HydrusPageManager::icon_for(const QString &kind) const {
     const QString file_name = hydrus_small_icon_file_name(kind);
@@ -117,49 +70,6 @@ QIcon HydrusPageManager::icon_for(const QString &kind) const {
     return style()->standardIcon(QStyle::SP_MessageBoxQuestion);
 }
 
-void HydrusPageManager::build(const QJsonObject &root) {
-    tree->clear();
-    top_levels.clear();
-
-    const QJsonArray children = root.value(QStringLiteral("children")).toArray();
-
-    for (const QJsonValue &value : children) {
-        const QJsonObject child = value.toObject();
-        top_levels.append(child.value(QStringLiteral("id")).toString());
-        add_node(nullptr, child);
-    }
-
-    tree->expandAll();
-}
-
-QTreeWidgetItem *HydrusPageManager::add_node(QTreeWidgetItem *parent, const QJsonObject &node) {
-    const QString id = node.value(QStringLiteral("id")).toString();
-    const QString title = node.value(QStringLiteral("title")).toString();
-    const QString kind = node.value(QStringLiteral("kind")).toString();
-    const int count = node.value(QStringLiteral("count")).toInt();
-    const bool active = node.value(QStringLiteral("active")).toBool();
-
-    auto *item = parent == nullptr ? new QTreeWidgetItem(tree) : new QTreeWidgetItem(parent);
-    item->setText(0, title.isEmpty() ? QStringLiteral("page") : title);
-    item->setText(1, kind);
-    item->setText(2, QString::number(count));
-    item->setIcon(0, icon_for(kind));
-    item->setData(0, Qt::UserRole, id);
-
-    if (active) {
-        QFont font = item->font(0);
-        font.setBold(true);
-        item->setFont(0, font);
-    }
-
-    const QJsonArray children = node.value(QStringLiteral("children")).toArray();
-
-    for (const QJsonValue &value : children) {
-        add_node(item, value.toObject());
-    }
-
-    return item;
-}
 
 bool HydrusPageManager::filter_item(QTreeWidgetItem *item, const QString &needle) {
     bool child_visible = false;
@@ -200,7 +110,7 @@ void HydrusPageManager::activate_current() {
 }
 
 void HydrusPageManager::close_selected_pages() {
-    QJsonArray ids;
+    rust::Vec<rust::String> ids;
 
     for (QTreeWidgetItem *item : tree->selectedItems()) {
         bool ancestor_selected = false;
@@ -213,31 +123,31 @@ void HydrusPageManager::close_selected_pages() {
         }
 
         if (!ancestor_selected) {
-            ids.append(id_of(item));
+            const QByteArray bytes = id_of(item).toUtf8();
+            ids.push_back(rust::String(bytes.constData()));
         }
     }
 
-    if (ids.isEmpty()) {
+    if (ids.size() == 0) {
         return;
     }
 
-    const QByteArray payload = QJsonDocument(ids).toJson(QJsonDocument::Compact);
-    main->notify(QStringLiteral("page_manager_close"), QString(), QString::fromUtf8(payload));
+    app_close_pages(*main, std::move(ids));
     accept();
 }
 
 void HydrusPageManager::close_all_pages() {
-    QJsonArray ids;
+    rust::Vec<rust::String> ids;
 
     for (const QString &id : top_levels) {
-        ids.append(id);
+        const QByteArray bytes = id.toUtf8();
+        ids.push_back(rust::String(bytes.constData()));
     }
 
-    if (ids.isEmpty()) {
+    if (ids.size() == 0) {
         return;
     }
 
-    const QByteArray payload = QJsonDocument(ids).toJson(QJsonDocument::Compact);
-    main->notify(QStringLiteral("page_manager_close"), QString(), QString::fromUtf8(payload));
+    app_close_pages(*main, std::move(ids));
     accept();
 }

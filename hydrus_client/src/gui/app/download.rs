@@ -440,7 +440,7 @@ pub(crate) fn open_hashes_page(
     }
 
     vec![
-        UiCommand::BuildPages(render::pages_json(state)),
+        UiCommand::BuildPages(render::pages(state)),
         UiCommand::Status(render::status(state)),
     ]
 }
@@ -989,7 +989,7 @@ fn handle_event(state: &mut AppState, event: AsyncEvent) -> Vec<UiCommand> {
                     crate::gui::app::query::refresh_page(&controller, page);
                 }
 
-                commands.push(UiCommand::BuildPages(render::pages_json(state)));
+                commands.push(UiCommand::BuildPages(render::pages(state)));
             } else if !hashes.is_empty() {
                 commands.extend(state.refresh_commands());
             }

@@ -809,7 +809,7 @@ pub fn apply_options(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     }
 
     let mut commands = vec![
-        UiCommand::Menus(render::menus_json(state)),
+        UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(state.message.clone()),
     ];
@@ -1181,7 +1181,7 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
 fn network_commands(state: &AppState) -> Vec<UiCommand> {
     vec![
         UiCommand::NetworkDialog(network_json(state)),
-        UiCommand::Menus(render::menus_json(state)),
+        UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(state.message.clone()),
     ]

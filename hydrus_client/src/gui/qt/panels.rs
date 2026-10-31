@@ -16,19 +16,19 @@ pub(crate) fn execute_commands(mut window: Window<'_>, commands: Vec<UiCommand>)
 
 pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
     match command {
-        UiCommand::Menus(json) => ffi::hydrus_set_menus(window.as_mut(), &json),
+        UiCommand::Menus(menus) => ffi::hydrus_set_menus(window.as_mut(), &menus),
         UiCommand::TagSuggestions(json) => {
             ffi::hydrus_set_tag_suggestions(window.as_mut(), &json);
         }
         UiCommand::Autocomplete(json) => {
             ffi::hydrus_show_autocomplete(window.as_mut(), &json);
         }
-        UiCommand::BuildPages(json) => ffi::hydrus_build_pages(window.as_mut(), &json),
+        UiCommand::BuildPages(pages) => ffi::hydrus_build_pages(window.as_mut(), &pages),
         UiCommand::UpdatePage(page_id, json) => {
             ffi::hydrus_update_page(window.as_mut(), &page_id, &json);
         }
-        UiCommand::PageProgress(page_id, json) => {
-            ffi::hydrus_update_page_progress(window.as_mut(), &page_id, &json);
+        UiCommand::PageProgress(progress) => {
+            ffi::hydrus_update_page_progress(window.as_mut(), &progress);
         }
         UiCommand::Defer {
             action,
@@ -143,8 +143,8 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::ShowPageChooser(notebook_id) => {
             ffi::hydrus_show_page_chooser(window.as_mut(), &notebook_id);
         }
-        UiCommand::PageManagerDialog(json) => {
-            ffi::hydrus_show_page_manager(window.as_mut(), &json);
+        UiCommand::PageManagerDialog(tree) => {
+            ffi::hydrus_show_page_manager(window.as_mut(), &tree);
         }
         UiCommand::CommandPalette => {
             ffi::hydrus_show_command_palette(window.as_mut());

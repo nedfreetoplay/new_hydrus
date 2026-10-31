@@ -165,6 +165,22 @@ Definition of Done для задачи.
   `docs/images/python_watcher_page.png` (Python). Осталось: несколько watcher
   в таблице, диалог checker options, highlight → media panel, retry ignored,
   точные иконки.
+- 2026-10-31 — менеджер подписок сверен с живым Python v692. В Python нет
+  страницы подписок: `network -> subscriptions…` открывает диалог
+  `manage subscriptions` (`EditSubscriptionsPanel`). Rust теперь делает то же:
+  пункт меню `subscriptions…` с описанием Python, окно `manage subscriptions`,
+  таблица `name/source/status/last new file time/last checked/error/delay?/
+  items/paused/custom import options`, справа сверху `help for this panel -->`,
+  ниже строки кнопок `add/edit/delete/export/import/duplicate`,
+  `merge/separate/deduplicate/lowercase`, `pause/resume` + retry-меню,
+  `scrub delays/check queries now/reset`, `select subscriptions/overwrite
+  downloader/overwrite checker options`, `import options:` с copy/paste/star/
+  clear и внизу `apply`/`cancel`. Выбор строки включает batch-кнопки, диалог
+  обновляется после каждого действия. Работают add, edit, delete, pause/resume,
+  check now, scrub delays, reset, lowercase, duplicate, clear import options,
+  copy/paste import options; сетевой экспорт/импорт и overwrite-команды пока
+  сообщают о нереализованности. Скриншоты: `docs/images/subscriptions_dialog.png`
+  (Rust) и `docs/images/python_subscriptions_dialog.png`.
 
 ## Текущий статус
 
@@ -691,9 +707,9 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   и устранить расхождения по «Правилу визуального паритета» (порядок контролов,
   подписи, размеры, отступы, иконки, тема).
   - сверено: главное окно (файловая страница), gallery downloader,
-    url downloader, simple downloader, watcher.
-  - осталось: subscriptions, duplicates, import/export folders, options dialogs,
-    media viewer.
+    url downloader, simple downloader, watcher, менеджер подписок
+    (`network -> subscriptions…`).
+  - осталось: duplicates, import/export folders, options dialogs, media viewer.
 - [x] 14.9 Переносимая сборка: Qt DLL, плагины и MSVC runtime лежат рядом с exe
   (`scripts/deploy.ps1`, `qt.conf`, `-Zip`), запуск не зависит от `PATH` и
   установленного Qt. Проверено на release-сборке с очищенным `PATH`: окно

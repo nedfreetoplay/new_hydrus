@@ -44,6 +44,8 @@ pub(crate) mod ffi {
             page_id: &str,
             json: &str,
         );
+        fn hydrus_show_subscriptions_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_update_subscriptions_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_subscription_editor(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_duplicates(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
         fn hydrus_update_import_folders(

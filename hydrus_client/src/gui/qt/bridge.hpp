@@ -43,6 +43,7 @@ class HydrusThumbnailGrid;
 class HydrusViewerWindow;
 class HydrusDownloaderPage;
 class HydrusSubscriptionsPage;
+class HydrusSubscriptionsDialog;
 class HydrusDuplicatesPage;
 class HydrusServicesDialog;
 class HydrusApiPermissionsDialog;
@@ -651,6 +652,28 @@ private:
     QCheckBox *paused = nullptr;
 };
 
+// Python's network -> subscriptions... manager (EditSubscriptionsPanel):
+// one table of subscriptions and the batch action rows underneath.
+class HydrusSubscriptionsDialog : public QDialog {
+public:
+    HydrusSubscriptionsDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void add_subscription();
+    void with_selected(const QString &action);
+    void import_options_action(const QString &action);
+    void refresh_buttons();
+    QStringList selected_names() const;
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    QTableWidget *table = nullptr;
+    QLabel *warning = nullptr;
+    QList<QWidget *> selection_buttons;
+};
+
 // Remap missing media/thumbnail subfolder roots.
 class HydrusRepairFileLocationsDialog : public QDialog {
 public:
@@ -1049,6 +1072,8 @@ public:
     void update_page_progress(const QString &page_id, const QJsonObject &state);
     void update_downloader(const QString &page_id, const QJsonObject &state);
     void update_subscriptions(const QString &page_id, const QJsonObject &state);
+    void show_subscriptions_dialog(const QJsonObject &state);
+    void update_subscriptions_dialog(const QJsonObject &state);
     void show_subscription_editor(const QJsonObject &state);
     void update_duplicates(const QString &page_id, const QJsonObject &state);
     void update_import_folders(const QString &page_id, const QJsonObject &state);
@@ -1161,6 +1186,7 @@ private:
     HydrusLocalImportTaggingDialog *local_import_tagging_dialog = nullptr;
     HydrusRepairFileLocationsDialog *repair_file_locations_dialog = nullptr;
     HydrusSubscriptionEditorDialog *subscription_editor_dialog = nullptr;
+    HydrusSubscriptionsDialog *subscriptions_dialog = nullptr;
     HydrusDuplicateReviewDialog *duplicate_review_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
     QTimer *tick_timer = nullptr;
@@ -1198,6 +1224,8 @@ void hydrus_update_page_progress(
     rust::Str json);
 void hydrus_update_downloader(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_subscriptions(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
+void hydrus_show_subscriptions_dialog(HydrusMainWindow &window, rust::Str json);
+void hydrus_update_subscriptions_dialog(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_subscription_editor(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);

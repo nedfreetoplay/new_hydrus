@@ -533,6 +533,10 @@ impl AppState {
                 let notebook = self.active_notebook_id();
                 self.create_page(&notebook, "simple")
             }
+            "notify" => vec![UiCommand::NotifyMessage(payload.to_string())],
+            // Python has no subscriptions page: network -> subscriptions... opens
+            // the manage subscriptions dialog.
+            "manage_subscriptions" => download::manage_subscriptions(self),
             "new_subscriptions" => {
                 let notebook = self.active_notebook_id();
                 self.create_page(&notebook, "subscriptions")
@@ -1321,6 +1325,19 @@ impl AppState {
             "subscription_edit" => download::edit_subscription_dialog(self, target, payload),
             "subscription_edit_save" => download::save_subscription_dialog(self, target, payload),
             "subscription_add" => download::add_subscription(self, target, payload),
+            "subscription_duplicate" => {
+                download::duplicate_subscription(self, target, payload)
+            }
+            "subscription_lowercase_queries" => {
+                download::lowercase_subscription_queries(self, target, payload)
+            }
+            "subscription_scrub_delays" => {
+                download::scrub_subscription_delays(self, target, payload)
+            }
+            "subscription_reset" => download::reset_subscription(self, target, payload),
+            "subscription_import_options_clear" => {
+                download::clear_subscription_import_options(self, target, payload)
+            }
             "subscription_open_results" => {
                 download::open_subscription_results(self, target, payload)
             }

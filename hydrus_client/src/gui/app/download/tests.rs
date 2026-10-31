@@ -307,6 +307,43 @@ fn simple_jobs_set_reorders_and_removes_pending_jobs() {
 }
 
 #[test]
+fn subscription_row_actions_update_the_entry() {
+    let directory = std::env::temp_dir().join(format!(
+        "hydrus_downloader_subs_actions_{}_{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    let mut state = test_state(&directory);
+
+    let mut entry = SubscriptionEntry::new("cats", "https://example.com/gallery?q={query}");
+    entry.query = "Cats AND Dogs".to_string();
+    entry.imported = 4;
+    entry.failed = 1;
+    state.subscriptions.push(entry);
+
+    let _ = duplicate_subscription(&mut state, "", "cats");
+    assert_eq!(state.subscriptions.len(), 2);
+    assert_eq!(state.subscriptions[1].name, "cats (1)");
+
+    let _ = lowercase_subscription_queries(&mut state, "", "cats");
+    assert_eq!(state.subscriptions[0].query, "cats and dogs");
+
+    let _ = reset_subscription(&mut state, "", "cats");
+    assert_eq!(state.subscriptions[0].imported, 0);
+    assert_eq!(state.subscriptions[0].failed, 0);
+    assert!(state.subscriptions[0].results.is_empty());
+
+    let _ = scrub_subscription_delays(&mut state, "", "cats");
+    assert_eq!(state.subscriptions[0].last_check, 0);
+
+    let _ = clear_subscription_import_options(&mut state, "", "cats");
+    assert!(state.subscriptions[0].import_options.is_empty());
+
+    drop(state);
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn watcher_url_add_and_remove_updates_the_page() {
     let directory = std::env::temp_dir().join(format!(
         "hydrus_downloader_watcher_{}_{}",

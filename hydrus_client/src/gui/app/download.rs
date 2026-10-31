@@ -445,6 +445,13 @@ pub(crate) fn open_hashes_page(
     ]
 }
 
+/// Open the Python `network -> subscriptions...` manager dialog.
+pub fn manage_subscriptions(state: &AppState) -> Vec<UiCommand> {
+    vec![UiCommand::SubscriptionsDialog(render::subscriptions_json(
+        state, "",
+    ))]
+}
+
 pub fn start_subscription(state: &mut AppState, page_id: &str, name: &str) -> Vec<UiCommand> {
     let now = hydrus_time::get_now();
 
@@ -527,6 +534,106 @@ pub fn delete_subscription(state: &mut AppState, page_id: &str, name: &str) -> V
     state
         .subscriptions
         .retain(|subscription| subscription.name != name);
+
+    subscriptions_commands(state, page_id)
+}
+
+pub fn duplicate_subscription(
+    state: &mut AppState,
+    page_id: &str,
+    name: &str,
+) -> Vec<UiCommand> {
+    let Some(entry) = state
+        .subscriptions
+        .iter()
+        .find(|subscription| subscription.name == name)
+        .cloned()
+    else {
+        return vec![UiCommand::NotifyMessage(
+            "subscription is missing".to_string(),
+        )];
+    };
+
+    // HydrusData.GetNonDupeName: "name", "name (1)", "name (2)".
+    let mut copy = entry;
+    let mut index = 1;
+
+    while state
+        .subscriptions
+        .iter()
+        .any(|subscription| subscription.name == copy.name)
+    {
+        copy.name = format!("{name} ({index})");
+        index += 1;
+    }
+
+    state.subscriptions.push(copy);
+
+    subscriptions_commands(state, page_id)
+}
+
+pub fn lowercase_subscription_queries(
+    state: &mut AppState,
+    page_id: &str,
+    name: &str,
+) -> Vec<UiCommand> {
+    if let Some(entry) = state
+        .subscriptions
+        .iter_mut()
+        .find(|subscription| subscription.name == name)
+    {
+        entry.query = entry.query.to_lowercase();
+    }
+
+    subscriptions_commands(state, page_id)
+}
+
+pub fn scrub_subscription_delays(
+    state: &mut AppState,
+    page_id: &str,
+    name: &str,
+) -> Vec<UiCommand> {
+    if let Some(entry) = state
+        .subscriptions
+        .iter_mut()
+        .find(|subscription| subscription.name == name)
+    {
+        entry.last_check = 0;
+        entry.status = "ready".to_string();
+    }
+
+    subscriptions_commands(state, page_id)
+}
+
+pub fn reset_subscription(state: &mut AppState, page_id: &str, name: &str) -> Vec<UiCommand> {
+    if let Some(entry) = state
+        .subscriptions
+        .iter_mut()
+        .find(|subscription| subscription.name == name)
+    {
+        entry.imported = 0;
+        entry.failed = 0;
+        entry.last_check = 0;
+        entry.results.clear();
+        entry.status = "ready".to_string();
+    }
+
+    subscriptions_commands(state, page_id)
+}
+
+pub fn clear_subscription_import_options(
+    state: &mut AppState,
+    page_id: &str,
+    name: &str,
+) -> Vec<UiCommand> {
+    if let Some(entry) = state
+        .subscriptions
+        .iter_mut()
+        .find(|subscription| subscription.name == name)
+    {
+        entry.import_options = Default::default();
+        entry.status = "import options: all default".to_string();
+    }
 
     subscriptions_commands(state, page_id)
 }
@@ -1138,6 +1245,10 @@ fn subscriptions_commands(state: &AppState, _page_id: &str) -> Vec<UiCommand> {
         ));
     }
 
+    // No-op in Qt when the manager dialog is closed.
+    commands.push(UiCommand::UpdateSubscriptionsDialog(
+        render::subscriptions_json(state, ""),
+    ));
     commands.push(UiCommand::Status(render::status_json(state)));
     commands
 }

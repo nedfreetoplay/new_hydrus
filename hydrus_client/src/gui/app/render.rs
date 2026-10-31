@@ -151,7 +151,7 @@ pub fn menus_json(state: &AppState) -> String {
             "items": [
                 {"label": "manage network...", "action": "options_network"},
                 {"label": "pause all new network traffic", "action": "pause_network", "checkable": true, "checked": state.controller.network_paused()},
-                {"label": "subscriptions...", "action": "new_subscriptions", "description": "Manage periodic gallery subscriptions."},
+                {"label": "subscriptions\u{2026}", "action": "manage_subscriptions", "description": "Change the queries you want the client to regularly import from."},
                 {"separator": true},
                 {"label": "export downloader definition...", "action": "downloader_export"},
                 {"label": "import downloader definition...", "action": "downloader_import"}
@@ -1020,11 +1020,72 @@ pub fn subscriptions_json(state: &AppState, page_id: &str) -> String {
     let now = hydrus_core::hydrus_time::get_now();
     let page = state.find_subscriptions(page_id);
 
+    // Python's HydrusTime.TimestampToPrettyTimeDelta shape, without the
+    // shared ISO preference: "n/a", "just now", "5 minutes ago", "in 2 hours".
+    let pretty_delta = |timestamp: i64| -> String {
+        if timestamp <= 0 {
+            return "n/a".to_string();
+        }
+
+        let delta = (now - timestamp).abs();
+        let past = timestamp <= now;
+        let text = if delta < 60 {
+            "just now".to_string()
+        } else if delta < 3600 {
+            let value = delta / 60.max(1);
+            format!("{value} minute{}", if value == 1 { "" } else { "s" })
+        } else if delta < 86_400 {
+            let value = delta / 3600;
+            format!("{value} hour{}", if value == 1 { "" } else { "s" })
+        } else {
+            let value = delta / 86_400;
+            format!("{value} day{}", if value == 1 { "" } else { "s" })
+        };
+
+        if text == "just now" {
+            text
+        } else if past {
+            format!("{text} ago")
+        } else {
+            format!("in {text}")
+        }
+    };
+
     let subscriptions: Vec<Value> = state
         .subscriptions
         .iter()
         .map(|subscription| {
             let next = subscription.last_check + subscription.period.max(60);
+            let source = crate::parsing::gallery::GALLERY_PARSERS
+                .iter()
+                .find(|parser| parser.id.as_str() == subscription.site)
+                .map(|parser| parser.title.to_string())
+                .unwrap_or_else(|| {
+                    if subscription.site.trim().is_empty() {
+                        "no downloader set!".to_string()
+                    } else {
+                        subscription.site.clone()
+                    }
+                });
+            let pretty_status = if subscription.url.trim().is_empty() {
+                "no queries".to_string()
+            } else {
+                "1 working".to_string()
+            };
+            let processed = subscription.imported + subscription.failed;
+            let items = if processed == 0 {
+                String::new()
+            } else if subscription.failed > 0 {
+                format!("{processed} - {}F", subscription.failed)
+            } else {
+                processed.to_string()
+            };
+            let last_new_file_time = if subscription.imported > 0 && subscription.last_check > 0 {
+                pretty_delta(subscription.last_check)
+            } else {
+                "n/a".to_string()
+            };
+
             json!({
                 "name": subscription.name,
                 "url": subscription.url,
@@ -1045,14 +1106,33 @@ pub fn subscriptions_json(state: &AppState, page_id: &str) -> String {
                     &subscription.import_options,
                     "subscription",
                 ),
+                "custom_import_options": if subscription.import_options.is_empty() {
+                    String::new()
+                } else {
+                    super::download::import_options_summary(
+                        &subscription.import_options,
+                        "subscription",
+                    )
+                },
+                "import_options": serde_json::to_value(&subscription.import_options)
+                    .unwrap_or(Value::Null),
+                // Columns of EditSubscriptionsPanel.
+                "source": source,
+                "pretty_status": pretty_status,
+                "last_new_file_time": last_new_file_time,
+                "last_checked": pretty_delta(subscription.last_check),
+                "error": "",
+                "items": items,
+                "paused_display": if subscription.paused { "yes" } else { "" },
             })
         })
         .collect();
 
     json!({
         "page_id": page_id,
-        "title": page.map(|page| page.title.as_str()).unwrap_or("subscriptions"),
+        "title": page.map(|page| page.title.as_str()).unwrap_or("manage subscriptions"),
         "status": page.map(|page| page.status.as_str()).unwrap_or(""),
+        "subs_paused": state.controller.options().get_boolean("pause_subs_sync"),
         "sites": crate::parsing::gallery::GALLERY_PARSERS
             .iter()
             .map(|parser| {

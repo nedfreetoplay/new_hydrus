@@ -44,6 +44,12 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdateSubscriptions(page_id, json) => {
             ffi::hydrus_update_subscriptions(window.as_mut(), &page_id, &json);
         }
+        UiCommand::SubscriptionsDialog(json) => {
+            ffi::hydrus_show_subscriptions_dialog(window.as_mut(), &json);
+        }
+        UiCommand::UpdateSubscriptionsDialog(json) => {
+            ffi::hydrus_update_subscriptions_dialog(window.as_mut(), &json);
+        }
         UiCommand::SubscriptionEditor(json) => {
             ffi::hydrus_show_subscription_editor(window.as_mut(), &json);
         }

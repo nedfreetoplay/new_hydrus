@@ -406,6 +406,7 @@ JSON-швы.
 
 - [x] 15.1.1 Общие хелперы → `gui/qt/support/*`.
 - [ ] 15.1.2 Страницы и экраны → файлы по карте.
+  - 15.1.2a [x] canvas, notebook, viewer, autocomplete, metadata_panel → `gui/qt/*.hpp/*.cpp` + `screens.hpp`.
 - [ ] 15.1.3 Диалоги → по файлу на диалог.
 - [ ] 15.1.4 `bridge.hpp` → заголовки по тем же группам, `bridge.hpp` — агрегатор.
   Проверить, что cxx принимает несколько `include!` в одном модуле; если нет —

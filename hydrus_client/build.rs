@@ -18,6 +18,11 @@ fn main() {
                 "src/gui/qt/support/widgets.cpp",
                 "src/gui/qt/support/pairs.cpp",
                 "src/gui/qt/support/sort_options.cpp",
+                "src/gui/qt/canvas.cpp",
+                "src/gui/qt/metadata_panel.cpp",
+                "src/gui/qt/autocomplete.cpp",
+                "src/gui/qt/viewer.cpp",
+                "src/gui/qt/notebook.cpp",
             ])
             .cc_builder(|cc| {
                 cc.flag_if_supported("/utf-8");

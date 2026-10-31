@@ -35,6 +35,7 @@
 #include <QWheelEvent>
 #include <QWidget>
 #include <memory>
+#include "screens.hpp"
 
 class HydrusMainWindow;
 class HydrusNotebook;
@@ -71,37 +72,6 @@ class HydrusTabBar;
 class QMovie;
 class QSystemTrayIcon;
 
-// A zoomable, pannable view for one image. Used both by the small preview in a
-// page sidebar and by the media viewer window.
-class HydrusCanvas : public QGraphicsView {
-public:
-    explicit HydrusCanvas(QWidget *parent = nullptr);
-
-    bool load_image(const QString &path);
-    void clear_image();
-    void fit_image();
-    void reset_zoom();
-    void zoom_by(double factor);
-    void zoom_to(double factor);
-    void rotate_by(int degrees);
-    void set_recenter_on_resize(bool value);
-    void set_background_mode(const QString &mode);
-    void set_pan_mode(bool enabled);
-    void toggle_animation();
-    bool is_animated() const;
-
-protected:
-    void resizeEvent(QResizeEvent *event) override;
-    void wheelEvent(QWheelEvent *event) override;
-
-private:
-    QGraphicsScene *scene = nullptr;
-    QGraphicsPixmapItem *pixmap_item = nullptr;
-    QMovie *movie = nullptr;
-    bool fit_mode = true;
-    bool recenter_on_resize = true;
-    int rotation = 0;
-};
 
 // One media page, laid out like Hydrus: search/preview sidebar on the left and
 // the thumbnail grid on the right.
@@ -215,72 +185,7 @@ private:
     int scale_percent = 100;
 };
 
-// Media viewer frame: canvas plus a tag sidebar, as in Hydrus' canvas frame.
-class HydrusViewerWindow : public QWidget {
-public:
-    HydrusViewerWindow(HydrusMainWindow *main, const QJsonObject &state);
 
-    const QString &viewer_id() const;
-
-    void update_state(const QJsonObject &state);
-
-protected:
-    bool eventFilter(QObject *watched, QEvent *event) override;
-    void closeEvent(QCloseEvent *event) override;
-
-private:
-    void navigate(const QString &direction);
-    void show_hover_frame();
-
-    HydrusMainWindow *main = nullptr;
-    QString id;
-    QString page_id;
-    QString hash;
-    HydrusCanvas *canvas = nullptr;
-    QWidget *hover_frame = nullptr;
-    HydrusMetadataPanel *metadata = nullptr;
-    QLabel *status = nullptr;
-    QPushButton *animation_button = nullptr;
-    QComboBox *background = nullptr;
-    QPushButton *pan_button = nullptr;
-    QString file_path;
-    QString url;
-    double zoom_step = 1.25;
-    bool always_on_top = false;
-    bool frameless = false;
-};
-
-// Full Hydrus-style metadata sidebar: tag services, ratings and notes for the
-// focused file. Shared by query pages and the media viewer.
-class HydrusMetadataPanel : public QWidget {
-public:
-    explicit HydrusMetadataPanel(HydrusMainWindow *main, QWidget *parent = nullptr);
-
-    void set_state(const QJsonObject &metadata);
-    void set_suggestions(const QStringList &suggestions);
-
-private:
-    void rebuild_tags();
-    void rebuild_ratings(const QJsonArray &ratings);
-    void add_tag();
-    void remove_selected_tags();
-    void edit_notes();
-    void send_tag(const QString &tag, bool add);
-    void send_rating(const QString &service, const QString &action, double value = 0.0);
-
-    HydrusMainWindow *main = nullptr;
-    QString hash;
-    QJsonObject data;
-    QComboBox *services = nullptr;
-    QLineEdit *tag_filter = nullptr;
-    QListWidget *tags = nullptr;
-    QCheckBox *display_tags = nullptr;
-    QLineEdit *tag_input = nullptr;
-    QCompleter *completer = nullptr;
-    QWidget *ratings = nullptr;
-    QVBoxLayout *ratings_layout = nullptr;
-    QListWidget *notes = nullptr;
-};
 
 // Tag sibling/parent editor. One service at a time, like Hydrus' dialog.
 class HydrusTagRelationsDialog : public QDialog {
@@ -735,33 +640,6 @@ private:
     QCheckBox *create_thumbnails = nullptr;
 };
 
-// A notebook is a page of pages: tabs, a trailing "+" tab, and the usual
-// close/rename/context-menu behaviour.
-class HydrusNotebook : public QTabWidget {
-public:
-    HydrusNotebook(HydrusMainWindow *main, const QString &notebook_id, QWidget *parent = nullptr);
-
-    const QString &notebook_id() const;
-
-    void add_page_widget(const QString &page_id, const QString &title, QWidget *page);
-    void finalize_notebook(const QString &current_page_id);
-    void clear_pages();
-
-    QString current_page_id() const;
-
-protected:
-    bool eventFilter(QObject *watched, QEvent *event) override;
-
-private:
-    void install_plus_tab();
-    void show_tab_menu(const QPoint &position);
-    void request_close(int index);
-
-    HydrusMainWindow *main = nullptr;
-    QString id;
-    int plus_index = -1;
-    int last_normal_index = 0;
-};
 
 // URL/gallery/watcher/simple downloader page.
 class HydrusDownloaderPage : public QWidget {

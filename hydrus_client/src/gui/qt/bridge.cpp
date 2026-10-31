@@ -5792,11 +5792,18 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     preparation_layout->addWidget(preparation_box);
 
     auto *preparation_label = new QLabel(
-        QStringLiteral("Use the filtering tab to set up and launch a potential duplicate "
+        QStringLiteral("Preparation discovers potential duplicate pairs in the background. "
+                       "Use the filtering tab to set up and launch a potential duplicate "
                        "pair search."),
         preparation_box);
     preparation_label->setWordWrap(true);
     preparation_content->addWidget(preparation_label);
+
+    auto *preparation_progress = new QLabel(
+        QStringLiteral("Have not yet searched at this distance."),
+        preparation_box);
+    preparation_progress->setWordWrap(true);
+    preparation_content->addWidget(preparation_progress);
 
     auto *filtering_layout = new QVBoxLayout(filtering_tab);
     filtering_layout->setContentsMargins(2, 2, 2, 2);

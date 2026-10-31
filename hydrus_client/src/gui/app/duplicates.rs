@@ -1650,6 +1650,89 @@ pub fn duplicates_media_count_status(count: usize) -> String {
     }
 }
 
+/// Split a list of candidate pairs into batches of at most `batch_size`.
+pub fn split_into_batches<T: Clone>(items: &[T], batch_size: usize) -> Vec<Vec<T>> {
+    if items.is_empty() {
+        return Vec::new();
+    }
+    let size = if batch_size == 0 { items.len() } else { batch_size };
+    items.chunks(size).map(|chunk| chunk.to_vec()).collect()
+}
+
+/// Fraction of eligible files that have been searched at the current distance.
+pub fn preparation_progress(searched: i64, total: i64) -> f64 {
+    if total <= 0 {
+        return 0.0;
+    }
+    let ratio = searched as f64 / total as f64;
+    ratio.clamp(0.0, 1.0)
+}
+
+/// Progress as a percentage string, matching Hydrus' "99.9%" style.
+pub fn preparation_progress_percent(searched: i64, total: i64) -> String {
+    if total <= 0 {
+        return "0.0%".to_string();
+    }
+    let percent = preparation_progress(searched, total) * 100.0;
+    if percent >= 100.0 {
+        "99.9%".to_string()
+    } else {
+        format!("{percent:.1}%")
+    }
+}
+
+/// Status text for the "num searched" gauge on the preparation tab.
+pub fn preparation_search_status(searched: i64, total: i64) -> String {
+    if total <= 0 {
+        return "All potential duplicates found at this distance.".to_string();
+    }
+    if searched <= 0 {
+        "Have not yet searched at this distance.".to_string()
+    } else if searched >= total {
+        "All potential duplicates found at this distance.".to_string()
+    } else {
+        format!("Searched {} of {} files at this distance.", searched, total)
+    }
+}
+
+/// Name shown on the preparation tab, including the "(xx.x% done)" suffix.
+pub fn preparation_tab_name(searched: i64, total: i64, hide_when_caught_up: bool) -> String {
+    if total <= 0 {
+        return "preparation".to_string();
+    }
+    let percent_done = preparation_progress(searched, total);
+    let not_all_searched = searched < total;
+    if !not_all_searched {
+        return "preparation".to_string();
+    }
+    let show_percentage = !(hide_when_caught_up && percent_done > 0.99);
+    if !show_percentage {
+        return "preparation".to_string();
+    }
+    format!("preparation ({} done)", preparation_progress_percent(searched, total))
+}
+
+/// Whether a completed batch may be auto-committed without confirmation.
+pub fn should_auto_commit(decision_count: usize, threshold: Option<i64>) -> bool {
+    match threshold {
+        Some(limit) if limit > 0 => decision_count <= limit as usize,
+        _ => false,
+    }
+}
+
+/// Status string for the not-prepared / preparing / prepared states of a batch.
+pub fn preparation_batch_status(total: usize, batch: usize, max_batch: usize) -> String {
+    if total == 0 {
+        "no potential duplicates".to_string()
+    } else if batch == 0 {
+        "preparing".to_string()
+    } else if batch >= total {
+        "prepared".to_string()
+    } else {
+        format!("{total} potential duplicate pairs (batch of {batch}, max {max_batch})")
+    }
+}
+
 fn duplicates_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
     let Some(page) = state.find_duplicates(page_id) else {
         return vec![];
@@ -2534,6 +2617,111 @@ mod tests {
         assert_eq!(
             duplicates_media_empty_status(),
             "the potential duplicate queue is empty"
+        );
+    }
+
+    #[test]
+    fn split_into_batches_splits_evenly() {
+        let items: Vec<i32> = (0..7).collect();
+        let batches = split_into_batches(&items, 3);
+        assert_eq!(batches.len(), 3);
+        assert_eq!(batches[0], vec![0, 1, 2]);
+        assert_eq!(batches[1], vec![3, 4, 5]);
+        assert_eq!(batches[2], vec![6]);
+    }
+
+    #[test]
+    fn split_into_batches_empty_input() {
+        let items: Vec<i32> = Vec::new();
+        assert!(split_into_batches(&items, 3).is_empty());
+    }
+
+    #[test]
+    fn split_into_batches_zero_size_means_one_batch() {
+        let items: Vec<i32> = (0..4).collect();
+        let batches = split_into_batches(&items, 0);
+        assert_eq!(batches.len(), 1);
+        assert_eq!(batches[0].len(), 4);
+    }
+
+    #[test]
+    fn preparation_progress_basic() {
+        assert_eq!(preparation_progress(0, 10), 0.0);
+        assert_eq!(preparation_progress(5, 10), 0.5);
+        assert_eq!(preparation_progress(10, 10), 1.0);
+        assert_eq!(preparation_progress(5, 0), 0.0);
+        assert_eq!(preparation_progress(15, 10), 1.0);
+    }
+
+    #[test]
+    fn preparation_progress_percent_caps_at_99_9() {
+        assert_eq!(preparation_progress_percent(0, 10), "0.0%");
+        assert_eq!(preparation_progress_percent(5, 10), "50.0%");
+        assert_eq!(preparation_progress_percent(10, 10), "99.9%");
+        assert_eq!(preparation_progress_percent(3, 7), "42.9%");
+    }
+
+    #[test]
+    fn preparation_search_status_strings() {
+        assert_eq!(
+            preparation_search_status(0, 10),
+            "Have not yet searched at this distance."
+        );
+        assert_eq!(
+            preparation_search_status(5, 10),
+            "Searched 5 of 10 files at this distance."
+        );
+        assert_eq!(
+            preparation_search_status(10, 10),
+            "All potential duplicates found at this distance."
+        );
+        assert_eq!(
+            preparation_search_status(0, 0),
+            "All potential duplicates found at this distance."
+        );
+    }
+
+    #[test]
+    fn preparation_tab_name_adds_suffix() {
+        assert_eq!(preparation_tab_name(0, 0, false), "preparation");
+        assert_eq!(preparation_tab_name(10, 10, false), "preparation");
+        assert_eq!(
+            preparation_tab_name(5, 10, false),
+            "preparation (50.0% done)"
+        );
+    }
+
+    #[test]
+    fn preparation_tab_name_hides_when_caught_up() {
+        assert_eq!(preparation_tab_name(100, 101, true), "preparation");
+        assert_eq!(
+            preparation_tab_name(100, 101, false),
+            "preparation (99.0% done)"
+        );
+        assert_eq!(
+            preparation_tab_name(99, 100, false),
+            "preparation (99.0% done)"
+        );
+    }
+
+    #[test]
+    fn should_auto_commit_respects_threshold() {
+        assert!(!should_auto_commit(1, None));
+        assert!(should_auto_commit(1, Some(1)));
+        assert!(should_auto_commit(2, Some(5)));
+        assert!(!should_auto_commit(6, Some(5)));
+        assert!(!should_auto_commit(1, Some(0)));
+        assert!(!should_auto_commit(1, Some(-1)));
+    }
+
+    #[test]
+    fn preparation_batch_status_strings() {
+        assert_eq!(preparation_batch_status(0, 0, 5), "no potential duplicates");
+        assert_eq!(preparation_batch_status(5, 0, 5), "preparing");
+        assert_eq!(preparation_batch_status(5, 5, 5), "prepared");
+        assert_eq!(
+            preparation_batch_status(6, 5, 5),
+            "6 potential duplicate pairs (batch of 5, max 5)"
         );
     }
 }

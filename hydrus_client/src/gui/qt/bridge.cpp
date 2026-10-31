@@ -5276,12 +5276,84 @@ void HydrusMainWindow::update_subscriptions_dialog(const QJsonObject &state) {
 
 HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const QString &page_id, const QJsonObject &state)
     : QWidget(), main(main_window), id(page_id) {
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(6, 6, 6, 6);
-    layout->setSpacing(6);
+    // Python's duplicates page is a sidebar (preparation | filtering |
+    // auto-resolution) next to the media area.
+    auto *outer = new QHBoxLayout(this);
+    outer->setContentsMargins(0, 0, 0, 0);
+    outer->setSpacing(0);
 
-    auto *search_panel = new QGroupBox(QStringLiteral("potential duplicate pairs search"), this);
-    auto *search_layout = new QGridLayout(search_panel);
+    auto *page_splitter = new QSplitter(Qt::Horizontal, this);
+
+    auto *sidebar_scroll = new QScrollArea(page_splitter);
+    sidebar_scroll->setWidgetResizable(true);
+    sidebar_scroll->setFrameShape(QFrame::NoFrame);
+    sidebar_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    auto *sidebar = new QWidget();
+    auto *sidebar_layout = new QVBoxLayout(sidebar);
+    sidebar_layout->setContentsMargins(6, 6, 6, 6);
+    sidebar_layout->setSpacing(4);
+    sidebar_scroll->setWidget(sidebar);
+
+    // Python's sidebars use the smaller 8pt UI font.
+    QFont sidebar_font = sidebar->font();
+
+    if (sidebar_font.pointSizeF() > 8.5) {
+        sidebar_font.setPointSizeF(sidebar_font.pointSizeF() - 1.0);
+    }
+
+    sidebar->setFont(sidebar_font);
+
+    auto *tabs = new QTabWidget(sidebar);
+    auto *preparation_tab = new QWidget(tabs);
+    auto *filtering_tab = new QWidget(tabs);
+    auto *auto_resolution_tab = new QWidget(tabs);
+    tabs->addTab(preparation_tab, QStringLiteral("preparation"));
+    tabs->addTab(filtering_tab, QStringLiteral("filtering"));
+    tabs->addTab(auto_resolution_tab, QStringLiteral("auto-resolution"));
+    tabs->setCurrentIndex(1);
+    sidebar_layout->addWidget(tabs, 1);
+
+    auto *preparation_layout = new QVBoxLayout(preparation_tab);
+    preparation_layout->setContentsMargins(2, 2, 2, 2);
+    preparation_layout->setSpacing(4);
+
+    QVBoxLayout *preparation_content = nullptr;
+    QPushButton *preparation_expand = nullptr;
+    auto *preparation_box = make_static_box(QStringLiteral("potential duplicate pair discovery"),
+                                            preparation_tab,
+                                            &preparation_content,
+                                            &preparation_expand);
+    preparation_layout->addWidget(preparation_box);
+
+    auto *preparation_label = new QLabel(
+        QStringLiteral("Use the filtering tab to set up and launch a potential duplicate "
+                       "pair search."),
+        preparation_box);
+    preparation_label->setWordWrap(true);
+    preparation_content->addWidget(preparation_label);
+
+    auto *filtering_layout = new QVBoxLayout(filtering_tab);
+    filtering_layout->setContentsMargins(2, 2, 2, 2);
+    filtering_layout->setSpacing(4);
+
+    QVBoxLayout *search_layout = nullptr;
+    QPushButton *search_expand = nullptr;
+    auto *search_box = make_static_box(QStringLiteral("potential duplicate pairs search"),
+                                       filtering_tab,
+                                       &search_layout,
+                                       &search_expand);
+    filtering_layout->addWidget(search_box);
+    QWidget *search_panel = search_layout->parentWidget();
+
+    connect(search_expand, &QPushButton::clicked, this, [search_layout, search_expand]() {
+        QWidget *content = search_layout->parentWidget();
+        const bool show = !content->isVisible();
+        content->setVisible(show);
+        search_expand->setIcon(
+            search_expand->style()->standardIcon(show ? QStyle::SP_ArrowUp
+                                                     : QStyle::SP_ArrowDown));
+    });
 
     dupe_search_type = new QComboBox(search_panel);
     dupe_search_type->addItem(QStringLiteral("at least one file matches the search"), QStringLiteral("one_file"));
@@ -5315,35 +5387,330 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
         "The max hamming distance allowed in the search. Higher distances mean more pairs and more false positives."));
 
     sort_type = new QComboBox(search_panel);
+    sort_type->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    sort_type->setMinimumContentsLength(14);
     sort_type->addItem(QStringLiteral("sort pairs by: filesize of larger file"), QStringLiteral("max_filesize"));
     sort_type->addItem(QStringLiteral("sort pairs by: filesize of smaller file"), QStringLiteral("min_filesize"));
     sort_type->addItem(QStringLiteral("sort pairs by: similarity (distance/filesize ratio)"), QStringLiteral("similarity"));
     sort_type->addItem(QStringLiteral("sort pairs by: random"), QStringLiteral("random"));
 
     sort_ascending = new QComboBox(search_panel);
+    sort_ascending->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    sort_ascending->setMinimumContentsLength(10);
     sort_ascending->addItem(QStringLiteral("largest first"), false);
     sort_ascending->addItem(QStringLiteral("smallest first"), true);
 
     search_summary = new QLabel(search_panel);
     search_summary->setWordWrap(true);
 
-    search_layout->addWidget(dupe_search_type, 0, 0, 1, 4);
-    search_layout->addWidget(new QLabel(QStringLiteral("search 1:"), search_panel), 1, 0);
-    search_layout->addWidget(search_query_1, 1, 1);
-    search_layout->addWidget(search_location_1, 1, 2, 1, 2);
-    search_layout->addWidget(search_row_2_label, 2, 0);
-    search_layout->addWidget(search_query_2, 2, 1);
-    search_layout->addWidget(search_location_2, 2, 2, 1, 2);
-    search_layout->addWidget(new QLabel(QStringLiteral("pixel dupes:"), search_panel), 3, 0);
-    search_layout->addWidget(pixel_dupes, 3, 1);
-    search_layout->addWidget(new QLabel(QStringLiteral("max search distance:"), search_panel), 3, 2);
-    search_layout->addWidget(search_distance, 3, 3);
-    search_layout->addWidget(sort_type, 4, 0, 1, 3);
-    search_layout->addWidget(sort_ascending, 4, 3);
-    search_layout->addWidget(search_summary, 5, 0, 1, 4);
-    search_layout->setColumnStretch(1, 1);
+    search_layout->addWidget(dupe_search_type);
 
-    layout->addWidget(search_panel);
+    auto *search_row_1 = new QWidget(search_panel);
+    auto *search_row_1_layout = new QHBoxLayout(search_row_1);
+    search_row_1_layout->setContentsMargins(0, 0, 0, 0);
+    search_row_1_layout->setSpacing(2);
+    search_row_1_layout->addWidget(search_query_1, 1);
+    search_row_1_layout->addWidget(search_location_1, 0);
+    search_layout->addWidget(search_row_1);
+
+    auto *search_icons = new QWidget(search_panel);
+    auto *search_icons_layout = new QHBoxLayout(search_icons);
+    search_icons_layout->setContentsMargins(0, 0, 0, 0);
+    search_icons_layout->setSpacing(2);
+    search_icons_layout->addStretch(1);
+    auto *search_paste = make_icon_button(search_icons,
+                                          QStringLiteral("paste"),
+                                          QStringLiteral("Paste tags from the clipboard."));
+    auto *search_favourite = make_icon_button(search_icons,
+                                              QStringLiteral("star"),
+                                              QStringLiteral("favourite search"));
+    auto *search_clear = make_icon_button(search_icons,
+                                          QStringLiteral("clear"),
+                                          QStringLiteral("clear the search"));
+    auto *search_lock = make_icon_button(search_icons,
+                                         QStringLiteral("lock"),
+                                         QStringLiteral("synchronise this search"));
+    search_icons_layout->addWidget(search_paste);
+    search_icons_layout->addWidget(search_favourite);
+    search_icons_layout->addWidget(search_clear);
+    search_icons_layout->addWidget(search_lock);
+    search_layout->addWidget(search_icons);
+
+    connect(search_paste, &QToolButton::clicked, this, [this]() {
+        const QString text = QApplication::clipboard()->text().trimmed();
+
+        if (!text.isEmpty()) {
+            search_query_1->setText(text);
+            notify_search_context();
+        }
+    });
+    connect(search_favourite, &QToolButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("notify"),
+                     QString(),
+                     QStringLiteral("favourite searches are not implemented yet"));
+    });
+    connect(search_clear, &QToolButton::clicked, this, [this]() {
+        search_query_1->clear();
+        search_query_2->clear();
+        notify_search_context();
+    });
+    connect(search_lock, &QToolButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("notify"),
+                     QString(),
+                     QStringLiteral("search synchronisation is not implemented yet"));
+    });
+
+    search_layout->addWidget(search_row_2_label);
+
+    auto *search_row_2 = new QWidget(search_panel);
+    auto *search_row_2_layout = new QHBoxLayout(search_row_2);
+    search_row_2_layout->setContentsMargins(0, 0, 0, 0);
+    search_row_2_layout->setSpacing(2);
+    search_row_2_layout->addWidget(search_query_2, 1);
+    search_row_2_layout->addWidget(search_location_2, 0);
+    search_layout->addWidget(search_row_2);
+    search_row_2->setVisible(false);
+
+    auto *distance_row = new QWidget(search_panel);
+    auto *distance_row_layout = new QHBoxLayout(distance_row);
+    distance_row_layout->setContentsMargins(0, 0, 0, 0);
+    distance_row_layout->setSpacing(4);
+    distance_row_layout->addWidget(
+        new QLabel(QStringLiteral("maximum search distance of pair: "), distance_row));
+    distance_row_layout->addWidget(search_distance, 1);
+    search_layout->addWidget(distance_row);
+
+    search_layout->addWidget(pixel_dupes);
+
+    auto *count_row = new QWidget(search_panel);
+    auto *count_row_layout = new QHBoxLayout(count_row);
+    count_row_layout->setContentsMargins(0, 0, 0, 0);
+    count_row_layout->setSpacing(2);
+    count_row_layout->addWidget(search_summary, 1);
+    auto *count_info = make_icon_button(count_row,
+                                        QStringLiteral("help"),
+                                        QStringLiteral("what is this?"));
+    auto *count_refresh = make_icon_button(count_row,
+                                           QStringLiteral("retry"),
+                                           QStringLiteral("refresh pair count"));
+    auto *count_cog = make_icon_button(count_row,
+                                       QStringLiteral("gear"),
+                                       QStringLiteral("count options"));
+    count_row_layout->addWidget(count_info);
+    count_row_layout->addWidget(count_refresh);
+    count_row_layout->addWidget(count_cog);
+    search_layout->addWidget(count_row);
+
+    connect(count_info, &QToolButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("notify"),
+                     QString(),
+                     QStringLiteral("this counts potential duplicate pairs for the current "
+                                    "search"));
+    });
+    connect(count_refresh, &QToolButton::clicked, this, [this]() {
+        act(QStringLiteral("duplicates_refresh"));
+    });
+    connect(count_cog, &QToolButton::clicked, this, [this, count_cog]() {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        menu->addAction(QStringLiteral("start new potential duplicate pair search panels paused"),
+                        this,
+                        [this]() {
+                            main->notify(QStringLiteral("notify"),
+                                         QString(),
+                                         QStringLiteral("this option is not implemented yet"));
+                        });
+        menu->popup(count_cog->mapToGlobal(QPoint(0, count_cog->height())));
+    });
+
+    QVBoxLayout *filter_layout = nullptr;
+    QPushButton *filter_expand = nullptr;
+    auto *filter_box = make_static_box(QStringLiteral("duplicate filter"),
+                                       filtering_tab,
+                                       &filter_layout,
+                                       &filter_expand);
+    filtering_layout->addWidget(filter_box);
+
+    auto *merge_button = new QPushButton(
+        QStringLiteral("edit default duplicate metadata merge options"), filter_box);
+    merge_button->setMinimumHeight(24);
+    filter_layout->addWidget(merge_button);
+    connect(merge_button, &QPushButton::clicked, this, [this, merge_button]() {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        menu->addAction(QStringLiteral("edit duplicate metadata merge options for 'this is better'"),
+                        this,
+                        [this]() { act(QStringLiteral("duplicates_merge_options_dialog")); });
+        menu->addAction(QStringLiteral("edit duplicate metadata merge options for 'same quality'"),
+                        this,
+                        [this]() { act(QStringLiteral("duplicates_merge_options_dialog")); });
+        menu->popup(merge_button->mapToGlobal(QPoint(0, merge_button->height())));
+    });
+
+    auto *sort_row = new QWidget(filter_box);
+    auto *sort_row_layout = new QHBoxLayout(sort_row);
+    sort_row_layout->setContentsMargins(0, 0, 0, 0);
+    sort_row_layout->setSpacing(2);
+    sort_row_layout->addWidget(sort_type, 1);
+    sort_row_layout->addWidget(sort_ascending, 0);
+    auto *group_mode = new QPushButton(QStringLiteral("mixed pairs"), sort_row);
+    group_mode->setMinimumHeight(24);
+    group_mode->setFixedWidth(80);
+    sort_row_layout->addWidget(group_mode, 0);
+    filter_layout->addWidget(sort_row);
+
+    connect(group_mode, &QPushButton::clicked, this, [this, group_mode]() {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        auto *mixed = menu->addAction(QStringLiteral("mixed pairs"));
+        auto *group = menu->addAction(QStringLiteral("group mode"));
+        connect(mixed, &QAction::triggered, this, [group_mode]() {
+            group_mode->setText(QStringLiteral("mixed pairs"));
+        });
+        connect(group, &QAction::triggered, this, [this, group_mode]() {
+            group_mode->setText(QStringLiteral("group mode"));
+            main->notify(QStringLiteral("notify"),
+                         QString(),
+                         QStringLiteral("group mode is not implemented yet"));
+        });
+        menu->popup(group_mode->mapToGlobal(QPoint(0, group_mode->height())));
+    });
+
+    auto *launch_filter = new QPushButton(QStringLiteral("launch the filter"), filter_box);
+    launch_filter->setMinimumHeight(24);
+    filter_layout->addWidget(launch_filter);
+    connect(launch_filter, &QPushButton::clicked, this, [this]() {
+        act(QStringLiteral("duplicates_next_batch"));
+    });
+
+    QVBoxLayout *quick_layout = nullptr;
+    QPushButton *quick_expand = nullptr;
+    auto *quick_box = make_static_box(QStringLiteral("quick and dirty processing"),
+                                      filtering_tab,
+                                      &quick_layout,
+                                      &quick_expand);
+    filtering_layout->addWidget(quick_box);
+
+    auto *quick_sort_row = new QWidget(quick_box);
+    auto *quick_sort_layout = new QHBoxLayout(quick_sort_row);
+    quick_sort_layout->setContentsMargins(0, 0, 0, 0);
+    quick_sort_layout->setSpacing(2);
+    auto *quick_sort_type = new QPushButton(QStringLiteral("sort by file: filesize"),
+                                            quick_sort_row);
+    quick_sort_type->setMinimumHeight(24);
+    auto *quick_sort_order = new QPushButton(QStringLiteral("smallest first"), quick_sort_row);
+    quick_sort_order->setMinimumHeight(24);
+    quick_sort_order->setFixedWidth(92);
+    quick_sort_layout->addWidget(quick_sort_type, 1);
+    quick_sort_layout->addWidget(quick_sort_order, 0);
+    quick_layout->addWidget(quick_sort_row);
+
+    auto *show_random = new QPushButton(
+        QStringLiteral("show some random potential duplicates"), quick_box);
+    show_random->setMinimumHeight(24);
+    quick_layout->addWidget(show_random);
+    auto *set_same_quality = new QPushButton(
+        QStringLiteral("set current media as duplicates of the same quality"), quick_box);
+    set_same_quality->setMinimumHeight(24);
+    quick_layout->addWidget(set_same_quality);
+    auto *set_alternates = new QPushButton(
+        QStringLiteral("set current media as all related alternates"), quick_box);
+    set_alternates->setMinimumHeight(24);
+    quick_layout->addWidget(set_alternates);
+    auto *set_false_positive = new QPushButton(
+        QStringLiteral("set current media as not related/false positive"), quick_box);
+    set_false_positive->setMinimumHeight(24);
+    quick_layout->addWidget(set_false_positive);
+
+    connect(quick_sort_type, &QPushButton::clicked, this, [this, quick_sort_type]() {
+        auto *menu = new QMenu(this);
+        menu->setAttribute(Qt::WA_DeleteOnClose);
+        menu->addAction(QStringLiteral("sort by file: filesize"), this, [quick_sort_type]() {
+            quick_sort_type->setText(QStringLiteral("sort by file: filesize"));
+        });
+        menu->addAction(QStringLiteral("sort by file: import time"), this, [quick_sort_type]() {
+            quick_sort_type->setText(QStringLiteral("sort by file: import time"));
+        });
+        menu->popup(quick_sort_type->mapToGlobal(QPoint(0, quick_sort_type->height())));
+    });
+    connect(quick_sort_order, &QPushButton::clicked, this, [quick_sort_order]() {
+        quick_sort_order->setText(
+            quick_sort_order->text() == QStringLiteral("smallest first")
+                ? QStringLiteral("largest first")
+                : QStringLiteral("smallest first"));
+    });
+    connect(show_random, &QPushButton::clicked, this, [this]() {
+        act(QStringLiteral("duplicates_refresh"));
+    });
+    connect(set_same_quality, &QPushButton::clicked, this, [this]() {
+        act(QStringLiteral("duplicates_same"));
+    });
+    connect(set_alternates, &QPushButton::clicked, this, [this]() {
+        act(QStringLiteral("duplicates_alternates"));
+    });
+    connect(set_false_positive, &QPushButton::clicked, this, [this]() {
+        act(QStringLiteral("duplicates_false"));
+    });
+
+    QVBoxLayout *tags_layout = nullptr;
+    QPushButton *tags_expand = nullptr;
+    auto *tags_box = make_static_box(QStringLiteral("selection tags"),
+                                     filtering_tab,
+                                     &tags_layout,
+                                     &tags_expand);
+    filtering_layout->addWidget(tags_box, 1);
+
+    auto *tag_sort_row = new QWidget(tags_box);
+    auto *tag_sort_row_layout = new QHBoxLayout(tag_sort_row);
+    tag_sort_row_layout->setContentsMargins(0, 0, 0, 0);
+    tag_sort_row_layout->setSpacing(2);
+    auto *tag_sort_type = new QPushButton(QStringLiteral("sort by tag"), tag_sort_row);
+    auto *tag_sort_order = new QPushButton(QStringLiteral("a-z"), tag_sort_row);
+    auto *tag_sort_namespace = new QPushButton(QStringLiteral("namespace (user)"), tag_sort_row);
+    tag_sort_type->setMinimumHeight(24);
+    tag_sort_order->setMinimumHeight(24);
+    tag_sort_order->setFixedWidth(75);
+    tag_sort_namespace->setMinimumHeight(24);
+    tag_sort_namespace->setFixedWidth(101);
+    tag_sort_row_layout->addWidget(tag_sort_type, 1);
+    tag_sort_row_layout->addWidget(tag_sort_order, 0);
+    tag_sort_row_layout->addWidget(tag_sort_namespace, 0);
+    tags_layout->addWidget(tag_sort_row);
+    auto *selection_tags = new QListWidget(tags_box);
+    selection_tags->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    tags_layout->addWidget(selection_tags, 1);
+
+    auto *auto_layout = new QVBoxLayout(auto_resolution_tab);
+    auto_layout->setContentsMargins(2, 2, 2, 2);
+    auto_layout->setSpacing(4);
+    QVBoxLayout *auto_content = nullptr;
+    QPushButton *auto_expand = nullptr;
+    auto *auto_box = make_static_box(QStringLiteral("auto-resolution"),
+                                     auto_resolution_tab,
+                                     &auto_content,
+                                     &auto_expand);
+    auto_layout->addWidget(auto_box);
+    auto *auto_label = new QLabel(QStringLiteral("no auto-resolution rules yet"), auto_box);
+    auto_label->setWordWrap(true);
+    auto_content->addWidget(auto_label);
+    auto *manage_auto = new QPushButton(QStringLiteral("manage auto-resolution..."), auto_box);
+    manage_auto->setMinimumHeight(24);
+    auto_content->addWidget(manage_auto);
+    auto_layout->addStretch(1);
+    connect(manage_auto, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("duplicates_rules"));
+    });
+
+    auto *right = new QWidget(page_splitter);
+    auto *layout = new QVBoxLayout(right);
+    layout->setContentsMargins(6, 6, 6, 6);
+    layout->setSpacing(6);
+    page_splitter->addWidget(sidebar_scroll);
+    page_splitter->addWidget(right);
+    page_splitter->setStretchFactor(0, 0);
+    page_splitter->setStretchFactor(1, 1);
+    page_splitter->setSizes({440, 872});
+    outer->addWidget(page_splitter);
 
     auto *header = new QHBoxLayout();
     status = new QLabel(this);
@@ -5355,10 +5722,15 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     rules = new QPushButton(QStringLiteral("auto-resolution..."), this);
     merge_options = new QPushButton(QStringLiteral("merge options..."), this);
     auto *review = new QPushButton(QStringLiteral("review pending..."), this);
+    rules->hide();
+    merge_options->hide();
+    review->hide();
     batch = new QSpinBox(this);
     batch->setRange(5, 1024);
     batch->setToolTip(QStringLiteral("maximum pairs prepared in one batch"));
     next_batch = new QPushButton(QStringLiteral("next batch"), this);
+    status->setMinimumWidth(0);
+    status->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     header->addWidget(status, 1);
     header->addWidget(distance);
     header->addWidget(new QLabel(QStringLiteral("batch:"), this));
@@ -5366,10 +5738,7 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     header->addWidget(next_batch);
     group_actions = new QPushButton(QStringLiteral("actions..."), this);
     group_actions->setToolTip(QStringLiteral("reset potentials, clear false positives, or dissolve duplicate groups"));
-    header->addWidget(rules);
-    header->addWidget(merge_options);
-    header->addWidget(review);
-    header->addWidget(group_actions);
+    group_actions->hide();
     header->addWidget(refresh_button);
     header->addWidget(delete_both);
     layout->addLayout(header);
@@ -5462,6 +5831,10 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     bottom->addWidget(skip);
     bottom->addStretch(1);
     layout->addLayout(bottom);
+
+    sidebar_scroll->setMinimumWidth(440);
+    sidebar->setMinimumHeight(sidebar_layout->minimumSize().height());
+    page_splitter->setSizes({440, 872});
 
     connect(keep_a, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_keep_a")); });
     connect(keep_a_both, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_keep_a_keep")); });
@@ -5557,6 +5930,10 @@ void HydrusDuplicatesPage::update_search_controls() {
     search_row_2_label->setVisible(different_searches);
     search_query_2->setVisible(different_searches);
     search_location_2->setVisible(different_searches);
+
+    if (search_query_2->parentWidget() != nullptr) {
+        search_query_2->parentWidget()->setVisible(different_searches);
+    }
 
     search_distance->setEnabled(pixel_dupes->currentData().toString() != QStringLiteral("required"));
 
@@ -5703,8 +6080,12 @@ void HydrusDuplicatesPage::update_state(const QJsonObject &state) {
         const QSignalBlocker query_2_blocker(search_query_2);
         const QSignalBlocker distance_blocker(search_distance);
 
-        search_query_1->setText(search.value(QStringLiteral("query_1")).toString());
-        search_query_2->setText(search.value(QStringLiteral("query_2")).toString());
+        const QString query_1 = search.value(QStringLiteral("query_1")).toString();
+        const QString query_2 = search.value(QStringLiteral("query_2")).toString();
+        search_query_1->setText(query_1.isEmpty() ? QStringLiteral("system:everything")
+                                                  : query_1);
+        search_query_2->setText(query_2.isEmpty() ? QStringLiteral("system:everything")
+                                                  : query_2);
         search_distance->setValue(search.value(QStringLiteral("max_distance")).toInt(4));
         set_combo_data(dupe_search_type, search.value(QStringLiteral("dupe_search_type")).toString());
         set_combo_data(pixel_dupes, search.value(QStringLiteral("pixel_dupes")).toString());
@@ -5738,10 +6119,16 @@ void HydrusDuplicatesPage::update_state(const QJsonObject &state) {
 
         const int matched = search.value(QStringLiteral("matched")).toInt();
         const int searched = state.value(QStringLiteral("searched")).toInt();
-        search_summary->setText(QStringLiteral("%1 of %2 pairs match  -  %3")
-            .arg(matched)
-            .arg(searched)
-            .arg(search.value(QStringLiteral("summary")).toString()));
+
+        if (searched == 0) {
+            search_summary->setText(
+                QStringLiteral("no potential pairs in this file domain!"));
+        } else {
+            search_summary->setText(QStringLiteral("%1 of %2 pairs match  -  %3")
+                .arg(matched)
+                .arg(searched)
+                .arg(search.value(QStringLiteral("summary")).toString()));
+        }
     }
 
     update_search_controls();

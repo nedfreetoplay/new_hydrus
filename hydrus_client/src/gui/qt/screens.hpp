@@ -16,3 +16,7 @@
 #include "auto_resolution.hpp"
 #include "network.hpp"
 #include "services.hpp"
+#include "export_folder.hpp"
+#include "import_folder.hpp"
+#include "import_options.hpp"
+

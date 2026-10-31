@@ -45,6 +45,16 @@ fn main() {
                 "src/gui/qt/services_server.cpp",
                 "src/gui/qt/network_dialog.cpp",
                 "src/gui/qt/network_tables.cpp",
+                "src/gui/qt/import_options_dialog.cpp",
+                "src/gui/qt/import_options_editor.cpp",
+                "src/gui/qt/import_options_read.cpp",
+                "src/gui/qt/import_folder_editor.cpp",
+                "src/gui/qt/import_folder_tagging.cpp",
+                "src/gui/qt/export_folder_editor.cpp",
+                "src/gui/qt/export_folder_sidecar.cpp",
+                "src/gui/qt/main_window_shell.cpp",
+                "src/gui/qt/main_window_shortcuts.cpp",
+                "src/gui/qt/main_window_dialogs.cpp",
             ])
             .cc_builder(|cc| {
                 cc.flag_if_supported("/utf-8");
@@ -148,3 +158,4 @@ fn use_qmake(qmake: &Path) {
         unsafe { std::env::set_var("CMAKE_PREFIX_PATH", prefix) };
     }
 }
+

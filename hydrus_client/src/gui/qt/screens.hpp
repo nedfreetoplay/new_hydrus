@@ -28,3 +28,13 @@
 #include "tag_relations_dialog.hpp"
 #include "url_class_dialog.hpp"
 
+#include "timestamps_dialog.hpp"
+#include "notifications_dialog.hpp"
+#include "page_chooser.hpp"
+#include "local_import_review.hpp"
+#include "local_import_tagging.hpp"
+#include "repair_locations.hpp"
+#include "api_permissions.hpp"
+#include "account_types.hpp"
+#include "orphan_files.hpp"
+#include "database_backup.hpp"

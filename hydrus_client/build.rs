@@ -63,6 +63,21 @@ fn main() {
                 "src/gui/qt/or_predicate_dialog.cpp",
                 "src/gui/qt/page_manager.cpp",
                 "src/gui/qt/manage_tags_dialog.cpp",
+                "src/gui/qt/timestamps_dialog.cpp",
+                "src/gui/qt/notifications_dialog.cpp",
+                "src/gui/qt/page_chooser.cpp",
+                "src/gui/qt/local_import_review.cpp",
+                "src/gui/qt/local_import_tagging.cpp",
+                "src/gui/qt/repair_locations.cpp",
+                "src/gui/qt/api_permissions.cpp",
+                "src/gui/qt/account_types.cpp",
+                "src/gui/qt/orphan_files.cpp",
+                "src/gui/qt/database_backup.cpp",
+                "src/gui/qt/stats_dialog.cpp",
+                "src/gui/qt/about_dialog.cpp",
+                "src/gui/qt/notes_dialog.cpp",
+                "src/gui/qt/tag_filter.cpp",
+                "src/gui/qt/export_review.cpp",
             ])
             .cc_builder(|cc| {
                 cc.flag_if_supported("/utf-8");

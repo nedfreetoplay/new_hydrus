@@ -64,6 +64,13 @@ class HydrusDuplicateReviewDialog;
 class HydrusDuplicateMergeOptionsDialog;
 class HydrusTagRelationsDialog;
 class HydrusSeedCacheDialog;
+class HydrusLocalImportReviewDialog;
+class HydrusLocalImportTaggingDialog;
+class HydrusRepairFileLocationsDialog;
+class HydrusApiPermissionsDialog;
+class HydrusAccountTypesDialog;
+class HydrusOrphanFilesDialog;
+class HydrusDatabaseBackupDialog;
 class QTabBar;
 class QCompleter;
 class QVBoxLayout;
@@ -111,52 +118,7 @@ private:
 };
 
 
-// Local import review panel: parse paths, show good/bad/sidecar rows, then
-// import the good ones (optionally deleting the originals).
-class HydrusLocalImportReviewDialog : public QDialog {
-public:
-    HydrusLocalImportReviewDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
 
-    void set_state(const QJsonObject &state);
-
-private:
-    void rebuild();
-    void send(const QString &action, const QJsonObject &payload = QJsonObject());
-    QStringList selected_paths() const;
-
-    HydrusMainWindow *main = nullptr;
-    QJsonObject data;
-    QTableWidget *table = nullptr;
-    QLabel *summary = nullptr;
-    QLabel *warning = nullptr;
-    QCheckBox *search = nullptr;
-    QCheckBox *delete_after_success = nullptr;
-    QPushButton *import_button = nullptr;
-    QPushButton *tag_button = nullptr;
-};
-
-// Per-local-tag-service filename tagging rules for the local import review.
-// Shares the rule editor with the import folder dialog.
-class HydrusLocalImportTaggingDialog : public QDialog {
-public:
-    HydrusLocalImportTaggingDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
-
-    void set_state(const QJsonObject &state);
-
-private:
-    void rebuild();
-    void edit_rules(const QString &key, const QString &name, const QJsonObject &current);
-    void save();
-
-    HydrusMainWindow *main = nullptr;
-    QJsonObject data;
-    QJsonObject filename_tagging;
-    QHash<QString, QString> service_name_to_key;
-    QListWidget *list = nullptr;
-    QLabel *help = nullptr;
-    QString example_path;
-    bool import_after_save = false;
-};
 
 // Edit one subscription's site, query, filter and timing.
 class HydrusSubscriptionEditorDialog : public QDialog {
@@ -238,25 +200,6 @@ private:
     QPushButton *delete_button = nullptr;
 };
 
-// Remap missing media/thumbnail subfolder roots.
-class HydrusRepairFileLocationsDialog : public QDialog {
-public:
-    HydrusRepairFileLocationsDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
-
-    void set_state(const QJsonObject &state);
-
-private:
-    void rebuild();
-    void send(const QString &action, const QJsonObject &payload = QJsonObject());
-    QStringList selected_prefixes() const;
-
-    HydrusMainWindow *main = nullptr;
-    QJsonObject data;
-    QTableWidget *table = nullptr;
-    QLabel *summary = nullptr;
-    QLabel *message = nullptr;
-    QCheckBox *create_thumbnails = nullptr;
-};
 
 
 // Subscription manager page.
@@ -280,77 +223,9 @@ private:
 };
 
 
-// Non-modal network manager.
-// Non-modal Client API permission manager.
-class HydrusApiPermissionsDialog : public QDialog {
-public:
-    explicit HydrusApiPermissionsDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
 
-    void set_state(const QJsonObject &state);
 
-private:
-    void add_entry();
-    void edit_selected();
-    void delete_selected();
-    QJsonObject selected_entry() const;
 
-    HydrusMainWindow *main = nullptr;
-    QJsonObject data;
-    QTableWidget *table = nullptr;
-    QLabel *status = nullptr;
-};
-
-// Non-modal account type manager for the selected server service.
-class HydrusAccountTypesDialog : public QDialog {
-public:
-    explicit HydrusAccountTypesDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
-
-    void set_state(const QJsonObject &state);
-
-private:
-    void add_entry();
-    void edit_selected();
-    void delete_selected();
-    QJsonObject selected_entry() const;
-
-    HydrusMainWindow *main = nullptr;
-    QJsonObject data;
-    QTableWidget *table = nullptr;
-};
-
-// Non-modal surplus file cleaner for the media storage.
-class HydrusOrphanFilesDialog : public QDialog {
-public:
-    explicit HydrusOrphanFilesDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
-
-    void set_state(const QJsonObject &state);
-
-private:
-    void delete_selected(bool all);
-    void move_selected(bool all);
-    QStringList selected_paths(bool all) const;
-
-    HydrusMainWindow *main = nullptr;
-    QJsonObject data;
-    QTableWidget *table = nullptr;
-    QLabel *status = nullptr;
-};
-
-// Non-modal database backup dialog.
-class HydrusDatabaseBackupDialog : public QDialog {
-public:
-    explicit HydrusDatabaseBackupDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
-
-    void set_state(const QJsonObject &state);
-
-private:
-    void choose_path();
-
-    HydrusMainWindow *main = nullptr;
-    QLineEdit *path = nullptr;
-    QLabel *last_backup = nullptr;
-    QLabel *status = nullptr;
-};
 
 
 class HydrusMainWindow : public QMainWindow {

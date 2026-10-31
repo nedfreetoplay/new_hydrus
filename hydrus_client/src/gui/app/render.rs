@@ -1186,6 +1186,12 @@ pub fn duplicates_json(
             .get_integer("duplicate_filter_max_batch_size")
             .clamp(5, 1024),
         "pair": pair,
+        "media": crate::gui::app::duplicates::pair_thumbnail_hashes(page)
+            .iter()
+            .map(|hash| duplicate_media_json(controller, hash))
+            .collect::<Vec<_>>(),
+        "media_empty_status": crate::gui::app::duplicates::duplicates_media_empty_status(),
+        "media_count_status": crate::gui::app::duplicates::duplicates_media_count_status(page.pairs.len()),
     })
     .to_string()
 }

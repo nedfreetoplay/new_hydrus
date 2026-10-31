@@ -1617,6 +1617,39 @@ fn delete_both(controller: &Controller, a: &[u8], b: &[u8]) -> Result<(), String
     Ok(())
 }
 
+/// Flattens the current batch of duplicate pairs into the unique list of file
+/// hashes that the Python media results panel renders as thumbnails. The order
+/// follows the (already sorted) pairs, with duplicate hashes collapsed so a file
+/// that participates in several pairs is shown only once.
+pub fn pair_thumbnail_hashes(page: &DuplicatesPage) -> Vec<Vec<u8>> {
+    let mut seen = BTreeSet::new();
+    let mut result = Vec::new();
+
+    for pair in &page.pairs {
+        for hash in [&pair.a, &pair.b] {
+            if seen.insert(hash.clone()) {
+                result.push(hash.clone());
+            }
+        }
+    }
+
+    result
+}
+
+/// Empty-state text used by the media results panel when no pairs are queued.
+pub fn duplicates_media_empty_status() -> &'static str {
+    "the potential duplicate queue is empty"
+}
+
+/// Count string for the media results panel status line.
+pub fn duplicates_media_count_status(count: usize) -> String {
+    match count {
+        0 => "no potential duplicate pairs".to_string(),
+        1 => "1 potential duplicate pair".to_string(),
+        n => format!("{n} potential duplicate pairs"),
+    }
+}
+
 fn duplicates_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
     let Some(page) = state.find_duplicates(page_id) else {
         return vec![];
@@ -2461,5 +2494,46 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn pair_thumbnail_hashes_flatten_and_dedupe_pairs() {
+        let mut page = DuplicatesPage::new("dup-media");
+        page.pairs.push(DuplicatePairView {
+            a: vec![1, 2],
+            b: vec![3, 4],
+            distance: 1,
+        });
+        page.pairs.push(DuplicatePairView {
+            a: vec![3, 4],
+            b: vec![5, 6],
+            distance: 2,
+        });
+
+        assert_eq!(
+            pair_thumbnail_hashes(&page),
+            vec![vec![1, 2], vec![3, 4], vec![5, 6]]
+        );
+    }
+
+    #[test]
+    fn pair_thumbnail_hashes_empty_for_empty_queue() {
+        let page = DuplicatesPage::new("dup-media-empty");
+        assert!(pair_thumbnail_hashes(&page).is_empty());
+    }
+
+    #[test]
+    fn duplicates_media_count_status_strings() {
+        assert_eq!(duplicates_media_count_status(0), "no potential duplicate pairs");
+        assert_eq!(duplicates_media_count_status(1), "1 potential duplicate pair");
+        assert_eq!(duplicates_media_count_status(3), "3 potential duplicate pairs");
+    }
+
+    #[test]
+    fn duplicates_media_empty_status_string() {
+        assert_eq!(
+            duplicates_media_empty_status(),
+            "the potential duplicate queue is empty"
+        );
     }
 }

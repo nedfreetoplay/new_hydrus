@@ -197,6 +197,17 @@ Definition of Done для задачи.
   `docs/images/python_duplicates_page.png` (Python). Осталось: media panel
   результатов, полноценный preparation-панель, auto-resolution-редактор,
   групповой режим и точные иконки.
+- 2026-10-31 — media panel страницы duplicates сверен с живым Python v692
+  (WS-14.8): правая часть страницы теперь отдаёт список миниатюр potential
+  duplicate pairs (уникальные хэши пар в порядке отфильтрованной очереди) через
+  `render::duplicates_json` (`media`, `media_empty_status`, `media_count_status`);
+  добавлены `duplicates::pair_thumbnail_hashes`, `duplicates_media_empty_status`,
+  `duplicates_media_count_status` и 4 unit-теста. Скриншоты:
+  `docs/images/duplicates_media_panel.png` (Rust) и
+  `docs/images/python_duplicates_media_panel.png` (Python). Осталось: правая
+  часть по-прежнему показывает сравнение пары; полная замена на thumbnail grid
+  и перенос действий (keep/same/...) на выделение в media panel ещё впереди;
+  preparation/auto-resolution tabs и групповой режим остаются заглушками.
 - 2026-10-31 — менеджер import folders сверен с живым Python v692. В Python это
   не страница, а диалог `file -> import/export folders -> manage import
   folders…` с заголовком `edit import folders` (`EditImportFoldersPanel`).

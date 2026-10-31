@@ -63,6 +63,9 @@ pub(super) fn booleans() -> Map<String, Value> {
         ("duplicates_auto_resolution_enabled", false),
         ("thumbnail_layout_masonry", false),
         ("thumbnail_scroll_horizontal", false),
+        ("open_files_to_duplicate_filter_uses_all_my_files", true),
+        ("hide_duplicates_needs_work_message_when_reasonably_caught_up", true),
+        ("draw_transparency_checkerboard_media_canvas_duplicates", true),
     ];
 
     entries
@@ -106,6 +109,16 @@ pub(super) fn integers() -> Map<String, Value> {
         ("popup_message_character_width", 56),
         ("popup_message_max_messages", 200),
         ("duplicate_filter_max_batch_size", 100),
+        ("duplicate_comparison_score_higher_jpeg_quality", 10),
+        ("duplicate_comparison_score_much_higher_jpeg_quality", 20),
+        ("duplicate_comparison_score_higher_filesize", 10),
+        ("duplicate_comparison_score_much_higher_filesize", 20),
+        ("duplicate_comparison_score_higher_resolution", 20),
+        ("duplicate_comparison_score_much_higher_resolution", 50),
+        ("duplicate_comparison_score_more_tags", 8),
+        ("duplicate_comparison_score_older", 4),
+        ("duplicate_comparison_score_nicer_ratio", 10),
+        ("duplicate_comparison_score_has_audio", 20),
         ("video_thumbnail_percentage_in", 35),
         ("global_audio_volume", 70),
         ("media_viewer_audio_volume", 70),

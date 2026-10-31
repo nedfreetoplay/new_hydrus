@@ -718,7 +718,7 @@ Rust-цели: `gui/app/options.rs`, `client_options`, `gui/qt/bridge.*`.
 - [ ] 12.13 command palette.
 - [ ] 12.14 colours.
 - [ ] 12.15 connection.
-- [ ] 12.16 duplicates.
+- [x] 12.16 duplicates.
 - [ ] 12.17 exporting.
 - [ ] 12.18 files and trash (полностью).
 - [ ] 12.19 file search.
@@ -769,6 +769,23 @@ Rust-цели: `gui/app/options.rs`, `client_options`, `gui/qt/bridge.*`.
 - Remaining differences: Rust keeps the consolidated tab model instead of Python's
   left panel list/completer; other ~30 panels untouched; icons approximate.
 - Tests: 697 unit + 2 integration + 1 ignored.
+
+### WS-12.16 duplicates audit (2026-10-31)
+
+- WS-12.16: duplicates options panel added to the consolidated options dialog as a
+  `duplicates` tab, built from a `DUPLICATE_FIELDS` registry with verbatim labels/help
+  from Python `DuplicatesPanel.py`. Fields: two checkboxes, two intro texts, ten score
+  spinners (-100..100), max batch size (5..1024), auto-commit noneable spinner
+  (1..50, "no, always confirm"), two noneable background intensity spinners
+  (1..9, "do not change"), draw transparency checkbox. All fields save/load through
+  `client_options` (booleans/integers/noneable_integers).
+- Qt dialog extended to render `noneable_int` fields (spinbox + none checkbox) and to
+  honour per-field min/max ranges; readonly labels now wrap.
+- Pure helpers: `duplicates_field`, `duplicates_labels`, `duplicates_help`,
+  `duplicates_range`, `duplicates_none_phrase`, `duplicates_clamp`,
+  `duplicates_clamp_noneable` with unit tests.
+- Screenshots: docs/images/options_duplicates.png (Rust), docs/images/python_options_duplicates.png (Python).
+- Tests: 704 unit + 2 integration + 1 ignored.
 
 ## WS-13. UX, уведомления, системная интеграция
 

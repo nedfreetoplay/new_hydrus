@@ -7479,9 +7479,15 @@ struct OptionField {
     QString label;
     QString type;
     bool noneable = false;
+    int min_value = -2000000000;
+    int max_value = 2000000000;
+    QString none_phrase;
     QCheckBox *boolean = nullptr;
     QSpinBox *integer = nullptr;
     QLineEdit *text = nullptr;
+    QWidget *noneable_container = nullptr;
+    QSpinBox *noneable_integer = nullptr;
+    QCheckBox *noneable_checkbox = nullptr;
     QWidget *page = nullptr;
     QWidget *label_widget = nullptr;
     QWidget *input_widget = nullptr;
@@ -7525,6 +7531,13 @@ public:
                 entry.key = field.value(QStringLiteral("key")).toString();
                 entry.type = field.value(QStringLiteral("type")).toString();
                 entry.noneable = field.value(QStringLiteral("noneable")).toBool(false);
+                entry.min_value = field.contains(QStringLiteral("min"))
+                    ? field.value(QStringLiteral("min")).toInt()
+                    : -2'000'000'000;
+                entry.max_value = field.contains(QStringLiteral("max"))
+                    ? field.value(QStringLiteral("max")).toInt()
+                    : 2'000'000'000;
+                entry.none_phrase = field.value(QStringLiteral("none_phrase")).toString();
                 entry.page = page;
 
                 const QString label = field.value(QStringLiteral("label")).toString();
@@ -7544,10 +7557,34 @@ public:
                     entry.input_widget = entry.boolean;
                 } else if (entry.type == QStringLiteral("int")) {
                     entry.integer = new QSpinBox(page);
-                    entry.integer->setRange(-2'000'000'000, 2'000'000'000);
+                    entry.integer->setRange(entry.min_value, entry.max_value);
                     entry.integer->setValue(value.toInt());
                     form->addRow(label_widget, entry.integer);
                     entry.input_widget = entry.integer;
+                } else if (entry.type == QStringLiteral("noneable_int")) {
+                    entry.noneable_container = new QWidget(page);
+                    auto *container_layout = new QHBoxLayout(entry.noneable_container);
+                    container_layout->setContentsMargins(0, 0, 0, 0);
+                    container_layout->setSpacing(6);
+                    entry.noneable_integer = new QSpinBox(entry.noneable_container);
+                    entry.noneable_integer->setRange(entry.min_value, entry.max_value);
+                    entry.noneable_checkbox = new QCheckBox(
+                        entry.none_phrase.isEmpty() ? QStringLiteral("none") : entry.none_phrase,
+                        entry.noneable_container);
+                    if (value.isNull()) {
+                        entry.noneable_checkbox->setChecked(true);
+                        entry.noneable_integer->setEnabled(false);
+                        entry.noneable_integer->setValue(entry.min_value);
+                    } else {
+                        entry.noneable_checkbox->setChecked(false);
+                        entry.noneable_integer->setEnabled(true);
+                        entry.noneable_integer->setValue(value.toInt());
+                    }
+                    QObject::connect(entry.noneable_checkbox, &QCheckBox::toggled, entry.noneable_integer, &QSpinBox::setDisabled);
+                    container_layout->addWidget(entry.noneable_integer);
+                    container_layout->addWidget(entry.noneable_checkbox);
+                    form->addRow(label_widget, entry.noneable_container);
+                    entry.input_widget = entry.noneable_container;
                 } else if (entry.type == QStringLiteral("string")) {
                     entry.text = new QLineEdit(page);
                     entry.text->setText(value.toString());
@@ -7555,6 +7592,7 @@ public:
                     entry.input_widget = entry.text;
                 } else {
                     auto *readonly = new QLabel(value.toString(), page);
+                    readonly->setWordWrap(true);
                     readonly->setTextInteractionFlags(Qt::TextSelectableByMouse);
                     form->addRow(label_widget, readonly);
                     entry.input_widget = readonly;
@@ -7622,12 +7660,19 @@ private:
         QJsonObject integers;
         QJsonObject strings;
         QJsonObject noneable_strings;
+        QJsonObject noneable_integers;
 
         for (const OptionField &field : fields) {
             if (field.boolean != nullptr) {
                 booleans.insert(field.key, field.boolean->isChecked());
             } else if (field.integer != nullptr) {
                 integers.insert(field.key, field.integer->value());
+            } else if (field.noneable_integer != nullptr) {
+                if (field.noneable_checkbox != nullptr && field.noneable_checkbox->isChecked()) {
+                    noneable_integers.insert(field.key, QJsonValue::Null);
+                } else {
+                    noneable_integers.insert(field.key, field.noneable_integer->value());
+                }
             } else if (field.text != nullptr) {
                 if (field.noneable) {
                     noneable_strings.insert(field.key, field.text->text());
@@ -7642,6 +7687,7 @@ private:
         payload.insert(QStringLiteral("integers"), integers);
         payload.insert(QStringLiteral("strings"), strings);
         payload.insert(QStringLiteral("noneable_strings"), noneable_strings);
+        payload.insert(QStringLiteral("noneable_integers"), noneable_integers);
 
         main->notify(QStringLiteral("options_apply"), QString(), json_payload(payload));
         accept();

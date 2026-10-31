@@ -74,8 +74,269 @@ pub static GENERAL_FIELDS: &[GeneralField] = &[
     },
 ];
 
+#[derive(Debug, Clone, Copy)]
+pub struct DuplicateField {
+    pub key: &'static str,
+    pub label: &'static str,
+    pub help: &'static str,
+    pub kind: &'static str,
+    pub min: Option<i64>,
+    pub max: Option<i64>,
+    pub noneable: bool,
+    pub none_phrase: &'static str,
+    pub readonly_value: &'static str,
+}
+
 pub fn general_field(key: &str) -> Option<&'static GeneralField> {
     GENERAL_FIELDS.iter().find(|field| field.key == key)
+}
+
+pub static DUPLICATE_FIELDS: &[DuplicateField] = &[
+    DuplicateField {
+        key: "open_files_to_duplicate_filter_uses_all_my_files",
+        label: "Set to \"combined local file domains\" when hitting \"Open files in a new duplicates filter page\":",
+        help: "Normally, when you open a selection of files into a new page, the current file domain is preserved. For duplicates filters, you usually want to search in \"combined local file domains\", so this sticks that. If you need domain-specific duplicates pages and know what you are doing, you can turn this off.",
+        kind: "bool",
+        min: None,
+        max: None,
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "hide_duplicates_needs_work_message_when_reasonably_caught_up",
+        label: "Hide the \"x% done\" notification on preparation tab when >99% searched:",
+        help: "By default, the duplicates filter page will not highlight that there is potential duplicates search work to do if you are 99% done. This saves you being notified by the normal background burble of regular file imports. If you want to know whenever any work is pending, uncheck this.",
+        kind: "bool",
+        min: None,
+        max: None,
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_weights_help",
+        label: "",
+        help: "",
+        kind: "readonly",
+        min: None,
+        max: None,
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "When processing potential duplicate pairs in the duplicate filter, the client tries to present the 'best' file first. It judges the two files on a variety of potential differences, each with a score. The file with the greatest total score is presented first. Here you can tinker with these scores.\n\nI recommend you leave all these as positive numbers, but if you wish, you can set a negative number to reduce the score.",
+    },
+    DuplicateField {
+        key: "duplicate_comparison_score_higher_jpeg_quality",
+        label: "Score for jpeg with non-trivially higher jpeg quality:",
+        help: "",
+        kind: "int",
+        min: Some(-100),
+        max: Some(100),
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_comparison_score_much_higher_jpeg_quality",
+        label: "Score for jpeg with significantly higher jpeg quality:",
+        help: "",
+        kind: "int",
+        min: Some(-100),
+        max: Some(100),
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_comparison_score_higher_filesize",
+        label: "Score for file with non-trivially higher filesize:",
+        help: "",
+        kind: "int",
+        min: Some(-100),
+        max: Some(100),
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_comparison_score_much_higher_filesize",
+        label: "Score for file with significantly higher filesize:",
+        help: "",
+        kind: "int",
+        min: Some(-100),
+        max: Some(100),
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_comparison_score_higher_resolution",
+        label: "Score for file with higher resolution (as num pixels):",
+        help: "",
+        kind: "int",
+        min: Some(-100),
+        max: Some(100),
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_comparison_score_much_higher_resolution",
+        label: "Score for file with significantly higher resolution (as num pixels):",
+        help: "",
+        kind: "int",
+        min: Some(-100),
+        max: Some(100),
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_comparison_score_more_tags",
+        label: "Score for file with more tags:",
+        help: "",
+        kind: "int",
+        min: Some(-100),
+        max: Some(100),
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_comparison_score_older",
+        label: "Score for file with non-trivially earlier import time:",
+        help: "",
+        kind: "int",
+        min: Some(-100),
+        max: Some(100),
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_comparison_score_nicer_ratio",
+        label: "Score for file with 'nicer' resolution ratio:",
+        help: "For instance, 16:9 vs 640:357.",
+        kind: "int",
+        min: Some(-100),
+        max: Some(100),
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_comparison_score_has_audio",
+        label: "Score for file with audio:",
+        help: "",
+        kind: "int",
+        min: Some(-100),
+        max: Some(100),
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_filter_max_batch_size",
+        label: "Max size of duplicate filter pair batches (in mixed mode):",
+        help: "In group mode you always see the whole group, which in some cases can be 1,000+ items.",
+        kind: "int",
+        min: Some(5),
+        max: Some(1024),
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_filter_auto_commit_batch_size",
+        label: "Auto-commit completed batches of this size or smaller:",
+        help: "When you are dealing with numerous 1/1 size batches/groups, it can get annoying to click through the confirm every time. This will auto-confirm any batch with this many decisions of fewer, assuming no manual skips.",
+        kind: "noneable_int",
+        min: Some(1),
+        max: Some(50),
+        noneable: true,
+        none_phrase: "no, always confirm",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_colours_help",
+        label: "",
+        help: "",
+        kind: "readonly",
+        min: None,
+        max: None,
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "The duplicate filter can darken/lighten your normal background colour. This highlights the transitions between A and B and, if your background colour is normally pure white or black, can differentiate transparency vs white/black opaque image background.",
+    },
+    DuplicateField {
+        key: "duplicate_background_switch_intensity_a",
+        label: "background light/dark switch intensity for A:",
+        help: "This changes the background colour when you are looking at A. If you have a pure white/black background and do not have transparent images to show with checkerboard, it helps to highlight transparency vs opaque white/black image background.",
+        kind: "noneable_int",
+        min: Some(1),
+        max: Some(9),
+        noneable: true,
+        none_phrase: "do not change",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "duplicate_background_switch_intensity_b",
+        label: "background light/dark switch intensity for B:",
+        help: "This changes the background colour when you are looking at B. Making it different to the A value helps to highlight switches between the two.",
+        kind: "noneable_int",
+        min: Some(1),
+        max: Some(9),
+        noneable: true,
+        none_phrase: "do not change",
+        readonly_value: "",
+    },
+    DuplicateField {
+        key: "draw_transparency_checkerboard_media_canvas_duplicates",
+        label: "draw image transparency as checkerboard in the duplicate filter:",
+        help: "Same as the setting in _media playback_, but only for the duplicate filter.",
+        kind: "bool",
+        min: None,
+        max: None,
+        noneable: false,
+        none_phrase: "",
+        readonly_value: "",
+    },
+];
+
+pub fn duplicates_field(key: &str) -> Option<&'static DuplicateField> {
+    DUPLICATE_FIELDS.iter().find(|field| field.key == key)
+}
+
+pub fn duplicates_labels() -> Vec<&'static str> {
+    DUPLICATE_FIELDS.iter().map(|field| field.label).collect()
+}
+
+pub fn duplicates_help(key: &str) -> &'static str {
+    duplicates_field(key).map(|field| field.help).unwrap_or("")
+}
+
+pub fn duplicates_range(key: &str) -> Option<(i64, i64)> {
+    let field = duplicates_field(key)?;
+    match (field.min, field.max) {
+        (Some(min), Some(max)) => Some((min, max)),
+        _ => None,
+    }
+}
+
+pub fn duplicates_none_phrase(key: &str) -> &'static str {
+    duplicates_field(key).map(|field| field.none_phrase).unwrap_or("")
+}
+
+pub fn duplicates_clamp(key: &str, value: i64) -> i64 {
+    if let Some((min, max)) = duplicates_range(key) {
+        value.clamp(min, max)
+    } else {
+        value
+    }
+}
+
+pub fn duplicates_clamp_noneable(key: &str, value: Option<i64>) -> Option<i64> {
+    value.map(|value| duplicates_clamp(key, value))
 }
 
 pub fn general_labels() -> Vec<&'static str> {
@@ -89,7 +350,7 @@ pub fn general_help(key: &str) -> &'static str {
 pub fn panel_order() -> &'static [&'static str] {
     &[
         "general", "notifications", "statistics", "files", "exporting", "tags",
-        "thumbnails", "media", "maintenance", "downloads", "network", "api",
+        "thumbnails", "media", "maintenance", "downloads", "duplicates", "network", "api",
     ]
 }
 
@@ -105,6 +366,7 @@ pub fn panel_title(name: &str) -> &'static str {
         "media" => "media viewer",
         "maintenance" => "file maintenance",
         "downloads" => "downloaders",
+        "duplicates" => "duplicates",
         "network" => "network",
         "api" => "client api",
         _ => "",
@@ -435,6 +697,29 @@ pub fn options_json(state: &AppState) -> String {
             ),
         ],
     ));
+
+    let mut duplicate_fields = Vec::new();
+    for field in DUPLICATE_FIELDS {
+        let value = match field.kind {
+            "bool" => json!(options.get_boolean(field.key)),
+            "int" => json!(options.get_integer(field.key)),
+            "noneable_int" => json!(options.get_noneable_integer(field.key)),
+            "readonly" => json!(field.readonly_value),
+            _ => json!(null),
+        };
+        duplicate_fields.push(json!({
+            "key": field.key,
+            "label": field.label,
+            "type": field.kind,
+            "value": value,
+            "help": field.help,
+            "min": field.min,
+            "max": field.max,
+            "noneable": field.noneable,
+            "none_phrase": field.none_phrase,
+        }));
+    }
+    tabs.push(tab("duplicates", "duplicates", duplicate_fields));
 
     tabs.push(tab(
         "network",
@@ -1011,7 +1296,7 @@ mod tests {
         let order = panel_order();
         assert_eq!(order[0], "general");
         assert!(order.contains(&"api"));
-        assert_eq!(order.len(), 12);
+        assert_eq!(order.len(), 13);
     }
 
     #[test]
@@ -1056,5 +1341,54 @@ mod tests {
     #[test]
     fn format_field_value_string() {
         assert_eq!(format_field_value("string", &json!("abc")), "abc");
+    }
+
+    #[test]
+    fn duplicates_field_label_lookup() {
+        let field = duplicates_field("duplicate_filter_max_batch_size").expect("field exists");
+        assert_eq!(field.label, "Max size of duplicate filter pair batches (in mixed mode):");
+        assert_eq!(field.kind, "int");
+        assert!(duplicates_field("does_not_exist").is_none());
+    }
+
+    #[test]
+    fn duplicates_labels_include_expected() {
+        let labels = duplicates_labels();
+        assert!(labels.contains(&"Score for file with audio:"));
+        assert!(labels.contains(&"draw image transparency as checkerboard in the duplicate filter:"));
+    }
+
+    #[test]
+    fn duplicates_help_lookup() {
+        assert!(duplicates_help("duplicate_comparison_score_nicer_ratio").contains("16:9"));
+        assert_eq!(duplicates_help("missing"), "");
+    }
+
+    #[test]
+    fn duplicates_range_lookup() {
+        assert_eq!(duplicates_range("duplicate_comparison_score_higher_jpeg_quality"), Some((-100, 100)));
+        assert_eq!(duplicates_range("duplicate_filter_max_batch_size"), Some((5, 1024)));
+        assert_eq!(duplicates_range("open_files_to_duplicate_filter_uses_all_my_files"), None);
+    }
+
+    #[test]
+    fn duplicates_clamp_int() {
+        assert_eq!(duplicates_clamp("duplicate_comparison_score_higher_jpeg_quality", 150), 100);
+        assert_eq!(duplicates_clamp("duplicate_comparison_score_higher_jpeg_quality", -150), -100);
+        assert_eq!(duplicates_clamp("duplicate_comparison_score_higher_jpeg_quality", 42), 42);
+        assert_eq!(duplicates_clamp("open_files_to_duplicate_filter_uses_all_my_files", 7), 7);
+    }
+
+    #[test]
+    fn duplicates_clamp_noneable_test() {
+        assert_eq!(duplicates_clamp_noneable("duplicate_background_switch_intensity_a", Some(0)), Some(1));
+        assert_eq!(duplicates_clamp_noneable("duplicate_background_switch_intensity_a", Some(12)), Some(9));
+        assert_eq!(duplicates_clamp_noneable("duplicate_background_switch_intensity_a", None), None);
+    }
+
+    #[test]
+    fn duplicates_none_phrase_lookup() {
+        assert_eq!(duplicates_none_phrase("duplicate_filter_auto_commit_batch_size"), "no, always confirm");
+        assert_eq!(duplicates_none_phrase("duplicate_background_switch_intensity_a"), "do not change");
     }
 }

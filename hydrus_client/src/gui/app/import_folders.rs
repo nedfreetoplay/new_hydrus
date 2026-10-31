@@ -28,6 +28,8 @@ pub struct ImportFolderEntry {
     pub period: i64,
     #[serde(default)]
     pub paused: bool,
+    #[serde(default)]
+    pub check_now: bool,
     #[serde(default = "default_true")]
     pub check_regularly: bool,
     #[serde(default = "default_true")]
@@ -66,7 +68,7 @@ fn default_action() -> String {
 }
 
 fn default_period() -> i64 {
-    300
+    3600
 }
 
 fn default_true() -> bool {
@@ -80,10 +82,11 @@ impl ImportFolderEntry {
             path: path.into(),
             period: period.max(60),
             paused: false,
+            check_now: false,
             check_regularly: true,
             search_subdirectories: true,
             last_check: 0,
-            last_modified_skip: 0,
+            last_modified_skip: 60,
             last_imported: 0,
             status: "ready".to_string(),
             action: default_action(),
@@ -248,7 +251,7 @@ pub fn edit(state: &AppState, payload: &str) -> Vec<UiCommand> {
 
     let folder = match existing {
         Some(folder) => folder_json(&folder),
-        None => folder_json(&ImportFolderEntry::new("", "", 300)),
+        None => folder_json(&ImportFolderEntry::new("import folder", "", 3600)),
     };
 
     let tag_services: Vec<serde_json::Value> = state
@@ -291,43 +294,38 @@ pub fn save_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 
     if path_text.is_empty() {
         return vec![UiCommand::NotifyMessage(
-            "choose a folder first".to_string(),
+            "You must enter a path to import from!".to_string(),
         )];
     }
 
     let path = PathBuf::from(path_text);
-
-    if !path.is_dir() {
-        return vec![UiCommand::NotifyMessage(format!(
-            "{} is not a directory",
-            path.display()
-        ))];
-    }
 
     let original = value
         .get("original")
         .and_then(serde_json::Value::as_str)
         .unwrap_or_default()
         .trim();
-    let name = value
+    let raw_name = value
         .get("name")
         .and_then(serde_json::Value::as_str)
         .map(str::trim)
-        .filter(|name| !name.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| {
-            path.file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string()
-        });
+        .unwrap_or("")
+        .to_string();
+
+    let taken: Vec<String> = state
+        .import_folders
+        .iter()
+        .filter(|folder| folder.name != original)
+        .map(|folder| folder.name.clone())
+        .collect();
+    let name = non_dupe_name(&raw_name, &taken);
 
     let mut entry = state
         .import_folders
         .iter()
         .find(|folder| folder.name == original)
         .cloned()
-        .unwrap_or_else(|| ImportFolderEntry::new(name.clone(), path.clone(), 300));
+        .unwrap_or_else(|| ImportFolderEntry::new(name.clone(), path.clone(), 3600));
 
     entry.name = name.clone();
     entry.path = path;
@@ -335,7 +333,7 @@ pub fn save_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         .get("period")
         .and_then(serde_json::Value::as_i64)
         .unwrap_or(entry.period)
-        .max(60);
+        .max(180);
     apply_payload(&mut entry, &value);
 
     state
@@ -355,6 +353,13 @@ fn apply_payload(entry: &mut ImportFolderEntry, value: &serde_json::Value) {
         .and_then(serde_json::Value::as_bool)
     {
         entry.check_regularly = check;
+    }
+
+    if let Some(check_now) = value
+        .get("check_now")
+        .and_then(serde_json::Value::as_bool)
+    {
+        entry.check_now = check_now;
     }
 
     if let Some(subdirectories) = value
@@ -407,11 +412,11 @@ fn apply_payload(entry: &mut ImportFolderEntry, value: &serde_json::Value) {
         .get("last_modified_skip")
         .and_then(serde_json::Value::as_i64)
     {
-        entry.last_modified_skip = skip.max(0);
+        entry.last_modified_skip = skip.max(1);
     }
 }
 
-fn extension_list(value: &str) -> Vec<String> {
+pub fn extension_list(value: &str) -> Vec<String> {
     value
         .split(|character: char| character == ',' || character == ';' || character.is_whitespace())
         .map(|extension| {
@@ -422,6 +427,62 @@ fn extension_list(value: &str) -> Vec<String> {
         })
         .filter(|extension| !extension.is_empty())
         .collect()
+}
+
+/// Python's `GetNonDupeName`: `name (1)`, `name (2)`, ... against casefolded
+/// existing names.
+pub fn non_dupe_name(name: &str, taken: &[String]) -> String {
+    let taken: std::collections::BTreeSet<String> =
+        taken.iter().map(|name| name.to_lowercase()).collect();
+
+    if !taken.contains(&name.to_lowercase()) {
+        return name.to_string();
+    }
+
+    let mut index = 1;
+
+    loop {
+        let candidate = format!("{name} ({index})");
+
+        if !taken.contains(&candidate.to_lowercase()) {
+            return candidate;
+        }
+
+        index += 1;
+    }
+}
+
+/// Splits a period into the days/hours/minutes shown by Python's time delta
+/// editor.
+pub fn period_components(seconds: i64) -> (i64, i64, i64) {
+    let seconds = seconds.max(0);
+
+    (
+        seconds / 86_400,
+        seconds % 86_400 / 3_600,
+        seconds % 3_600 / 60,
+    )
+}
+
+pub fn period_from_components(days: i64, hours: i64, minutes: i64) -> i64 {
+    let seconds = days.max(0) * 86_400 + hours.clamp(0, 23) * 3_600 + minutes.clamp(0, 59) * 60;
+
+    // Python's TimeDeltaButton is created with `min = 3 * 60`.
+    seconds.max(180)
+}
+
+pub fn validate_folder_path(path: &str) -> Result<PathBuf, String> {
+    let path = path.trim();
+
+    if path.is_empty() {
+        return Err("You must enter a path to import from!".to_string());
+    }
+
+    Ok(PathBuf::from(path))
+}
+
+pub fn pretty_period_public(seconds: i64) -> String {
+    pretty_period(seconds)
 }
 
 pub fn remove(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -547,6 +608,7 @@ pub fn folder_json(folder: &ImportFolderEntry) -> serde_json::Value {
         "period": folder.period,
         "pretty_period": pretty_period,
         "paused": folder.paused,
+        "check_now": folder.check_now,
         "check_regularly": folder.check_regularly,
         "search_subdirectories": folder.search_subdirectories,
         "last_check": folder.last_check,
@@ -568,7 +630,7 @@ pub fn manage(state: &AppState) -> Vec<UiCommand> {
     vec![UiCommand::ImportFoldersDialog(rules_json(state, ""))]
 }
 
-fn pretty_period(seconds: i64) -> String {
+pub fn pretty_period(seconds: i64) -> String {
     let seconds = seconds.max(60);
 
     if seconds % 86_400 == 0 {
@@ -871,6 +933,38 @@ fn empty_filename_tagging_rules_are_not_persisted() {
         &mut entry,
         &serde_json::json!({"filename_tagging": {"abcd": {}}}),
     );
-
+    
     assert!(entry.filename_tagging.is_empty());
+}
+
+#[test]
+fn import_folder_non_dupe_name_appends_counter() {
+    let taken = vec!["import folder".to_string(), "import folder (1)".to_string()];
+    assert_eq!(non_dupe_name("import folder", &taken), "import folder (2)");
+    assert_eq!(non_dupe_name("new folder", &taken), "new folder");
+}
+
+#[test]
+fn import_folder_period_helpers_round_trip() {
+    assert_eq!(period_components(90_000), (1, 1, 0));
+    assert_eq!(period_from_components(1, 1, 0), 90_000);
+    assert_eq!(period_from_components(0, 0, 0), 180);
+}
+
+#[test]
+fn import_folder_extension_list_parses() {
+    assert_eq!(extension_list("png, .jpg; WEBP"), vec!["png", "jpg", "webp"]);
+}
+
+#[test]
+fn import_folder_validate_path_rejects_empty() {
+    assert!(validate_folder_path("").is_err());
+    assert_eq!(validate_folder_path("C:/tmp").unwrap().to_string_lossy(), "C:/tmp");
+}
+
+#[test]
+fn import_folder_pretty_period_formats() {
+    assert_eq!(pretty_period(300), "5 minutes");
+    assert_eq!(pretty_period(86_400), "1 day");
+    assert_eq!(pretty_period(0), "1 minute");
 }

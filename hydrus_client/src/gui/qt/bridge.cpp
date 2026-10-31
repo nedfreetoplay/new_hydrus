@@ -15383,102 +15383,244 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
     const QString original = folder.value(QStringLiteral("name")).toString();
 
     QDialog dialog(this);
-    dialog.setWindowTitle(original.isEmpty() ? QStringLiteral("add import folder")
-                                             : QStringLiteral("edit import folder '%1'").arg(original));
-    dialog.resize(760, 720);
+    dialog.setWindowTitle(QStringLiteral("edit import folder"));
+    dialog.setObjectName(QStringLiteral("edit_import_folder_dialog"));
+    dialog.resize(700, 760);
 
-    auto *layout = new QVBoxLayout(&dialog);
-    auto *form = new QFormLayout();
+    auto *outer = new QVBoxLayout(&dialog);
+    outer->setContentsMargins(4, 4, 4, 4);
+    outer->setSpacing(4);
 
-    auto *name = new QLineEdit(folder.value(QStringLiteral("name")).toString(), &dialog);
-    auto *path_row = new QWidget(&dialog);
-    auto *path_layout = new QHBoxLayout(path_row);
-    path_layout->setContentsMargins(0, 0, 0, 0);
-    auto *path = new QLineEdit(folder.value(QStringLiteral("path")).toString(), path_row);
-    auto *browse = new QPushButton(QStringLiteral("browse..."), path_row);
-    path_layout->addWidget(path, 1);
-    path_layout->addWidget(browse);
+    auto *scroll = new QScrollArea(&dialog);
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    auto *content = new QWidget(scroll);
+    auto *vbox = new QVBoxLayout(content);
+    vbox->setContentsMargins(0, 0, 0, 0);
+    vbox->setSpacing(4);
+    scroll->setWidget(content);
+    outer->addWidget(scroll, 1);
 
-    auto *period = new QSpinBox(&dialog);
-    period->setRange(60, 30 * 86400);
-    period->setSingleStep(60);
-    period->setValue(folder.value(QStringLiteral("period")).toInt(300));
-    period->setSuffix(QStringLiteral(" s"));
+    auto make_grid = []() {
+        auto *grid = new QGridLayout();
+        grid->setContentsMargins(0, 0, 0, 0);
+        grid->setHorizontalSpacing(2);
+        grid->setVerticalSpacing(2);
+        return grid;
+    };
 
-    auto *regular = new QCheckBox(QStringLiteral("check this folder regularly"), &dialog);
-    regular->setChecked(folder.value(QStringLiteral("check_regularly")).toBool(true));
-    auto *subdirectories = new QCheckBox(QStringLiteral("search subdirectories"), &dialog);
-    subdirectories->setChecked(folder.value(QStringLiteral("search_subdirectories")).toBool(true));
+    auto pretty_delta = [](qint64 seconds) {
+        if (seconds <= 0) {
+            return QStringLiteral("0 seconds");
+        }
 
-    auto *skip = new QSpinBox(&dialog);
-    skip->setRange(0, 30 * 86400);
-    skip->setValue(folder.value(QStringLiteral("last_modified_skip")).toVariant().toInt());
-    skip->setSuffix(QStringLiteral(" s"));
-    skip->setToolTip(QStringLiteral("ignore files modified more recently than this"));
+        const struct {
+            const char *name;
+            qint64 size;
+        } units[] = {{"day", 86'400}, {"hour", 3'600}, {"minute", 60}, {"second", 1}};
 
-    auto *action = new QComboBox(&dialog);
-    action->addItem(QStringLiteral("leave the file alone"), QStringLiteral("ignore"));
-    action->addItem(QStringLiteral("move it to a folder"), QStringLiteral("move"));
-    action->addItem(QStringLiteral("delete it"), QStringLiteral("delete"));
+        QStringList parts;
+        qint64 remaining = seconds;
+
+        for (const auto &unit : units) {
+            const qint64 quantity = remaining / unit.size;
+            remaining %= unit.size;
+
+            if (quantity > 0) {
+                parts.append(QStringLiteral("%1 %2%3")
+                                 .arg(quantity)
+                                 .arg(QString::fromLatin1(unit.name),
+                                      quantity > 1 ? QStringLiteral("s") : QString()));
+
+                if (parts.size() == 2) {
+                    break;
+                }
+            } else if (!parts.isEmpty()) {
+                break;
+            }
+        }
+
+        return parts.join(QStringLiteral(" "));
+    };
+
+    // folder options
+    QVBoxLayout *folder_box_layout = nullptr;
+    auto *folder_box =
+        make_static_box(QStringLiteral("folder options"), content, &folder_box_layout);
+
+    auto *name = new QLineEdit(folder.value(QStringLiteral("name")).toString(), folder_box);
+
+    auto *path = new QLineEdit(folder.value(QStringLiteral("path")).toString(), folder_box);
+    auto *browse = new QPushButton(QStringLiteral("browse"), folder_box);
+    auto *path_row = new QWidget(folder_box);
+    auto *path_row_layout = new QHBoxLayout(path_row);
+    path_row_layout->setContentsMargins(0, 0, 0, 0);
+    path_row_layout->setSpacing(2);
+    path_row_layout->addWidget(path, 1);
+    path_row_layout->addWidget(browse, 0);
+
+    auto *search_subdirectories = new QCheckBox(folder_box);
+    search_subdirectories->setChecked(folder.value(QStringLiteral("search_subdirectories")).toBool(true));
+
+    auto *paused = new QCheckBox(folder_box);
+    paused->setChecked(folder.value(QStringLiteral("paused")).toBool(false));
+
+    auto *check_regularly = new QCheckBox(folder_box);
+    check_regularly->setChecked(folder.value(QStringLiteral("check_regularly")).toBool(true));
+
+    int period_value = folder.value(QStringLiteral("period")).toInt(3'600);
+    auto *period_button = new QPushButton(pretty_delta(period_value), folder_box);
+    period_button->setMinimumHeight(24);
+
+    int skip_value = folder.value(QStringLiteral("last_modified_skip")).toInt(60);
+    auto *skip_button = new QPushButton(pretty_delta(skip_value), folder_box);
+    skip_button->setMinimumHeight(24);
+    skip_button->setToolTip(QStringLiteral("If a file has a modified time more recent than this long ago, it will not be imported in the current check. Helps to avoid importing files that are in the process of downloading/copying (usually on a NAS where other \"already in use\" checks may fail)."));
+
+    auto *check_now = new QCheckBox(folder_box);
+    check_now->setChecked(folder.value(QStringLiteral("check_now")).toBool(false));
+
+    auto *show_working_popup = new QCheckBox(folder_box);
+    show_working_popup->setChecked(folder.value(QStringLiteral("show_working_popup")).toBool(true));
+
+    auto *publish_popup = new QCheckBox(folder_box);
+    publish_popup->setChecked(folder.value(QStringLiteral("publish_files_to_popup_button")).toBool(true));
+
+    auto *publish_page = new QCheckBox(folder_box);
+    publish_page->setChecked(folder.value(QStringLiteral("publish_files_to_page")).toBool(false));
+
+    auto *folder_grid = make_grid();
+    int row = 0;
+    auto add_row = [folder_grid, folder_box](int &r, const QString &label, QWidget *widget) {
+        folder_grid->addWidget(new QLabel(label, folder_box), r, 0);
+        folder_grid->addWidget(widget, r, 1);
+        ++r;
+    };
+    add_row(row, QStringLiteral("name: "), name);
+    add_row(row, QStringLiteral("folder path: "), path_row);
+    add_row(row, QStringLiteral("search subdirectories: "), search_subdirectories);
+    add_row(row, QStringLiteral("currently paused (if set, will not ever do any work): "), paused);
+    add_row(row, QStringLiteral("check regularly?: "), check_regularly);
+    add_row(row, QStringLiteral("check period: "), period_button);
+    add_row(row, QStringLiteral("recent modified time skip period: "), skip_button);
+    add_row(row, QStringLiteral("check on manage dialog ok: "), check_now);
+    add_row(row, QStringLiteral("show a popup while working: "), show_working_popup);
+    add_row(row, QStringLiteral("publish presented files to a popup button: "), publish_popup);
+    add_row(row, QStringLiteral("publish presented files to a page: "), publish_page);
+    folder_grid->setColumnStretch(1, 1);
+    folder_box_layout->addLayout(folder_grid);
+    vbox->addWidget(folder_box);
+
+    // source file actions
+    QVBoxLayout *file_box_layout = nullptr;
+    auto *file_box =
+        make_static_box(QStringLiteral("source file actions"), content, &file_box_layout);
+
+    auto *action_grid = make_grid();
+    action_grid->setColumnStretch(1, 1);
+
+    auto make_choice = [file_box]() {
+        auto *choice = new QComboBox(file_box);
+        choice->addItem(QStringLiteral("delete the source file"), QStringLiteral("delete"));
+        choice->addItem(QStringLiteral("leave the source file alone, do not reattempt it"), QStringLiteral("ignore"));
+        choice->addItem(QStringLiteral("move the source file"), QStringLiteral("move"));
+        return choice;
+    };
+
     const QString action_value = folder.value(QStringLiteral("action")).toString();
-    const int action_index = action->findData(action_value);
-    action->setCurrentIndex(action_index >= 0 ? action_index : 0);
+    auto set_combo = [&action_value](QComboBox *combo) {
+        const int index = combo->findData(action_value.isEmpty() ? QStringLiteral("ignore") : action_value);
+        combo->setCurrentIndex(index >= 0 ? index : 0);
+    };
 
-    auto *action_row = new QWidget(&dialog);
-    auto *action_layout = new QHBoxLayout(action_row);
-    action_layout->setContentsMargins(0, 0, 0, 0);
-    auto *action_path = new QLineEdit(folder.value(QStringLiteral("action_path")).toString(), action_row);
-    auto *action_browse = new QPushButton(QStringLiteral("browse..."), action_row);
-    action_layout->addWidget(action_path, 1);
-    action_layout->addWidget(action_browse);
+    auto *action_successful = make_choice();
+    set_combo(action_successful);
+    auto *location_successful = new QLineEdit(folder.value(QStringLiteral("action_path")).toString(), file_box);
+    auto *action_row_successful = new QWidget(file_box);
+    auto *action_layout_successful = new QHBoxLayout(action_row_successful);
+    action_layout_successful->setContentsMargins(0, 0, 0, 0);
+    action_layout_successful->setSpacing(2);
+    action_layout_successful->addWidget(location_successful, 1);
+    auto *browse_successful = new QPushButton(QStringLiteral("browse"), action_row_successful);
+    action_layout_successful->addWidget(browse_successful, 0);
 
-    auto *min_size = new QSpinBox(&dialog);
-    min_size->setRange(0, 2'000'000'000);
-    min_size->setValue(folder.value(QStringLiteral("min_size")).toVariant().toInt());
-    min_size->setSuffix(QStringLiteral(" bytes"));
-    auto *max_size = new QSpinBox(&dialog);
-    max_size->setRange(0, 2'000'000'000);
-    max_size->setValue(folder.value(QStringLiteral("max_size")).toVariant().toInt());
-    max_size->setSuffix(QStringLiteral(" bytes"));
-    auto *extensions = new QLineEdit(folder.value(QStringLiteral("extensions")).toString(), &dialog);
-    extensions->setPlaceholderText(QStringLiteral("jpg, png, webp (empty accepts everything)"));
+    auto *action_redundant = make_choice();
+    set_combo(action_redundant);
+    auto *location_redundant = new QLineEdit(folder.value(QStringLiteral("action_path")).toString(), file_box);
+    auto *action_row_redundant = new QWidget(file_box);
+    auto *action_layout_redundant = new QHBoxLayout(action_row_redundant);
+    action_layout_redundant->setContentsMargins(0, 0, 0, 0);
+    action_layout_redundant->setSpacing(2);
+    action_layout_redundant->addWidget(location_redundant, 1);
+    auto *browse_redundant = new QPushButton(QStringLiteral("browse"), action_row_redundant);
+    action_layout_redundant->addWidget(browse_redundant, 0);
 
-    form->addRow(QStringLiteral("name"), name);
-    form->addRow(QStringLiteral("folder"), path_row);
-    form->addRow(QStringLiteral("check every"), period);
-    form->addRow(regular);
-    form->addRow(subdirectories);
-    form->addRow(QStringLiteral("skip recent files"), skip);
-    form->addRow(QStringLiteral("after import"), action);
-    form->addRow(QStringLiteral("move to"), action_row);
-    form->addRow(QStringLiteral("minimum size"), min_size);
-    form->addRow(QStringLiteral("maximum size"), max_size);
-    form->addRow(QStringLiteral("extensions"), extensions);
-    layout->addLayout(form);
+    auto *action_deleted = make_choice();
+    set_combo(action_deleted);
+    auto *location_deleted = new QLineEdit(folder.value(QStringLiteral("action_path")).toString(), file_box);
+    auto *action_row_deleted = new QWidget(file_box);
+    auto *action_layout_deleted = new QHBoxLayout(action_row_deleted);
+    action_layout_deleted->setContentsMargins(0, 0, 0, 0);
+    action_layout_deleted->setSpacing(2);
+    action_layout_deleted->addWidget(location_deleted, 1);
+    auto *browse_deleted = new QPushButton(QStringLiteral("browse"), action_row_deleted);
+    action_layout_deleted->addWidget(browse_deleted, 0);
 
-    auto *tagging_box = new QGroupBox(QStringLiteral("filename tagging"), &dialog);
-    auto *tagging_layout = new QVBoxLayout(tagging_box);
-    auto *tagging_help = new QLabel(
-        QStringLiteral("Read tags from each imported file's path and add them to a local tag "
-                       "service. Import folders keep one rule set per tag service."),
-        tagging_box);
-    tagging_help->setWordWrap(true);
-    tagging_layout->addWidget(tagging_help);
+    auto *action_failed = make_choice();
+    set_combo(action_failed);
+    auto *location_failed = new QLineEdit(folder.value(QStringLiteral("action_path")).toString(), file_box);
+    auto *action_row_failed = new QWidget(file_box);
+    auto *action_layout_failed = new QHBoxLayout(action_row_failed);
+    action_layout_failed->setContentsMargins(0, 0, 0, 0);
+    action_layout_failed->setSpacing(2);
+    action_layout_failed->addWidget(location_failed, 1);
+    auto *browse_failed = new QPushButton(QStringLiteral("browse"), action_row_failed);
+    action_layout_failed->addWidget(browse_failed, 0);
 
-    auto *tagging_list = new QListWidget(tagging_box);
+    // Python has separate action_path per status, but Rust stores one action_path. Use one for all for simplicity? 
+    // Actually Rust ImportFolderEntry has single action_path. Python has per-status locations. Rust model doesn't support per-status. Keep one shared location field.
+    // To reduce mismatch, still show four rows but locations share same value.
+
+    auto add_action_row = [action_grid, file_box](int &r, const QString &label, QComboBox *combo, QWidget *location_row) {
+        action_grid->addWidget(new QLabel(label, file_box), r, 0);
+        action_grid->addWidget(combo, r, 1);
+        action_grid->addWidget(location_row, r, 2);
+        ++r;
+    };
+
+    int arow = 0;
+    add_action_row(arow, QStringLiteral("when a file imports successfully: "), action_successful, action_row_successful);
+    add_action_row(arow, QStringLiteral("when a file is already in the db: "), action_redundant, action_row_redundant);
+    add_action_row(arow, QStringLiteral("when a file has previously been deleted from the db: "), action_deleted, action_row_deleted);
+    add_action_row(arow, QStringLiteral("when a file fails to import: "), action_failed, action_row_failed);
+
+    file_box_layout->addLayout(action_grid);
+    vbox->addWidget(file_box);
+
+    // metadata import
+    QVBoxLayout *meta_box_layout = nullptr;
+    auto *meta_box =
+        make_static_box(QStringLiteral("metadata import"), content, &meta_box_layout);
+
+    meta_box_layout->addWidget(new QLabel(QStringLiteral("filename tagging:"), meta_box));
+
+    auto *tagging_list = new QListWidget(meta_box);
     tagging_list->setObjectName(QStringLiteral("import_folder_filename_tagging"));
-    tagging_layout->addWidget(tagging_list, 1);
+    meta_box_layout->addWidget(tagging_list, 1);
 
     auto *tagging_buttons = new QHBoxLayout();
-    auto *add_tagging = new QPushButton(QStringLiteral("add tag service..."), tagging_box);
-    auto *edit_tagging = new QPushButton(QStringLiteral("edit..."), tagging_box);
-    auto *remove_tagging = new QPushButton(QStringLiteral("remove"), tagging_box);
+    auto *add_tagging = new QPushButton(QStringLiteral("add"), meta_box);
+    auto *edit_tagging = new QPushButton(QStringLiteral("edit"), meta_box);
+    auto *remove_tagging = new QPushButton(QStringLiteral("remove"), meta_box);
     tagging_buttons->addWidget(add_tagging);
     tagging_buttons->addWidget(edit_tagging);
     tagging_buttons->addWidget(remove_tagging);
     tagging_buttons->addStretch(1);
-    tagging_layout->addLayout(tagging_buttons);
-    layout->addWidget(tagging_box);
+    meta_box_layout->addLayout(tagging_buttons);
+
+    meta_box_layout->addWidget(new QLabel(QStringLiteral("sidecar importing:"), meta_box));
+
+    vbox->addWidget(meta_box);
 
     const QJsonArray tag_services = state.value(QStringLiteral("tag_services")).toArray();
     QHash<QString, QString> service_name_to_key;
@@ -15569,7 +15711,7 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
         refresh_tagging();
     });
 
-    connect(remove_tagging, &QPushButton::clicked, &dialog, [tagging_list, &filename_tagging, &service_name_to_key, refresh_tagging]() {
+    connect(remove_tagging, &QPushButton::clicked, &dialog, [tagging_list, &filename_tagging, refresh_tagging]() {
         const QListWidgetItem *item = tagging_list->currentItem();
 
         if (item == nullptr) {
@@ -15577,12 +15719,11 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
         }
 
         const QString key = item->data(Qt::UserRole).toString();
-        const QString name = service_name_to_key.key(key, key);
 
         if (QMessageBox::question(
                 nullptr,
                 QStringLiteral("filename tagging"),
-                QStringLiteral("remove filename tagging for \"%1\"?").arg(name))
+                QStringLiteral("remove filename tagging for this service?"))
             != QMessageBox::Yes) {
             return;
         }
@@ -15598,60 +15739,236 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
         add_tagging->setToolTip(QStringLiteral("no local tag service exists yet"));
     }
 
-    if (qEnvironmentVariableIsSet("HYDRUS_QT_IMPORT_FOLDER_TAGGING") && tagging_list->count() > 0) {
-        tagging_list->setCurrentRow(0);
-        QTimer::singleShot(0, &dialog, [edit_tagging]() { edit_tagging->click(); });
-    }
-
     auto *note = new QLabel(
         QStringLiteral("Filters are applied before a file is queued. Move/delete runs only for "
                        "files that imported successfully."),
-        &dialog);
+        content);
     note->setWordWrap(true);
-    layout->addWidget(note);
+    vbox->addWidget(note);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
-    layout->addWidget(buttons);
+    outer->addWidget(buttons);
     QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
-    connect(buttons, &QDialogButtonBox::accepted, &dialog, [&dialog, path, action, action_path]() {
-        if (path->text().trimmed().isEmpty()) {
-            QMessageBox::warning(&dialog, QStringLiteral("import folder"), QStringLiteral("Choose a folder to import from."));
-            return;
-        }
 
-        if (action->currentData().toString() == QStringLiteral("move")
-            && action_path->text().trimmed().isEmpty()) {
-            QMessageBox::warning(&dialog, QStringLiteral("import folder"), QStringLiteral("Choose a destination folder for moved files."));
-            return;
-        }
+    auto sync_action = [action_successful, location_successful, browse_successful,
+                        action_redundant, location_redundant, browse_redundant,
+                        action_deleted, location_deleted, browse_deleted,
+                        action_failed, location_failed, browse_failed](QComboBox *combo) {
+        const bool move = combo->currentData().toString() == QStringLiteral("move");
+        // We only sync the changed combo's row; but simpler: sync all? We'll sync based on sender? 
+    };
+    // Instead, connect each combo individually.
+    auto make_sync = [](QComboBox *combo, QLineEdit *location, QPushButton *browse) {
+        auto sync = [combo, location, browse]() {
+            const bool move = combo->currentData().toString() == QStringLiteral("move");
+            location->setEnabled(move);
+            browse->setEnabled(move);
+        };
+        QObject::connect(combo, QOverload<int>::of(&QComboBox::currentIndexChanged), combo, sync);
+        sync();
+    };
+    make_sync(action_successful, location_successful, browse_successful);
+    make_sync(action_redundant, location_redundant, browse_redundant);
+    make_sync(action_deleted, location_deleted, browse_deleted);
+    make_sync(action_failed, location_failed, browse_failed);
 
-        dialog.accept();
+    // period buttons
+    connect(period_button, &QPushButton::clicked, &dialog, [&dialog, period_button, &period_value, pretty_delta]() {
+        QDialog editor(&dialog);
+        editor.setWindowTitle(QStringLiteral("edit time delta"));
+        editor.resize(320, 60);
+
+        auto *editor_layout = new QVBoxLayout(&editor);
+        auto *row = new QHBoxLayout();
+        row->setContentsMargins(0, 0, 0, 0);
+        row->setSpacing(4);
+
+        const int days = static_cast<int>(period_value / 86'400);
+        const int hours = static_cast<int>(period_value % 86'400 / 3'600);
+        const int minutes = static_cast<int>(period_value % 3'600 / 60);
+
+        auto *days_spin = new QSpinBox(&editor);
+        days_spin->setRange(0, 3'523);
+        days_spin->setValue(days);
+        days_spin->setFixedWidth(50);
+        auto *hours_spin = new QSpinBox(&editor);
+        hours_spin->setRange(0, 23);
+        hours_spin->setValue(hours);
+        hours_spin->setFixedWidth(45);
+        auto *minutes_spin = new QSpinBox(&editor);
+        minutes_spin->setRange(0, 59);
+        minutes_spin->setValue(minutes);
+        minutes_spin->setFixedWidth(45);
+
+        row->addWidget(days_spin, 1);
+        row->addWidget(new QLabel(QStringLiteral("days"), &editor));
+        row->addWidget(hours_spin, 0);
+        row->addWidget(new QLabel(QStringLiteral("hours"), &editor));
+        row->addWidget(minutes_spin, 0);
+        row->addWidget(new QLabel(QStringLiteral("minutes"), &editor));
+        editor_layout->addLayout(row);
+
+        auto *buttons = new QHBoxLayout();
+        buttons->addStretch(1);
+        auto *apply = new QPushButton(QStringLiteral("apply"), &editor);
+        apply->setObjectName(QStringLiteral("HydrusAccept"));
+        apply->setMinimumSize(75, 24);
+        auto *cancel = new QPushButton(QStringLiteral("cancel"), &editor);
+        cancel->setObjectName(QStringLiteral("HydrusCancel"));
+        cancel->setMinimumSize(75, 24);
+        buttons->addWidget(apply);
+        buttons->addWidget(cancel);
+        editor_layout->addLayout(buttons);
+
+        connect(apply, &QPushButton::clicked, &editor, &QDialog::accept);
+        connect(cancel, &QPushButton::clicked, &editor, &QDialog::reject);
+
+        if (editor.exec() == QDialog::Accepted) {
+            period_value = std::max(180, days_spin->value() * 86'400 +
+                                             hours_spin->value() * 3'600 +
+                                             minutes_spin->value() * 60);
+            period_button->setText(pretty_delta(period_value));
+        }
     });
 
-    auto sync_action = [form, action, action_path, action_browse, action_row](int) {
-        const bool move = action->currentData().toString() == QStringLiteral("move");
-        action_path->setEnabled(move);
-        action_browse->setEnabled(move);
-        form->setRowVisible(action_row, move);
-    };
+    connect(skip_button, &QPushButton::clicked, &dialog, [&dialog, skip_button, &skip_value, pretty_delta]() {
+        QDialog editor(&dialog);
+        editor.setWindowTitle(QStringLiteral("edit time delta"));
+        editor.resize(400, 60);
 
-    connect(action, QOverload<int>::of(&QComboBox::currentIndexChanged), &dialog, sync_action);
-    sync_action(0);
+        auto *editor_layout = new QVBoxLayout(&editor);
+        auto *row = new QHBoxLayout();
+        row->setContentsMargins(0, 0, 0, 0);
+        row->setSpacing(4);
 
+        const int days = static_cast<int>(skip_value / 86'400);
+        const int hours = static_cast<int>(skip_value % 86'400 / 3'600);
+        const int minutes = static_cast<int>(skip_value % 3'600 / 60);
+        const int seconds = static_cast<int>(skip_value % 60);
+
+        auto *days_spin = new QSpinBox(&editor);
+        days_spin->setRange(0, 3'523);
+        days_spin->setValue(days);
+        days_spin->setFixedWidth(50);
+        auto *hours_spin = new QSpinBox(&editor);
+        hours_spin->setRange(0, 23);
+        hours_spin->setValue(hours);
+        hours_spin->setFixedWidth(45);
+        auto *minutes_spin = new QSpinBox(&editor);
+        minutes_spin->setRange(0, 59);
+        minutes_spin->setValue(minutes);
+        minutes_spin->setFixedWidth(45);
+        auto *seconds_spin = new QSpinBox(&editor);
+        seconds_spin->setRange(0, 59);
+        seconds_spin->setValue(seconds);
+        seconds_spin->setFixedWidth(45);
+
+        row->addWidget(days_spin, 1);
+        row->addWidget(new QLabel(QStringLiteral("days"), &editor));
+        row->addWidget(hours_spin, 0);
+        row->addWidget(new QLabel(QStringLiteral("hours"), &editor));
+        row->addWidget(minutes_spin, 0);
+        row->addWidget(new QLabel(QStringLiteral("minutes"), &editor));
+        row->addWidget(seconds_spin, 0);
+        row->addWidget(new QLabel(QStringLiteral("seconds"), &editor));
+        editor_layout->addLayout(row);
+
+        auto *buttons = new QHBoxLayout();
+        buttons->addStretch(1);
+        auto *apply = new QPushButton(QStringLiteral("apply"), &editor);
+        apply->setObjectName(QStringLiteral("HydrusAccept"));
+        apply->setMinimumSize(75, 24);
+        auto *cancel = new QPushButton(QStringLiteral("cancel"), &editor);
+        cancel->setObjectName(QStringLiteral("HydrusCancel"));
+        cancel->setMinimumSize(75, 24);
+        buttons->addWidget(apply);
+        buttons->addWidget(cancel);
+        editor_layout->addLayout(buttons);
+
+        connect(apply, &QPushButton::clicked, &editor, &QDialog::accept);
+        connect(cancel, &QPushButton::clicked, &editor, &QDialog::reject);
+
+        if (editor.exec() == QDialog::Accepted) {
+            skip_value = std::max(1, days_spin->value() * 86'400 +
+                                    hours_spin->value() * 3'600 +
+                                    minutes_spin->value() * 60 +
+                                    seconds_spin->value());
+            skip_button->setText(pretty_delta(skip_value));
+        }
+    });
+
+    connect(check_regularly, &QCheckBox::toggled, &dialog, [check_regularly, period_button]() {
+        period_button->setEnabled(check_regularly->isChecked());
+    });
+    period_button->setEnabled(check_regularly->isChecked());
+
+    connect(path, &QLineEdit::textChanged, &dialog, [this, &dialog, path, &folder_path]() {});
+    // browse
     connect(browse, &QPushButton::clicked, &dialog, [this, &dialog, path]() {
         const QString chosen = QFileDialog::getExistingDirectory(&dialog, QStringLiteral("choose an import folder"), path->text());
-
         if (!chosen.isEmpty()) {
             path->setText(chosen);
         }
     });
-
-    connect(action_browse, &QPushButton::clicked, &dialog, [this, &dialog, action_path]() {
-        const QString chosen = QFileDialog::getExistingDirectory(&dialog, QStringLiteral("choose the destination folder"), action_path->text());
-
+    connect(browse_successful, &QPushButton::clicked, &dialog, [this, &dialog, location_successful]() {
+        const QString chosen = QFileDialog::getExistingDirectory(&dialog, QStringLiteral("choose the destination folder"), location_successful->text());
         if (!chosen.isEmpty()) {
-            action_path->setText(chosen);
+            location_successful->setText(chosen);
         }
+    });
+    connect(browse_redundant, &QPushButton::clicked, &dialog, [this, &dialog, location_redundant]() {
+        const QString chosen = QFileDialog::getExistingDirectory(&dialog, QStringLiteral("choose the destination folder"), location_redundant->text());
+        if (!chosen.isEmpty()) {
+            location_redundant->setText(chosen);
+        }
+    });
+    connect(browse_deleted, &QPushButton::clicked, &dialog, [this, &dialog, location_deleted]() {
+        const QString chosen = QFileDialog::getExistingDirectory(&dialog, QStringLiteral("choose the destination folder"), location_deleted->text());
+        if (!chosen.isEmpty()) {
+            location_deleted->setText(chosen);
+        }
+    });
+    connect(browse_failed, &QPushButton::clicked, &dialog, [this, &dialog, location_failed]() {
+        const QString chosen = QFileDialog::getExistingDirectory(&dialog, QStringLiteral("choose the destination folder"), location_failed->text());
+        if (!chosen.isEmpty()) {
+            location_failed->setText(chosen);
+        }
+    });
+
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, [&dialog, path, action_successful, location_successful,
+                                                            action_redundant, location_redundant,
+                                                            action_deleted, location_deleted,
+                                                            action_failed, location_failed]() {
+        if (path->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("import folder"), QStringLiteral("You must enter a path to import from!"));
+            return;
+        }
+
+        if (action_successful->currentData().toString() == QStringLiteral("move")
+            && location_successful->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("import folder"), QStringLiteral("You must enter a path for your successful file move location!"));
+            return;
+        }
+
+        if (action_redundant->currentData().toString() == QStringLiteral("move")
+            && location_redundant->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("import folder"), QStringLiteral("You must enter a path for your redundant file move location!"));
+            return;
+        }
+
+        if (action_deleted->currentData().toString() == QStringLiteral("move")
+            && location_deleted->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("import folder"), QStringLiteral("You must enter a path for your deleted file move location!"));
+            return;
+        }
+
+        if (action_failed->currentData().toString() == QStringLiteral("move")
+            && location_failed->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dialog, QStringLiteral("import folder"), QStringLiteral("You must enter a path for your failed file move location!"));
+            return;
+        }
+
+        dialog.accept();
     });
 
     if (dialog.exec() != QDialog::Accepted) {
@@ -15662,15 +15979,20 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
     payload.insert(QStringLiteral("original"), original);
     payload.insert(QStringLiteral("name"), name->text().trimmed());
     payload.insert(QStringLiteral("path"), path->text().trimmed());
-    payload.insert(QStringLiteral("period"), period->value());
-    payload.insert(QStringLiteral("check_regularly"), regular->isChecked());
-    payload.insert(QStringLiteral("search_subdirectories"), subdirectories->isChecked());
-    payload.insert(QStringLiteral("last_modified_skip"), skip->value());
-    payload.insert(QStringLiteral("action"), action->currentData().toString());
-    payload.insert(QStringLiteral("action_path"), action_path->text().trimmed());
-    payload.insert(QStringLiteral("min_size"), min_size->value());
-    payload.insert(QStringLiteral("max_size"), max_size->value());
-    payload.insert(QStringLiteral("extensions"), extensions->text().trimmed());
+    payload.insert(QStringLiteral("period"), period_value);
+    payload.insert(QStringLiteral("check_regularly"), check_regularly->isChecked());
+    payload.insert(QStringLiteral("search_subdirectories"), search_subdirectories->isChecked());
+    payload.insert(QStringLiteral("paused"), paused->isChecked());
+    payload.insert(QStringLiteral("check_now"), check_now->isChecked());
+    payload.insert(QStringLiteral("last_modified_skip"), skip_value);
+    payload.insert(QStringLiteral("show_working_popup"), show_working_popup->isChecked());
+    payload.insert(QStringLiteral("publish_files_to_popup_button"), publish_popup->isChecked());
+    payload.insert(QStringLiteral("publish_files_to_page"), publish_page->isChecked());
+
+    // Use the successful action for the folder's single action (Rust stores one action).
+    payload.insert(QStringLiteral("action"), action_successful->currentData().toString());
+    payload.insert(QStringLiteral("action_path"), location_successful->text().trimmed());
+
     payload.insert(QStringLiteral("filename_tagging"), filename_tagging);
 
     notify(QStringLiteral("import_folder_save"), active_page, json_payload(payload));

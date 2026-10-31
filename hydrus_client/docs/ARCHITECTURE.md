@@ -46,9 +46,10 @@ gallery/watcher/subscription страниц ставятся в очередь. 
 deadlock/повторный borrow. Менеджеры сервисов и сети немодальные: команда
 `ServicesDialog`/`NetworkDialog` обновляет уже открытое окно, а не открывает второе.
 
-C++-фасад (`gui/qt`) использует обычные Qt Widgets. JSON передаётся только
-через границу cxx: дерево страниц, состояние query/downloader/
-duplicates/subscriptions, меню, статус-бар и данные вьюера. Никакой бизнес-логики
+C++-фасад (`gui/qt`) использует обычные Qt Widgets. Через границу cxx идут либо
+типизированные структуры (статус-бар, about, статистика просмотров — см. шаблон
+ниже), либо пока JSON: дерево страниц, состояние query/downloader/
+duplicates/subscriptions, меню и данные вьюера. Никакой бизнес-логики
 в C++ нет.
 
 ### Структура `gui/qt` (WS-15.1)
@@ -73,9 +74,11 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
 - `bridge_api.cpp` / `bridge_api.hpp` — свободный клей cxx
   (`hydrus_*`, splash, qapp); `screens.hpp` + `bridge.hpp` — тонкие агрегаторы.
 
-Граница cxx — один модуль `#[cxx::bridge] mod ffi` в `bridge.rs` с одним
+Граница cxx — один модуль `#[cxx::bridge] mod ffi` в `gui/qt/api.rs` с одним
 `include!("bridge.hpp")`: агрегатор подтягивает все заголовки, поэтому
-разделять мост на `ffi_pages`/`ffi_dialogs` не понадобилось. Новые экраны
+разделять мост на `ffi_pages`/`ffi_dialogs` не понадобилось. Rust-шимы
+`app_action`/`app_tick` живут рядом с мостом в том же файле; `bridge.rs`
+остался только bootstrap (`run_application`). Новые экраны
 добавляют свой `.hpp`/`.cpp` и строчку в `build.rs` (`.cpp_files([...])`),
 а не код в общий файл.
 
@@ -84,6 +87,43 @@ duplicates/subscriptions, меню, статус-бар и данные вьюе
 сигнатурах; число JSON-швов не растёт); R2 — чистые форматирование/предикаты/
 метрики живут в `gui/app/**` с unit-тестами, C++ только применяет значения;
 R3 — новый файл не больше 600 строк, иначе делится по экрану или слою.
+
+### Шаблон типизированного шва (WS-15.2.1)
+
+Пилот: `StatusBar` (статус-бар), `AboutInfo` (about), `ViewingStats` +
+`ViewingStatRow` (статистика просмотров). Типы живут в `gui/qt/api.rs` в
+единственном `#[cxx::bridge] mod ffi` (делить мост на два нельзя: cxx считает
+одинаковые `type HydrusMainWindow` в разных мостах разными типами Rust);
+C++ видит структуры из сгенерированного
+`<hydrus_client/src/gui/qt/api.cxx.h>`. В сигнатурах типизированных функций
+нет `QJsonObject`, Rust для них ничего не сериализует.
+
+Как конвертировать шов:
+
+1. Struct в `api.rs` (`#[derive(Clone, Debug, PartialEq)]`): только `String`,
+   целые, `bool`, `f64`, `Vec<...>` shared-структур; без `Option` (отсутствие —
+   пустая строка/0, не JSON null).
+2. Вариант `UiCommand::X(Struct)` в `commands.rs` вместо `X(String)`; продьюсер
+   в `gui/app` возвращает struct; все места `UiCommand::X(render::x_json(...))`
+   обновить (проверка — grep по старому имени).
+3. `extern "C++"` decl в том же мосту; C++-объявление в `bridge_api.hpp`,
+   определение-обёртка в `bridge_api.cpp`; метод `HydrusMainWindow` объявить в
+   `main_window.hpp` (для объявления достаточно forward-struct).
+4. Тело метода, читающее поля, — в `typed_seams.cpp`, который включает ТОЛЬКО
+   сгенерированный заголовок (+ Qt и `support/strings.hpp` с объявлениями).
+   Причина: сгенерированный заголовок тянет экспортированные копии всех
+   заголовков, и смешивать их с локальными в одном TU нельзя (двойные
+   определения классов). По мере конверсии тела складываются сюда (или в
+   `typed_<экран>.cpp`, если файл растянется за 500 строк).
+5. Форматирование/предикаты шва — чистые `pub fn` в Rust с unit-тестом
+   (образец: `query_page_media_text`, `downloader_page_media_text`,
+   `busy_text`, `idle_text`, `bandwidth_text` в `render.rs` + тесты в
+   `render/tests.rs`); поведение C++ не меняется, включая quirks рендеринга
+   (например, `QString::number(double)` для целых секунд viewtime).
+
+Как проверить: `parse_object(`/`json_payload(` не растут (по мере конверсии
+убывают), новых `&str`-payload нет; сборка без предупреждений, тесты зелёные;
+ни один файл `gui/qt` не больше 600 строк (`typed_seams.cpp` тоже).
 
 Вёрстка обязана повторять Python-экран, а не быть «похожей формой»: тот же набор
 и порядок контролов, дословные подписи и заголовки, те же размеры/минимальные
@@ -240,7 +280,7 @@ variable-height masonry (QListWidget с неоднородными size hint), �
 текст) с кнопкой очистки; лог ограничен 200 записями и живёт в `AppState`.
 Лимит истории читается из `popup_message_max_messages`, а запись статистики
 просмотров отключается опцией `file_viewing_statistics_active`.
-Help → about собирает `about_json` (SOFTWARE_VERSION, NETWORK_VERSION,
+Help → about собирает `render::about` (SOFTWARE_VERSION, NETWORK_VERSION,
 CLIENT_API_VERSION, db version, SQLite/Qt/Rust, пути и счётчики сервисов) и
 показывает вкладки overview/license/credits с кнопкой открытия сайта.
 `run_application` показывает `SplashModel` через QSplashScreen: версии, статусы

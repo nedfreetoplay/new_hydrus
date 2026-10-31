@@ -441,8 +441,17 @@ C++.
 
 ### 15.2 Типизированный мост  `[ ]` P0
 
-- [ ] 15.2.1 `gui/qt/api.rs`: общие структуры (`PageNode`, `PageState`,
-  `MediaItem`, `StatusBar`, `MenuNode`, `OptionsField`, …), один тип на шов.
+- [x] 15.2.1 `gui/qt/api.rs`: общие структуры (`StatusBar`, `AboutInfo`,
+  `ViewingStats`, …), один тип на шов.
+  - 15.2.1 [x] api.rs + 3 шва переведено (parse_object: было 59, стало 56;
+    json_payload: 61 без изменений; json!: было 252, стало 247;
+    UiCommand со String: было 68, стало 65). Статус-бар (`StatusBar`),
+    about (`AboutInfo`), статистика просмотров (`ViewingStats`+`ViewingStatRow`;
+    тела методов — `typed_seams.cpp`, пустые `about_dialog.cpp` и
+    `stats_dialog.cpp` удалены). R2-хелперы в `render.rs`
+    (`query_page_media_text`, `downloader_page_media_text`, `busy_text`,
+    `idle_text`, `bandwidth_text`) покрыты тестами; шаблон конверсии — в
+    `docs/ARCHITECTURE.md` («Шаблон типизированного шва»).
 - [ ] 15.2.2 `UiCommand`: 68 `String`-вариантов → типизированные, по экранам,
   начиная с тех, что правим сейчас.
 - [ ] 15.2.3 `notify(action, target, payload)` → `UiEvent` или отдельная функция

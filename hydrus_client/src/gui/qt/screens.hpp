@@ -13,3 +13,6 @@
 #include "thumbnail_grid.hpp"
 #include "viewer.hpp"
 
+#include "auto_resolution.hpp"
+#include "network.hpp"
+#include "services.hpp"

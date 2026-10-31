@@ -34,6 +34,17 @@ fn main() {
                 "src/gui/qt/downloader_page_state.cpp",
                 "src/gui/qt/duplicates_page_sidebar.cpp",
                 "src/gui/qt/duplicates_page_media.cpp",
+                "src/gui/qt/auto_resolution_comparators.cpp",
+                "src/gui/qt/auto_resolution_rule.cpp",
+                "src/gui/qt/auto_resolution_rules.cpp",
+                "src/gui/qt/auto_resolution_review.cpp",
+                "src/gui/qt/auto_resolution_merge.cpp",
+                "src/gui/qt/auto_resolution_custom.cpp",
+                "src/gui/qt/services_helpers.cpp",
+                "src/gui/qt/services_dialog.cpp",
+                "src/gui/qt/services_server.cpp",
+                "src/gui/qt/network_dialog.cpp",
+                "src/gui/qt/network_tables.cpp",
             ])
             .cc_builder(|cc| {
                 cc.flag_if_supported("/utf-8");

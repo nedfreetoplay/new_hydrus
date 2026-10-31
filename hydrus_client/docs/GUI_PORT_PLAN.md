@@ -454,6 +454,16 @@ C++.
     `docs/ARCHITECTURE.md` («Шаблон типизированного шва»).
 - [ ] 15.2.2 `UiCommand`: 68 `String`-вариантов → типизированные, по экранам,
   начиная с тех, что правим сейчас.
+  - 15.2.2a [x] страницы/вкладки/дерево/меню: 4 варианта, parse_object 56→54 (коммит 178bdfd)
+    (`Menus(MenuBar)`, `BuildPages(Pages)`, `PageProgress(PageProgress)`,
+    `PageManagerDialog(PageTree)` + типизированные `app_move_page`/`app_close_pages`
+    вместо `notify(move_page/page_manager_close)` с JSON; per-screen blob'ы страниц
+    пока JSON внутри `PageRow.state` по R1-исключению. Замеры тем же способом, что в
+    15.2.1 (только `.cpp` для C++, только `gui/app` без `tests` для `json!`):
+    `parse_object(` 56→54, `json_payload(` 61→61, `json!` 247→188,
+    tuple-`String` варианты `UiCommand` 65→61; тесты 713 unit + 2 integration,
+    1 ignored. `UpdatePage`/шорткаты/история без payload уже типизированы или без
+    JSON; `import_paths`/`local_import_open_paths` остаются JSON до своих подзадач.
 - [ ] 15.2.3 `notify(action, target, payload)` → `UiEvent` или отдельная функция
   на команду.
 - [ ] 15.2.4 Удалить `parse_object`/`json_payload` из C++ и `serde_json` с шва.

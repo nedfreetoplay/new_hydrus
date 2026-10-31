@@ -60,6 +60,8 @@ pub(crate) mod ffi {
             page_id: &str,
             json: &str,
         );
+        fn hydrus_show_export_folders_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_update_export_folders_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_duplicates_rules(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_duplicate_merge_options(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_import_options(window: Pin<&mut HydrusMainWindow>, json: &str);

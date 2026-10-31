@@ -45,6 +45,7 @@ class HydrusDownloaderPage;
 class HydrusSubscriptionsPage;
 class HydrusSubscriptionsDialog;
 class HydrusImportFoldersDialog;
+class HydrusExportFoldersDialog;
 class HydrusDuplicatesPage;
 class HydrusServicesDialog;
 class HydrusApiPermissionsDialog;
@@ -693,6 +694,24 @@ private:
     QPushButton *delete_button = nullptr;
 };
 
+// Python's file -> manage export folders... dialog (EditExportFoldersPanel).
+class HydrusExportFoldersDialog : public QDialog {
+public:
+    HydrusExportFoldersDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void with_selected(const QString &action);
+    void refresh_buttons();
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    QTableWidget *table = nullptr;
+    QPushButton *edit_button = nullptr;
+    QPushButton *delete_button = nullptr;
+};
+
 // Remap missing media/thumbnail subfolder roots.
 class HydrusRepairFileLocationsDialog : public QDialog {
 public:
@@ -1099,6 +1118,8 @@ public:
     void show_import_folders_dialog(const QJsonObject &state);
     void update_import_folders_dialog(const QJsonObject &state);
     void update_export_folders(const QString &page_id, const QJsonObject &state);
+    void show_export_folders_dialog(const QJsonObject &state);
+    void update_export_folders_dialog(const QJsonObject &state);
     void set_selection(
         const QString &page_id,
         const QString &hash,
@@ -1209,6 +1230,7 @@ private:
     HydrusSubscriptionEditorDialog *subscription_editor_dialog = nullptr;
     HydrusSubscriptionsDialog *subscriptions_dialog = nullptr;
     HydrusImportFoldersDialog *import_folders_dialog = nullptr;
+    HydrusExportFoldersDialog *export_folders_dialog = nullptr;
     HydrusDuplicateReviewDialog *duplicate_review_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
     QTimer *tick_timer = nullptr;
@@ -1254,6 +1276,8 @@ void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, r
 void hydrus_show_import_folders_dialog(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_import_folders_dialog(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_export_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
+void hydrus_show_export_folders_dialog(HydrusMainWindow &window, rust::Str json);
+void hydrus_update_export_folders_dialog(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_duplicate_merge_options(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_duplicate_custom_action(HydrusMainWindow &window, rust::Str json);

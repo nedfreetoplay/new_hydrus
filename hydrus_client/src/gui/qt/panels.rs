@@ -68,6 +68,12 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdateExportFolders(page_id, json) => {
             ffi::hydrus_update_export_folders(window.as_mut(), &page_id, &json);
         }
+        UiCommand::ExportFoldersDialog(json) => {
+            ffi::hydrus_show_export_folders_dialog(window.as_mut(), &json);
+        }
+        UiCommand::UpdateExportFoldersDialog(json) => {
+            ffi::hydrus_update_export_folders_dialog(window.as_mut(), &json);
+        }
         UiCommand::DuplicatesRulesDialog(json) => {
             ffi::hydrus_show_duplicates_rules(window.as_mut(), &json);
         }

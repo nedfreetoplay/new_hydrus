@@ -211,6 +211,26 @@ Definition of Done для задачи.
   `docs/images/python_import_folders_dialog.png` (Python). Осталось: сверка
   диалога редактирования одной папки, export folders (пока страница) и
   подменю check-now по папкам.
+- 2026-10-31 — менеджер export folders сверен с живым Python v692. В Python это
+  не страница, а диалог `file -> import/export folders -> manage export
+  folders…` с заголовком `edit export folders` (`EditExportFoldersPanel`).
+  Rust теперь открывает немодальный диалог из того же пункта меню: вступление
+  `Here you can set the client to regularly export a certain query to a
+  particular location.`, таблица `name/path/type/query/period/phrase/
+  recent error?` (7 колонок; `path` по умолчанию шириной в 3 символа, как
+  зарегистрировано в Python, последняя колонка растягивается), сортировка по
+  имени, выделение строки и двойной клик. Справа `add/edit/delete`, внизу
+  `apply/cancel`; `edit`/`delete` выключены без выделения. `type` показывает
+  `regular`/`synchronise` (+ ` and deleting from the client!`), `period` —
+  `1 day`/`2 hours`/`not running regularly` по Python-формату. После
+  add/edit/delete диалог обновляется командой `UpdateExportFoldersDialog`.
+  Страница export folders осталась только для старых сессий: из меню и
+  chooser страниц она убрана. Скриншоты:
+  `docs/images/export_folders_dialog.png` (Rust) и
+  `docs/images/python_export_folders_dialog.png` (Python). Осталось: диалог
+  одной папки `edit export folder` (другая форма), подменю `run export folder
+  now`/пауза, цвет выделения строки (нативный синий против бледно-голубого в
+  Python) и отдельная колонка индикатора сортировки.
 
 ## Текущий статус
 
@@ -225,7 +245,7 @@ Definition of Done для задачи.
 | WS-07 | Загрузчики и парсеры | `[~]` | P1 | XL | WS-06 |
 | WS-08 | Дубликаты | `[~]` | P1 | L | WS-03 |
 | WS-09 | Сервисы, репозитории, API | `[~]` | P1 | XL | — |
-| WS-10 | Экспорт | `[x]` | P1 | L | WS-06 |
+| WS-10 | Экспорт | `[~]` | P1 | L | WS-06 |
 | WS-11 | Обслуживание файлов и БД | `[~]` | P1 | L | WS-09 |
 | WS-12 | Options framework | `[~]` | P1 | XL | — |
 | WS-13 | UX, уведомления, системная интеграция | `[~]` | P2 | L | WS-01, WS-12 |
@@ -585,7 +605,10 @@ Python: `exporting/ClientGUIExport`, `panels/options/ExportingPanel`.
 
 Rust-цели: новый `gui/app/export.rs`, `gui/qt/bridge.*`, `exporting/*`.
 
-- [x] 10.1 Export folders: CRUD и периодический запуск.
+- [~] 10.1 Export folders: CRUD и периодический запуск. Менеджер
+  (`file -> import/export folders -> manage export folders…`) сверен с Python,
+  но диалог редактирования одной папки (`edit export folder`) пока остаётся
+  формой Rust и по «Правилу визуального паритета» не закрыт.
 - [x] 10.2 Export file patterns/formats.
 - [x] 10.3 Review export files и выбор файлов.
 - [x] 10.4 Sidecar export.
@@ -739,9 +762,10 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   - сверено: главное окно (файловая страница), gallery downloader,
     url downloader, simple downloader, watcher, менеджер подписок
     (`network -> subscriptions…`), duplicates (sidebar; media panel ещё нет),
-    менеджер import folders (`file -> … -> manage import folders…`).
-  - осталось: export folders, диалог одной import folder, options dialogs,
-    media viewer, duplicates media panel и preparation/auto-resolution.
+    менеджер import folders (`file -> … -> manage import folders…`) и менеджер
+    export folders (`file -> … -> manage export folders…`).
+  - осталось: диалог одной export folder, диалог одной import folder, options
+    dialogs, media viewer, duplicates media panel и preparation/auto-resolution.
 - [x] 14.9 Переносимая сборка: Qt DLL, плагины и MSVC runtime лежат рядом с exe
   (`scripts/deploy.ps1`, `qt.conf`, `-Zip`), запуск не зависит от `PATH` и
   установленного Qt. Проверено на release-сборке с очищенным `PATH`: окно

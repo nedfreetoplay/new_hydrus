@@ -578,6 +578,9 @@ impl AppState {
                 let notebook = self.active_notebook_id();
                 export::create_page(self, &notebook)
             }
+            // Python has no export folders page: file -> export folders opens
+            // the edit export folders dialog.
+            "manage_export_folders" => export::manage(self),
             "export_folder_edit" => export::edit(self, payload),
             "export_folder_save" => export::save_action(self, payload),
             "export_folder_remove" => export::remove(self, payload),

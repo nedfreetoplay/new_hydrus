@@ -244,7 +244,7 @@ fn import_folder_menu_items(state: &AppState) -> Vec<Value> {
 
 fn export_folder_menu_items(state: &AppState) -> Vec<Value> {
     let mut items = vec![
-        json!({"label": "manage export folders...", "action": "new_export_folders"}),
+        json!({"label": "manage export folders\u{2026}", "action": "manage_export_folders", "description": "Manage folders to which the client can automatically export."}),
         json!({
             "label": "run all export folders",
             "action": "export_folder_run_all",

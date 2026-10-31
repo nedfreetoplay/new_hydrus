@@ -1246,7 +1246,24 @@ pub fn review(state: &AppState, payload: &str) -> Vec<UiCommand> {
     )]
 }
 
-pub fn folder_json(folder: &ExportFolderEntry) -> serde_json::Value {    serde_json::json!({
+pub fn folder_json(folder: &ExportFolderEntry) -> serde_json::Value {
+    let mut pretty_type = if folder.is_synchronise() {
+        "synchronise".to_string()
+    } else {
+        "regular".to_string()
+    };
+
+    if folder.delete_from_client {
+        pretty_type.push_str(" and deleting from the client!");
+    }
+
+    let pretty_period = if folder.run_regularly {
+        pretty_period(folder.period)
+    } else {
+        "not running regularly".to_string()
+    };
+
+    serde_json::json!({
         "name": folder.name,
         "path": folder.path.display().to_string(),
         "query": folder.query,
@@ -1264,7 +1281,45 @@ pub fn folder_json(folder: &ExportFolderEntry) -> serde_json::Value {    serde_j
         "last_error": folder.last_error,
         "running": folder.running,
         "exists": folder.path.is_dir(),
+        "pretty_type": pretty_type,
+        "pretty_period": pretty_period,
     })
+}
+
+/// Python's `HydrusTime.TimeDeltaToPrettyTimeDelta`: up to two units, bigger
+/// first, without the trailing zero units.
+fn pretty_period(seconds: i64) -> String {
+    if seconds <= 0 {
+        return "0 seconds".to_string();
+    }
+
+    let mut remaining = seconds;
+    let mut parts: Vec<String> = Vec::new();
+
+    for (name, size) in [
+        ("year", 31_557_600_i64),
+        ("month", 2_629_800),
+        ("day", 86_400),
+        ("hour", 3_600),
+        ("minute", 60),
+        ("second", 1),
+    ] {
+        let quantity = remaining / size;
+        remaining %= size;
+
+        if quantity > 0 {
+            let plural = if quantity > 1 { "s" } else { "" };
+            parts.push(format!("{quantity} {name}{plural}"));
+
+            if parts.len() == 2 {
+                break;
+            }
+        } else if !parts.is_empty() {
+            break;
+        }
+    }
+
+    parts.join(" ")
 }
 
 pub fn folders_json(state: &AppState, page_id: &str) -> String {
@@ -1277,6 +1332,21 @@ pub fn folders_json(state: &AppState, page_id: &str) -> String {
         "folders": folders,
     })
     .to_string()
+}
+
+/// Python's `edit export folders` manager dialog. The folder list is shared
+/// with the legacy export folders page.
+pub fn dialog_json(state: &AppState) -> String {
+    let folders: Vec<serde_json::Value> = state.export_folders.iter().map(folder_json).collect();
+
+    serde_json::json!({
+        "folders": folders,
+    })
+    .to_string()
+}
+
+pub fn manage(state: &AppState) -> Vec<UiCommand> {
+    vec![UiCommand::ExportFoldersDialog(dialog_json(state))]
 }
 
 pub fn create_page(state: &mut AppState, notebook_id: &str) -> Vec<UiCommand> {
@@ -1304,6 +1374,8 @@ fn page_commands(state: &AppState) -> Vec<UiCommand> {
         ));
     }
 
+    // No-op in Qt when the manager dialog is closed.
+    commands.push(UiCommand::UpdateExportFoldersDialog(dialog_json(state)));
     commands.push(UiCommand::Status(render::status_json(state)));
     commands
 }
@@ -1379,6 +1451,35 @@ mod tests {
         );
         assert_eq!(name, "pictures");
         assert_eq!(hashes, Some(vec![vec![0xab, 0xcd]]));
+    }
+
+    #[test]
+    fn export_folder_rows_match_python_display_text() {
+        let mut folder = ExportFolderEntry::new("export folder", "out", 86_400, "{hash}");
+        folder.query = String::new();
+
+        let row = folder_json(&folder);
+        assert_eq!(row["pretty_type"], "regular");
+        assert_eq!(row["pretty_period"], "1 day");
+
+        folder.export_type = "synchronise".to_string();
+        folder.delete_from_client = true;
+        assert_eq!(
+            folder_json(&folder)["pretty_type"],
+            "synchronise and deleting from the client!"
+        );
+
+        folder.run_regularly = false;
+        assert_eq!(folder_json(&folder)["pretty_period"], "not running regularly");
+    }
+
+    #[test]
+    fn periods_are_pretty_printed_like_python() {
+        assert_eq!(pretty_period(300), "5 minutes");
+        assert_eq!(pretty_period(3_600), "1 hour");
+        assert_eq!(pretty_period(90_000), "1 day 1 hour");
+        assert_eq!(pretty_period(172_800), "2 days");
+        assert_eq!(pretty_period(45), "45 seconds");
     }
 
     #[test]

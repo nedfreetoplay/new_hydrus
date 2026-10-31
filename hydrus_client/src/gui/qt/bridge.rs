@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 
 #[cxx::bridge]
+// WS-15.1.4: single cxx module with a single `include!("bridge.hpp")`.
+// bridge.hpp is a thin aggregator over the topic headers, so one include
+// covers every declaration; no ffi_pages/ffi_dialogs split needed.
 pub(crate) mod ffi {
     unsafe extern "C++" {
         include!("bridge.hpp");

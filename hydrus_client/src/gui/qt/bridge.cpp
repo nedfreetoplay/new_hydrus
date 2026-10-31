@@ -3405,6 +3405,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
         watcher_table->setFixedHeight(112);
         watcher_table->setTextElideMode(Qt::ElideRight);
         watcher_table->horizontalHeader()->setTextElideMode(Qt::ElideRight);
+        watcher_table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         watcher_table->horizontalHeader()->setFixedHeight(24);
 
         const int watcher_widths[] = {80, 38, 38, 48, 38, 46};
@@ -4848,6 +4849,7 @@ HydrusSubscriptionsDialog::HydrusSubscriptionsDialog(
     table->setWordWrap(false);
     table->setTextElideMode(Qt::ElideRight);
     table->horizontalHeader()->setTextElideMode(Qt::ElideRight);
+    table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     table->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
     table->setMinimumHeight(120);
 
@@ -5267,6 +5269,197 @@ void HydrusMainWindow::show_subscriptions_dialog(const QJsonObject &state) {
 void HydrusMainWindow::update_subscriptions_dialog(const QJsonObject &state) {
     if (subscriptions_dialog != nullptr) {
         subscriptions_dialog->set_state(state);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// HydrusImportFoldersDialog (file -> manage import folders...)
+// ---------------------------------------------------------------------------
+
+HydrusImportFoldersDialog::HydrusImportFoldersDialog(
+    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    : QDialog(parent), main(main_window) {
+    setWindowTitle(QStringLiteral("edit import folders"));
+    setObjectName(QStringLiteral("edit_import_folders_dialog"));
+    setAttribute(Qt::WA_DeleteOnClose, true);
+    resize(760, 260);
+
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(8, 8, 8, 8);
+    layout->setSpacing(6);
+
+    auto *intro = new QLabel(
+        QStringLiteral("Here you can set the client to regularly check certain folders for "
+                       "new files to import."),
+        this);
+    intro->setWordWrap(true);
+    layout->addWidget(intro);
+
+    auto *warning = new QLabel(
+        QStringLiteral("WARNING: Import folders check (and potentially move/delete!) the "
+                       "contents of all subdirectories as well as the base directory!"),
+        this);
+    warning->setObjectName(QStringLiteral("HydrusWarning"));
+    warning->setWordWrap(true);
+    layout->addWidget(warning);
+
+    table = new QTableWidget(this);
+    table->setColumnCount(4);
+    table->setHorizontalHeaderLabels({QStringLiteral("name"),
+                                      QStringLiteral("path"),
+                                      QStringLiteral("paused"),
+                                      QStringLiteral("check period")});
+    table->verticalHeader()->setVisible(false);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setSelectionMode(QAbstractItemView::SingleSelection);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setWordWrap(false);
+    table->setTextElideMode(Qt::ElideRight);
+    table->horizontalHeader()->setTextElideMode(Qt::ElideRight);
+    table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    table->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
+    table->setColumnWidth(0, 200);
+    table->setColumnWidth(1, 430);
+    table->setColumnWidth(2, 70);
+    table->setColumnWidth(3, 140);
+    table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+    table->setMinimumHeight(120);
+    table->setMaximumHeight(190);
+    layout->addWidget(table, 1);
+
+    auto *buttons = new QHBoxLayout();
+    buttons->addStretch(1);
+    auto *add = new QPushButton(QStringLiteral("add"), this);
+    edit_button = new QPushButton(QStringLiteral("edit"), this);
+    delete_button = new QPushButton(QStringLiteral("delete"), this);
+    add->setMinimumHeight(22);
+    edit_button->setMinimumHeight(22);
+    delete_button->setMinimumHeight(22);
+    buttons->addWidget(add);
+    buttons->addWidget(edit_button);
+    buttons->addWidget(delete_button);
+    layout->addLayout(buttons);
+
+    auto *bottom = new QHBoxLayout();
+    bottom->addStretch(1);
+    auto *apply = new QPushButton(QStringLiteral("apply"), this);
+    apply->setObjectName(QStringLiteral("HydrusAccept"));
+    auto *cancel = new QPushButton(QStringLiteral("cancel"), this);
+    cancel->setObjectName(QStringLiteral("HydrusCancel"));
+    bottom->addWidget(apply);
+    bottom->addWidget(cancel);
+    layout->addLayout(bottom);
+
+    connect(add, &QPushButton::clicked, this, [this]() {
+        main->notify(QStringLiteral("import_folder_edit"), QString(), QString());
+    });
+    connect(edit_button, &QPushButton::clicked, this, [this]() {
+        with_selected(QStringLiteral("import_folder_edit"));
+    });
+    connect(delete_button, &QPushButton::clicked, this, [this]() {
+        with_selected(QStringLiteral("import_folder_remove"));
+    });
+    connect(table, &QTableWidget::cellDoubleClicked, this, [this](int, int) {
+        with_selected(QStringLiteral("import_folder_edit"));
+    });
+    connect(table, &QTableWidget::itemSelectionChanged, this, [this]() {
+        refresh_buttons();
+    });
+    connect(apply, &QPushButton::clicked, this, &QDialog::close);
+    connect(cancel, &QPushButton::clicked, this, &QDialog::close);
+
+    set_state(state);
+}
+
+void HydrusImportFoldersDialog::set_state(const QJsonObject &state) {
+    data = state;
+
+    QString selected_name;
+
+    if (table->currentRow() >= 0 && table->item(table->currentRow(), 0) != nullptr) {
+        selected_name =
+            table->item(table->currentRow(), 0)->data(Qt::UserRole).toString();
+    }
+
+    const QJsonArray folders = state.value(QStringLiteral("folders")).toArray();
+
+    table->setSortingEnabled(false);
+    table->setRowCount(folders.size());
+
+    for (int index = 0; index < folders.size(); ++index) {
+        const QJsonObject folder = folders.at(index).toObject();
+        const QString name = folder.value(QStringLiteral("name")).toString();
+        const QStringList cells = {
+            name,
+            folder.value(QStringLiteral("path")).toString(),
+            folder.value(QStringLiteral("paused")).toBool() ? QStringLiteral("yes") : QString(),
+            folder.value(QStringLiteral("pretty_period")).toString(),
+        };
+
+        for (int column = 0; column < cells.size(); ++column) {
+            auto *item = table->item(index, column);
+
+            if (item == nullptr) {
+                item = new QTableWidgetItem();
+                table->setItem(index, column, item);
+            }
+
+            item->setText(cells[column]);
+            item->setToolTip(cells[column]);
+        }
+
+        table->item(index, 0)->setData(Qt::UserRole, name);
+    }
+
+    table->setSortingEnabled(true);
+    table->sortItems(0, Qt::AscendingOrder);
+
+    if (!selected_name.isEmpty()) {
+        for (int row = 0; row < table->rowCount(); ++row) {
+            if (table->item(row, 0)->data(Qt::UserRole).toString() == selected_name) {
+                table->selectRow(row);
+                break;
+            }
+        }
+    }
+
+    refresh_buttons();
+}
+
+void HydrusImportFoldersDialog::refresh_buttons() {
+    const bool selected = table->currentRow() >= 0;
+    edit_button->setEnabled(selected);
+    delete_button->setEnabled(selected);
+}
+
+void HydrusImportFoldersDialog::with_selected(const QString &action) {
+    const int row = table->currentRow();
+
+    if (row < 0 || table->item(row, 0) == nullptr) {
+        return;
+    }
+
+    main->notify(action, QString(), table->item(row, 0)->data(Qt::UserRole).toString());
+}
+
+void HydrusMainWindow::show_import_folders_dialog(const QJsonObject &state) {
+    if (import_folders_dialog == nullptr) {
+        import_folders_dialog = new HydrusImportFoldersDialog(this, state, this);
+        connect(import_folders_dialog, &QObject::destroyed, this, [this]() {
+            import_folders_dialog = nullptr;
+        });
+    } else {
+        import_folders_dialog->set_state(state);
+    }
+
+    import_folders_dialog->show();
+    import_folders_dialog->raise();
+    import_folders_dialog->activateWindow();
+}
+
+void HydrusMainWindow::update_import_folders_dialog(const QJsonObject &state) {
+    if (import_folders_dialog != nullptr) {
+        import_folders_dialog->set_state(state);
     }
 }
 
@@ -16963,6 +17156,14 @@ void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust:
 
 void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
     window.update_import_folders(to_qstring(page_id), parse_object(json));
+}
+
+void hydrus_show_import_folders_dialog(HydrusMainWindow &window, rust::Str json) {
+    window.show_import_folders_dialog(parse_object(json));
+}
+
+void hydrus_update_import_folders_dialog(HydrusMainWindow &window, rust::Str json) {
+    window.update_import_folders_dialog(parse_object(json));
 }
 
 void hydrus_update_export_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {

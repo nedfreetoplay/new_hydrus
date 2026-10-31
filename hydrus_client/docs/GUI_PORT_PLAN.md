@@ -197,6 +197,20 @@ Definition of Done для задачи.
   `docs/images/python_duplicates_page.png` (Python). Осталось: media panel
   результатов, полноценный preparation-панель, auto-resolution-редактор,
   групповой режим и точные иконки.
+- 2026-10-31 — менеджер import folders сверен с живым Python v692. В Python это
+  не страница, а диалог `file -> import/export folders -> manage import
+  folders…` с заголовком `edit import folders` (`EditImportFoldersPanel`).
+  Rust теперь открывает такой же диалог из меню `manage import folders…`:
+  вступление, красное предупреждение, таблица `name/path/paused/check period`,
+  строки `add/edit/delete` справа и `apply/cancel` внизу. Кнопки выключаются
+  без выделения, двойной клик редактирует папку, таблица сортируется по имени.
+  В глобальный QSS добавлены правила Python `HydrusWarning` (#800000),
+  `HydrusIndeterminate` (#000080), `HydrusAccept` (#008000) и
+  `HydrusCancel` (#800000); заголовки таблиц теперь выровнены влево, как в
+  Python. Скриншоты: `docs/images/import_folders_dialog.png` (Rust) и
+  `docs/images/python_import_folders_dialog.png` (Python). Осталось: сверка
+  диалога редактирования одной папки, export folders (пока страница) и
+  подменю check-now по папкам.
 
 ## Текущий статус
 
@@ -724,9 +738,10 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   подписи, размеры, отступы, иконки, тема).
   - сверено: главное окно (файловая страница), gallery downloader,
     url downloader, simple downloader, watcher, менеджер подписок
-    (`network -> subscriptions…`), duplicates (sidebar; media panel ещё нет).
-  - осталось: import/export folders, options dialogs, media viewer,
-    duplicates media panel и preparation/auto-resolution.
+    (`network -> subscriptions…`), duplicates (sidebar; media panel ещё нет),
+    менеджер import folders (`file -> … -> manage import folders…`).
+  - осталось: export folders, диалог одной import folder, options dialogs,
+    media viewer, duplicates media panel и preparation/auto-resolution.
 - [x] 14.9 Переносимая сборка: Qt DLL, плагины и MSVC runtime лежат рядом с exe
   (`scripts/deploy.ps1`, `qt.conf`, `-Zip`), запуск не зависит от `PATH` и
   установленного Qt. Проверено на release-сборке с очищенным `PATH`: окно

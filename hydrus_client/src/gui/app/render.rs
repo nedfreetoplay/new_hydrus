@@ -62,7 +62,7 @@ pub fn menus_json(state: &AppState) -> String {
                 {"label": "import files...", "action": "import_files", "description": "Add new files to the database."},
                 {"label": "import options...", "action": "import_options", "description": "Choose file filters, destinations, tags, notes and presentation for imports."},
                 {"label": "import url...", "action": "import_url", "description": "Download one file from a URL and import it."},
-                {"label": "import folders...", "action": "new_import_folders", "description": "Scan folders for new files."},
+                {"label": "manage import folders\u{2026}", "action": "manage_import_folders", "description": "Manage folders from which the client can automatically import."},
                 {"label": "import folders", "items": import_folder_menu_items(state)},
                 {"label": "export folders", "items": export_folder_menu_items(state)},
                 {"separator": true},

@@ -59,6 +59,12 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdateImportFolders(page_id, json) => {
             ffi::hydrus_update_import_folders(window.as_mut(), &page_id, &json);
         }
+        UiCommand::ImportFoldersDialog(json) => {
+            ffi::hydrus_show_import_folders_dialog(window.as_mut(), &json);
+        }
+        UiCommand::UpdateImportFoldersDialog(json) => {
+            ffi::hydrus_update_import_folders_dialog(window.as_mut(), &json);
+        }
         UiCommand::UpdateExportFolders(page_id, json) => {
             ffi::hydrus_update_export_folders(window.as_mut(), &page_id, &json);
         }

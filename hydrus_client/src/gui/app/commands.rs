@@ -24,6 +24,8 @@ pub enum UiCommand {
     SubscriptionEditor(String),
     UpdateDuplicates(String, String),
     UpdateImportFolders(String, String),
+    ImportFoldersDialog(String),
+    UpdateImportFoldersDialog(String),
     UpdateExportFolders(String, String),
     DuplicatesRulesDialog(String),
     DuplicatesMergeOptionsDialog(String),

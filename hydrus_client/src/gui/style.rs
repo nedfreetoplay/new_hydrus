@@ -29,6 +29,10 @@ impl ClientGUIStyle {
         const HYDRUS_DEFAULT_QSS: &str = "
             QPushButton#HydrusOnOffButton[hydrus_on=true] { color: #008000; }
             QPushButton#HydrusOnOffButton[hydrus_on=false] { color: #800000; }
+            QLabel#HydrusIndeterminate { color: #000080; }
+            QLabel#HydrusWarning, QCheckBox#HydrusWarning { color: #800000; }
+            QPushButton#HydrusAccept { color: #008000; }
+            QPushButton#HydrusCancel { color: #800000; }
         ";
 
         if self.darkmode {

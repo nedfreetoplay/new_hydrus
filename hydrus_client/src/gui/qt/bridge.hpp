@@ -44,6 +44,7 @@ class HydrusViewerWindow;
 class HydrusDownloaderPage;
 class HydrusSubscriptionsPage;
 class HydrusSubscriptionsDialog;
+class HydrusImportFoldersDialog;
 class HydrusDuplicatesPage;
 class HydrusServicesDialog;
 class HydrusApiPermissionsDialog;
@@ -674,6 +675,24 @@ private:
     QList<QWidget *> selection_buttons;
 };
 
+// Python's file -> manage import folders... dialog (EditImportFoldersPanel).
+class HydrusImportFoldersDialog : public QDialog {
+public:
+    HydrusImportFoldersDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+
+    void set_state(const QJsonObject &state);
+
+private:
+    void with_selected(const QString &action);
+    void refresh_buttons();
+
+    HydrusMainWindow *main = nullptr;
+    QJsonObject data;
+    QTableWidget *table = nullptr;
+    QPushButton *edit_button = nullptr;
+    QPushButton *delete_button = nullptr;
+};
+
 // Remap missing media/thumbnail subfolder roots.
 class HydrusRepairFileLocationsDialog : public QDialog {
 public:
@@ -1077,6 +1096,8 @@ public:
     void show_subscription_editor(const QJsonObject &state);
     void update_duplicates(const QString &page_id, const QJsonObject &state);
     void update_import_folders(const QString &page_id, const QJsonObject &state);
+    void show_import_folders_dialog(const QJsonObject &state);
+    void update_import_folders_dialog(const QJsonObject &state);
     void update_export_folders(const QString &page_id, const QJsonObject &state);
     void set_selection(
         const QString &page_id,
@@ -1187,6 +1208,7 @@ private:
     HydrusRepairFileLocationsDialog *repair_file_locations_dialog = nullptr;
     HydrusSubscriptionEditorDialog *subscription_editor_dialog = nullptr;
     HydrusSubscriptionsDialog *subscriptions_dialog = nullptr;
+    HydrusImportFoldersDialog *import_folders_dialog = nullptr;
     HydrusDuplicateReviewDialog *duplicate_review_dialog = nullptr;
     HydrusTagRelationsDialog *tag_relations_dialog = nullptr;
     QTimer *tick_timer = nullptr;
@@ -1229,6 +1251,8 @@ void hydrus_update_subscriptions_dialog(HydrusMainWindow &window, rust::Str json
 void hydrus_show_subscription_editor(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
+void hydrus_show_import_folders_dialog(HydrusMainWindow &window, rust::Str json);
+void hydrus_update_import_folders_dialog(HydrusMainWindow &window, rust::Str json);
 void hydrus_update_export_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json);
 void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json);
 void hydrus_show_duplicate_merge_options(HydrusMainWindow &window, rust::Str json);

@@ -535,10 +535,17 @@ pub fn tick(state: &mut AppState) -> Vec<UiCommand> {
 }
 
 pub fn folder_json(folder: &ImportFolderEntry) -> serde_json::Value {
+    let pretty_period = if folder.check_regularly {
+        pretty_period(folder.period)
+    } else {
+        "not checking regularly".to_string()
+    };
+
     serde_json::json!({
         "name": folder.name,
         "path": folder.path.display().to_string(),
         "period": folder.period,
+        "pretty_period": pretty_period,
         "paused": folder.paused,
         "check_regularly": folder.check_regularly,
         "search_subdirectories": folder.search_subdirectories,
@@ -554,6 +561,28 @@ pub fn folder_json(folder: &ImportFolderEntry) -> serde_json::Value {
         "last_modified_skip": folder.last_modified_skip,
         "filename_tagging": folder.filename_tagging,
     })
+}
+
+/// Python's `edit import folders` manager dialog.
+pub fn manage(state: &AppState) -> Vec<UiCommand> {
+    vec![UiCommand::ImportFoldersDialog(rules_json(state, ""))]
+}
+
+fn pretty_period(seconds: i64) -> String {
+    let seconds = seconds.max(60);
+
+    if seconds % 86_400 == 0 {
+        let days = seconds / 86_400;
+        format!("{days} day{}", if days == 1 { "" } else { "s" })
+    } else if seconds % 3_600 == 0 {
+        let hours = seconds / 3_600;
+        format!("{hours} hour{}", if hours == 1 { "" } else { "s" })
+    } else if seconds % 60 == 0 {
+        let minutes = seconds / 60;
+        format!("{minutes} minute{}", if minutes == 1 { "" } else { "s" })
+    } else {
+        format!("{seconds} seconds")
+    }
 }
 
 pub fn rules_json(state: &AppState, page_id: &str) -> String {
@@ -600,6 +629,8 @@ fn page_commands(state: &AppState) -> Vec<UiCommand> {
         ));
     }
 
+    // No-op in Qt when the manager dialog is closed.
+    commands.push(UiCommand::UpdateImportFoldersDialog(rules_json(state, "")));
     commands.push(UiCommand::Status(render::status_json(state)));
     commands
 }
@@ -734,6 +765,18 @@ mod tests {
         assert_eq!(folder.period, 120);
         assert!(!folder.search_subdirectories);
         assert_eq!(folder.last_modified_time_skip_period, 60);
+    }
+
+    #[test]
+    fn check_periods_are_pretty_printed() {
+        let mut entry = ImportFolderEntry::new("incoming", ".", 300);
+        assert_eq!(folder_json(&entry)["pretty_period"], "5 minutes");
+
+        entry.check_regularly = false;
+        assert_eq!(
+            folder_json(&entry)["pretty_period"],
+            "not checking regularly"
+        );
     }
 
     #[test]

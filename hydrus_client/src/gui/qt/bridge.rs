@@ -53,6 +53,8 @@ pub(crate) mod ffi {
             page_id: &str,
             json: &str,
         );
+        fn hydrus_show_import_folders_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_update_import_folders_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_export_folders(
             window: Pin<&mut HydrusMainWindow>,
             page_id: &str,

@@ -541,6 +541,9 @@ impl AppState {
                 let notebook = self.active_notebook_id();
                 self.create_page(&notebook, "subscriptions")
             }
+            // Python has no import folders page: file -> import folders opens
+            // the edit import folders dialog.
+            "manage_import_folders" => import_folders::manage(self),
             "new_import_folders" | "import_folders" => {
                 let notebook = self.active_notebook_id();
                 import_folders::create_page(self, &notebook)

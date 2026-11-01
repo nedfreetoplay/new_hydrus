@@ -422,17 +422,17 @@ pub fn manage_notes(state: &mut AppState, hash: &[u8]) -> Vec<UiCommand> {
     };
 
     let notes = notes::get_notes(state.controller.db().db(), hash_id).unwrap_or_default();
-    let notes: Vec<Value> = notes
+    let notes: Vec<crate::gui::qt::api::ffi::NoteState> = notes
         .into_iter()
-        .map(|(name, text)| json!({"name": name, "text": text}))
+        .map(|(name, text)| crate::gui::qt::api::ffi::NoteState { name, text })
         .collect();
-    let dialog = json!({
-        "dialog_id": "notes",
-        "hash": query::hex(hash),
-        "notes": notes,
-    });
 
-    vec![UiCommand::NotesDialog(dialog.to_string())]
+    vec![UiCommand::NotesDialog(
+        crate::gui::qt::api::ffi::NotesDialogState {
+            hash: query::hex(hash),
+            notes,
+        },
+    )]
 }
 
 pub fn save_notes(

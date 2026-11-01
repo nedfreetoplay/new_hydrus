@@ -17,7 +17,7 @@ use crate::db::files_storage;
 use super::model::ExportFoldersPage;
 use super::worker::AsyncJob;
 use super::{AppState, PageNode, UiCommand, query, render};
-use crate::gui::qt::api::ffi::{FolderPageState, FolderRow};
+use crate::gui::qt::api::ffi::{ExportFolderEditorState, FolderPageState, FolderRow};
 
 const FILENAME: &str = "export folders.json";
 
@@ -872,7 +872,7 @@ pub fn edit(state: &AppState, payload: &str) -> Vec<UiCommand> {
         .cloned();
 
     let folder = match existing {
-        Some(folder) => folder_json(&folder),
+        Some(folder) => folder,
         None => {
             let mut entry = ExportFolderEntry::new(
                 "export folder",
@@ -881,13 +881,28 @@ pub fn edit(state: &AppState, payload: &str) -> Vec<UiCommand> {
                 default_phrase_from_options(state),
             );
             entry.query = String::new();
-            folder_json(&entry)
+            entry
         }
     };
 
-    vec![UiCommand::ExportFolderDialog(
-        serde_json::json!({"folder": folder, "existing": !name.is_empty()}).to_string(),
-    )]
+    vec![UiCommand::ExportFolderDialog(ExportFolderEditorState {
+        original: folder.name.clone(),
+        name: folder.name.clone(),
+        path: folder.path.display().to_string(),
+        export_type: folder.export_type.clone(),
+        delete_from_client: folder.delete_from_client,
+        export_symlinks: folder.export_symlinks,
+        run_regularly: folder.run_regularly,
+        show_working_popup: folder.show_working_popup,
+        run_now: folder.run_now,
+        period: folder.period,
+        period_label: pretty_period(folder.period),
+        query: folder.query.clone(),
+        phrase: folder.phrase.clone(),
+        sidecar_format: folder.sidecar_format.clone(),
+        overwrite_sidecars: folder.overwrite_sidecars,
+        always_overwrite_sidecars: folder.always_overwrite_sidecars,
+    })]
 }
 
 /// Saves the values produced by the export folder dialog.
@@ -1563,18 +1578,43 @@ pub fn folder_page_state(state: &AppState, page_id: &str) -> FolderPageState {
     let folders = state
         .export_folders
         .iter()
-        .map(|folder| FolderRow {
-            name: folder.name.clone(),
-            path: folder.path.display().to_string(),
-            status: folder.status.clone(),
-            paused: folder.paused,
-            period_text: if folder.run_regularly {
-                pretty_period(folder.period)
+        .map(|folder| {
+            let query_text = if folder.query.trim().is_empty() {
+                "everything".to_string()
             } else {
-                "not running regularly".to_string()
-            },
-            last_queued: folder.last_check.to_string(),
-            extra: folder.query.clone(),
+                folder.query.clone()
+            };
+            let mut mode_text = if folder.is_synchronise() {
+                "synchronise".to_string()
+            } else {
+                "copy".to_string()
+            };
+            if folder.delete_from_client {
+                mode_text.push_str(" + delete from client");
+            }
+            let sidecar_text = if folder.sidecar_format == "none" {
+                "-".to_string()
+            } else {
+                folder.sidecar_format.clone()
+            };
+            FolderRow {
+                name: folder.name.clone(),
+                path: folder.path.display().to_string(),
+                status: folder.status.clone(),
+                paused: folder.paused,
+                period_text: if folder.run_regularly {
+                    pretty_period(folder.period)
+                } else {
+                    "not running regularly".to_string()
+                },
+                last_queued: folder.last_exported.to_string(),
+                extra: folder.query.clone(),
+                query_text,
+                filters_text: sidecar_text,
+                mode_text,
+                phrase_text: folder.phrase.clone(),
+                error_text: folder.last_error.clone(),
+            }
         })
         .collect();
 
@@ -1587,6 +1627,54 @@ pub fn folder_page_state(state: &AppState, page_id: &str) -> FolderPageState {
     }
 }
 
+/// Typed manager-dialog state (WS-15.2.4b).
+pub fn manager_state(state: &AppState) -> FolderPageState {
+    let folders = state
+        .export_folders
+        .iter()
+        .map(|folder| {
+            let mut pretty_type = if folder.is_synchronise() {
+                "synchronise".to_string()
+            } else {
+                "regular".to_string()
+            };
+            if folder.delete_from_client {
+                pretty_type.push_str(" and deleting from the client!");
+            }
+            let period_text = if folder.run_regularly {
+                pretty_period(folder.period)
+            } else {
+                "not running regularly".to_string()
+            };
+            let pretty_period = if folder.run_now {
+                format!("{period_text} (running after dialog ok)")
+            } else {
+                period_text
+            };
+            FolderRow {
+                name: folder.name.clone(),
+                path: folder.path.display().to_string(),
+                status: String::new(),
+                paused: folder.paused,
+                period_text: pretty_period,
+                last_queued: String::new(),
+                extra: String::new(),
+                query_text: folder.query.clone(),
+                filters_text: String::new(),
+                mode_text: pretty_type,
+                phrase_text: folder.phrase.clone(),
+                error_text: folder.last_error.clone(),
+            }
+        })
+        .collect();
+
+    FolderPageState {
+        summary: String::new(),
+        folders,
+    }
+}
+
+#[cfg(test)]
 pub fn folders_json(state: &AppState, page_id: &str) -> String {
     let folders: Vec<serde_json::Value> = state.export_folders.iter().map(folder_json).collect();
 
@@ -1601,6 +1689,7 @@ pub fn folders_json(state: &AppState, page_id: &str) -> String {
 
 /// Python's `edit export folders` manager dialog. The folder list is shared
 /// with the legacy export folders page.
+#[cfg(test)]
 pub fn dialog_json(state: &AppState) -> String {
     let folders: Vec<serde_json::Value> = state.export_folders.iter().map(folder_json).collect();
 
@@ -1611,7 +1700,7 @@ pub fn dialog_json(state: &AppState) -> String {
 }
 
 pub fn manage(state: &AppState) -> Vec<UiCommand> {
-    vec![UiCommand::ExportFoldersDialog(dialog_json(state))]
+    vec![UiCommand::ExportFoldersDialog(manager_state(state))]
 }
 
 pub fn create_page(state: &mut AppState, notebook_id: &str) -> Vec<UiCommand> {
@@ -1635,12 +1724,12 @@ fn page_commands(state: &AppState) -> Vec<UiCommand> {
     for id in ids {
         commands.push(UiCommand::UpdateExportFolders(
             id.clone(),
-            folders_json(state, &id),
+            folder_page_state(state, &id),
         ));
     }
 
     // No-op in Qt when the manager dialog is closed.
-    commands.push(UiCommand::UpdateExportFoldersDialog(dialog_json(state)));
+    commands.push(UiCommand::UpdateExportFoldersDialog(manager_state(state)));
     commands.push(UiCommand::Status(render::status(state)));
     commands
 }

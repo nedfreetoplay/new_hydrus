@@ -851,6 +851,11 @@ pub(crate) mod ffi {
         period_text: String,
         last_queued: String,
         extra: String,
+        query_text: String,
+        filters_text: String,
+        mode_text: String,
+        phrase_text: String,
+        error_text: String,
     }
 
     /// Typed state of import/export folder pages (WS-15.2.4b).
@@ -858,6 +863,94 @@ pub(crate) mod ffi {
     struct FolderPageState {
         summary: String,
         folders: Vec<FolderRow>,
+    }
+
+    /// Autocomplete entries for a query page (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct AutocompleteState {
+        page_id: String,
+        entries: Vec<String>,
+    }
+
+    /// Notes dialog contents (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct NotesDialogState {
+        hash: String,
+        notes: Vec<NoteState>,
+    }
+
+    /// Tag dialog contents: focused metadata panel state (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq)]
+    struct TagDialogState {
+        metadata: MetadataState,
+    }
+
+    /// One filename-tagging rule of an import folder, fully typed
+    /// (WS-15.2.4b). Rust formats `summary`; C++ only displays rows.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct TaggingEntry {
+        service_key: String,
+        service_name: String,
+        summary: String,
+        tags_for_all: Vec<String>,
+        add_filename: bool,
+        filename_namespace: String,
+        dir_enabled: Vec<bool>,
+        dir_namespaces: Vec<String>,
+        quick_namespaces: Vec<String>,
+        quick_regexes: Vec<String>,
+        regexes: Vec<String>,
+    }
+
+    /// Local tag service available for filename tagging (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct TagServiceRef {
+        key: String,
+        name: String,
+    }
+
+    /// Import folder editor state (WS-15.2.4b). All labels Rust formats.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ImportFolderEditorState {
+        original: String,
+        name: String,
+        path: String,
+        search_subdirectories: bool,
+        paused: bool,
+        check_regularly: bool,
+        period: i64,
+        period_label: String,
+        skip: i64,
+        skip_label: String,
+        check_now: bool,
+        show_working_popup: bool,
+        publish_popup: bool,
+        publish_page: bool,
+        action: String,
+        action_path: String,
+        tagging: Vec<TaggingEntry>,
+        tag_services: Vec<TagServiceRef>,
+    }
+
+    /// Export folder editor state (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ExportFolderEditorState {
+        original: String,
+        name: String,
+        path: String,
+        export_type: String,
+        delete_from_client: bool,
+        export_symlinks: bool,
+        run_regularly: bool,
+        show_working_popup: bool,
+        run_now: bool,
+        period: i64,
+        period_label: String,
+        query: String,
+        phrase: String,
+        sidecar_format: String,
+        overwrite_sidecars: bool,
+        always_overwrite_sidecars: bool,
     }
     /// One page row of the notebook tree (WS-15.2.2a / WS-15.2.3c).
     ///
@@ -1667,7 +1760,7 @@ pub(crate) mod ffi {
         fn hydrus_resize_window(window: Pin<&mut HydrusMainWindow>, width: i32, height: i32);
         fn hydrus_set_menus(window: Pin<&mut HydrusMainWindow>, menus: &MenuBar);
         fn hydrus_set_tag_suggestions(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_autocomplete(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_autocomplete(window: Pin<&mut HydrusMainWindow>, state: &AutocompleteState);
         fn hydrus_set_status(window: Pin<&mut HydrusMainWindow>, status: &StatusBar);
         fn hydrus_build_pages(window: Pin<&mut HydrusMainWindow>, pages: &Pages);
         fn hydrus_update_page(window: Pin<&mut HydrusMainWindow>, page: &QueryPageState);
@@ -1699,17 +1792,17 @@ pub(crate) mod ffi {
         fn hydrus_update_import_folders(
             window: Pin<&mut HydrusMainWindow>,
             page_id: &str,
-            json: &str,
+            state: &FolderPageState,
         );
-        fn hydrus_show_import_folders_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_update_import_folders_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_import_folders_dialog(window: Pin<&mut HydrusMainWindow>, state: &FolderPageState);
+        fn hydrus_update_import_folders_dialog(window: Pin<&mut HydrusMainWindow>, state: &FolderPageState);
         fn hydrus_update_export_folders(
             window: Pin<&mut HydrusMainWindow>,
             page_id: &str,
-            json: &str,
+            state: &FolderPageState,
         );
-        fn hydrus_show_export_folders_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_update_export_folders_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_export_folders_dialog(window: Pin<&mut HydrusMainWindow>, state: &FolderPageState);
+        fn hydrus_update_export_folders_dialog(window: Pin<&mut HydrusMainWindow>, state: &FolderPageState);
         fn hydrus_show_duplicates_rules(
             window: Pin<&mut HydrusMainWindow>,
             state: &DuplicatesRulesDialogState,
@@ -1742,7 +1835,7 @@ pub(crate) mod ffi {
             window: Pin<&mut HydrusMainWindow>,
             state: &TagRelationsDialogState,
         );
-        fn hydrus_show_import_folder(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_import_folder(window: Pin<&mut HydrusMainWindow>, state: &ImportFolderEditorState);
         fn hydrus_show_local_import_review(
             window: Pin<&mut HydrusMainWindow>,
             state: &LocalImportReviewDialogState,
@@ -1757,12 +1850,12 @@ pub(crate) mod ffi {
             state: &RepairFileLocationsDialogState,
         );
         fn hydrus_close_repair_file_locations(window: Pin<&mut HydrusMainWindow>);
-        fn hydrus_show_export_folder(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_export_folder(window: Pin<&mut HydrusMainWindow>, state: &ExportFolderEditorState);
         fn hydrus_show_export_review(
             window: Pin<&mut HydrusMainWindow>,
             state: &ExportReviewDialogState,
         );
-        fn hydrus_show_notes(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_notes(window: Pin<&mut HydrusMainWindow>, state: &NotesDialogState);
         fn hydrus_set_selection(window: Pin<&mut HydrusMainWindow>, selection: &SelectionState);
         fn hydrus_show_page_chooser(window: Pin<&mut HydrusMainWindow>, notebook_id: &str);
         fn hydrus_show_page_manager(window: Pin<&mut HydrusMainWindow>, tree: &PageTree);
@@ -1787,7 +1880,7 @@ pub(crate) mod ffi {
         fn hydrus_open_viewer(window: Pin<&mut HydrusMainWindow>, state: &ViewerState);
         fn hydrus_update_viewer(window: Pin<&mut HydrusMainWindow>, state: &ViewerState);
         fn hydrus_close_viewer(window: Pin<&mut HydrusMainWindow>, viewer_id: &str);
-        fn hydrus_show_tag_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_tag_dialog(window: Pin<&mut HydrusMainWindow>, state: &TagDialogState);
         fn hydrus_show_notifications(
             window: Pin<&mut HydrusMainWindow>,
             state: &NotificationsDialogState,

@@ -19,7 +19,9 @@ void build_export_sidecar_section(
     QDialog *dialog,
     QWidget *content,
     QVBoxLayout *vbox,
-    const QJsonObject &folder,
+    const QString &sidecar_initial,
+    bool overwrite_initial,
+    bool always_overwrite_initial,
     QLineEdit *query,
     std::function<QGridLayout *()> make_grid,
     QString &sidecar_format,
@@ -43,10 +45,9 @@ void build_export_sidecar_section(
     sidecar_box_layout->addWidget(sidecar_help);
 
     overwrite_next = new QCheckBox(sidecar_box);
-    overwrite_next->setChecked(folder.value(QStringLiteral("overwrite_sidecars")).toBool(false));
+    overwrite_next->setChecked(overwrite_initial);
     overwrite_always = new QCheckBox(sidecar_box);
-    overwrite_always->setChecked(
-        folder.value(QStringLiteral("always_overwrite_sidecars")).toBool(false));
+    overwrite_always->setChecked(always_overwrite_initial);
 
     auto *sidecar_grid = make_grid();
     auto *overwrite_next_label =
@@ -60,7 +61,7 @@ void build_export_sidecar_section(
     sidecar_grid->setColumnStretch(1, 1);
     sidecar_box_layout->addLayout(sidecar_grid);
 
-    sidecar_format = folder.value(QStringLiteral("sidecar_format")).toString();
+    sidecar_format = sidecar_initial;
 
     if (sidecar_format != QStringLiteral("json") && sidecar_format != QStringLiteral("text")) {
         sidecar_format = QStringLiteral("none");

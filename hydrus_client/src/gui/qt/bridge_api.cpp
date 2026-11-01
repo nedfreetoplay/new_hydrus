@@ -203,8 +203,8 @@ void hydrus_set_tag_suggestions(HydrusMainWindow &window, rust::Str json) {
     window.set_tag_suggestions(json_to_strings(parse_array(json)));
 }
 
-void hydrus_show_autocomplete(HydrusMainWindow &window, rust::Str json) {
-    window.show_autocomplete(parse_object(json));
+void hydrus_show_autocomplete(HydrusMainWindow &window, const AutocompleteState &state) {
+    window.show_autocomplete(state);
 }
 
 void hydrus_set_status(HydrusMainWindow &window, const StatusBar &status) {
@@ -247,28 +247,28 @@ void hydrus_update_duplicates(HydrusMainWindow &window, const DuplicatesPageStat
     window.update_duplicates(state);
 }
 
-void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
-    window.update_import_folders(to_qstring(page_id), parse_object(json));
+void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, const FolderPageState &state) {
+    window.update_import_folders(to_qstring(page_id), state);
 }
 
-void hydrus_show_import_folders_dialog(HydrusMainWindow &window, rust::Str json) {
-    window.show_import_folders_dialog(parse_object(json));
+void hydrus_show_import_folders_dialog(HydrusMainWindow &window, const FolderPageState &state) {
+    window.show_import_folders_dialog(state);
 }
 
-void hydrus_update_import_folders_dialog(HydrusMainWindow &window, rust::Str json) {
-    window.update_import_folders_dialog(parse_object(json));
+void hydrus_update_import_folders_dialog(HydrusMainWindow &window, const FolderPageState &state) {
+    window.update_import_folders_dialog(state);
 }
 
-void hydrus_update_export_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
-    window.update_export_folders(to_qstring(page_id), parse_object(json));
+void hydrus_update_export_folders(HydrusMainWindow &window, rust::Str page_id, const FolderPageState &state) {
+    window.update_export_folders(to_qstring(page_id), state);
 }
 
-void hydrus_show_export_folders_dialog(HydrusMainWindow &window, rust::Str json) {
-    window.show_export_folders_dialog(parse_object(json));
+void hydrus_show_export_folders_dialog(HydrusMainWindow &window, const FolderPageState &state) {
+    window.show_export_folders_dialog(state);
 }
 
-void hydrus_update_export_folders_dialog(HydrusMainWindow &window, rust::Str json) {
-    window.update_export_folders_dialog(parse_object(json));
+void hydrus_update_export_folders_dialog(HydrusMainWindow &window, const FolderPageState &state) {
+    window.update_export_folders_dialog(state);
 }
 
 void hydrus_show_duplicates_rules(HydrusMainWindow &window, const DuplicatesRulesDialogState &state) {
@@ -311,8 +311,8 @@ void hydrus_show_tag_relations(HydrusMainWindow &window, const TagRelationsDialo
     window.show_tag_relations(state);
 }
 
-void hydrus_show_import_folder(HydrusMainWindow &window, rust::Str json) {
-    window.show_import_folder(parse_object(json));
+void hydrus_show_import_folder(HydrusMainWindow &window, const ImportFolderEditorState &state) {
+    window.show_import_folder(state);
 }
 
 void hydrus_show_local_import_review(HydrusMainWindow &window, const LocalImportReviewDialogState &state) {
@@ -335,16 +335,16 @@ void hydrus_close_repair_file_locations(HydrusMainWindow &window) {
     window.close_repair_file_locations();
 }
 
-void hydrus_show_export_folder(HydrusMainWindow &window, rust::Str json) {
-    window.show_export_folder(parse_object(json));
+void hydrus_show_export_folder(HydrusMainWindow &window, const ExportFolderEditorState &state) {
+    window.show_export_folder(state);
 }
 
 void hydrus_show_export_review(HydrusMainWindow &window, const ExportReviewDialogState &state) {
     window.show_export_review(state);
 }
 
-void hydrus_show_notes(HydrusMainWindow &window, rust::Str json) {
-    window.show_notes(parse_object(json));
+void hydrus_show_notes(HydrusMainWindow &window, const NotesDialogState &state) {
+    window.show_notes(state);
 }
 
 void hydrus_set_selection(HydrusMainWindow &window, const SelectionState &selection) {
@@ -391,8 +391,8 @@ void hydrus_close_viewer(HydrusMainWindow &window, rust::Str viewer_id) {
     window.close_viewer(to_qstring(viewer_id));
 }
 
-void hydrus_show_tag_dialog(HydrusMainWindow &window, rust::Str json) {
-    window.show_tag_dialog(parse_object(json));
+void hydrus_show_tag_dialog(HydrusMainWindow &window, const TagDialogState &state) {
+    window.show_tag_dialog(state);
 }
 
 void hydrus_show_notifications(HydrusMainWindow &window, const NotificationsDialogState &state) {

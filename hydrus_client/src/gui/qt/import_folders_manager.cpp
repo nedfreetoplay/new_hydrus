@@ -13,7 +13,7 @@
 // WS-15.1.5: import folders manager dialog + page moved verbatim from bridge.cpp (move-only split).
 
 HydrusImportFoldersDialog::HydrusImportFoldersDialog(
-    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    HydrusMainWindow *main_window, const FolderPageState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("edit import folders"));
     setObjectName(QStringLiteral("edit_import_folders_dialog"));
@@ -107,9 +107,7 @@ HydrusImportFoldersDialog::HydrusImportFoldersDialog(
     set_state(state);
 }
 
-void HydrusImportFoldersDialog::set_state(const QJsonObject &state) {
-    data = state;
-
+void HydrusImportFoldersDialog::set_state(const FolderPageState &state) {
     QString selected_name;
 
     if (table->currentRow() >= 0 && table->item(table->currentRow(), 0) != nullptr) {
@@ -117,34 +115,35 @@ void HydrusImportFoldersDialog::set_state(const QJsonObject &state) {
             table->item(table->currentRow(), 0)->data(Qt::UserRole).toString();
     }
 
-    const QJsonArray folders = state.value(QStringLiteral("folders")).toArray();
+    const rust::Vec<FolderRow> &folders = state.folders;
 
     table->setSortingEnabled(false);
-    table->setRowCount(folders.size());
+    table->setRowCount(int(folders.size()));
 
-    for (int index = 0; index < folders.size(); ++index) {
-        const QJsonObject folder = folders.at(index).toObject();
-        const QString name = folder.value(QStringLiteral("name")).toString();
+    for (size_t index = 0; index < folders.size(); ++index) {
+        const FolderRow &folder = folders[index];
+        const QString name = to_qstring(folder.name);
         const QStringList cells = {
             name,
-            folder.value(QStringLiteral("path")).toString(),
-            folder.value(QStringLiteral("paused")).toBool() ? QStringLiteral("yes") : QString(),
-            folder.value(QStringLiteral("pretty_period")).toString(),
+            to_qstring(folder.path),
+            folder.paused ? QStringLiteral("yes") : QString(),
+            to_qstring(folder.period_text),
         };
 
         for (int column = 0; column < cells.size(); ++column) {
-            auto *item = table->item(index, column);
+            const int row = int(index);
+            auto *item = table->item(row, column);
 
             if (item == nullptr) {
                 item = new QTableWidgetItem();
-                table->setItem(index, column, item);
+                table->setItem(row, column, item);
             }
 
             item->setText(cells[column]);
             item->setToolTip(cells[column]);
         }
 
-        table->item(index, 0)->setData(Qt::UserRole, name);
+        table->item(int(index), 0)->setData(Qt::UserRole, name);
     }
 
     table->setSortingEnabled(true);
@@ -178,7 +177,7 @@ void HydrusImportFoldersDialog::with_selected(UiAction action) {
     main->notify(action, QString(), table->item(row, 0)->data(Qt::UserRole).toString());
 }
 
-void HydrusMainWindow::show_import_folders_dialog(const QJsonObject &state) {
+void HydrusMainWindow::show_import_folders_dialog(const FolderPageState &state) {
     if (import_folders_dialog == nullptr) {
         import_folders_dialog = new HydrusImportFoldersDialog(this, state, this);
         connect(import_folders_dialog, &QObject::destroyed, this, [this]() {
@@ -193,13 +192,13 @@ void HydrusMainWindow::show_import_folders_dialog(const QJsonObject &state) {
     import_folders_dialog->activateWindow();
 }
 
-void HydrusMainWindow::update_import_folders_dialog(const QJsonObject &state) {
+void HydrusMainWindow::update_import_folders_dialog(const FolderPageState &state) {
     if (import_folders_dialog != nullptr) {
         import_folders_dialog->set_state(state);
     }
 }
 
-HydrusImportFoldersPage::HydrusImportFoldersPage(HydrusMainWindow *main_window, const QString &page_id, const QJsonObject &state)
+HydrusImportFoldersPage::HydrusImportFoldersPage(HydrusMainWindow *main_window, const QString &page_id, const FolderPageState &state)
     : QWidget(), main(main_window), id(page_id) {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(6, 6, 6, 6);
@@ -267,65 +266,38 @@ void HydrusImportFoldersPage::with_selected(UiAction action) {
     main->notify(action, id, table->item(row, 0)->data(Qt::UserRole).toString());
 }
 
-void HydrusImportFoldersPage::update_state(const QJsonObject &state) {
-    status->setText(state.value(QStringLiteral("status")).toString());
+void HydrusImportFoldersPage::update_state(const FolderPageState &state) {
+    status->setText(to_qstring(state.summary));
 
-    const QJsonArray folders = state.value(QStringLiteral("folders")).toArray();
-    table->setRowCount(folders.size());
+    const rust::Vec<FolderRow> &folders = state.folders;
+    table->setRowCount(int(folders.size()));
 
-    for (int index = 0; index < folders.size(); ++index) {
-        const QJsonObject folder = folders.at(index).toObject();
+    for (size_t index = 0; index < folders.size(); ++index) {
+        const FolderRow &folder = folders[index];
+        const int row = int(index);
 
         for (int column = 0; column < 7; ++column) {
-            if (table->item(index, column) == nullptr) {
-                table->setItem(index, column, new QTableWidgetItem());
+            if (table->item(row, column) == nullptr) {
+                table->setItem(row, column, new QTableWidgetItem());
             }
         }
 
-        auto *name = table->item(index, 0);
-        name->setText(folder.value(QStringLiteral("name")).toString());
-        name->setData(Qt::UserRole, folder.value(QStringLiteral("name")).toString());
+        auto *name = table->item(row, 0);
+        name->setText(to_qstring(folder.name));
+        name->setData(Qt::UserRole, to_qstring(folder.name));
 
-        if (folder.value(QStringLiteral("paused")).toBool()) {
+        if (folder.paused) {
             name->setForeground(QColor(160, 160, 160));
         } else {
             name->setForeground(QBrush());
         }
 
-        const QString action = folder.value(QStringLiteral("action")).toString();
-        QString action_text = action;
-
-        if (action == QStringLiteral("move")) {
-            action_text = QStringLiteral("move -> %1").arg(
-                folder.value(QStringLiteral("action_path")).toString());
-        }
-
-        QStringList filters;
-        const QString extensions = folder.value(QStringLiteral("extensions")).toString().trimmed();
-        const qint64 min_size = folder.value(QStringLiteral("min_size")).toVariant().toLongLong();
-        const qint64 max_size = folder.value(QStringLiteral("max_size")).toVariant().toLongLong();
-        const qint64 skip = folder.value(QStringLiteral("last_modified_skip")).toVariant().toLongLong();
-
-        if (!extensions.isEmpty()) {
-            filters.append(QStringLiteral("ext: %1").arg(extensions));
-        }
-
-        if (min_size > 0 || max_size > 0) {
-            filters.append(QStringLiteral("%1 - %2 bytes").arg(min_size).arg(
-                max_size > 0 ? QString::number(max_size) : QStringLiteral("any")));
-        }
-
-        if (skip > 0) {
-            filters.append(QStringLiteral("skip files newer than %1 s").arg(skip));
-        }
-
-        table->item(index, 1)->setText(folder.value(QStringLiteral("path")).toString());
-        table->item(index, 2)->setText(
-            QStringLiteral("%1 s").arg(folder.value(QStringLiteral("period")).toInt()));
-        table->item(index, 3)->setText(action_text);
-        table->item(index, 4)->setText(filters.isEmpty() ? QStringLiteral("any") : filters.join(QStringLiteral("; ")));
-        table->item(index, 5)->setText(folder.value(QStringLiteral("status")).toString());
-        table->item(index, 6)->setText(QString::number(folder.value(QStringLiteral("last_imported")).toInt()));
+        table->item(row, 1)->setText(to_qstring(folder.path));
+        table->item(row, 2)->setText(to_qstring(folder.period_text));
+        table->item(row, 3)->setText(to_qstring(folder.extra));
+        table->item(row, 4)->setText(to_qstring(folder.filters_text));
+        table->item(row, 5)->setText(to_qstring(folder.status));
+        table->item(row, 6)->setText(to_qstring(folder.last_queued));
     }
 
     table->resizeRowsToContents();

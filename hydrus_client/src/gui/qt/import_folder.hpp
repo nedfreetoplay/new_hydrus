@@ -26,7 +26,8 @@ void build_import_folder_tagging_section(
     QDialog *dialog,
     QWidget *content,
     QVBoxLayout *vbox,
-    const QJsonObject &state,
+    const QStringList &service_keys,
+    const QStringList &service_names,
     const QString &folder_path,
     QJsonObject &filename_tagging);
 

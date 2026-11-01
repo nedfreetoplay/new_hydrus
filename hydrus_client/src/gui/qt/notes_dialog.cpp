@@ -13,8 +13,8 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-void HydrusMainWindow::show_notes(const QJsonObject &state) {
-    const QString hash = state.value(QStringLiteral("hash")).toString();
+void HydrusMainWindow::show_notes(const NotesDialogState &state) {
+    const QString hash = to_qstring(state.hash);
 
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("notes"));
@@ -32,13 +32,13 @@ void HydrusMainWindow::show_notes(const QJsonObject &state) {
     table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     table->verticalHeader()->setVisible(false);
 
-    const QJsonArray notes = state.value(QStringLiteral("notes")).toArray();
-    table->setRowCount(notes.size());
+    const rust::Vec<NoteState> &notes = state.notes;
+    table->setRowCount(int(notes.size()));
 
-    for (int index = 0; index < notes.size(); ++index) {
-        const QJsonObject note = notes.at(index).toObject();
-        table->setItem(index, 0, new QTableWidgetItem(note.value(QStringLiteral("name")).toString()));
-        table->setItem(index, 1, new QTableWidgetItem(note.value(QStringLiteral("text")).toString()));
+    for (size_t index = 0; index < notes.size(); ++index) {
+        const NoteState &note = notes[index];
+        table->setItem(int(index), 0, new QTableWidgetItem(to_qstring(note.name)));
+        table->setItem(int(index), 1, new QTableWidgetItem(to_qstring(note.text)));
     }
 
     table->resizeRowsToContents();

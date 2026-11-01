@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use hydrus_core::hydrus_constants::{ContentStatus, TimestampType, dirs};
 use hydrus_core::hydrus_time;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::controller::Controller;
 use crate::db::{files_storage, files_timestamps, files_viewing_stats, mappings, master_tags};
@@ -2182,7 +2182,6 @@ impl AppState {
                 };
 
                 let tokens: Vec<&str> = payload.split_whitespace().collect();
-                let mut token = String::new();
                 let mut entries = Vec::new();
 
                 for count in (1..=tokens.len().min(3)).rev() {
@@ -2200,30 +2199,21 @@ impl AppState {
                     );
 
                     if !candidate_entries.is_empty() {
-                        token = candidate;
                         entries = candidate_entries;
                         break;
                     }
                 }
 
-                let entries: Vec<Value> = entries
+                let entries: Vec<String> = entries
                     .into_iter()
-                    .map(|entry| {
-                        json!({
-                            "text": entry.text,
-                            "category": entry.category,
-                            "count": entry.count,
-                        })
-                    })
+                    .map(|entry| entry.text)
                     .collect();
 
                 vec![UiCommand::Autocomplete(
-                    json!({
-                        "page_id": page.id,
-                        "raw": token,
-                        "entries": entries,
-                    })
-                    .to_string(),
+                    crate::gui::qt::api::ffi::AutocompleteState {
+                        page_id: page.id.clone(),
+                        entries,
+                    },
                 )]
             }
             ffi::UiAction::SetSort => {
@@ -2806,7 +2796,7 @@ impl AppState {
             return vec![
                 UiCommand::UpdateImportFolders(
                     page_id.to_string(),
-                    import_folders::rules_json(self, page_id),
+                    import_folders::folder_page_state(self, page_id),
                 ),
                 self.status_command(),
             ];
@@ -3428,7 +3418,7 @@ impl AppState {
         commands
     }
 
-    fn manage_tags(&mut self, page_id: &str, hash_hex: &str, active: bool) -> Vec<UiCommand> {
+    fn manage_tags(&mut self, _page_id: &str, hash_hex: &str, active: bool) -> Vec<UiCommand> {
         let controller = self.controller.clone();
 
         if active {
@@ -3453,19 +3443,11 @@ impl AppState {
             return vec![];
         };
 
-        let tags = query::selection_tags(&controller, &hash);
-        let service = controller.services().get_name(b"local tags");
-        let json = json!({
-            "dialog_id": "tags",
-            "hash": hash_hex,
-            "service": service,
-            "tags": tags,
-            "metadata": metadata::metadata_json(&controller, &hash),
-            "page_id": page_id,
-        })
-        .to_string();
-
-        vec![UiCommand::TagDialog(json)]
+        vec![UiCommand::TagDialog(
+            crate::gui::qt::api::ffi::TagDialogState {
+                metadata: render::metadata_state(&controller, &hash),
+            },
+        )]
     }
 
     fn apply_tags(&mut self, payload: &str) -> Vec<UiCommand> {

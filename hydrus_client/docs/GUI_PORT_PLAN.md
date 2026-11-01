@@ -530,11 +530,16 @@ C++.
     local import tagging).
     LocalImportTaggingDialogState оставлена следующему заходу: диалог редактирует
     произвольно вложенные `FilenameTaggingOptions` через общий редактор опций.
- 2. `PageRow.state` → частично закрыто в WS-15.2.4b: добавлен типизированный
-    `FolderPageState`/`FolderRow` (summary + rows) в `PageRow.folder`;
+ 2. `PageRow.state` → закрыто в WS-15.2.4b: для import/export-страниц
+    `PageRow.folder` несёт типизированный `FolderPageState`/`FolderRow`;
     `state` остался только для placeholder-сообщения (не JSON).
-3. 12 вызовов `parse_object(` в `bridge_api.cpp`: import/export folders (6),
-    notes, tag dialog, autocomplete, manage tags (timestamps закрыт в WS-15.2.4b).
+    Закрыто полностью: для import/export-страниц `PageRow.folder` несёт
+    типизированный `FolderPageState`/`FolderRow`, `populate_notebook` blob
+    больше не парсит.
+3. 11 вызовов `parse_object(` в `bridge_api.cpp` → 0 (закрыто в WS-15.2.4b):
+    import/export folders (6), notes, tag dialog, autocomplete (manage tags и
+    timestamps закрыты раньше). Остались только определение в
+    `support/strings.cpp` и `parse_string` в `typed_seams.cpp` (плумбинг).
 4. 57 `json_payload(` в обратном канале: заменить `notify(action, target, json)`
    на `app_<domain>_<verb>(...)` с типизированными аргументами.
 

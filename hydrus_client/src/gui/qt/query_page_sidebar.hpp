@@ -28,6 +28,7 @@ class HydrusThumbnailGrid;
 // typed bodies live in typed_media.cpp, so only forward declarations here.
 struct QueryPageState;
 struct SelectionState;
+struct AutocompleteState;
 
 // Page construction lives in query_page_sidebar.cpp, results and autocomplete
 // handling in query_page_results.cpp, state and commands in query_page_state.cpp.
@@ -43,7 +44,7 @@ public:
     void update_progress(bool loading);
     void set_selection(const SelectionState &selection);
     void set_suggestions(const QStringList &suggestions);
-    void show_autocomplete(const QJsonObject &state);
+    void show_autocomplete(const AutocompleteState &state);
     void insert_autocomplete(const QString &text);
 
     void focus_hash(const QString &hash);

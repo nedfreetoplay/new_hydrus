@@ -180,9 +180,6 @@ void HydrusMainWindow::show_viewing_stats(const ViewingStats &state) {
 }
 
 namespace {
-// WS-15.2.2a: parses the per-screen JSON blobs kept inside PageRow.state
-// (R1 exception: arbitrary per-screen shape until later subtasks).
-QJsonObject parse_string(const rust::String &text);
 // WS-15.2.2b: converts the query page-tree blob to the typed QueryPageState
 // consumed by HydrusQueryPage. Field reads mirror the old QJsonObject seam
 // one to one; the blob itself stays one JSON field (R1 exception).
@@ -351,12 +348,12 @@ void HydrusMainWindow::populate_notebook(
             notebook->add_page_widget(
                 page_id, title.isEmpty() ? QStringLiteral("duplicates") : title, page);
         } else if (row.kind == PageKind::ImportFolders) {
-            auto *page = new HydrusImportFoldersPage(this, page_id, parse_string(row.state));
+            auto *page = new HydrusImportFoldersPage(this, page_id, row.folder);
             import_folders.insert(page_id, page);
             notebook->add_page_widget(
                 page_id, title.isEmpty() ? QStringLiteral("import folders") : title, page);
         } else if (row.kind == PageKind::ExportFolders) {
-            auto *page = new HydrusExportFoldersPage(this, page_id, parse_string(row.state));
+            auto *page = new HydrusExportFoldersPage(this, page_id, row.folder);
             export_folders.insert(page_id, page);
             notebook->add_page_widget(
                 page_id, title.isEmpty() ? QStringLiteral("export folders") : title, page);
@@ -385,10 +382,6 @@ void HydrusMainWindow::update_page_progress(const PageProgress &progress) {
 }
 
 namespace {
-
-QJsonObject parse_string(const rust::String &text) {
-    return parse_object(rust::Str(text.data(), text.size()));
-}
 
 QString page_kind_name(PageKind kind) {
     switch (kind) {

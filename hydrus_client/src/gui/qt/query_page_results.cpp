@@ -13,22 +13,22 @@
 #include <QListWidget>
 #include <QTimer>
 
-void HydrusQueryPage::show_autocomplete(const QJsonObject &state) {
-    if (main->building || state.value(QStringLiteral("page_id")).toString() != id) {
+void HydrusQueryPage::show_autocomplete(const AutocompleteState &state) {
+    if (main->building || to_qstring(state.page_id) != id) {
         return;
     }
 
-    const QJsonArray entries = state.value(QStringLiteral("entries")).toArray();
+    const rust::Vec<rust::String> &entries = state.entries;
 
     results_list->clear();
 
-    if (entries.isEmpty()) {
+    if (entries.empty()) {
         fill_system_predicates(results_list);
         return;
     }
 
-    for (const QJsonValue &value : entries) {
-        const QString text = value.toObject().value(QStringLiteral("text")).toString();
+    for (const rust::String &entry : entries) {
+        const QString text = to_qstring(entry);
 
         if (text.isEmpty()) {
             continue;

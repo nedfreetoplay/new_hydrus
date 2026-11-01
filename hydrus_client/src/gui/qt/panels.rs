@@ -20,8 +20,8 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::TagSuggestions(json) => {
             ffi::hydrus_set_tag_suggestions(window.as_mut(), &json);
         }
-        UiCommand::Autocomplete(json) => {
-            ffi::hydrus_show_autocomplete(window.as_mut(), &json);
+        UiCommand::Autocomplete(state) => {
+            ffi::hydrus_show_autocomplete(window.as_mut(), &state);
         }
         UiCommand::BuildPages(pages) => ffi::hydrus_build_pages(window.as_mut(), &pages),
         UiCommand::UpdatePage(state) => ffi::hydrus_update_page(window.as_mut(), &state),
@@ -54,23 +54,23 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdateDuplicates(state) => {
             ffi::hydrus_update_duplicates(window.as_mut(), &state);
         }
-        UiCommand::UpdateImportFolders(page_id, json) => {
-            ffi::hydrus_update_import_folders(window.as_mut(), &page_id, &json);
+        UiCommand::UpdateImportFolders(page_id, state) => {
+            ffi::hydrus_update_import_folders(window.as_mut(), &page_id, &state);
         }
-        UiCommand::ImportFoldersDialog(json) => {
-            ffi::hydrus_show_import_folders_dialog(window.as_mut(), &json);
+        UiCommand::ImportFoldersDialog(state) => {
+            ffi::hydrus_show_import_folders_dialog(window.as_mut(), &state);
         }
-        UiCommand::UpdateImportFoldersDialog(json) => {
-            ffi::hydrus_update_import_folders_dialog(window.as_mut(), &json);
+        UiCommand::UpdateImportFoldersDialog(state) => {
+            ffi::hydrus_update_import_folders_dialog(window.as_mut(), &state);
         }
-        UiCommand::UpdateExportFolders(page_id, json) => {
-            ffi::hydrus_update_export_folders(window.as_mut(), &page_id, &json);
+        UiCommand::UpdateExportFolders(page_id, state) => {
+            ffi::hydrus_update_export_folders(window.as_mut(), &page_id, &state);
         }
-        UiCommand::ExportFoldersDialog(json) => {
-            ffi::hydrus_show_export_folders_dialog(window.as_mut(), &json);
+        UiCommand::ExportFoldersDialog(state) => {
+            ffi::hydrus_show_export_folders_dialog(window.as_mut(), &state);
         }
-        UiCommand::UpdateExportFoldersDialog(json) => {
-            ffi::hydrus_update_export_folders_dialog(window.as_mut(), &json);
+        UiCommand::UpdateExportFoldersDialog(state) => {
+            ffi::hydrus_update_export_folders_dialog(window.as_mut(), &state);
         }
         UiCommand::DuplicatesRulesDialog(state) => {
             ffi::hydrus_show_duplicates_rules(window.as_mut(), &state);
@@ -96,8 +96,8 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::TagRelationsDialog(state) => {
             ffi::hydrus_show_tag_relations(window.as_mut(), &state);
         }
-        UiCommand::ImportFolderDialog(json) => {
-            ffi::hydrus_show_import_folder(window.as_mut(), &json);
+        UiCommand::ImportFolderDialog(state) => {
+            ffi::hydrus_show_import_folder(window.as_mut(), &state);
         }
         UiCommand::LocalImportReviewDialog(state) => {
             ffi::hydrus_show_local_import_review(window.as_mut(), &state);
@@ -114,13 +114,13 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::CloseRepairFileLocations => {
             ffi::hydrus_close_repair_file_locations(window.as_mut());
         }
-        UiCommand::ExportFolderDialog(json) => {
-            ffi::hydrus_show_export_folder(window.as_mut(), &json);
+        UiCommand::ExportFolderDialog(state) => {
+            ffi::hydrus_show_export_folder(window.as_mut(), &state);
         }
         UiCommand::ExportReviewDialog(state) => {
             ffi::hydrus_show_export_review(window.as_mut(), &state);
         }
-        UiCommand::NotesDialog(json) => ffi::hydrus_show_notes(window.as_mut(), &json),
+        UiCommand::NotesDialog(state) => ffi::hydrus_show_notes(window.as_mut(), &state),
         UiCommand::SetSelection(selection) => {
             ffi::hydrus_set_selection(window.as_mut(), &selection);
         }
@@ -183,7 +183,7 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::CloseViewer(viewer_id) => {
             ffi::hydrus_close_viewer(window.as_mut(), &viewer_id);
         }
-        UiCommand::TagDialog(json) => ffi::hydrus_show_tag_dialog(window.as_mut(), &json),
+        UiCommand::TagDialog(state) => ffi::hydrus_show_tag_dialog(window.as_mut(), &state),
         UiCommand::ManageTagsDialog(state) => {
             ffi::hydrus_show_manage_tags(window.as_mut(), &state);
         }

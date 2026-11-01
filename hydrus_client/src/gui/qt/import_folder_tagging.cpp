@@ -424,7 +424,8 @@ void build_import_folder_tagging_section(
     QDialog *dialog,
     QWidget *content,
     QVBoxLayout *vbox,
-    const QJsonObject &state,
+    const QStringList &service_keys,
+    const QStringList &service_names,
     const QString &folder_path,
     QJsonObject &filename_tagging) {
     // metadata import
@@ -452,12 +453,10 @@ void build_import_folder_tagging_section(
 
     vbox->addWidget(meta_box);
 
-    const QJsonArray tag_services = state.value(QStringLiteral("tag_services")).toArray();
     QHash<QString, QString> service_name_to_key;
 
-    for (const QJsonValue &value : tag_services) {
-        const QJsonObject service = value.toObject();
-        service_name_to_key.insert(service.value(QStringLiteral("name")).toString(), service.value(QStringLiteral("key")).toString());
+    for (int i = 0; i < service_keys.size() && i < service_names.size(); ++i) {
+        service_name_to_key.insert(service_names.at(i), service_keys.at(i));
     }
 
 
@@ -562,7 +561,7 @@ void build_import_folder_tagging_section(
 
     refresh_tagging();
 
-    if (tag_services.isEmpty()) {
+    if (service_keys.isEmpty()) {
         add_tagging->setEnabled(false);
         add_tagging->setToolTip(QStringLiteral("no local tag service exists yet"));
     }

@@ -17,10 +17,8 @@ const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
 /// grow beyond its baseline. Converting a seam only lowers the number, so the
 /// allowlist entry can be deleted once it reaches zero.
 const PARSE_OBJECT_ALLOWLIST: &[(&str, usize)] = &[
-    ("src/gui/qt/bridge_api.cpp", 11),
     ("src/gui/qt/support/strings.cpp", 1),
     ("src/gui/qt/support/strings.hpp", 1),
-    ("src/gui/qt/typed_seams.cpp", 1),
 ];
 
 /// Files whose `.cpp`/`.hpp` still build a `json_payload(...)` reverse payload.
@@ -78,20 +76,7 @@ const JSON_FIELD_ALLOWLIST: &[&str] = &[
 ];
 
 /// cxx functions that still take a `json: &str` argument (WS-15.2 debt).
-const JSON_ARG_ALLOWLIST: &[&str] = &[
-    "hydrus_set_tag_suggestions",
-    "hydrus_show_autocomplete",
-    "hydrus_update_import_folders",
-    "hydrus_show_import_folders_dialog",
-    "hydrus_update_import_folders_dialog",
-    "hydrus_update_export_folders",
-    "hydrus_show_export_folders_dialog",
-    "hydrus_update_export_folders_dialog",
-    "hydrus_show_import_folder",
-    "hydrus_show_export_folder",
-    "hydrus_show_notes",
-    "hydrus_show_tag_dialog",
-];
+const JSON_ARG_ALLOWLIST: &[&str] = &["hydrus_set_tag_suggestions"];
 
 fn read(path: &Path) -> String {
     std::fs::read_to_string(path)

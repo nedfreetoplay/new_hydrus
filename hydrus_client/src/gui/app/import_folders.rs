@@ -17,7 +17,9 @@ use crate::importing::options::FilenameTaggingOptions;
 use super::model::ImportFoldersPage;
 use super::worker::AsyncJob;
 use super::{AppState, PageNode, UiCommand, render};
-use crate::gui::qt::api::ffi::{FolderPageState, FolderRow};
+use crate::gui::qt::api::ffi::{
+    FolderPageState, FolderRow, ImportFolderEditorState, TagServiceRef, TaggingEntry,
+};
 
 const FILENAME: &str = "import folders.json";
 
@@ -244,38 +246,8 @@ pub fn add(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 /// dialog with sensible defaults.
 pub fn edit(state: &AppState, payload: &str) -> Vec<UiCommand> {
     let name = payload.trim();
-    let existing = state
-        .import_folders
-        .iter()
-        .find(|folder| folder.name == name)
-        .cloned();
 
-    let folder = match existing {
-        Some(folder) => folder_json(&folder),
-        None => folder_json(&ImportFolderEntry::new("import folder", "", 3600)),
-    };
-
-    let tag_services: Vec<serde_json::Value> = state
-        .controller
-        .services()
-        .get_services(Some(&[ServiceType::LocalTag]))
-        .into_iter()
-        .map(|service| {
-            serde_json::json!({
-                "key": super::query::hex(&service.service_key),
-                "name": service.name,
-            })
-        })
-        .collect();
-
-    vec![UiCommand::ImportFolderDialog(
-        serde_json::json!({
-            "folder": folder,
-            "existing": !name.is_empty(),
-            "tag_services": tag_services,
-        })
-        .to_string(),
-    )]
+    vec![UiCommand::ImportFolderDialog(editor_state(state, name))]
 }
 
 /// Saves the values produced by the import folder dialog, creating or
@@ -628,7 +600,7 @@ pub fn folder_json(folder: &ImportFolderEntry) -> serde_json::Value {
 
 /// Python's `edit import folders` manager dialog.
 pub fn manage(state: &AppState) -> Vec<UiCommand> {
-    vec![UiCommand::ImportFoldersDialog(rules_json(state, ""))]
+    vec![UiCommand::ImportFoldersDialog(manager_state(state))]
 }
 
 pub fn pretty_period(seconds: i64) -> String {
@@ -652,18 +624,55 @@ pub fn folder_page_state(state: &AppState, page_id: &str) -> FolderPageState {
     let folders = state
         .import_folders
         .iter()
-        .map(|folder| FolderRow {
-            name: folder.name.clone(),
-            path: folder.path.display().to_string(),
-            status: folder.status.clone(),
-            paused: folder.paused,
-            period_text: if folder.check_regularly {
-                pretty_period(folder.period)
+        .map(|folder| {
+            let action_text = if folder.action == "move" {
+                format!(
+                    "move -> {}",
+                    folder
+                        .action_path
+                        .as_ref()
+                        .map(|path| path.display().to_string())
+                        .unwrap_or_default()
+                )
             } else {
-                "not checking regularly".to_string()
-            },
-            last_queued: folder.last_check.to_string(),
-            extra: folder.action.clone(),
+                folder.action.clone()
+            };
+            let mut filters = Vec::new();
+            if !folder.extensions.trim().is_empty() {
+                filters.push(format!("ext: {}", folder.extensions.trim()));
+            }
+            if folder.min_size > 0 || folder.max_size > 0 {
+                filters.push(format!(
+                    "{} - {} bytes",
+                    folder.min_size,
+                    if folder.max_size > 0 {
+                        folder.max_size.to_string()
+                    } else {
+                        "any".to_string()
+                    }
+                ));
+            }
+            if folder.last_modified_skip > 0 {
+                filters.push(format!("skip files newer than {} s", folder.last_modified_skip));
+            }
+            FolderRow {
+                name: folder.name.clone(),
+                path: folder.path.display().to_string(),
+                status: folder.status.clone(),
+                paused: folder.paused,
+                period_text: format!("{} s", folder.period),
+                last_queued: folder.last_imported.to_string(),
+                extra: action_text,
+                query_text: String::new(),
+                filters_text: if filters.is_empty() {
+                    "any".to_string()
+                } else {
+                    filters.join("; ")
+                },
+                mode_text: String::new(),
+                phrase_text: String::new(),
+                error_text: String::new(),
+            }
         })
         .collect();
 
@@ -676,6 +685,182 @@ pub fn folder_page_state(state: &AppState, page_id: &str) -> FolderPageState {
     }
 }
 
+/// Typed manager-dialog state (WS-15.2.4b): Rust formats the period label.
+pub fn manager_state(state: &AppState) -> FolderPageState {
+    let folders = state
+        .import_folders
+        .iter()
+        .map(|folder| FolderRow {
+            name: folder.name.clone(),
+            path: folder.path.display().to_string(),
+            status: String::new(),
+            paused: folder.paused,
+            period_text: if folder.check_regularly {
+                pretty_period(folder.period)
+            } else {
+                "not checking regularly".to_string()
+            },
+            last_queued: String::new(),
+            extra: String::new(),
+            query_text: String::new(),
+            filters_text: String::new(),
+            mode_text: String::new(),
+            phrase_text: String::new(),
+            error_text: String::new(),
+        })
+        .collect();
+
+    FolderPageState {
+        summary: String::new(),
+        folders,
+    }
+}
+
+/// `filename tagging` summary, mirroring the C++ preview helper.
+pub fn tagging_summary(options: &FilenameTaggingOptions) -> String {
+    let mut statements = Vec::new();
+    if !options.tags_for_all.is_empty() {
+        statements.push(format!("{} tag(s) for all", options.tags_for_all.len()));
+    }
+    if options.add_filename {
+        statements.push(format!("filename as '{}'", options.filename_namespace));
+    }
+    let directories = options.directories.values().filter(|rule| rule.enabled).count();
+    if directories > 0 {
+        statements.push(format!("{directories} directory rule(s)"));
+    }
+    if !options.quick_namespaces.is_empty() {
+        statements.push(format!("{} namespace regex(es)", options.quick_namespaces.len()));
+    }
+    if !options.regexes.is_empty() {
+        statements.push(format!("{} regex(es)", options.regexes.len()));
+    }
+    if statements.is_empty() {
+        "no tags".to_string()
+    } else {
+        statements.join(", ")
+    }
+}
+
+fn tagging_entry(
+    key: &str,
+    name: &str,
+    options: &FilenameTaggingOptions,
+) -> TaggingEntry {
+    use crate::importing::options::FILENAME_TAGGING_DIRECTORIES;
+    let mut dir_enabled = Vec::new();
+    let mut dir_namespaces = Vec::new();
+    for slot in FILENAME_TAGGING_DIRECTORIES {
+        let rule = options.directories.get(slot);
+        dir_enabled.push(rule.map(|rule| rule.enabled).unwrap_or(false));
+        dir_namespaces.push(
+            rule.map(|rule| rule.namespace.clone())
+                .unwrap_or_default(),
+        );
+    }
+    TaggingEntry {
+        service_key: key.to_string(),
+        service_name: name.to_string(),
+        summary: tagging_summary(options),
+        tags_for_all: options.tags_for_all.clone(),
+        add_filename: options.add_filename,
+        filename_namespace: options.filename_namespace.clone(),
+        dir_enabled,
+        dir_namespaces,
+        quick_namespaces: options
+            .quick_namespaces
+            .iter()
+            .map(|rule| rule.namespace.clone())
+            .collect(),
+        quick_regexes: options
+            .quick_namespaces
+            .iter()
+            .map(|rule| rule.regex.clone())
+            .collect(),
+        regexes: options.regexes.clone(),
+    }
+}
+
+/// Typed editor state for one import folder (WS-15.2.4b).
+pub fn editor_state(state: &AppState, name: &str) -> ImportFolderEditorState {
+    let existing = state.import_folders.iter().find(|folder| folder.name == name);
+    let folder = existing.cloned().unwrap_or_else(|| ImportFolderEntry::new("import folder", "", 3600));
+    let services: Vec<(String, String)> = state
+        .controller
+        .services()
+        .get_services(Some(&[ServiceType::LocalTag]))
+        .into_iter()
+        .map(|service| (super::query::hex(&service.service_key), service.name.clone()))
+        .collect();
+    let name_to_label: std::collections::HashMap<String, String> =
+        services.iter().map(|(key, name)| (key.clone(), name.clone())).collect();
+    let mut tagging: Vec<TaggingEntry> = folder
+        .filename_tagging
+        .iter()
+        .map(|(key, options)| {
+            tagging_entry(
+                key,
+                name_to_label.get(key).map(String::as_str).unwrap_or(key),
+                options,
+            )
+        })
+        .collect();
+    tagging.sort_by(|a, b| a.service_name.cmp(&b.service_name));
+    ImportFolderEditorState {
+        original: folder.name.clone(),
+        name: folder.name.clone(),
+        path: folder.path.display().to_string(),
+        search_subdirectories: folder.search_subdirectories,
+        paused: folder.paused,
+        check_regularly: folder.check_regularly,
+        period: folder.period,
+        period_label: pretty_delta(folder.period),
+        skip: folder.last_modified_skip,
+        skip_label: pretty_delta(folder.last_modified_skip),
+        check_now: folder.check_now,
+        show_working_popup: true,
+        publish_popup: true,
+        publish_page: false,
+        action: folder.action.clone(),
+        action_path: folder
+            .action_path
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
+        tagging,
+        tag_services: services
+            .into_iter()
+            .map(|(key, name)| TagServiceRef { key, name })
+            .collect(),
+    }
+}
+
+/// Python `TimeDeltaToPrettyTimeDelta` (two units max); C++ only displays it.
+pub fn pretty_delta(seconds: i64) -> String {
+    if seconds <= 0 {
+        return "0 seconds".to_string();
+    }
+    let mut remaining = seconds;
+    let mut parts: Vec<String> = Vec::new();
+    for (name, size) in [("day", 86_400_i64), ("hour", 3_600), ("minute", 60), ("second", 1)] {
+        let quantity = remaining / size;
+        remaining %= size;
+        if quantity > 0 {
+            parts.push(format!(
+                "{quantity} {name}{}",
+                if quantity > 1 { "s" } else { "" }
+            ));
+            if parts.len() == 2 {
+                break;
+            }
+        } else if !parts.is_empty() {
+            break;
+        }
+    }
+    parts.join(" ")
+}
+
+#[cfg(test)]
 pub fn rules_json(state: &AppState, page_id: &str) -> String {
     let folders: Vec<serde_json::Value> = state.import_folders.iter().map(folder_json).collect();
 
@@ -716,12 +901,12 @@ fn page_commands(state: &AppState) -> Vec<UiCommand> {
     for id in ids {
         commands.push(UiCommand::UpdateImportFolders(
             id.clone(),
-            rules_json(state, &id),
+            folder_page_state(state, &id),
         ));
     }
 
     // No-op in Qt when the manager dialog is closed.
-    commands.push(UiCommand::UpdateImportFoldersDialog(rules_json(state, "")));
+    commands.push(UiCommand::UpdateImportFoldersDialog(manager_state(state)));
     commands.push(UiCommand::Status(render::status(state)));
     commands
 }
@@ -831,6 +1016,23 @@ fn move_file(source: &Path, directory: &Path) -> std::io::Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::controller::Controller;
+
+    fn testing_state(
+        name: &str,
+        folders: Vec<ImportFolderEntry>,
+    ) -> (std::path::PathBuf, AppState) {
+        let directory = std::env::temp_dir().join(format!(
+            "hydrus_gui_1524b_{name}_{}_{}",
+            std::process::id(),
+            rand::random::<u64>()
+        ));
+        let controller = std::sync::Arc::new(Controller::new(&directory).unwrap());
+        controller.init_model().unwrap();
+        let mut state = AppState::new(controller);
+        state.import_folders = folders;
+        (directory, state)
+    }
 
     #[test]
     fn folders_become_due_after_their_period() {
@@ -868,6 +1070,51 @@ mod tests {
             folder_json(&entry)["pretty_period"],
             "not checking regularly"
         );
+    }
+
+    #[test]
+    fn typed_manager_rows_carry_pretty_periods() {
+        let entry = ImportFolderEntry::new("incoming", ".", 300);
+        let (directory, state) = testing_state("manager", vec![entry]);
+        let manager = manager_state(&state);
+
+        assert_eq!(manager.folders.len(), 1);
+        assert_eq!(manager.folders[0].name, "incoming");
+        assert_eq!(manager.folders[0].period_text, "5 minutes");
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn typed_page_rows_carry_action_and_filters() {
+        let mut entry = ImportFolderEntry::new("incoming", ".", 300);
+        entry.action = "move".to_string();
+        entry.action_path = Some(std::path::PathBuf::from("/tmp/done"));
+        entry.extensions = "png".to_string();
+        let (directory, state) = testing_state("page", vec![entry]);
+        let page = folder_page_state(&state, "no-such-page");
+
+        assert_eq!(page.folders.len(), 1);
+        assert_eq!(page.folders[0].extra, "move -> /tmp/done");
+        assert!(page.folders[0].filters_text.contains("ext: png"));
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn tagging_summaries_list_every_rule_kind() {
+        let mut options = FilenameTaggingOptions::default();
+        options.tags_for_all = vec!["a".to_string()];
+        options.add_filename = true;
+        assert_eq!(
+            tagging_summary(&options),
+            "1 tag(s) for all, filename as 'filename'"
+        );
+        assert_eq!(tagging_summary(&FilenameTaggingOptions::default()), "no tags");
+    }
+
+    #[test]
+    fn typed_deltas_show_two_units_max() {
+        assert_eq!(pretty_delta(90_000), "1 day 1 hour");
+        assert_eq!(pretty_delta(0), "0 seconds");
     }
 
     #[test]

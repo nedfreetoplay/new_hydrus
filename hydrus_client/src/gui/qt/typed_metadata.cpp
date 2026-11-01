@@ -347,7 +347,7 @@ void HydrusMetadataPanel::rebuild_ratings() {
     ratings_layout->addStretch(1);
 }
 
-void HydrusMainWindow::show_tag_dialog(const QJsonObject &state) {
+void HydrusMainWindow::show_tag_dialog(const TagDialogState &state) {
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("manage metadata"));
     dialog.resize(460, 620);
@@ -355,8 +355,7 @@ void HydrusMainWindow::show_tag_dialog(const QJsonObject &state) {
     auto *layout = new QVBoxLayout(&dialog);
     auto *panel = new HydrusMetadataPanel(this, &dialog);
     panel->set_suggestions(suggestions());
-    panel->set_state(
-        metadata_state_from_json(state.value(QStringLiteral("metadata")).toObject()));
+    panel->set_state(state.metadata);
     layout->addWidget(panel, 1);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);

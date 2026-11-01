@@ -3,7 +3,6 @@
 // WS-15.1.4: manager dialog + legacy page moved verbatim from bridge.hpp (move-only split).
 
 #include <QDialog>
-#include <QJsonObject>
 #include <QLabel>
 #include <QPushButton>
 #include <QString>
@@ -12,18 +11,19 @@
 
 class HydrusMainWindow;
 enum class UiAction : std::int32_t;
+struct FolderPageState;
+struct FolderRow;
 class HydrusExportFoldersDialog : public QDialog {
 public:
-    HydrusExportFoldersDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+    HydrusExportFoldersDialog(HydrusMainWindow *main, const FolderPageState &state, QWidget *parent = nullptr);
 
-    void set_state(const QJsonObject &state);
+    void set_state(const FolderPageState &state);
 
 private:
     void with_selected(UiAction action);
     void refresh_buttons();
 
     HydrusMainWindow *main = nullptr;
-    QJsonObject data;
     QTableWidget *table = nullptr;
     QPushButton *edit_button = nullptr;
     QPushButton *delete_button = nullptr;
@@ -31,10 +31,10 @@ private:
 
 class HydrusExportFoldersPage : public QWidget {
 public:
-    HydrusExportFoldersPage(HydrusMainWindow *main, const QString &page_id, const QJsonObject &state);
+    HydrusExportFoldersPage(HydrusMainWindow *main, const QString &page_id, const FolderPageState &state);
 
     const QString &page_id() const;
-    void update_state(const QJsonObject &state);
+    void update_state(const FolderPageState &state);
 
 private:
     void with_selected(UiAction action);

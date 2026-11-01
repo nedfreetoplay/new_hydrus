@@ -194,8 +194,8 @@ const QStringList &HydrusMainWindow::suggestions() const {
     return tag_suggestions;
 }
 
-void HydrusMainWindow::show_autocomplete(const QJsonObject &state) {
-    const QString page_id = state.value(QStringLiteral("page_id")).toString();
+void HydrusMainWindow::show_autocomplete(const AutocompleteState &state) {
+    const QString page_id = to_qstring(state.page_id);
     HydrusQueryPage *page = pages.value(page_id, nullptr);
 
     if (page != nullptr) {
@@ -216,13 +216,13 @@ void HydrusMainWindow::update_duplicates(const DuplicatesPageState &state) {
     }
 }
 
-void HydrusMainWindow::update_import_folders(const QString &page_id, const QJsonObject &state) {
+void HydrusMainWindow::update_import_folders(const QString &page_id, const FolderPageState &state) {
     if (HydrusImportFoldersPage *page = import_folders.value(page_id, nullptr)) {
         page->update_state(state);
     }
 }
 
-void HydrusMainWindow::update_export_folders(const QString &page_id, const QJsonObject &state) {
+void HydrusMainWindow::update_export_folders(const QString &page_id, const FolderPageState &state) {
     if (HydrusExportFoldersPage *page = export_folders.value(page_id, nullptr)) {
         page->update_state(state);
     }

@@ -21,9 +21,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
-    const QJsonObject folder = state.value(QStringLiteral("folder")).toObject();
-    const QString original = folder.value(QStringLiteral("name")).toString();
+void HydrusMainWindow::show_export_folder(const ExportFolderEditorState &state) {
+    const QString original = to_qstring(state.original);
 
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("edit export folder"));
@@ -56,8 +55,8 @@ void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
     QVBoxLayout *path_box_layout = nullptr;
     auto *path_box =
         make_static_box(QStringLiteral("name and location"), content, &path_box_layout);
-    auto *name = new QLineEdit(folder.value(QStringLiteral("name")).toString(), path_box);
-    auto *path = new QLineEdit(folder.value(QStringLiteral("path")).toString(), path_box);
+    auto *name = new QLineEdit(to_qstring(state.name), path_box);
+    auto *path = new QLineEdit(to_qstring(state.path), path_box);
     auto *browse = new QPushButton(QStringLiteral("browse"), path_box);
     auto *path_row = new QWidget(path_box);
     auto *path_row_layout = new QHBoxLayout(path_row);
@@ -96,8 +95,7 @@ void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
     export_type->addItem(QStringLiteral("synchronise"), QStringLiteral("synchronise"));
     {
         const int index = export_type->findData(
-            folder.value(QStringLiteral("export_type")).toString() ==
-                    QStringLiteral("synchronise")
+            to_qstring(state.export_type) == QStringLiteral("synchronise")
                 ? QStringLiteral("synchronise")
                 : QStringLiteral("copy"));
         export_type->setCurrentIndex(index >= 0 ? index : 0);
@@ -106,11 +104,10 @@ void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
 
     auto *delete_from_client = new QCheckBox(type_box);
     delete_from_client->setObjectName(QStringLiteral("HydrusWarning"));
-    delete_from_client->setChecked(
-        folder.value(QStringLiteral("delete_from_client")).toBool(false));
+    delete_from_client->setChecked(state.delete_from_client);
     auto *export_symlinks = new QCheckBox(type_box);
     export_symlinks->setObjectName(QStringLiteral("HydrusWarning"));
-    export_symlinks->setChecked(folder.value(QStringLiteral("export_symlinks")).toBool(false));
+    export_symlinks->setChecked(state.export_symlinks);
     export_symlinks->setToolTip(QStringLiteral(
         "You probably need to run hydrus as Admin for this to work on Windows."));
 
@@ -134,14 +131,13 @@ void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
         make_static_box(QStringLiteral("export period"), content, &period_box_layout);
 
     auto *run_regularly = new QCheckBox(period_box);
-    run_regularly->setChecked(folder.value(QStringLiteral("run_regularly")).toBool(true));
+    run_regularly->setChecked(state.run_regularly);
     auto *show_working_popup = new QCheckBox(period_box);
-    show_working_popup->setChecked(
-        folder.value(QStringLiteral("show_working_popup")).toBool(true));
+    show_working_popup->setChecked(state.show_working_popup);
     auto *run_on_ok = new QCheckBox(period_box);
-    run_on_ok->setChecked(folder.value(QStringLiteral("run_now")).toBool(false));
+    run_on_ok->setChecked(state.run_now);
 
-    int period_value = folder.value(QStringLiteral("period")).toInt(86'400);
+    int period_value = int(state.period);
 
     auto pretty_delta = [](qint64 seconds) {
         if (seconds <= 0) {
@@ -278,7 +274,7 @@ void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
     query_row_layout->setContentsMargins(0, 0, 0, 0);
     query_row_layout->setSpacing(2);
     auto *query = new QLineEdit(query_row);
-    query->setText(folder.value(QStringLiteral("query")).toString());
+    query->setText(to_qstring(state.query));
     query->setMinimumHeight(24);
     query->setStyleSheet(QStringLiteral("QLineEdit { background-color: #ebf8ff; }"));
     query_row_layout->addWidget(query, 1);
@@ -356,7 +352,7 @@ void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
     auto *phrase_row_layout = new QHBoxLayout(phrase_row);
     phrase_row_layout->setContentsMargins(0, 0, 0, 0);
     phrase_row_layout->setSpacing(2);
-    auto *phrase = new QLineEdit(folder.value(QStringLiteral("phrase")).toString(), phrase_row);
+    auto *phrase = new QLineEdit(to_qstring(state.phrase), phrase_row);
     phrase->setMinimumHeight(24);
     auto *shortcuts = new QPushButton(QStringLiteral("pattern shortcuts"), phrase_row);
     phrase_row_layout->addWidget(phrase, 1);
@@ -401,11 +397,13 @@ void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
         menu.exec(shortcuts->mapToGlobal(QPoint(0, shortcuts->height())));
     });
 
+    const QString sidecar_initial = to_qstring(state.sidecar_format);
     QString sidecar_format;
     QCheckBox *overwrite_next = nullptr;
     QCheckBox *overwrite_always = nullptr;
     build_export_sidecar_section(
-        this, &dialog, content, vbox, folder, query, make_grid,
+        this, &dialog, content, vbox, sidecar_initial, state.overwrite_sidecars,
+        state.always_overwrite_sidecars, query, make_grid,
         sidecar_format, overwrite_next, overwrite_always);
 
     vbox->addStretch(1);

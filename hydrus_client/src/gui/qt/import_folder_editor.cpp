@@ -18,11 +18,11 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSpinBox>
+#include <QStringList>
 #include <QVBoxLayout>
 
-void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
-    const QJsonObject folder = state.value(QStringLiteral("folder")).toObject();
-    const QString original = folder.value(QStringLiteral("name")).toString();
+void HydrusMainWindow::show_import_folder(const ImportFolderEditorState &state) {
+    const QString original = to_qstring(state.original);
 
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("edit import folder"));
@@ -90,9 +90,9 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
     auto *folder_box =
         make_static_box(QStringLiteral("folder options"), content, &folder_box_layout);
 
-    auto *name = new QLineEdit(folder.value(QStringLiteral("name")).toString(), folder_box);
+    auto *name = new QLineEdit(to_qstring(state.name), folder_box);
 
-    auto *path = new QLineEdit(folder.value(QStringLiteral("path")).toString(), folder_box);
+    auto *path = new QLineEdit(to_qstring(state.path), folder_box);
     auto *browse = new QPushButton(QStringLiteral("browse"), folder_box);
     auto *path_row = new QWidget(folder_box);
     auto *path_row_layout = new QHBoxLayout(path_row);
@@ -102,34 +102,34 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
     path_row_layout->addWidget(browse, 0);
 
     auto *search_subdirectories = new QCheckBox(folder_box);
-    search_subdirectories->setChecked(folder.value(QStringLiteral("search_subdirectories")).toBool(true));
+    search_subdirectories->setChecked(state.search_subdirectories);
 
     auto *paused = new QCheckBox(folder_box);
-    paused->setChecked(folder.value(QStringLiteral("paused")).toBool(false));
+    paused->setChecked(state.paused);
 
     auto *check_regularly = new QCheckBox(folder_box);
-    check_regularly->setChecked(folder.value(QStringLiteral("check_regularly")).toBool(true));
+    check_regularly->setChecked(state.check_regularly);
 
-    int period_value = folder.value(QStringLiteral("period")).toInt(3'600);
-    auto *period_button = new QPushButton(pretty_delta(period_value), folder_box);
+    int period_value = int(state.period);
+    auto *period_button = new QPushButton(to_qstring(state.period_label), folder_box);
     period_button->setMinimumHeight(24);
 
-    int skip_value = folder.value(QStringLiteral("last_modified_skip")).toInt(60);
-    auto *skip_button = new QPushButton(pretty_delta(skip_value), folder_box);
+    int skip_value = int(state.skip);
+    auto *skip_button = new QPushButton(to_qstring(state.skip_label), folder_box);
     skip_button->setMinimumHeight(24);
     skip_button->setToolTip(QStringLiteral("If a file has a modified time more recent than this long ago, it will not be imported in the current check. Helps to avoid importing files that are in the process of downloading/copying (usually on a NAS where other \"already in use\" checks may fail)."));
 
     auto *check_now = new QCheckBox(folder_box);
-    check_now->setChecked(folder.value(QStringLiteral("check_now")).toBool(false));
+    check_now->setChecked(state.check_now);
 
     auto *show_working_popup = new QCheckBox(folder_box);
-    show_working_popup->setChecked(folder.value(QStringLiteral("show_working_popup")).toBool(true));
+    show_working_popup->setChecked(state.show_working_popup);
 
     auto *publish_popup = new QCheckBox(folder_box);
-    publish_popup->setChecked(folder.value(QStringLiteral("publish_files_to_popup_button")).toBool(true));
+    publish_popup->setChecked(state.publish_popup);
 
     auto *publish_page = new QCheckBox(folder_box);
-    publish_page->setChecked(folder.value(QStringLiteral("publish_files_to_page")).toBool(false));
+    publish_page->setChecked(state.publish_page);
 
     auto *folder_grid = make_grid();
     int row = 0;
@@ -169,7 +169,7 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
         return choice;
     };
 
-    const QString action_value = folder.value(QStringLiteral("action")).toString();
+    const QString action_value = to_qstring(state.action);
     auto set_combo = [&action_value](QComboBox *combo) {
         const int index = combo->findData(action_value.isEmpty() ? QStringLiteral("ignore") : action_value);
         combo->setCurrentIndex(index >= 0 ? index : 0);
@@ -177,7 +177,8 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
 
     auto *action_successful = make_choice();
     set_combo(action_successful);
-    auto *location_successful = new QLineEdit(folder.value(QStringLiteral("action_path")).toString(), file_box);
+    const QString action_path_text = to_qstring(state.action_path);
+    auto *location_successful = new QLineEdit(action_path_text, file_box);
     auto *action_row_successful = new QWidget(file_box);
     auto *action_layout_successful = new QHBoxLayout(action_row_successful);
     action_layout_successful->setContentsMargins(0, 0, 0, 0);
@@ -188,7 +189,7 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
 
     auto *action_redundant = make_choice();
     set_combo(action_redundant);
-    auto *location_redundant = new QLineEdit(folder.value(QStringLiteral("action_path")).toString(), file_box);
+    auto *location_redundant = new QLineEdit(action_path_text, file_box);
     auto *action_row_redundant = new QWidget(file_box);
     auto *action_layout_redundant = new QHBoxLayout(action_row_redundant);
     action_layout_redundant->setContentsMargins(0, 0, 0, 0);
@@ -199,7 +200,7 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
 
     auto *action_deleted = make_choice();
     set_combo(action_deleted);
-    auto *location_deleted = new QLineEdit(folder.value(QStringLiteral("action_path")).toString(), file_box);
+    auto *location_deleted = new QLineEdit(action_path_text, file_box);
     auto *action_row_deleted = new QWidget(file_box);
     auto *action_layout_deleted = new QHBoxLayout(action_row_deleted);
     action_layout_deleted->setContentsMargins(0, 0, 0, 0);
@@ -210,7 +211,7 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
 
     auto *action_failed = make_choice();
     set_combo(action_failed);
-    auto *location_failed = new QLineEdit(folder.value(QStringLiteral("action_path")).toString(), file_box);
+    auto *location_failed = new QLineEdit(action_path_text, file_box);
     auto *action_row_failed = new QWidget(file_box);
     auto *action_layout_failed = new QHBoxLayout(action_row_failed);
     action_layout_failed->setContentsMargins(0, 0, 0, 0);
@@ -239,11 +240,57 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
     file_box_layout->addLayout(action_grid);
     vbox->addWidget(file_box);
 
-    QJsonObject filename_tagging = folder.value(QStringLiteral("filename_tagging")).toObject();
-    const QString folder_path = folder.value(QStringLiteral("path")).toString();
+    // Typed tagging entries from Rust; converted to the local QJson shape the
+    // tagging section edits in place (not a seam: no parse, no serialize).
+    QJsonObject filename_tagging;
+    {
+        const QStringList slot_keys = {QStringLiteral("0"), QStringLiteral("1"), QStringLiteral("2"),
+                                   QStringLiteral("-3"), QStringLiteral("-2"), QStringLiteral("-1")};
+        for (const TaggingEntry &entry : state.tagging) {
+            QJsonObject options;
+            QJsonArray all_tags;
+            for (const rust::String &tag : entry.tags_for_all) {
+                all_tags.append(to_qstring(tag));
+            }
+            options.insert(QStringLiteral("tags_for_all"), all_tags);
+            options.insert(QStringLiteral("add_filename"), entry.add_filename);
+            options.insert(QStringLiteral("filename_namespace"), to_qstring(entry.filename_namespace));
+            QJsonObject directories;
+            for (int i = 0; i < slot_keys.size() && i < int(entry.dir_enabled.size()) && i < int(entry.dir_namespaces.size()); ++i) {
+                directories.insert(slot_keys.at(i), QJsonObject{
+                    {QStringLiteral("enabled"), entry.dir_enabled[size_t(i)]},
+                    {QStringLiteral("namespace"), to_qstring(entry.dir_namespaces[size_t(i)])},
+                });
+            }
+            options.insert(QStringLiteral("directories"), directories);
+            QJsonArray quick;
+            for (int i = 0; i < int(entry.quick_namespaces.size()) && i < int(entry.quick_regexes.size()); ++i) {
+                quick.append(QJsonObject{
+                    {QStringLiteral("namespace"), to_qstring(entry.quick_namespaces[size_t(i)])},
+                    {QStringLiteral("regex"), to_qstring(entry.quick_regexes[size_t(i)])},
+                });
+            }
+            options.insert(QStringLiteral("quick_namespaces"), quick);
+            QJsonArray patterns;
+            for (const rust::String &pattern : entry.regexes) {
+                patterns.append(to_qstring(pattern));
+            }
+            options.insert(QStringLiteral("regexes"), patterns);
+            filename_tagging.insert(to_qstring(entry.service_key), options);
+        }
+    }
+    QJsonObject tagging_result = filename_tagging;
+    const QString folder_path = to_qstring(state.path);
+    QStringList service_keys;
+    QStringList service_names;
+    for (const TagServiceRef &service : state.tag_services) {
+        service_keys.append(to_qstring(service.key));
+        service_names.append(to_qstring(service.name));
+    }
 
     build_import_folder_tagging_section(
-        this, &dialog, content, vbox, state, folder_path, filename_tagging);
+        this, &dialog, content, vbox, service_keys, service_names, folder_path, tagging_result);
+    filename_tagging = tagging_result;
 
 
     auto *note = new QLabel(

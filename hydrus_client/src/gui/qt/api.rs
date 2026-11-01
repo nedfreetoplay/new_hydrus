@@ -1443,34 +1443,177 @@ pub(crate) mod ffi {
         json: String,
     }
 
-    /// Auto-resolution rules dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// One `value`/`label` choice of a duplicates dialog combo (WS-15.2.4b).
+    /// C++ only fills combo items; Rust owns the labels.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct DuplicateChoiceRow {
+        value: String,
+        label: String,
+    }
+
+    /// One service action of a merge options page (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct MergeServiceActionRow {
+        service: String,
+        action: String,
+    }
+
+    /// One merge options page (`this is better` / `same quality`) (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct MergeOptionsPage {
+        archive_action: String,
+        modified_date_action: String,
+        urls_action: String,
+        notes_action: String,
+        tag_actions: Vec<MergeServiceActionRow>,
+        rating_actions: Vec<MergeServiceActionRow>,
+    }
+
+    /// Shared merge options data of the merge dialog and the per-pair
+    /// custom action dialog (WS-15.2.4b). `better_summary`/`same_summary`
+    /// are formatted in Rust.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct MergeOptionsData {
+        better: MergeOptionsPage,
+        same: MergeOptionsPage,
+        tag_services: Vec<String>,
+        rating_services: Vec<String>,
+        actions: Vec<DuplicateChoiceRow>,
+        archive_actions: Vec<DuplicateChoiceRow>,
+        better_summary: String,
+        same_summary: String,
+    }
+
+    /// One flattened comparator of a rule selector (WS-15.2.4b). Groups open
+    /// a new depth level; C++ rebuilds the nested array from `depth`
+    /// without parsing JSON. `pretty` is formatted in Rust.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct RuleComparatorRow {
+        kind: String,
+        looking_at: String,
+        property: String,
+        op: String,
+        num_value: f64,
+        text_value: String,
+        multiplier: f64,
+        delta: f64,
+        same: bool,
+        group_mode: String,
+        depth: i64,
+        pretty: String,
+    }
+
+    /// One auto-resolution rule of the rules dialog (WS-15.2.4b).
+    /// `operation_label`/`search_summary`/`selector_summary`/`action_summary`
+    /// are formatted in Rust (R2); C++ only assigns cell texts.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct AutoRuleRow {
+        name: String,
+        paused: bool,
+        operation_mode: String,
+        operation_label: String,
+        max_pending_pairs: i64,
+        search_query: String,
+        search_mode: String,
+        max_distance: i64,
+        action: String,
+        delete_a: bool,
+        delete_b: bool,
+        search_summary: String,
+        selector_summary: String,
+        action_summary: String,
+        selectors: Vec<RuleComparatorRow>,
+    }
+
+    /// Auto-resolution rules dialog contents (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct DuplicatesRulesDialogState {
-        json: String,
+        enabled: bool,
+        pending: i64,
+        pending_tooltip: String,
+        rules: Vec<AutoRuleRow>,
+        properties: Vec<DuplicateChoiceRow>,
+        operators: Vec<DuplicateChoiceRow>,
+        looking_at: Vec<DuplicateChoiceRow>,
+        search_modes: Vec<DuplicateChoiceRow>,
+        group_modes: Vec<DuplicateChoiceRow>,
+        actions_list: Vec<DuplicateChoiceRow>,
+        operation_modes: Vec<DuplicateChoiceRow>,
     }
 
-    /// Auto-resolution merge options dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// Auto-resolution merge options dialog contents (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct DuplicatesMergeOptionsDialogState {
-        json: String,
+        options: MergeOptionsData,
     }
 
-    /// Auto-resolution custom action dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// Auto-resolution custom action dialog contents (WS-15.2.4b).
+    /// `has_pair` replaces the JSON null: the pair fields are only read
+    /// when it is true. `pair_summary` is formatted in Rust (R2).
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct DuplicateCustomActionDialogState {
-        json: String,
+        page_id: String,
+        has_pair: bool,
+        pair_a_hash: String,
+        pair_a_info: String,
+        pair_b_hash: String,
+        pair_b_info: String,
+        pair_summary: String,
+        duplicate_types: Vec<DuplicateChoiceRow>,
+        better_sides: Vec<DuplicateChoiceRow>,
+        delete_modes: Vec<DuplicateChoiceRow>,
+        options: MergeOptionsData,
     }
 
-    /// Auto-resolution rule preview contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// One pair sample of a rule preview (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct PreviewPairRow {
+        hash_a: String,
+        hash_b: String,
+        thumb_a: String,
+        thumb_b: String,
+        distance: i64,
+        decision: String,
+    }
+
+    /// Auto-resolution rule preview contents (WS-15.2.4b). `status`,
+    /// `selector_text` and `search_text` are formatted in Rust (R2).
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct DuplicatesRulePreviewState {
-        json: String,
+        status: String,
+        selector_text: String,
+        search_text: String,
+        total: i64,
+        matched: i64,
+        failed: i64,
+        samples: Vec<PreviewPairRow>,
+        failed_samples: Vec<PreviewPairRow>,
     }
 
-    /// Auto-resolution review dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// One pair row of the review dialog (WS-15.2.4b). Unused columns of a
+    /// tab stay empty; `status` is formatted in Rust (R2).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ReviewPairRow {
+        hash_a: String,
+        hash_b: String,
+        thumb_a: String,
+        thumb_b: String,
+        distance: i64,
+        rule: String,
+        decision: String,
+        decision_label: String,
+        banned: bool,
+        delete_a: bool,
+        delete_b: bool,
+    }
+
+    /// Auto-resolution review dialog contents (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct DuplicateReviewDialogState {
-        json: String,
+        status: String,
+        pending: Vec<ReviewPairRow>,
+        denied: Vec<ReviewPairRow>,
+        actioned: Vec<ReviewPairRow>,
     }
 
     /// Media viewer contents (WS-15.2.2b).

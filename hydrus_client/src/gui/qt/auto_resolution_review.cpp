@@ -1,5 +1,5 @@
 
-// WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
+// WS-15.2.4b: typed DuplicateReviewDialogState (no JSON parsing).
 
 #include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
@@ -34,7 +34,37 @@
 #include <QVBoxLayout>
 #include <algorithm>
 
-HydrusDuplicateReviewDialog::HydrusDuplicateReviewDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+namespace {
+
+QJsonArray review_rows(const rust::Vec<ReviewPairRow> &rows, bool with_distance, bool with_rule, bool with_decision, bool with_banned) {
+    QJsonArray array;
+    for (const ReviewPairRow &row : rows) {
+        QJsonObject entry;
+        entry.insert(QStringLiteral("a"), to_qstring(row.hash_a));
+        entry.insert(QStringLiteral("b"), to_qstring(row.hash_b));
+        entry.insert(QStringLiteral("a_thumb"), to_qstring(row.thumb_a));
+        entry.insert(QStringLiteral("b_thumb"), to_qstring(row.thumb_b));
+        if (with_distance) {
+            entry.insert(QStringLiteral("distance"), static_cast<qint64>(row.distance));
+        }
+        if (with_rule) {
+            entry.insert(QStringLiteral("rule"), to_qstring(row.rule));
+        }
+        if (with_decision) {
+            entry.insert(QStringLiteral("decision"), to_qstring(row.decision));
+            entry.insert(QStringLiteral("decision_label"), to_qstring(row.decision_label));
+        }
+        if (with_banned) {
+            entry.insert(QStringLiteral("banned"), row.banned);
+        }
+        array.append(entry);
+    }
+    return array;
+}
+
+}  // namespace
+
+HydrusDuplicateReviewDialog::HydrusDuplicateReviewDialog(HydrusMainWindow *main_window, const DuplicateReviewDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("duplicate auto-resolution review"));
     setObjectName(QStringLiteral("hydrus_duplicate_review_dialog"));
@@ -120,12 +150,12 @@ HydrusDuplicateReviewDialog::HydrusDuplicateReviewDialog(HydrusMainWindow *main_
     set_state(state);
 }
 
-void HydrusDuplicateReviewDialog::set_state(const QJsonObject &state) {
-    status->setText(state.value(QStringLiteral("status")).toString());
+void HydrusDuplicateReviewDialog::set_state(const DuplicateReviewDialogState &state) {
+    status->setText(to_qstring(state.status));
 
     fill_pair_table(
         pending,
-        state.value(QStringLiteral("pending")).toArray(),
+        review_rows(state.pending, true, true, true, false),
         2,
         {
             QStringLiteral("distance"),
@@ -134,12 +164,12 @@ void HydrusDuplicateReviewDialog::set_state(const QJsonObject &state) {
         });
     fill_pair_table(
         denied,
-        state.value(QStringLiteral("denied")).toArray(),
+        review_rows(state.denied, false, true, false, false),
         2,
         {QStringLiteral("rule")});
     fill_pair_table(
         actioned,
-        state.value(QStringLiteral("actioned")).toArray(),
+        review_rows(state.actioned, false, true, true, true),
         2,
         {
             QStringLiteral("decision"),

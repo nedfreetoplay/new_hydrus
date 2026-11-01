@@ -2458,12 +2458,12 @@ impl AppState {
             ffi::UiAction::SubscriptionOpenResults => {
                 download::open_subscription_results(self, target, payload)
             }
-            ffi::UiAction::DuplicatesRules => vec![UiCommand::DuplicatesRulesDialog(crate::gui::qt::api::ffi::DuplicatesRulesDialogState { json: 
-                auto_resolution::dialog_json(self),
-             })],
-            ffi::UiAction::DuplicatesMergeOptionsDialog => vec![UiCommand::DuplicatesMergeOptionsDialog(crate::gui::qt::api::ffi::DuplicatesMergeOptionsDialogState { json: 
-                duplicates::merge_options_json(self),
-             })],
+            ffi::UiAction::DuplicatesRules => vec![UiCommand::DuplicatesRulesDialog(
+                auto_resolution::rules_dialog_state(self),
+            )],
+            ffi::UiAction::DuplicatesMergeOptionsDialog => vec![UiCommand::DuplicatesMergeOptionsDialog(
+                duplicates::merge_options_dialog_state(self),
+            )],
             ffi::UiAction::DuplicatesRuleAdd | ffi::UiAction::DuplicatesRuleSave => {
                 auto_resolution::save_rule(self, payload)
             }
@@ -2486,9 +2486,9 @@ impl AppState {
                 };
                 self.refresh_all();
                 let mut commands = self.refresh_commands();
-                commands.push(UiCommand::DuplicatesRulesDialog(crate::gui::qt::api::ffi::DuplicatesRulesDialogState { json: 
-                    auto_resolution::dialog_json(self),
-                 }));
+                commands.push(UiCommand::DuplicatesRulesDialog(
+                    auto_resolution::rules_dialog_state(self),
+                ));
                 commands.push(UiCommand::Status(render::status(self)));
                 commands
             }

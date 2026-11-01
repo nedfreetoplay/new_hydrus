@@ -39,12 +39,11 @@ void HydrusMainWindow::close_viewer(const QString &viewer_id) {
 // WS-15.1.5: duplicates/services/network dialog openers moved verbatim from bridge.cpp.
 
 void HydrusMainWindow::show_duplicates_rules(const DuplicatesRulesDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (duplicates_rules_dialog == nullptr) {
-        duplicates_rules_dialog = new HydrusDuplicatesRulesDialog(this, state, this);
+        duplicates_rules_dialog = new HydrusDuplicatesRulesDialog(this, typed, this);
         connect(duplicates_rules_dialog, &QObject::destroyed, this, [this]() { duplicates_rules_dialog = nullptr; });
     } else {
-        duplicates_rules_dialog->set_state(state);
+        duplicates_rules_dialog->set_state(typed);
         duplicates_rules_dialog->raise();
         duplicates_rules_dialog->activateWindow();
     }
@@ -52,18 +51,17 @@ void HydrusMainWindow::show_duplicates_rules(const DuplicatesRulesDialogState &t
     duplicates_rules_dialog->show();
     for (auto it = duplicates.begin(); it != duplicates.end(); ++it) {
         if (it.value() != nullptr) {
-            it.value()->update_auto_resolution_rules(state);
+            it.value()->update_auto_resolution_rules(typed);
         }
     }
 }
 
 void HydrusMainWindow::show_duplicate_merge_options(const DuplicatesMergeOptionsDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (merge_options_dialog == nullptr) {
-        merge_options_dialog = new HydrusDuplicateMergeOptionsDialog(this, state, this);
+        merge_options_dialog = new HydrusDuplicateMergeOptionsDialog(this, typed, this);
         connect(merge_options_dialog, &QObject::destroyed, this, [this]() { merge_options_dialog = nullptr; });
     } else {
-        merge_options_dialog->set_state(state);
+        merge_options_dialog->set_state(typed);
         merge_options_dialog->raise();
         merge_options_dialog->activateWindow();
     }
@@ -72,42 +70,38 @@ void HydrusMainWindow::show_duplicate_merge_options(const DuplicatesMergeOptions
 }
 
 void HydrusMainWindow::show_duplicate_custom_action(const DuplicateCustomActionDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (duplicate_custom_action_dialog != nullptr) {
         QObject::disconnect(duplicate_custom_action_dialog, &QObject::destroyed, this, nullptr);
         duplicate_custom_action_dialog->close();
         duplicate_custom_action_dialog = nullptr;
     }
 
-    duplicate_custom_action_dialog = new HydrusDuplicateCustomActionDialog(this, state, this);
+    duplicate_custom_action_dialog = new HydrusDuplicateCustomActionDialog(this, typed, this);
     connect(duplicate_custom_action_dialog, &QObject::destroyed, this, [this]() { duplicate_custom_action_dialog = nullptr; });
     duplicate_custom_action_dialog->show();
 }
 
 void HydrusMainWindow::update_auto_resolution_preview(const DuplicatesRulePreviewState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (duplicates_rules_dialog != nullptr) {
-        duplicates_rules_dialog->set_preview(state);
+        duplicates_rules_dialog->set_preview(typed);
     }
 }
 
 void HydrusMainWindow::show_duplicate_review(const DuplicateReviewDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (duplicate_review_dialog == nullptr) {
-        duplicate_review_dialog = new HydrusDuplicateReviewDialog(this, state, this);
+        duplicate_review_dialog = new HydrusDuplicateReviewDialog(this, typed, this);
         connect(duplicate_review_dialog, &QObject::destroyed, this, [this]() { duplicate_review_dialog = nullptr; });
         duplicate_review_dialog->show();
     } else {
-        duplicate_review_dialog->set_state(state);
+        duplicate_review_dialog->set_state(typed);
         duplicate_review_dialog->raise();
         duplicate_review_dialog->activateWindow();
     }
 }
 
 void HydrusMainWindow::update_duplicate_review(const DuplicateReviewDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (duplicate_review_dialog != nullptr) {
-        duplicate_review_dialog->set_state(state);
+        duplicate_review_dialog->set_state(typed);
     }
 }
 

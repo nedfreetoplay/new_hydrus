@@ -33,11 +33,12 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <algorithm>
+#include <functional>
 
 HydrusAutoResolutionRuleDialog::HydrusAutoResolutionRuleDialog(
     HydrusMainWindow *main_window,
     HydrusDuplicatesRulesDialog *rules,
-    const QJsonObject &rule,
+    const AutoRuleInfo &info,
     const QJsonObject &rule_catalog,
     QWidget *parent)
     : QDialog(parent), main(main_window), rules_dialog(rules), catalog(rule_catalog) {
@@ -45,6 +46,61 @@ HydrusAutoResolutionRuleDialog::HydrusAutoResolutionRuleDialog(
     setObjectName(QStringLiteral("hydrus_auto_resolution_rule_dialog"));
     setAttribute(Qt::WA_DeleteOnClose, true);
     resize(820, 680);
+
+    QJsonObject rule;
+    rule.insert(QStringLiteral("name"), info.name);
+    rule.insert(QStringLiteral("paused"), info.paused);
+    rule.insert(QStringLiteral("operation_mode"), info.operation_mode);
+    rule.insert(QStringLiteral("max_pending_pairs"), info.max_pending_pairs);
+    rule.insert(QStringLiteral("search_query"), info.search_query);
+    rule.insert(QStringLiteral("search_mode"), info.search_mode);
+    rule.insert(QStringLiteral("max_distance"), info.max_distance);
+    rule.insert(QStringLiteral("action"), info.action);
+    rule.insert(QStringLiteral("delete_a"), info.delete_a);
+    rule.insert(QStringLiteral("delete_b"), info.delete_b);
+    QJsonArray selector_array;
+    std::function<void(const std::vector<ComparatorInfo> &, size_t &, int, QJsonArray &)> build =
+        [&](const std::vector<ComparatorInfo> &rows, size_t &pos, int depth, QJsonArray &out) {
+            while (pos < rows.size() && rows[pos].depth >= depth) {
+                if (rows[pos].depth > depth) {
+                    break;
+                }
+                const ComparatorInfo &comparator = rows[pos];
+                if (comparator.kind == QStringLiteral("group")) {
+                    ++pos;
+                    QJsonObject group;
+                    group.insert(QStringLiteral("kind"), QStringLiteral("group"));
+                    group.insert(QStringLiteral("mode"),
+                        comparator.group_mode.isEmpty() ? QStringLiteral("all") : comparator.group_mode);
+                    QJsonArray children;
+                    build(rows, pos, depth + 1, children);
+                    group.insert(QStringLiteral("comparators"), children);
+                    out.append(group);
+                } else {
+                    QJsonObject object;
+                    object.insert(QStringLiteral("kind"), comparator.kind);
+                    if (comparator.kind == QStringLiteral("one_file")) {
+                        object.insert(QStringLiteral("looking_at"), comparator.looking_at);
+                        object.insert(QStringLiteral("property"), comparator.property);
+                        object.insert(QStringLiteral("operator"), comparator.op);
+                        object.insert(QStringLiteral("value"), comparator.num_value);
+                        object.insert(QStringLiteral("text"), comparator.text_value);
+                    } else if (comparator.kind == QStringLiteral("relative")) {
+                        object.insert(QStringLiteral("property"), comparator.property);
+                        object.insert(QStringLiteral("operator"), comparator.op);
+                        object.insert(QStringLiteral("multiplier"), comparator.multiplier);
+                        object.insert(QStringLiteral("delta"), comparator.delta);
+                    } else if (comparator.kind == QStringLiteral("filetype")) {
+                        object.insert(QStringLiteral("same"), comparator.same);
+                    }
+                    out.append(object);
+                    ++pos;
+                }
+            }
+        };
+    size_t pos = 0;
+    build(info.selectors, pos, 0, selector_array);
+    rule.insert(QStringLiteral("pair_selector"), selector_array);
 
     original_name = rule.value(QStringLiteral("name")).toString();
     selector = rule.value(QStringLiteral("pair_selector")).toArray();
@@ -325,8 +381,8 @@ void HydrusAutoResolutionRuleDialog::run_preview() {
     main->notify(UiAction::DuplicatesRulePreview, QString(), json_payload(payload));
 }
 
-void HydrusAutoResolutionRuleDialog::set_preview(const QJsonObject &preview) {
-    const QString status = preview.value(QStringLiteral("status")).toString();
+void HydrusAutoResolutionRuleDialog::set_preview(const DuplicatesRulePreviewState &preview) {
+    const QString status = to_qstring(preview.status);
 
     if (status.isEmpty()) {
         preview_label->setText(QStringLiteral("no preview result"));
@@ -338,26 +394,49 @@ void HydrusAutoResolutionRuleDialog::set_preview(const QJsonObject &preview) {
     QStringList lines;
     lines.append(status);
 
-    const QString selector_text = preview.value(QStringLiteral("selector")).toString();
+    const QString selector_text = to_qstring(preview.selector_text);
     if (!selector_text.isEmpty()) {
         lines.append(QStringLiteral("selector: %1").arg(selector_text));
     }
 
-    const QString search = preview.value(QStringLiteral("search")).toString();
+    const QString search = to_qstring(preview.search_text);
     if (!search.isEmpty()) {
         lines.append(QStringLiteral("search: %1").arg(search));
     }
 
     preview_label->setText(lines.join(QLatin1Char('\n')));
 
+    QJsonArray samples;
+    for (const PreviewPairRow &row : preview.samples) {
+        QJsonObject entry;
+        entry.insert(QStringLiteral("a"), to_qstring(row.hash_a));
+        entry.insert(QStringLiteral("b"), to_qstring(row.hash_b));
+        entry.insert(QStringLiteral("a_thumb"), to_qstring(row.thumb_a));
+        entry.insert(QStringLiteral("b_thumb"), to_qstring(row.thumb_b));
+        entry.insert(QStringLiteral("distance"), static_cast<qint64>(row.distance));
+        entry.insert(QStringLiteral("decision"), to_qstring(row.decision));
+        entry.insert(QStringLiteral("decision_label"), to_qstring(row.decision));
+        samples.append(entry);
+    }
+    QJsonArray failed;
+    for (const PreviewPairRow &row : preview.failed_samples) {
+        QJsonObject entry;
+        entry.insert(QStringLiteral("a"), to_qstring(row.hash_a));
+        entry.insert(QStringLiteral("b"), to_qstring(row.hash_b));
+        entry.insert(QStringLiteral("a_thumb"), to_qstring(row.thumb_a));
+        entry.insert(QStringLiteral("b_thumb"), to_qstring(row.thumb_b));
+        entry.insert(QStringLiteral("distance"), static_cast<qint64>(row.distance));
+        failed.append(entry);
+    }
+
     fill_pair_table(
         preview_pass,
-        preview.value(QStringLiteral("samples")).toArray(),
+        samples,
         2,
         {QStringLiteral("distance"), QStringLiteral("decision")});
     fill_pair_table(
         preview_fail,
-        preview.value(QStringLiteral("failed_samples")).toArray(),
+        failed,
         2,
         {QStringLiteral("distance")});
 }

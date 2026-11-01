@@ -21,6 +21,7 @@ class QPoint;
 class HydrusCanvas;
 class HydrusMainWindow;
 struct DuplicatesPageState;
+struct DuplicatesRulesDialogState;
 enum class UiAction : std::int32_t;
 class HydrusThumbnailGrid;
 
@@ -32,9 +33,7 @@ public:
     const QString &page_id() const;
     void update_state(const DuplicatesPageState &state);
     void update_auto_resolution_rules(const DuplicatesPageState &state);
-    // The auto-resolution rules dialog (WS-15.2.2d seam) still reports its
-    // saved rules as JSON; refresh the page table from that payload.
-    void update_auto_resolution_rules(const QJsonObject &state);
+    void update_auto_resolution_rules(const DuplicatesRulesDialogState &state);
 
 private:
     void act(UiAction action);

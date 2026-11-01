@@ -522,6 +522,12 @@ C++.
     Закрыто в WS-15.2.4b (партия 3, 655c35c): services, network, account types,
     API permissions (4 структуры с плоскими row-структурами, тексты считает
     Rust; осталось 8 обёрток).
+    Закрыто в WS-15.2.4b (партия 4): duplicates rules/merge options/custom
+    action/rule preview/review (5 структур с плоскими row-структурами
+    `AutoRuleRow`/`RuleComparatorRow`/`MergeOptionsData`/`ReviewPairRow`/
+    `PreviewPairRow`, селекторы — плоские строки с depth, подписи и статусы
+    считает Rust с unit-тестами; осталось 3 обёртки: options, import options,
+    local import tagging).
     LocalImportTaggingDialogState оставлена следующему заходу: диалог редактирует
     произвольно вложенные `FilenameTaggingOptions` через общий редактор опций.
  2. `PageRow.state` → частично закрыто в WS-15.2.4b: добавлен типизированный

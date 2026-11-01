@@ -23,7 +23,7 @@ use crate::gui::app::model::{
 };
 use crate::gui::app::{query, render, AppState, UiCommand};
 use crate::gui::qt::api::ffi;
-use serde_json::{json, Value};
+use serde_json::Value;
 
 const MIN_BATCH_SIZE: i64 = 5;
 const MAX_BATCH_SIZE: i64 = 1024;
@@ -226,12 +226,10 @@ pub fn action(
             }
         }
         ffi::UiAction::DuplicatesCustomAction => {
-            let json = custom_action_dialog_json(&controller, page);
+            let dialog = custom_action_dialog_state(&controller, page);
             state.duplicate_review = review;
 
-            return vec![UiCommand::DuplicateCustomActionDialog(
-                crate::gui::qt::api::ffi::DuplicateCustomActionDialogState { json: json },
-            )];
+            return vec![UiCommand::DuplicateCustomActionDialog(dialog)];
         }
         ffi::UiAction::DuplicatesCustom => {
             let Some(pair) = page.current().cloned() else {
@@ -711,36 +709,64 @@ pub(crate) fn apply_rule_decision(
     }
 }
 
-fn custom_action_dialog_json(controller: &Controller, page: &DuplicatesPage) -> String {
-    let mut value = merge_options_value(controller);
-    let pair = page.current().map(|pair| {
-        json!({
-            "distance": pair.distance,
-            "a": render::duplicate_media_json(controller, &pair.a),
-            "b": render::duplicate_media_json(controller, &pair.b),
+fn custom_action_dialog_state(
+    controller: &Controller,
+    page: &DuplicatesPage,
+) -> crate::gui::qt::api::ffi::DuplicateCustomActionDialogState {
+    use crate::gui::qt::api::ffi::DuplicateChoiceRow;
+    let (has_pair, a_hash, a_info, b_hash, b_info) = page
+        .current()
+        .map(|pair| {
+            let a = render::duplicate_media_json(controller, &pair.a);
+            let b = render::duplicate_media_json(controller, &pair.b);
+            let string = |value: &serde_json::Value, key: &str| {
+                value
+                    .get(key)
+                    .and_then(|value| value.as_str())
+                    .unwrap_or_default()
+                    .to_string()
+            };
+            (
+                true,
+                string(&a, "hash"),
+                string(&a, "info"),
+                string(&b, "hash"),
+                string(&b, "info"),
+            )
         })
-    });
-
-    value["page_id"] = json!(page.id);
-    value["pair"] = pair.unwrap_or(Value::Null);
-    value["duplicate_types"] = json!([
-        { "value": "better", "label": "this is better" },
-        { "value": "same", "label": "they are the same quality" },
-        { "value": "alternate", "label": "they are related alternates" },
-        { "value": "false_positive", "label": "they are not related" },
-    ]);
-    value["better_sides"] = json!([
-        { "value": "a", "label": "A is better" },
-        { "value": "b", "label": "B is better" },
-    ]);
-    value["delete_modes"] = json!([
-        { "value": "neither", "label": "delete neither" },
-        { "value": "a", "label": "delete A" },
-        { "value": "b", "label": "delete B" },
-        { "value": "both", "label": "delete both" },
-    ]);
-
-    value.to_string()
+        .unwrap_or_default();
+    let pair_summary = if has_pair {
+        custom_pair_summary(&a_hash, &a_info, &b_hash, &b_info)
+    } else {
+        String::new()
+    };
+    let choice = |value: &str, label: &str| DuplicateChoiceRow {
+        value: value.to_string(),
+        label: label.to_string(),
+    };
+    crate::gui::qt::api::ffi::DuplicateCustomActionDialogState {
+        page_id: page.id.clone(),
+        has_pair,
+        pair_a_hash: a_hash,
+        pair_a_info: a_info,
+        pair_b_hash: b_hash,
+        pair_b_info: b_info,
+        pair_summary,
+        duplicate_types: vec![
+            choice("better", "this is better"),
+            choice("same", "they are the same quality"),
+            choice("alternate", "they are related alternates"),
+            choice("false_positive", "they are not related"),
+        ],
+        better_sides: vec![choice("a", "A is better"), choice("b", "B is better")],
+        delete_modes: vec![
+            choice("neither", "delete neither"),
+            choice("a", "delete A"),
+            choice("b", "delete B"),
+            choice("both", "delete both"),
+        ],
+        options: merge_options_data(controller),
+    }
 }
 
 fn apply_custom_action(
@@ -1079,15 +1105,39 @@ fn merge_options(controller: &Controller, kind: MergeActionKind) -> DuplicateCon
         .unwrap_or_else(|| kind.defaults())
 }
 
-fn merge_options_json_for(controller: &Controller, kind: MergeActionKind) -> serde_json::Value {
-    serde_json::to_value(merge_options(controller, kind)).unwrap_or_default()
+fn merge_page_row(
+    options: &DuplicateContentMergeOptions,
+) -> crate::gui::qt::api::ffi::MergeOptionsPage {
+    crate::gui::qt::api::ffi::MergeOptionsPage {
+        archive_action: options.sync_archive_action.as_str().to_string(),
+        modified_date_action: options.sync_file_modified_date_action.as_str().to_string(),
+        urls_action: options.sync_urls_action.as_str().to_string(),
+        notes_action: options.sync_notes_action.as_str().to_string(),
+        tag_actions: options
+            .tag_service_actions
+            .iter()
+            .map(|(service, action)| crate::gui::qt::api::ffi::MergeServiceActionRow {
+                service: service.clone(),
+                action: action.as_str().to_string(),
+            })
+            .collect(),
+        rating_actions: options
+            .rating_service_actions
+            .iter()
+            .map(|(service, action)| crate::gui::qt::api::ffi::MergeServiceActionRow {
+                service: service.clone(),
+                action: action.as_str().to_string(),
+            })
+            .collect(),
+    }
 }
 
-pub fn merge_options_json(state: &AppState) -> String {
-    merge_options_value(&state.controller).to_string()
-}
-
-fn merge_options_value(controller: &Controller) -> Value {
+/// Typed merge options shared by the merge dialog and the custom action
+/// dialog (WS-15.2.4b). Replaces `merge_options_value`.
+pub fn merge_options_data(
+    controller: &Controller,
+) -> crate::gui::qt::api::ffi::MergeOptionsData {
+    use crate::gui::qt::api::ffi::DuplicateChoiceRow;
     let manager = controller.services();
     let tag_services: Vec<String> = manager
         .get_services(Some(&[ServiceType::LocalTag, ServiceType::TagRepository]))
@@ -1103,7 +1153,6 @@ fn merge_options_value(controller: &Controller) -> Value {
         .into_iter()
         .map(|service| service.name.clone())
         .collect();
-
     let actions = [
         MergeAction::Copy,
         MergeAction::Move,
@@ -1111,40 +1160,54 @@ fn merge_options_value(controller: &Controller) -> Value {
         MergeAction::None,
     ]
     .into_iter()
-    .map(|action| {
-        json!({
-            "value": action.as_str(),
-            "label": action.label(),
-        })
+    .map(|action| DuplicateChoiceRow {
+        value: action.as_str().to_string(),
+        label: action.label().to_string(),
     })
-    .collect::<Vec<_>>();
-
+    .collect();
     let archive_actions = [
         ArchiveSyncAction::None,
         ArchiveSyncAction::IfOneDoBoth,
         ArchiveSyncAction::AlwaysBoth,
     ]
     .into_iter()
-    .map(|action| {
-        json!({
-            "value": action.as_str(),
-            "label": action.label(),
-        })
+    .map(|action| DuplicateChoiceRow {
+        value: action.as_str().to_string(),
+        label: action.label().to_string(),
     })
-    .collect::<Vec<_>>();
+    .collect();
+    let better = merge_options(controller, MergeActionKind::Better);
+    let same = merge_options(controller, MergeActionKind::Same);
+    crate::gui::qt::api::ffi::MergeOptionsData {
+        better_summary: better.get_merge_summary(),
+        same_summary: same.get_merge_summary(),
+        better: merge_page_row(&better),
+        same: merge_page_row(&same),
+        tag_services,
+        rating_services,
+        actions,
+        archive_actions,
+    }
+}
 
-    json!({
-        "better": merge_options_json_for(controller, MergeActionKind::Better),
-        "same": merge_options_json_for(controller, MergeActionKind::Same),
-        "tag_services": tag_services,
-        "rating_services": rating_services,
-        "actions": actions,
-        "archive_actions": archive_actions,
-        "summary": {
-            "better": merge_options(controller, MergeActionKind::Better).get_merge_summary(),
-            "same": merge_options(controller, MergeActionKind::Same).get_merge_summary(),
-        },
-    })
+/// Typed merge options dialog state (WS-15.2.4b).
+pub fn merge_options_dialog_state(
+    state: &AppState,
+) -> crate::gui::qt::api::ffi::DuplicatesMergeOptionsDialogState {
+    crate::gui::qt::api::ffi::DuplicatesMergeOptionsDialogState {
+        options: merge_options_data(&state.controller),
+    }
+}
+
+/// R2: one-line summary of the custom action pair, shown above the form.
+pub fn custom_pair_summary(a_hash: &str, a_info: &str, b_hash: &str, b_info: &str) -> String {
+    format!(
+        "A: {}  {}\nB: {}  {}",
+        a_hash.get(..16).unwrap_or(a_hash),
+        a_info,
+        b_hash.get(..16).unwrap_or(b_hash),
+        b_info
+    )
 }
 
 fn save_merge_options(
@@ -2315,17 +2378,25 @@ mod tests {
             "",
         );
 
-        let page = state.find_duplicates("dup-actions").unwrap();
-        let value: Value =
-            serde_json::from_str(&custom_action_dialog_json(&controller, page)).unwrap();
+        let page = state.find_duplicates("dup-actions").unwrap().clone();
+        let dialog = custom_action_dialog_state(&controller, &page);
 
-        assert_eq!(value["page_id"], "dup-actions");
-        assert!(value["pair"]["a"]["hash"].is_string());
-        assert!(value["pair"]["b"]["thumb"].is_string());
-        assert_eq!(value["duplicate_types"].as_array().unwrap().len(), 4);
-        assert_eq!(value["delete_modes"].as_array().unwrap().len(), 4);
-        assert!(value["better"].is_object());
-        assert!(value["tag_services"].is_array());
+        assert_eq!(dialog.page_id, "dup-actions");
+        assert!(dialog.has_pair);
+        assert!(!dialog.pair_a_hash.is_empty());
+        assert!(!dialog.pair_b_hash.is_empty());
+        assert_eq!(dialog.duplicate_types.len(), 4);
+        assert_eq!(dialog.delete_modes.len(), 4);
+        assert!(!dialog.options.tag_services.is_empty());
+        assert_eq!(
+            dialog.pair_summary,
+            custom_pair_summary(
+                &dialog.pair_a_hash,
+                &dialog.pair_a_info,
+                &dialog.pair_b_hash,
+                &dialog.pair_b_info
+            )
+        );
 
         let _ = std::fs::remove_dir_all(directory);
     }
@@ -2678,6 +2749,14 @@ mod tests {
         assert_eq!(
             duplicates_media_empty_status(),
             "the potential duplicate queue is empty"
+        );
+    }
+
+    #[test]
+    fn custom_pair_summary_truncates_hashes() {
+        assert_eq!(
+            custom_pair_summary("abcdef0123456789hash", "info a", "0123456789abcdefhash", "info b"),
+            "A: abcdef0123456789  info a\nB: 0123456789abcdef  info b"
         );
     }
 

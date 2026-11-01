@@ -1,5 +1,5 @@
 
-// WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
+// WS-15.2.4b: typed DuplicatesRulesDialogState (no JSON parsing).
 
 #include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
@@ -34,7 +34,54 @@
 #include <QVBoxLayout>
 #include <algorithm>
 
-HydrusDuplicatesRulesDialog::HydrusDuplicatesRulesDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+namespace {
+
+AutoRuleInfo to_rule_info(const AutoRuleRow &rule) {
+    AutoRuleInfo info;
+    info.name = to_qstring(rule.name);
+    info.paused = rule.paused;
+    info.operation_mode = to_qstring(rule.operation_mode);
+    info.operation_label = to_qstring(rule.operation_label);
+    info.max_pending_pairs = static_cast<int>(rule.max_pending_pairs);
+    info.search_query = to_qstring(rule.search_query);
+    info.search_mode = to_qstring(rule.search_mode);
+    info.max_distance = static_cast<int>(rule.max_distance);
+    info.action = to_qstring(rule.action);
+    info.delete_a = rule.delete_a;
+    info.delete_b = rule.delete_b;
+    info.search_summary = to_qstring(rule.search_summary);
+    info.selector_summary = to_qstring(rule.selector_summary);
+    info.action_summary = to_qstring(rule.action_summary);
+    for (const RuleComparatorRow &row : rule.selectors) {
+        ComparatorInfo comparator;
+        comparator.kind = to_qstring(row.kind);
+        comparator.looking_at = to_qstring(row.looking_at);
+        comparator.property = to_qstring(row.property);
+        comparator.op = to_qstring(row.op);
+        comparator.num_value = row.num_value;
+        comparator.text_value = to_qstring(row.text_value);
+        comparator.multiplier = row.multiplier;
+        comparator.delta = row.delta;
+        comparator.same = row.same;
+        comparator.group_mode = to_qstring(row.group_mode);
+        comparator.depth = static_cast<int>(row.depth);
+        comparator.pretty = to_qstring(row.pretty);
+        info.selectors.push_back(std::move(comparator));
+    }
+    return info;
+}
+
+std::vector<ChoiceInfo> to_choices(const rust::Vec<DuplicateChoiceRow> &rows) {
+    std::vector<ChoiceInfo> out;
+    for (const DuplicateChoiceRow &row : rows) {
+        out.push_back({to_qstring(row.value), to_qstring(row.label)});
+    }
+    return out;
+}
+
+}  // namespace
+
+HydrusDuplicatesRulesDialog::HydrusDuplicatesRulesDialog(HydrusMainWindow *main_window, const DuplicatesRulesDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("duplicate auto-resolution"));
     setObjectName(QStringLiteral("hydrus_duplicates_rules_dialog"));
@@ -125,38 +172,43 @@ HydrusDuplicatesRulesDialog::HydrusDuplicatesRulesDialog(HydrusMainWindow *main_
     }
 }
 
-void HydrusDuplicatesRulesDialog::set_state(const QJsonObject &state) {
-    data = state;
-
-    QJsonArray rules = state.value(QStringLiteral("auto_rules")).toArray();
-    if (rules.isEmpty()) {
-        rules = state.value(QStringLiteral("rules")).toArray();
+void HydrusDuplicatesRulesDialog::set_state(const DuplicatesRulesDialogState &state) {
+    rules.clear();
+    for (const AutoRuleRow &rule : state.rules) {
+        rules.push_back(to_rule_info(rule));
     }
-    const int previous_row = table->currentRow();
-    table->setRowCount(rules.size());
+    catalog_properties = to_choices(state.properties);
+    catalog_operators = to_choices(state.operators);
+    catalog_looking_at = to_choices(state.looking_at);
+    catalog_search_modes = to_choices(state.search_modes);
+    catalog_group_modes = to_choices(state.group_modes);
+    catalog_actions = to_choices(state.actions_list);
+    catalog_operation_modes = to_choices(state.operation_modes);
 
-    for (int index = 0; index < rules.size(); ++index) {
-        const QJsonObject rule = rules.at(index).toObject();
+    const int previous_row = table->currentRow();
+    table->setRowCount(static_cast<int>(rules.size()));
+
+    for (size_t index = 0; index < rules.size(); ++index) {
+        const AutoRuleInfo &rule = rules[index];
+        const int row = static_cast<int>(index);
 
         for (int column = 0; column < 5; ++column) {
-            if (table->item(index, column) == nullptr) {
-                table->setItem(index, column, new QTableWidgetItem());
+            if (table->item(row, column) == nullptr) {
+                table->setItem(row, column, new QTableWidgetItem());
             }
         }
 
-        QString operation_label = rule.value(QStringLiteral("operation_label")).toString();
-        if (rule.value(QStringLiteral("paused")).toBool()) {
+        QString operation_label = rule.operation_label;
+        if (rule.paused) {
             operation_label += QStringLiteral(" - paused");
         }
 
-        table->item(index, 0)->setText(rule.value(QStringLiteral("name")).toString());
-        table->item(index, 0)->setData(
-            Qt::UserRole,
-            QString::fromUtf8(QJsonDocument(rule).toJson(QJsonDocument::Compact)));
-        table->item(index, 1)->setText(operation_label);
-        table->item(index, 2)->setText(rule.value(QStringLiteral("search_summary")).toString());
-        table->item(index, 3)->setText(rule.value(QStringLiteral("selector_summary")).toString());
-        table->item(index, 4)->setText(rule.value(QStringLiteral("action_summary")).toString());
+        table->item(row, 0)->setText(rule.name);
+        table->item(row, 0)->setData(Qt::UserRole, row);
+        table->item(row, 1)->setText(operation_label);
+        table->item(row, 2)->setText(rule.search_summary);
+        table->item(row, 3)->setText(rule.selector_summary);
+        table->item(row, 4)->setText(rule.action_summary);
     }
 
     if (previous_row >= 0 && previous_row < table->rowCount()) {
@@ -164,43 +216,39 @@ void HydrusDuplicatesRulesDialog::set_state(const QJsonObject &state) {
     }
 
     QSignalBlocker blocker(enabled);
-    enabled->setChecked(state.value(QStringLiteral("enabled")).toBool());
+    enabled->setChecked(state.enabled);
 
-    const int pending = state.value(QStringLiteral("pending")).toInt(0);
-    setToolTip(pending > 0 ? QStringLiteral("%1 pair(s) are waiting for review").arg(pending) : QString());
+    const int pending = static_cast<int>(state.pending);
+    setToolTip(to_qstring(state.pending_tooltip).isEmpty() && pending <= 0
+        ? QString()
+        : QStringLiteral("%1 pair(s) are waiting for review").arg(pending));
 
     table->resizeRowsToContents();
 }
 
-void HydrusDuplicatesRulesDialog::set_preview(const QJsonObject &preview) {
+void HydrusDuplicatesRulesDialog::set_preview(const DuplicatesRulePreviewState &preview) {
     if (rule_editor != nullptr) {
         rule_editor->set_preview(preview);
     }
 }
 
 void HydrusDuplicatesRulesDialog::add_rule() {
-    QJsonObject rule;
-    rule.insert(QStringLiteral("name"), QStringLiteral("new rule"));
-    rule.insert(QStringLiteral("paused"), false);
-    rule.insert(QStringLiteral("operation_mode"), QStringLiteral("semi-automatic"));
-    rule.insert(QStringLiteral("max_pending_pairs"), 500);
-    rule.insert(QStringLiteral("search_query"), QString());
-    rule.insert(QStringLiteral("search_mode"), QStringLiteral("both"));
-    rule.insert(QStringLiteral("max_distance"), 0);
-    rule.insert(QStringLiteral("action"), QStringLiteral("better"));
-    rule.insert(QStringLiteral("delete_a"), false);
-    rule.insert(QStringLiteral("delete_b"), false);
-
-    QJsonObject relative;
-    relative.insert(QStringLiteral("kind"), QStringLiteral("relative"));
-    relative.insert(QStringLiteral("property"), QStringLiteral("num_pixels"));
-    relative.insert(QStringLiteral("operator"), QStringLiteral(">"));
-    relative.insert(QStringLiteral("multiplier"), 1.0);
-    relative.insert(QStringLiteral("delta"), 0.0);
-
-    QJsonArray selector;
-    selector.append(relative);
-    rule.insert(QStringLiteral("pair_selector"), selector);
+    AutoRuleInfo rule;
+    rule.name = QStringLiteral("new rule");
+    rule.paused = false;
+    rule.operation_mode = QStringLiteral("semi-automatic");
+    rule.max_pending_pairs = 500;
+    rule.search_mode = QStringLiteral("both");
+    rule.max_distance = 0;
+    rule.action = QStringLiteral("better");
+    ComparatorInfo relative;
+    relative.kind = QStringLiteral("relative");
+    relative.property = QStringLiteral("num_pixels");
+    relative.op = QStringLiteral(">");
+    relative.multiplier = 1.0;
+    relative.delta = 0.0;
+    relative.pretty = QStringLiteral("A num_pixels > B");
+    rule.selectors.push_back(relative);
 
     edit_rule(rule);
 }
@@ -208,37 +256,23 @@ void HydrusDuplicatesRulesDialog::add_rule() {
 void HydrusDuplicatesRulesDialog::edit_selected() {
     const int row = table->currentRow();
 
-    if (row < 0 || table->item(row, 0) == nullptr) {
+    if (row < 0 || row >= static_cast<int>(rules.size())) {
         return;
     }
 
-    QJsonParseError error{};
-    const QJsonDocument document = QJsonDocument::fromJson(
-        table->item(row, 0)->data(Qt::UserRole).toString().toUtf8(), &error);
-
-    if (error.error == QJsonParseError::NoError && document.isObject()) {
-        edit_rule(document.object());
-    }
+    edit_rule(rules[static_cast<size_t>(row)]);
 }
 
 void HydrusDuplicatesRulesDialog::duplicate_selected() {
     const int row = table->currentRow();
 
-    if (row < 0 || table->item(row, 0) == nullptr) {
+    if (row < 0 || row >= static_cast<int>(rules.size())) {
         return;
     }
 
-    QJsonParseError error{};
-    const QJsonDocument document = QJsonDocument::fromJson(
-        table->item(row, 0)->data(Qt::UserRole).toString().toUtf8(), &error);
-
-    if (error.error != QJsonParseError::NoError || !document.isObject()) {
-        return;
-    }
-
-    QJsonObject copy = document.object();
-    copy.insert(QStringLiteral("name"), copy.value(QStringLiteral("name")).toString() + QStringLiteral(" copy"));
-    copy.insert(QStringLiteral("paused"), true);
+    AutoRuleInfo copy = rules[static_cast<size_t>(row)];
+    copy.name += QStringLiteral(" copy");
+    copy.paused = true;
     edit_rule(copy);
 }
 
@@ -264,13 +298,32 @@ void HydrusDuplicatesRulesDialog::open_review() {
     main->notify(UiAction::DuplicatesReview);
 }
 
-void HydrusDuplicatesRulesDialog::edit_rule(const QJsonObject &rule) {
+void HydrusDuplicatesRulesDialog::edit_rule(const AutoRuleInfo &rule) {
     if (rule_editor != nullptr) {
         rule_editor->close();
         rule_editor = nullptr;
     }
 
-    rule_editor = new HydrusAutoResolutionRuleDialog(main, this, rule, data, this);
+    QJsonObject catalog;
+    auto fill = [&catalog](const char *key, const std::vector<ChoiceInfo> &choices) {
+        QJsonArray array;
+        for (const ChoiceInfo &choice : choices) {
+            QJsonObject entry;
+            entry.insert(QStringLiteral("label"), choice.label);
+            entry.insert(QStringLiteral("value"), choice.value);
+            array.append(entry);
+        }
+        catalog.insert(QString::fromUtf8(key), array);
+    };
+    fill("properties", catalog_properties);
+    fill("operators", catalog_operators);
+    fill("looking_at", catalog_looking_at);
+    fill("search_modes", catalog_search_modes);
+    fill("group_modes", catalog_group_modes);
+    fill("actions", catalog_actions);
+    fill("operation_modes", catalog_operation_modes);
+
+    rule_editor = new HydrusAutoResolutionRuleDialog(main, this, rule, catalog, this);
     QObject::connect(rule_editor, &QObject::destroyed, this, [this]() { rule_editor = nullptr; });
     rule_editor->show();
     rule_editor->raise();

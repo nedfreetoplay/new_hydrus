@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 
 use hydrus_core::hydrus_constants::{Mime, TimestampType, general_mimetype_for};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::controller::Controller;
 use crate::db::files_timestamps;
@@ -555,30 +555,6 @@ impl AutoResolutionRule {
 
         summary
     }
-
-    fn to_json(&self) -> Value {
-        json!({
-            "name": self.name,
-            "paused": self.paused,
-            "operation_mode": self.operation_mode,
-            "max_pending_pairs": self.max_pending_pairs,
-            "search_query": self.search_query,
-            "search_mode": self.search_mode,
-            "max_distance": self.max_distance,
-            "pair_selector": self.pair_selector,
-            "action": self.action,
-            "delete_a": self.delete_a,
-            "delete_b": self.delete_b,
-            "selector_summary": self.selector_summary(),
-            "action_summary": self.action_summary(),
-            "search_summary": self.search_summary(),
-            "operation_label": if self.operation_mode == OPERATION_MODE_FULLY_AUTOMATIC {
-                "fully automatic"
-            } else {
-                "semi-automatic"
-            },
-        })
-    }
 }
 
 fn legacy_selector(comparator: &str) -> Vec<Comparator> {
@@ -939,93 +915,6 @@ fn sort_rules(rules: &mut [AutoResolutionRule]) {
     rules.sort_by_key(|rule| rule.name.to_lowercase());
 }
 
-pub fn catalog_json() -> Value {
-    json!({
-        "properties": [
-            {"value":"mime","label":"mime / filetype","text":true},
-            {"value":"size","label":"size"},
-            {"value":"width","label":"width"},
-            {"value":"height","label":"height"},
-            {"value":"ratio","label":"width / height ratio"},
-            {"value":"num_pixels","label":"number of pixels"},
-            {"value":"num_tags","label":"number of tags"},
-            {"value":"num_urls","label":"number of URLs"},
-            {"value":"has_audio","label":"has audio (1/0)"},
-            {"value":"duration","label":"duration (seconds)"},
-            {"value":"num_frames","label":"number of frames"},
-            {"value":"num_words","label":"number of words"},
-            {"value":"archived_days","label":"days since archived"},
-            {"value":"imported_days","label":"days since import"},
-            {"value":"last_viewed_days","label":"days since last viewed"}
-        ],
-        "operators": [
-            {"value":">","label":">"},
-            {"value":"<","label":"<"},
-            {"value":">=","label":">="},
-            {"value":"<=","label":"<="},
-            {"value":"=","label":"="},
-            {"value":"!=","label":"!="}
-        ],
-        "looking_at": [
-            {"value":"a","label":"A"},
-            {"value":"b","label":"B"},
-            {"value":"either","label":"either file"}
-        ],
-        "search_modes": [
-            {"value":"both","label":"both files match"},
-            {"value":"either","label":"either file matches"}
-        ],
-        "group_modes": [
-            {"value":"all","label":"all (AND)"},
-            {"value":"any","label":"any (OR)"}
-        ],
-        "actions": [
-            {"value":"better","label":"A is the better duplicate (trash B)"},
-            {"value":"worse","label":"B is the better duplicate (trash A)"},
-            {"value":"same","label":"they are the same (keep both)"},
-            {"value":"alternates","label":"they are alternates"},
-            {"value":"not_duplicates","label":"they are not duplicates"},
-            {"value":"delete_both","label":"delete both"}
-        ],
-        "operation_modes": [
-            {"value":"semi-automatic","label":"semi-automatic: collect matches for review"},
-            {"value":"fully automatic","label":"fully automatic: apply matches immediately"}
-        ]
-    })
-}
-
-fn rule_json(rule: &AutoResolutionRule) -> Value {
-    let mut value = rule.to_json();
-    value["comparator"] = json!(rule.comparator);
-    value
-}
-
-pub fn rules_json(rules: &[AutoResolutionRule], pending: usize) -> String {
-    let mut catalog = catalog_json();
-    catalog["rules"] = json!(rules.iter().map(rule_json).collect::<Vec<Value>>());
-    catalog["pending"] = json!(pending);
-
-    catalog.to_string()
-}
-
-pub fn dialog_json(state: &AppState) -> String {
-    let mut value: Value = serde_json::from_str(&rules_json(
-        &state.auto_rules,
-        state.duplicate_review.pending.len(),
-    ))
-    .unwrap_or_default();
-    value["enabled"] = json!(
-        state
-            .controller
-            .options()
-            .get_boolean("duplicates_auto_resolution_enabled")
-    );
-    value["denied"] = json!(state.duplicate_review.denied.len());
-    value["actioned"] = json!(state.duplicate_review.actioned.len());
-
-    value.to_string()
-}
-
 pub fn save_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     let Ok(mut value) = serde_json::from_str::<Value>(payload) else {
         return notify(state, "invalid auto-resolution rule");
@@ -1138,48 +1027,6 @@ fn unique_name(rules: &[AutoResolutionRule], wanted: &str, original_name: Option
     }
 }
 
-fn pair_sample_json(
-    controller: &Controller,
-    a: &[u8],
-    b: &[u8],
-    distance: i64,
-    action: Option<(&[u8], &[u8], &str)>,
-) -> Value {
-    let file_size = |hash: &[u8]| -> u64 {
-        query::hash_id_for(controller, hash)
-            .and_then(|hash_id| {
-                crate::db::files_metadata::get_file_info(controller.db().db(), hash_id)
-                    .ok()
-                    .flatten()
-            })
-            .map(|file_info| file_info.size)
-            .unwrap_or(0)
-    };
-
-    let mut value = json!({
-        "a": query::hex(a),
-        "b": query::hex(b),
-        "a_thumb": query::thumbnail_path(controller, a)
-            .map(|path| path.display().to_string())
-            .unwrap_or_default(),
-        "b_thumb": query::thumbnail_path(controller, b)
-            .map(|path| path.display().to_string())
-            .unwrap_or_default(),
-        "a_size": file_size(a),
-        "b_size": file_size(b),
-        "distance": distance,
-    });
-
-    if let Some((kept, discarded, decision)) = action {
-        value["decision"] = json!(decision);
-        value["decision_label"] = json!(decision);
-        value["kept"] = json!(query::hex(kept));
-        value["discarded"] = json!(query::hex(discarded));
-    }
-
-    value
-}
-
 pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     let Ok(mut value) = serde_json::from_str::<Value>(payload) else {
         return notify(state, "invalid auto-resolution rule");
@@ -1266,30 +1113,19 @@ pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
                     matched += 1;
 
                     if samples.len() < PREVIEW_SAMPLES {
-                        let discarded = match result.decision {
-                            AutoDecision::KeepFirst => &b,
-                            AutoDecision::KeepSecond => &a,
-                            _ => &b,
-                        };
-                        let kept = match result.decision {
-                            AutoDecision::KeepFirst => &a,
-                            AutoDecision::KeepSecond => &b,
-                            _ => &a,
-                        };
-
-                        samples.push(pair_sample_json(
+                        samples.push(pair_sample_row(
                             &state.controller,
                             &a,
                             &b,
                             distance,
-                            Some((&kept, &discarded, result.decision.label())),
+                            Some(result.decision.label()),
                         ));
                     }
                 } else {
                     failed += 1;
 
                     if failed_samples.len() < PREVIEW_SAMPLES {
-                        failed_samples.push(pair_sample_json(
+                        failed_samples.push(pair_sample_row(
                             &state.controller,
                             &a,
                             &b,
@@ -1308,106 +1144,325 @@ pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         }
     }
 
-    let projected = if rule.operation_mode == OPERATION_MODE_FULLY_AUTOMATIC {
+    let fully_automatic = rule.operation_mode == OPERATION_MODE_FULLY_AUTOMATIC;
+    let status = if let Some(error) = &error {
+        format!("search failed: {error}")
+    } else {
+        preview_status(matched, total, failed, fully_automatic)
+    };
+
+    vec![UiCommand::DuplicatesRulePreview(
+        crate::gui::qt::api::ffi::DuplicatesRulePreviewState {
+            status,
+            selector_text: rule.selector_summary(),
+            search_text: rule.search_summary(),
+            total: total as i64,
+            matched: matched as i64,
+            failed: failed as i64,
+            samples,
+            failed_samples,
+        },
+    )]
+}
+
+/// R2: tooltip of the rules dialog for a pending review count.
+pub fn pending_tooltip(pending: usize) -> String {
+    if pending > 0 {
+        format!("{pending} pair(s) are waiting for review")
+    } else {
+        String::new()
+    }
+}
+
+/// R2: status line of the review dialog for a pending count.
+pub fn review_status(pending: usize) -> String {
+    match pending {
+        0 => "no pending auto-resolution pairs".to_string(),
+        1 => "1 pending auto-resolution pair".to_string(),
+        count => format!("{count} pending auto-resolution pairs"),
+    }
+}
+
+/// R2: status line of a rule preview run.
+pub fn preview_status(matched: usize, total: usize, failed: usize, fully_automatic: bool) -> String {
+    let projected = if fully_automatic {
         "would be applied immediately"
     } else {
         "would be queued for review"
     };
-    let status = if let Some(error) = &error {
-        format!("search failed: {error}")
-    } else {
-        format!("{matched} of {total} pairs match; {failed} do not; matches {projected}")
-    };
-
-    vec![UiCommand::DuplicatesRulePreview(crate::gui::qt::api::ffi::DuplicatesRulePreviewState { json: 
-        json!({
-            "rule": rule.name,
-            "total": total,
-            "matched": matched,
-            "failed": failed,
-            "samples": samples,
-            "failed_samples": failed_samples,
-            "status": status,
-            "error": error,
-            "selector": rule.selector_summary(),
-            "search": rule.search_summary(),
-        })
-        .to_string(),
-     })]
+    format!("{matched} of {total} pairs match; {failed} do not; matches {projected}")
 }
 
-pub fn review_json(state: &AppState) -> String {
+fn decision_key(decision: AutoDecision) -> String {
+    serde_json::to_value(&decision)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_string))
+        .unwrap_or_default()
+}
+
+fn choice(value: &str, label: &str) -> crate::gui::qt::api::ffi::DuplicateChoiceRow {
+    crate::gui::qt::api::ffi::DuplicateChoiceRow {
+        value: value.to_string(),
+        label: label.to_string(),
+    }
+}
+
+fn flatten_comparators(
+    selectors: &[Comparator],
+    depth: i64,
+    out: &mut Vec<crate::gui::qt::api::ffi::RuleComparatorRow>,
+) {
+    use crate::gui::qt::api::ffi::RuleComparatorRow;
+    for comparator in selectors {
+        match comparator {
+            Comparator::OneFile { looking_at, property, operator, value, text } => {
+                out.push(RuleComparatorRow {
+                    kind: "one_file".to_string(),
+                    looking_at: looking_at.clone(),
+                    property: property.clone(),
+                    op: operator.clone(),
+                    num_value: *value,
+                    text_value: text.clone(),
+                    multiplier: 1.0,
+                    delta: 0.0,
+                    same: false,
+                    group_mode: String::new(),
+                    depth,
+                    pretty: comparator.summary(),
+                });
+            }
+            Comparator::Relative { property, operator, multiplier, delta } => {
+                out.push(RuleComparatorRow {
+                    kind: "relative".to_string(),
+                    looking_at: "a".to_string(),
+                    property: property.clone(),
+                    op: operator.clone(),
+                    num_value: 0.0,
+                    text_value: String::new(),
+                    multiplier: *multiplier,
+                    delta: *delta,
+                    same: false,
+                    group_mode: String::new(),
+                    depth,
+                    pretty: comparator.summary(),
+                });
+            }
+            Comparator::Filetype { same } => {
+                out.push(RuleComparatorRow {
+                    kind: "filetype".to_string(),
+                    looking_at: "a".to_string(),
+                    property: "filetype".to_string(),
+                    op: String::new(),
+                    num_value: 0.0,
+                    text_value: String::new(),
+                    multiplier: 1.0,
+                    delta: 0.0,
+                    same: *same,
+                    group_mode: String::new(),
+                    depth,
+                    pretty: comparator.summary(),
+                });
+            }
+            Comparator::Group { mode, comparators } => {
+                out.push(RuleComparatorRow {
+                    kind: "group".to_string(),
+                    looking_at: String::new(),
+                    property: String::new(),
+                    op: String::new(),
+                    num_value: 0.0,
+                    text_value: String::new(),
+                    multiplier: 1.0,
+                    delta: 0.0,
+                    same: false,
+                    group_mode: mode.clone(),
+                    depth,
+                    pretty: comparator.summary(),
+                });
+                flatten_comparators(comparators, depth + 1, out);
+            }
+        }
+    }
+}
+
+fn rule_row(rule: &AutoResolutionRule) -> crate::gui::qt::api::ffi::AutoRuleRow {
+    let mut selectors = Vec::new();
+    flatten_comparators(&rule.pair_selector, 0, &mut selectors);
+    let operation_label = if rule.operation_mode == OPERATION_MODE_FULLY_AUTOMATIC {
+        "fully automatic"
+    } else {
+        "semi-automatic"
+    }
+    .to_string();
+    crate::gui::qt::api::ffi::AutoRuleRow {
+        name: rule.name.clone(),
+        paused: rule.paused,
+        operation_mode: rule.operation_mode.clone(),
+        operation_label,
+        max_pending_pairs: rule.max_pending_pairs,
+        search_query: rule.search_query.clone(),
+        search_mode: rule.search_mode.clone(),
+        max_distance: rule.max_distance,
+        action: rule.action.clone(),
+        delete_a: rule.delete_a,
+        delete_b: rule.delete_b,
+        search_summary: rule.search_summary(),
+        selector_summary: rule.selector_summary(),
+        action_summary: rule.action_summary(),
+        selectors,
+    }
+}
+
+/// Typed rules dialog state (WS-15.2.4b). Replaces `dialog_json`.
+pub fn rules_dialog_state(state: &AppState) -> crate::gui::qt::api::ffi::DuplicatesRulesDialogState {
+    let pending = state.duplicate_review.pending.len();
+    crate::gui::qt::api::ffi::DuplicatesRulesDialogState {
+        enabled: state.controller.options().get_boolean("duplicates_auto_resolution_enabled"),
+        pending: pending as i64,
+        pending_tooltip: pending_tooltip(pending),
+        rules: state.auto_rules.iter().map(rule_row).collect(),
+        properties: vec![
+            choice("mime", "mime / filetype"),
+            choice("size", "size"),
+            choice("width", "width"),
+            choice("height", "height"),
+            choice("ratio", "width / height ratio"),
+            choice("num_pixels", "number of pixels"),
+            choice("num_tags", "number of tags"),
+            choice("num_urls", "number of URLs"),
+            choice("has_audio", "has audio (1/0)"),
+            choice("duration", "duration (seconds)"),
+            choice("num_frames", "number of frames"),
+            choice("num_words", "number of words"),
+            choice("archived_days", "days since archived"),
+            choice("imported_days", "days since import"),
+            choice("last_viewed_days", "days since last viewed"),
+        ],
+        operators: vec![
+            choice(">", ">"),
+            choice("<", "<"),
+            choice(">=", ">="),
+            choice("<=", "<="),
+            choice("=", "="),
+            choice("!=", "!="),
+        ],
+        looking_at: vec![
+            choice("a", "A"),
+            choice("b", "B"),
+            choice("either", "either file"),
+        ],
+        search_modes: vec![
+            choice("both", "both files match"),
+            choice("either", "either file matches"),
+        ],
+        group_modes: vec![
+            choice("all", "all (AND)"),
+            choice("any", "any (OR)"),
+        ],
+        actions_list: vec![
+            choice("better", "A is the better duplicate (trash B)"),
+            choice("worse", "B is the better duplicate (trash A)"),
+            choice("same", "they are the same (keep both)"),
+            choice("alternates", "they are alternates"),
+            choice("not_duplicates", "they are not duplicates"),
+            choice("delete_both", "delete both"),
+        ],
+        operation_modes: vec![
+            choice("semi-automatic", "semi-automatic: collect matches for review"),
+            choice("fully automatic", "fully automatic: apply matches immediately"),
+        ],
+    }
+}
+
+fn pair_sample_row(
+    controller: &Controller,
+    a: &[u8],
+    b: &[u8],
+    distance: i64,
+    decision: Option<&str>,
+) -> crate::gui::qt::api::ffi::PreviewPairRow {
+    crate::gui::qt::api::ffi::PreviewPairRow {
+        hash_a: query::hex(a),
+        hash_b: query::hex(b),
+        thumb_a: query::thumbnail_path(controller, a)
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
+        thumb_b: query::thumbnail_path(controller, b)
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
+        distance,
+        decision: decision.unwrap_or_default().to_string(),
+    }
+}
+
+/// Typed review dialog state (WS-15.2.4b). Replaces `review_json`.
+pub fn review_state(state: &AppState) -> crate::gui::qt::api::ffi::DuplicateReviewDialogState {
+    use crate::gui::qt::api::ffi::ReviewPairRow;
     let controller = &state.controller;
     let thumb = |hash: &str| {
-        crate::gui::app::query::unhex(hash)
+        query::unhex(hash)
             .and_then(|hash| query::thumbnail_path(controller, &hash))
             .map(|path| path.display().to_string())
             .unwrap_or_default()
     };
     let review = &state.duplicate_review;
-    let pending: Vec<Value> = review
-        .pending
-        .iter()
-        .map(|entry| {
-            json!({
-                "rule": entry.rule,
-                "a": entry.a,
-                "b": entry.b,
-                "a_thumb": thumb(&entry.a),
-                "b_thumb": thumb(&entry.b),
-                "distance": entry.distance,
-                "decision": entry.decision,
-                "decision_label": entry.decision.label(),
-                "delete_a": entry.delete_a,
-                "delete_b": entry.delete_b,
+    crate::gui::qt::api::ffi::DuplicateReviewDialogState {
+        status: review_status(review.pending.len()),
+        pending: review
+            .pending
+            .iter()
+            .map(|entry| ReviewPairRow {
+                hash_a: entry.a.clone(),
+                hash_b: entry.b.clone(),
+                thumb_a: thumb(&entry.a),
+                thumb_b: thumb(&entry.b),
+                distance: entry.distance,
+                rule: entry.rule.clone(),
+                decision: decision_key(entry.decision),
+                decision_label: entry.decision.label().to_string(),
+                banned: false,
+                delete_a: entry.delete_a,
+                delete_b: entry.delete_b,
             })
-        })
-        .collect();
-    let denied: Vec<Value> = review
-        .denied
-        .iter()
-        .map(|entry| {
-            json!({
-                "rule": entry.rule,
-                "a": entry.a,
-                "b": entry.b,
-                "a_thumb": thumb(&entry.a),
-                "b_thumb": thumb(&entry.b),
+            .collect(),
+        denied: review
+            .denied
+            .iter()
+            .map(|entry| ReviewPairRow {
+                hash_a: entry.a.clone(),
+                hash_b: entry.b.clone(),
+                thumb_a: thumb(&entry.a),
+                thumb_b: thumb(&entry.b),
+                distance: 0,
+                rule: entry.rule.clone(),
+                decision: String::new(),
+                decision_label: String::new(),
+                banned: false,
+                delete_a: false,
+                delete_b: false,
             })
-        })
-        .collect();
-    let actioned: Vec<Value> = review
-        .actioned
-        .iter()
-        .map(|entry| {
-            json!({
-                "rule": entry.rule,
-                "a": entry.a,
-                "b": entry.b,
-                "a_thumb": thumb(&entry.a),
-                "b_thumb": thumb(&entry.b),
-                "decision": entry.decision,
-                "decision_label": entry.decision.label(),
-                "banned": entry.banned,
+            .collect(),
+        actioned: review
+            .actioned
+            .iter()
+            .map(|entry| ReviewPairRow {
+                hash_a: entry.a.clone(),
+                hash_b: entry.b.clone(),
+                thumb_a: thumb(&entry.a),
+                thumb_b: thumb(&entry.b),
+                distance: 0,
+                rule: entry.rule.clone(),
+                decision: decision_key(entry.decision),
+                decision_label: entry.decision.label().to_string(),
+                banned: entry.banned,
+                delete_a: false,
+                delete_b: false,
             })
-        })
-        .collect();
-
-    json!({
-        "pending": pending,
-        "denied": denied,
-        "actioned": actioned,
-        "status": match review.pending.len() {
-            0 => "no pending auto-resolution pairs".to_string(),
-            1 => "1 pending auto-resolution pair".to_string(),
-            count => format!("{count} pending auto-resolution pairs"),
-        },
-    })
-    .to_string()
+            .collect(),
+    }
 }
 
 pub fn review_open(state: &AppState) -> Vec<UiCommand> {
-    vec![UiCommand::DuplicateReviewDialog(crate::gui::qt::api::ffi::DuplicateReviewDialogState { json: review_json(state) })]
+    vec![UiCommand::DuplicateReviewDialog(review_state(state))]
 }
 
 /// Opens the selected auto-resolution pairs in a new file page. Python offers
@@ -1521,7 +1576,7 @@ pub fn review_apply(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     state.refresh_all();
 
     let mut commands = state.refresh_commands();
-    commands.push(UiCommand::UpdateDuplicateReview(crate::gui::qt::api::ffi::DuplicateReviewDialogState { json: review_json(state) }));
+    commands.push(UiCommand::UpdateDuplicateReview(review_state(state)));
     commands.push(UiCommand::NotifyMessage(state.message.clone()));
 
     commands
@@ -1568,7 +1623,7 @@ fn refresh(state: &mut AppState) -> Vec<UiCommand> {
     state.refresh_all();
 
     let mut commands = state.refresh_commands();
-    commands.push(UiCommand::DuplicatesRulesDialog(crate::gui::qt::api::ffi::DuplicatesRulesDialogState { json: dialog_json(state) }));
+    commands.push(UiCommand::DuplicatesRulesDialog(rules_dialog_state(state)));
     commands.push(UiCommand::BuildPages(render::pages(state)));
     commands.push(UiCommand::Status(render::status(state)));
 
@@ -1578,7 +1633,7 @@ fn refresh(state: &mut AppState) -> Vec<UiCommand> {
 fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::NotifyMessage(message.into()),
-        UiCommand::DuplicatesRulesDialog(crate::gui::qt::api::ffi::DuplicatesRulesDialogState { json: dialog_json(state) }),
+        UiCommand::DuplicatesRulesDialog(rules_dialog_state(state)),
     ]
 }
 

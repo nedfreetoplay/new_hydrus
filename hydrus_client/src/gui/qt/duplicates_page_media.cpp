@@ -425,36 +425,31 @@ void HydrusDuplicatesPage::update_state(const DuplicatesPageState &state) {
     update_auto_resolution_rules(state);
 }
 
-void HydrusDuplicatesPage::update_auto_resolution_rules(const QJsonObject &state) {
+void HydrusDuplicatesPage::update_auto_resolution_rules(const DuplicatesRulesDialogState &state) {
     if (auto_rules_table == nullptr) {
         return;
     }
 
-    QJsonArray rules = state.value(QStringLiteral("auto_rules")).toArray();
-    if (rules.isEmpty()) {
-        rules = state.value(QStringLiteral("rules")).toArray();
-    }
-    auto_rules_table->setRowCount(rules.size());
+    const rust::Vec<AutoRuleRow> &rules = state.rules;
+    auto_rules_table->setRowCount(static_cast<int>(rules.size()));
 
-    for (int index = 0; index < rules.size(); ++index) {
-        const QJsonObject rule = rules.at(index).toObject();
+    for (size_t index = 0; index < rules.size(); ++index) {
+        const AutoRuleRow &rule = rules[index];
 
         for (int column = 0; column < 3; ++column) {
-            if (auto_rules_table->item(index, column) == nullptr) {
-                auto_rules_table->setItem(index, column, new QTableWidgetItem());
+            if (auto_rules_table->item(static_cast<int>(index), column) == nullptr) {
+                auto_rules_table->setItem(static_cast<int>(index), column, new QTableWidgetItem());
             }
         }
 
-        auto_rules_table->item(index, 0)->setText(rule.value(QStringLiteral("name")).toString());
-        auto_rules_table->item(index, 1)->setText(
-            rule.value(QStringLiteral("search_summary")).toString());
-        auto_rules_table->item(index, 2)->setText(
-            rule.value(QStringLiteral("paused")).toBool() ? QStringLiteral("paused")
-                                                          : QStringLiteral("running"));
+        auto_rules_table->item(static_cast<int>(index), 0)->setText(to_qstring(rule.name));
+        auto_rules_table->item(static_cast<int>(index), 1)->setText(to_qstring(rule.search_summary));
+        auto_rules_table->item(static_cast<int>(index), 2)->setText(
+            rule.paused ? QStringLiteral("paused") : QStringLiteral("running"));
     }
 
     if (auto_rules_status != nullptr) {
-        if (rules.isEmpty()) {
+        if (rules.empty()) {
             auto_rules_status->setText(QStringLiteral("no auto-resolution rules yet"));
             auto_rules_status->setVisible(true);
         } else {

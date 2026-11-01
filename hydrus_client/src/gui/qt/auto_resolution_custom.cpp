@@ -1,5 +1,5 @@
 
-// WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
+// WS-15.2.4b: typed DuplicateCustomActionDialogState (no JSON parsing).
 
 #include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
@@ -34,15 +34,60 @@
 #include <QVBoxLayout>
 #include <algorithm>
 
+namespace {
+
+MergeOptionsInfo to_merge_info(const MergeOptionsData &options);
+
+MergeServiceActionInfo to_service_action(const MergeServiceActionRow &entry) {
+    return {to_qstring(entry.service), to_qstring(entry.action)};
+}
+
+MergeOptionsPageInfo to_page_info(const MergeOptionsPage &page) {
+    MergeOptionsPageInfo out;
+    out.archive_action = to_qstring(page.archive_action);
+    out.modified_date_action = to_qstring(page.modified_date_action);
+    out.urls_action = to_qstring(page.urls_action);
+    out.notes_action = to_qstring(page.notes_action);
+    for (const MergeServiceActionRow &entry : page.tag_actions) {
+        out.tag_actions.push_back(to_service_action(entry));
+    }
+    for (const MergeServiceActionRow &entry : page.rating_actions) {
+        out.rating_actions.push_back(to_service_action(entry));
+    }
+    return out;
+}
+
+MergeOptionsInfo to_merge_info(const MergeOptionsData &options) {
+    MergeOptionsInfo info;
+    info.better = to_page_info(options.better);
+    info.same = to_page_info(options.same);
+    for (const rust::String &service : options.tag_services) {
+        info.tag_services.append(to_qstring(service));
+    }
+    for (const rust::String &service : options.rating_services) {
+        info.rating_services.append(to_qstring(service));
+    }
+    for (const DuplicateChoiceRow &entry : options.actions) {
+        info.actions.push_back({to_qstring(entry.value), to_qstring(entry.label)});
+    }
+    for (const DuplicateChoiceRow &entry : options.archive_actions) {
+        info.archive_actions.push_back({to_qstring(entry.value), to_qstring(entry.label)});
+    }
+    return info;
+}
+
+}  // namespace
+
 HydrusDuplicateCustomActionDialog::HydrusDuplicateCustomActionDialog(
-    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    HydrusMainWindow *main_window, const DuplicateCustomActionDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("custom duplicate action"));
     setObjectName(QStringLiteral("hydrus_duplicate_custom_action_dialog"));
     setAttribute(Qt::WA_DeleteOnClose, true);
     resize(800, 700);
 
-    data = state;
+    page_id = to_qstring(state.page_id);
+    const MergeOptionsInfo data = to_merge_info(state.options);
 
     auto *layout = new QVBoxLayout(this);
 
@@ -53,19 +98,8 @@ HydrusDuplicateCustomActionDialog::HydrusDuplicateCustomActionDialog(
     help->setWordWrap(true);
     layout->addWidget(help);
 
-    const QJsonObject pair = data.value(QStringLiteral("pair")).toObject();
-
-    if (!pair.isEmpty()) {
-        const QJsonObject a = pair.value(QStringLiteral("a")).toObject();
-        const QJsonObject b = pair.value(QStringLiteral("b")).toObject();
-
-        auto *summary = new QLabel(
-            QStringLiteral("A: %1  %2\nB: %3  %4")
-                .arg(a.value(QStringLiteral("hash")).toString().left(16),
-                     a.value(QStringLiteral("info")).toString(),
-                     b.value(QStringLiteral("hash")).toString().left(16),
-                     b.value(QStringLiteral("info")).toString()),
-            this);
+    if (state.has_pair) {
+        auto *summary = new QLabel(to_qstring(state.pair_summary), this);
         summary->setWordWrap(true);
         summary->setStyleSheet(QStringLiteral("font-family: monospace;"));
         layout->addWidget(summary);
@@ -74,21 +108,18 @@ HydrusDuplicateCustomActionDialog::HydrusDuplicateCustomActionDialog(
     auto *form = new QFormLayout();
 
     action = new QComboBox(this);
-    for (const QJsonValue &entry : data.value(QStringLiteral("duplicate_types")).toArray()) {
-        const QJsonObject object = entry.toObject();
-        action->addItem(object.value(QStringLiteral("label")).toString(), object.value(QStringLiteral("value")).toString());
+    for (const DuplicateChoiceRow &entry : state.duplicate_types) {
+        action->addItem(to_qstring(entry.label), to_qstring(entry.value));
     }
 
     better_side = new QComboBox(this);
-    for (const QJsonValue &entry : data.value(QStringLiteral("better_sides")).toArray()) {
-        const QJsonObject object = entry.toObject();
-        better_side->addItem(object.value(QStringLiteral("label")).toString(), object.value(QStringLiteral("value")).toString());
+    for (const DuplicateChoiceRow &entry : state.better_sides) {
+        better_side->addItem(to_qstring(entry.label), to_qstring(entry.value));
     }
 
     delete_mode = new QComboBox(this);
-    for (const QJsonValue &entry : data.value(QStringLiteral("delete_modes")).toArray()) {
-        const QJsonObject object = entry.toObject();
-        delete_mode->addItem(object.value(QStringLiteral("label")).toString(), object.value(QStringLiteral("value")).toString());
+    for (const DuplicateChoiceRow &entry : state.delete_modes) {
+        delete_mode->addItem(to_qstring(entry.label), to_qstring(entry.value));
     }
 
     form->addRow(QStringLiteral("action:"), action);
@@ -99,8 +130,8 @@ HydrusDuplicateCustomActionDialog::HydrusDuplicateCustomActionDialog(
     tabs = new QTabWidget(this);
     build_duplicate_merge_page(this, tabs, data, QStringLiteral("this is better"), better);
     build_duplicate_merge_page(this, tabs, data, QStringLiteral("same quality"), same);
-    fill_duplicate_merge_page(better, data, data.value(QStringLiteral("better")).toObject());
-    fill_duplicate_merge_page(same, data, data.value(QStringLiteral("same")).toObject());
+    fill_duplicate_merge_page(better, data, data.better);
+    fill_duplicate_merge_page(same, data, data.same);
     layout->addWidget(tabs, 1);
 
     auto *buttons = new QHBoxLayout();
@@ -143,7 +174,7 @@ void HydrusDuplicateCustomActionDialog::apply() {
     payload.insert(QStringLiteral("same"), read_duplicate_merge_page(same));
 
     main->notify(UiAction::DuplicatesCustom,
-        data.value(QStringLiteral("page_id")).toString(),
+        page_id,
         json_payload(payload));
 
     close();

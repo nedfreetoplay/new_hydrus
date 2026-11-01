@@ -1,5 +1,5 @@
 
-// WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
+// WS-15.2.4b: typed DuplicatesMergeOptionsDialogState (no JSON parsing).
 
 #include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
@@ -34,15 +34,54 @@
 #include <QVBoxLayout>
 #include <algorithm>
 
+namespace {
+
+MergeOptionsInfo to_merge_info(const MergeOptionsData &options) {
+    MergeOptionsInfo info;
+    auto to_page = [](const MergeOptionsPage &page) {
+        MergeOptionsPageInfo out;
+        out.archive_action = to_qstring(page.archive_action);
+        out.modified_date_action = to_qstring(page.modified_date_action);
+        out.urls_action = to_qstring(page.urls_action);
+        out.notes_action = to_qstring(page.notes_action);
+        for (const MergeServiceActionRow &entry : page.tag_actions) {
+            out.tag_actions.push_back({to_qstring(entry.service), to_qstring(entry.action)});
+        }
+        for (const MergeServiceActionRow &entry : page.rating_actions) {
+            out.rating_actions.push_back({to_qstring(entry.service), to_qstring(entry.action)});
+        }
+        return out;
+    };
+    info.better = to_page(options.better);
+    info.same = to_page(options.same);
+    for (const rust::String &service : options.tag_services) {
+        info.tag_services.append(to_qstring(service));
+    }
+    for (const rust::String &service : options.rating_services) {
+        info.rating_services.append(to_qstring(service));
+    }
+    for (const DuplicateChoiceRow &entry : options.actions) {
+        info.actions.push_back({to_qstring(entry.value), to_qstring(entry.label)});
+    }
+    for (const DuplicateChoiceRow &entry : options.archive_actions) {
+        info.archive_actions.push_back({to_qstring(entry.value), to_qstring(entry.label)});
+    }
+    Q_UNUSED(options.better_summary);
+    Q_UNUSED(options.same_summary);
+    return info;
+}
+
+}  // namespace
+
 HydrusDuplicateMergeOptionsDialog::HydrusDuplicateMergeOptionsDialog(
-    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    HydrusMainWindow *main_window, const DuplicatesMergeOptionsDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("duplicate merge options"));
     setObjectName(QStringLiteral("hydrus_duplicate_merge_options_dialog"));
     setAttribute(Qt::WA_DeleteOnClose, true);
     resize(760, 620);
 
-    data = state;
+    data = to_merge_info(state.options);
 
     auto *layout = new QVBoxLayout(this);
 
@@ -77,17 +116,17 @@ HydrusDuplicateMergeOptionsDialog::HydrusDuplicateMergeOptionsDialog(
     }
 }
 
-void HydrusDuplicateMergeOptionsDialog::set_state(const QJsonObject &state) {
-    data = state;
+void HydrusDuplicateMergeOptionsDialog::set_state(const DuplicatesMergeOptionsDialogState &state) {
+    data = to_merge_info(state.options);
 
-    fill_duplicate_merge_page(better, data, data.value(QStringLiteral("better")).toObject());
-    fill_duplicate_merge_page(same, data, data.value(QStringLiteral("same")).toObject());
+    fill_duplicate_merge_page(better, data, data.better);
+    fill_duplicate_merge_page(same, data, data.same);
 }
 
 void build_duplicate_merge_page(
     QWidget *parent,
     QTabWidget *tabs,
-    const QJsonObject &data,
+    const MergeOptionsInfo &data,
     const QString &title,
     DuplicateMergePage &page) {
     auto *widget = new QWidget(parent);
@@ -100,21 +139,17 @@ void build_duplicate_merge_page(
     page.urls = new QComboBox(widget);
     page.notes = new QComboBox(widget);
 
-    for (const QJsonValue &action : data.value(QStringLiteral("archive_actions")).toArray()) {
-        const QJsonObject entry = action.toObject();
-        page.archive->addItem(entry.value(QStringLiteral("label")).toString(), entry.value(QStringLiteral("value")).toString());
+    for (const ChoiceInfo &action : data.archive_actions) {
+        page.archive->addItem(action.label, action.value);
     }
 
     for (QComboBox *combo : {page.modified_date, page.urls, page.notes}) {
-        for (const QJsonValue &action : data.value(QStringLiteral("actions")).toArray()) {
-            const QJsonObject entry = action.toObject();
-            const QString value = entry.value(QStringLiteral("value")).toString();
-
-            if (combo == page.modified_date && (value == QStringLiteral("move") || value == QStringLiteral("add_move"))) {
+        for (const ChoiceInfo &action : data.actions) {
+            if (combo == page.modified_date && (action.value == QStringLiteral("move") || action.value == QStringLiteral("add_move"))) {
                 continue;
             }
 
-            combo->addItem(entry.value(QStringLiteral("label")).toString(), value);
+            combo->addItem(action.label, action.value);
         }
     }
 
@@ -152,8 +187,8 @@ void build_duplicate_merge_page(
 
 void fill_duplicate_merge_page(
     DuplicateMergePage &page,
-    const QJsonObject &data,
-    const QJsonObject &options) {
+    const MergeOptionsInfo &data,
+    const MergeOptionsPageInfo &options) {
     auto select_value = [](QComboBox *combo, const QString &value) {
         const int index = combo->findData(value);
 
@@ -162,28 +197,34 @@ void fill_duplicate_merge_page(
         }
     };
 
-    select_value(page.archive, options.value(QStringLiteral("sync_archive_action")).toString());
-    select_value(page.modified_date, options.value(QStringLiteral("sync_file_modified_date_action")).toString());
-    select_value(page.urls, options.value(QStringLiteral("sync_urls_action")).toString());
-    select_value(page.notes, options.value(QStringLiteral("sync_notes_action")).toString());
+    select_value(page.archive, options.archive_action);
+    select_value(page.modified_date, options.modified_date_action);
+    select_value(page.urls, options.urls_action);
+    select_value(page.notes, options.notes_action);
 
-    auto fill_table = [&data](QTableWidget *table, const QJsonArray &services, const QJsonObject &actions) {
+    auto fill_table = [&data](QTableWidget *table, const QStringList &services, const std::vector<MergeServiceActionInfo> &actions) {
         table->setRowCount(0);
 
-        for (const QJsonValue &service_value : services) {
-            const QString service = service_value.toString();
+        for (const QString &service : services) {
             const int row = table->rowCount();
             table->insertRow(row);
             table->setItem(row, 0, new QTableWidgetItem(service));
 
             auto *combo = new QComboBox(table);
 
-            for (const QJsonValue &action : data.value(QStringLiteral("actions")).toArray()) {
-                const QJsonObject entry = action.toObject();
-                combo->addItem(entry.value(QStringLiteral("label")).toString(), entry.value(QStringLiteral("value")).toString());
+            for (const ChoiceInfo &action : data.actions) {
+                combo->addItem(action.label, action.value);
             }
 
-            const int index = combo->findData(actions.value(service).toString());
+            QString current;
+            for (const MergeServiceActionInfo &entry : actions) {
+                if (entry.service == service) {
+                    current = entry.action;
+                    break;
+                }
+            }
+
+            const int index = combo->findData(current);
 
             if (index >= 0) {
                 combo->setCurrentIndex(index);
@@ -199,14 +240,8 @@ void fill_duplicate_merge_page(
         }
     };
 
-    fill_table(
-        page.tags,
-        data.value(QStringLiteral("tag_services")).toArray(),
-        options.value(QStringLiteral("tag_service_actions")).toObject());
-    fill_table(
-        page.ratings,
-        data.value(QStringLiteral("rating_services")).toArray(),
-        options.value(QStringLiteral("rating_service_actions")).toObject());
+    fill_table(page.tags, data.tag_services, options.tag_actions);
+    fill_table(page.ratings, data.rating_services, options.rating_actions);
 }
 
 QJsonObject read_duplicate_merge_page(const DuplicateMergePage &page) {

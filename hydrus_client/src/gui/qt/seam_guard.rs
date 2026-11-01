@@ -75,11 +75,6 @@ const JSON_FIELD_ALLOWLIST: &[&str] = &[
     "ImportOptionsDialogState.json",
     "OptionsDialogState.json",
     "LocalImportTaggingDialogState.json",
-    "DuplicatesRulesDialogState.json",
-    "DuplicatesMergeOptionsDialogState.json",
-    "DuplicateCustomActionDialogState.json",
-    "DuplicatesRulePreviewState.json",
-    "DuplicateReviewDialogState.json",
 ];
 
 /// cxx functions that still take a `json: &str` argument (WS-15.2 debt).

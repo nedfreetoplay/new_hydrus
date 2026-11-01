@@ -395,22 +395,25 @@ fn preview_reports_matches_without_touching_the_database() {
     let rule = rule_with(vec![relative("size", ">")], "better");
     let payload = serde_json::to_string(&rule).unwrap();
     let commands = preview_rule(&mut state, &payload);
-    let json = commands
+    let preview = commands
         .iter()
         .find_map(|command| match command {
-            UiCommand::DuplicatesRulePreview(state) => Some(state.json.clone()),
+            UiCommand::DuplicatesRulePreview(state) => Some(state),
             _ => None,
         })
         .expect("preview");
-    let value: Value = serde_json::from_str(&json).unwrap();
 
-    assert_eq!(value["total"], 2);
-    assert_eq!(value["matched"], 1);
-    assert_eq!(value["failed"], 1);
-    assert_eq!(value["samples"].as_array().unwrap().len(), 1);
-    assert_eq!(value["failed_samples"].as_array().unwrap().len(), 1);
-    assert!(value["samples"][0]["a_thumb"].is_string());
-    assert!(value["failed_samples"][0]["b_thumb"].is_string());
+    assert_eq!(preview.total, 2);
+    assert_eq!(preview.matched, 1);
+    assert_eq!(preview.failed, 1);
+    assert_eq!(preview.samples.len(), 1);
+    assert_eq!(preview.failed_samples.len(), 1);
+    assert!(!preview.samples[0].hash_a.is_empty());
+    assert!(!preview.failed_samples[0].hash_b.is_empty());
+    assert_eq!(
+        preview.status,
+        preview_status(1, 2, 1, false)
+    );
     assert!(state.duplicate_review.pending.is_empty());
 
     let _ = std::fs::remove_dir_all(directory);
@@ -557,4 +560,40 @@ fn auto_resolution_sidebar_status_helpers() {
     assert!(!pause_play_enabled(0));
     assert!(review_actions_enabled(2));
     assert!(!review_actions_enabled(0));
+}
+
+#[test]
+fn typed_seam_status_texts() {
+    assert_eq!(pending_tooltip(0), "");
+    assert_eq!(pending_tooltip(3), "3 pair(s) are waiting for review");
+    assert_eq!(review_status(0), "no pending auto-resolution pairs");
+    assert_eq!(review_status(1), "1 pending auto-resolution pair");
+    assert_eq!(review_status(2), "2 pending auto-resolution pairs");
+    assert_eq!(
+        preview_status(1, 2, 1, false),
+        "1 of 2 pairs match; 1 do not; matches would be queued for review"
+    );
+    assert_eq!(
+        preview_status(2, 2, 0, true),
+        "2 of 2 pairs match; 0 do not; matches would be applied immediately"
+    );
+}
+
+#[test]
+fn flatten_comparators_keeps_group_depth() {
+    let rule = rule_with(
+        vec![Comparator::Group {
+            mode: "any".to_string(),
+            comparators: vec![relative("size", ">")],
+        }],
+        "better",
+    );
+    let row = rule_row(&rule);
+    assert_eq!(row.selectors.len(), 2);
+    assert_eq!(row.selectors[0].kind, "group");
+    assert_eq!(row.selectors[0].depth, 0);
+    assert_eq!(row.selectors[1].depth, 1);
+    assert!(!row.selectors[1].pretty.is_empty());
+    assert_eq!(row.operation_label, "semi-automatic");
+    assert_eq!(row.search_summary, "all potential duplicate pairs");
 }

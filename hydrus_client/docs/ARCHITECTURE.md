@@ -139,6 +139,8 @@ mouse-таблицу выбранного контекста и редактир
 `app_shortcut_key_save`, `app_shortcut_context_open`,
 `hydrus_mouse_gesture_action`, `hydrus_keyboard_action` (R1).
 
+WS-13.13-доделка 2: диалог показывает для выбранного контекста эффективные keyboard-привязки — ShortcutBindingRow.inherited + ShortcutSetsDialogState.context_bindings (свои/унаследованные с источником, edit/clear неглавного контекста через app_shortcut_key_save); вьюер по right-release строит меню из Rust — новый gui/app/viewer_menu.rs (ViewerMenuFacts/viewer_menu + тесты, порядок CanvasPanel.ShowMenuFromSignal) и шов hydrus_viewer_menu(viewer) -> MenuBar; C++ только собирает QMenu и зовёт notify (notes — через app_manage_notes, как hover-кнопка).
+
 Граница cxx — один модуль `#[cxx::bridge] mod ffi` в `gui/qt/api.rs` с одним
 `include!("bridge.hpp")`: агрегатор подтягивает все заголовки, поэтому
 разделять мост на `ffi_pages`/`ffi_dialogs` не понадобилось. Rust-шимы

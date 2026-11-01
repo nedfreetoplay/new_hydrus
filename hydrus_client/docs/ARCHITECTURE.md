@@ -315,8 +315,21 @@ WS-15.3.2c (метрики, закрыт): перенесены № 5, 7, 19–2
 `autocomplete_visible_rows`; 10 геттеров `hydrus_metric_*`, C++-формулы
 удалены; `render::progress_percent` делегирует каноникалу).
 `bridge_api.hpp` 627→449: блок show/update-объявлений вынесен в новый
-`gui/qt/bridge_decls.hpp` (186 строк). Остались: № 11, 36
+`gui/qt/bridge_decls.hpp` (186 строк). Оставались: № 11, 36
 (ячейки/сортировка → 15.3.2d).
+
+WS-15.3.2d (сортировка/группировка/сводные ячейки, закрыт): перенесены № 11, 36
+в `gui/app/sort_group.rs` (8 чистых функций + 8 тестов, всего 780 unit;
+`comparator_number_text` — каноникал № 11, ячейки files/checking делегируют
+`render::downloader_files_status`; плюс `sorted_order_strings/ints`,
+`sorted_selected_rows`, `seed_visible_order`, `seed_timestamp_text`,
+`group_rows`). 5 тонких геттеров `hydrus_sort_*/hydrus_seed_time_text/
+hydrus_comparator_number_text` в `api.rs` (объявления — `avail.hpp`);
+C++-дубли удалены (`QString::number` компаратора, `std::sort` review-селекции,
+`sortItems` менеджеров, лямбда timestamp seed-диалога). Аудит 15.3.1 полностью
+перенесён: в C++ не осталось чистых формул из таблицы — только применение
+готовых значений из Rust (плумбинг `support/strings`, виджетная координация,
+Qt-сортировка пустых вьюх исключены как не-чистая логика).
 
 Итого: типизированы статус-бар/about/stats, меню/дерево/страницы, media/
 selection/viewer/metadata, downloader/subscriptions/seed cache, duplicates,

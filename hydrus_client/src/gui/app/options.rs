@@ -1243,6 +1243,145 @@ fn network_commands(state: &AppState) -> Vec<UiCommand> {
     ]
 }
 
+/// Typed reverse seams (WS-15.2.4c): same cores as the `notify(...)`
+/// JSON branches in `network_action`, with flat arguments.
+/// `time_delta`: -1 means calendar month (null). `expires`: -1 means none.
+pub fn network_save_typed(
+    state: &mut AppState,
+    api_enabled: bool,
+    network_timeout: i32,
+    max_network_jobs: i32,
+    max_network_jobs_per_domain: i32,
+    api_port: i32,
+    api_access_key: &str,
+    http_proxy: &str,
+    https_proxy: &str,
+    no_proxy: &str,
+) -> Vec<UiCommand> {
+    let payload = serde_json::json!({
+        "booleans": { "api_enabled": api_enabled },
+        "integers": {
+            "network_timeout": network_timeout,
+            "max_network_jobs": max_network_jobs,
+            "max_network_jobs_per_domain": max_network_jobs_per_domain,
+            "api_port": api_port,
+        },
+        "strings": { "api_access_key": api_access_key },
+        "noneable_strings": {
+            "http_proxy": http_proxy,
+            "https_proxy": https_proxy,
+            "no_proxy": no_proxy,
+        },
+    });
+    network_action(state, ffi::UiAction::NetworkSave, &payload.to_string())
+}
+
+pub fn network_header_typed(state: &mut AppState, name: &str, value: &str, remove: bool) -> Vec<UiCommand> {
+    let payload = serde_json::json!({ "name": name, "value": value });
+    network_action(
+        state,
+        if remove {
+            ffi::UiAction::NetworkHeaderRemove
+        } else {
+            ffi::UiAction::NetworkHeaderAdd
+        },
+        &payload.to_string(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn network_url_class_save_typed(
+    state: &mut AppState,
+    original: &str,
+    name: &str,
+    url_type: i32,
+    preferred_scheme: &str,
+    netloc: &str,
+    path: &str,
+    parameters: &str,
+    example_url: &str,
+    match_subdomains: bool,
+    keep_matched_subdomains: bool,
+    can_produce_multiple_files: bool,
+    should_be_associated_with_files: bool,
+    is_add: bool,
+) -> Vec<UiCommand> {
+    let payload = serde_json::json!({
+        "original": original,
+        "name": name,
+        "url_type": url_type,
+        "preferred_scheme": preferred_scheme,
+        "netloc": netloc,
+        "path": path,
+        "parameters": parameters,
+        "example_url": example_url,
+        "match_subdomains": match_subdomains,
+        "keep_matched_subdomains": keep_matched_subdomains,
+        "can_produce_multiple_files": can_produce_multiple_files,
+        "should_be_associated_with_files": should_be_associated_with_files,
+    });
+    network_action(
+        state,
+        if is_add {
+            ffi::UiAction::NetworkUrlClassAdd
+        } else {
+            ffi::UiAction::NetworkUrlClassSave
+        },
+        &payload.to_string(),
+    )
+}
+
+pub fn network_url_class_remove_typed(state: &mut AppState, name: &str) -> Vec<UiCommand> {
+    let payload = serde_json::json!({ "name": name });
+    network_action(state, ffi::UiAction::NetworkUrlClassRemove, &payload.to_string())
+}
+
+pub fn network_pool_set_typed(state: &mut AppState, domain: &str, limit: i32) -> Vec<UiCommand> {
+    let payload = serde_json::json!({ "domain": domain, "limit": limit });
+    network_action(state, ffi::UiAction::NetworkPoolSet, &payload.to_string())
+}
+
+pub fn network_pool_remove_typed(state: &mut AppState, domain: &str) -> Vec<UiCommand> {
+    let payload = serde_json::json!({ "domain": domain });
+    network_action(state, ffi::UiAction::NetworkPoolRemove, &payload.to_string())
+}
+
+pub fn network_rule_set_typed(
+    state: &mut AppState,
+    context_type: &str,
+    context: &str,
+    bandwidth_type: &str,
+    time_delta: i64,
+    max_allowed: i64,
+) -> Vec<UiCommand> {
+    let mut payload = serde_json::json!({
+        "context_type": context_type,
+        "context": context,
+        "bandwidth_type": bandwidth_type,
+        "max_allowed": max_allowed,
+    });
+    if time_delta >= 0 {
+        payload["time_delta"] = serde_json::json!(time_delta);
+    } else {
+        payload["time_delta"] = Value::Null;
+    }
+    network_action(state, ffi::UiAction::NetworkRuleSet, &payload.to_string())
+}
+
+pub fn network_rule_remove_typed(
+    state: &mut AppState,
+    context_type: &str,
+    context: &str,
+    bandwidth_type: &str,
+) -> Vec<UiCommand> {
+    let payload = serde_json::json!({
+        "context_type": context_type,
+        "context": context,
+        "bandwidth_type": bandwidth_type,
+    });
+    network_action(state, ffi::UiAction::NetworkRuleRemove, &payload.to_string())
+}
+
 
 fn apply_maps(options: &mut ClientOptions, value: &Value) {
     if let Some(map) = value.get("booleans").and_then(Value::as_object) {

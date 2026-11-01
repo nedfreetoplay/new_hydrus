@@ -104,10 +104,8 @@ void HydrusServicesDialog::delete_selected() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("key"), key);
-
-    main->notify(UiAction::ServiceDelete, QString(), json_payload(payload));
+    const QByteArray del_key = key.toUtf8();
+    app_service_delete(*main, rust::Str(del_key.constData(), del_key.size()));
 }
 
 void HydrusServicesDialog::show_specifier() {
@@ -225,18 +223,20 @@ void HydrusServicesDialog::edit_login() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("domain"), domain->text().trimmed());
-    payload.insert(QStringLiteral("username"), username->text());
-    payload.insert(QStringLiteral("password"), password->text());
-    payload.insert(QStringLiteral("access_key"), access_key->text().trimmed());
-
-    if (expires->value() > 0) {
-        payload.insert(QStringLiteral("expires"),
-                       QDateTime::currentSecsSinceEpoch() + static_cast<qint64>(expires->value()) * 86400);
-    }
-
-    main->notify(UiAction::LoginSave, QString(), json_payload(payload));
+    const QByteArray login_domain = domain->text().trimmed().toUtf8();
+    const QByteArray login_username = username->text().toUtf8();
+    const QByteArray login_password = password->text().toUtf8();
+    const QByteArray login_access = access_key->text().trimmed().toUtf8();
+    const int64_t login_expires = expires->value() > 0
+        ? QDateTime::currentSecsSinceEpoch() + static_cast<int64_t>(expires->value()) * 86400
+        : -1;
+    app_login_save(
+        *main,
+        rust::Str(login_domain.constData(), login_domain.size()),
+        rust::Str(login_username.constData(), login_username.size()),
+        rust::Str(login_password.constData(), login_password.size()),
+        rust::Str(login_access.constData(), login_access.size()),
+        login_expires);
 }
 
 void HydrusServicesDialog::remove_login() {
@@ -256,11 +256,12 @@ void HydrusServicesDialog::remove_login() {
 }
 
 void HydrusServicesDialog::connect_admin() {
-    QJsonObject payload;
-    payload.insert(QStringLiteral("address"), admin_address->text().trimmed());
-    payload.insert(QStringLiteral("access_key"), admin_key->text().trimmed());
-
-    main->notify(UiAction::AdminConnect, QString(), json_payload(payload));
+    const QByteArray address = admin_address->text().trimmed().toUtf8();
+    const QByteArray access = admin_key->text().trimmed().toUtf8();
+    app_admin_connect(
+        *main,
+        rust::Str(address.constData(), address.size()),
+        rust::Str(access.constData(), access.size()));
 }
 
 void HydrusServicesDialog::select_remote_service() {
@@ -270,16 +271,12 @@ void HydrusServicesDialog::select_remote_service() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("service_key"), key);
-    payload.insert(QStringLiteral("access_key"), remote_key->text().trimmed());
-
-    main->notify(UiAction::AdminServiceAction, QString(),
-                 json_payload([&]() {
-                     QJsonObject with_action = payload;
-                     with_action.insert(QStringLiteral("action"), QStringLiteral("select"));
-                     return with_action;
-                 }()));
+    const QByteArray select_key = key.toUtf8();
+    const QByteArray select_access = remote_key->text().trimmed().toUtf8();
+    app_admin_select_service(
+        *main,
+        rust::Str(select_key.constData(), select_key.size()),
+        rust::Str(select_access.constData(), select_access.size()));
 }
 
 void HydrusServicesDialog::add_remote_service() {
@@ -325,12 +322,12 @@ void HydrusServicesDialog::add_remote_service() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("name"), name->text().trimmed());
-    payload.insert(QStringLiteral("type_int"), type->currentData().toInt());
-    payload.insert(QStringLiteral("port"), port->value());
-
-    main->notify(UiAction::AdminAddService, QString(), json_payload(payload));
+    const QByteArray add_name = name->text().trimmed().toUtf8();
+    app_admin_add_service(
+        *main,
+        rust::Str(add_name.constData(), add_name.size()),
+        type->currentData().toInt(),
+        port->value());
 }
 
 void HydrusServicesDialog::edit_remote_service() {
@@ -371,12 +368,13 @@ void HydrusServicesDialog::edit_remote_service() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("service_key"), service.key);
-    payload.insert(QStringLiteral("name"), name->text().trimmed());
-    payload.insert(QStringLiteral("port"), port->value());
-
-    main->notify(UiAction::AdminEditService, QString(), json_payload(payload));
+    const QByteArray edit_key = service.key.toUtf8();
+    const QByteArray edit_name = name->text().trimmed().toUtf8();
+    app_admin_edit_service(
+        *main,
+        rust::Str(edit_key.constData(), edit_key.size()),
+        rust::Str(edit_name.constData(), edit_name.size()),
+        port->value());
 }
 
 void HydrusServicesDialog::remove_remote_service() {
@@ -428,10 +426,7 @@ void HydrusServicesDialog::remote_service_action() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("action"), action);
-    payload.insert(QStringLiteral("service_key"), key);
-    payload.insert(QStringLiteral("access_key"), remote_key->text().trimmed());
+    int64_t service_period = -1;
 
     if (action.endsWith(QStringLiteral("period"))) {
         bool ok = false;
@@ -444,10 +439,12 @@ void HydrusServicesDialog::remote_service_action() {
             return;
         }
 
-        payload.insert(QStringLiteral("period"), seconds);
+        service_period = seconds;
     }
 
-    main->notify(UiAction::AdminServiceAction, QString(), json_payload(payload));
+    const QByteArray action_bytes = action.toUtf8();
+    app_admin_service_action(
+        *main, rust::Str(action_bytes.constData(), action_bytes.size()), service_period);
 }
 
 void HydrusServicesDialog::account_action() {
@@ -500,9 +497,10 @@ void HydrusServicesDialog::account_action() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("action"), action);
-    payload.insert(QStringLiteral("subject_account_key"), account_key);
+    const QByteArray account_action = action.toUtf8();
+    const QByteArray account_subject = account_key.toUtf8();
+    QByteArray account_text;
+    int64_t account_expires = -1;
 
     if (action == QStringLiteral("ban")) {
         bool ok = false;
@@ -514,7 +512,7 @@ void HydrusServicesDialog::account_action() {
             return;
         }
 
-        payload.insert(QStringLiteral("reason"), reason);
+        account_text = reason.toUtf8();
     } else if (action == QStringLiteral("expires")) {
         bool ok = false;
         const int days = QInputDialog::getInt(
@@ -526,10 +524,8 @@ void HydrusServicesDialog::account_action() {
         }
 
         if (days > 0) {
-            payload.insert(QStringLiteral("expires"),
-                           QDateTime::currentSecsSinceEpoch() + static_cast<qint64>(days) * 86400);
-        } else {
-            payload.insert(QStringLiteral("expires"), QJsonValue::Null);
+            account_expires =
+                QDateTime::currentSecsSinceEpoch() + static_cast<int64_t>(days) * 86400;
         }
     } else if (action == QStringLiteral("message")) {
         bool ok = false;
@@ -541,7 +537,7 @@ void HydrusServicesDialog::account_action() {
             return;
         }
 
-        payload.insert(QStringLiteral("message"), message);
+        account_text = message.toUtf8();
     } else if (action == QStringLiteral("account_type")) {
         QStringList titles;
 
@@ -566,11 +562,16 @@ void HydrusServicesDialog::account_action() {
 
         for (const ServerAccountTypeInfo &entry : server_account_types) {
             if (entry.title == title) {
-                payload.insert(QStringLiteral("account_type_key"), entry.key);
+                account_text = entry.key.toUtf8();
                 break;
             }
         }
     }
 
-    main->notify(UiAction::AdminAccountAction, QString(), json_payload(payload));
+    app_admin_account_action(
+        *main,
+        rust::Str(account_action.constData(), account_action.size()),
+        rust::Str(account_subject.constData(), account_subject.size()),
+        rust::Str(account_text.constData(), account_text.size()),
+        account_expires);
 }

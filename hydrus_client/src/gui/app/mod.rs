@@ -1466,6 +1466,157 @@ pub fn handle_history_step(mut window: Pin<&mut ffi::HydrusMainWindow>, step: i3
     }
 }
 
+/// Typed reverse seams (WS-15.2.4c): services + network.
+macro_rules! typed_handler {
+    ($name:ident ( $( $arg:ident : $ty:ty ),* ) => $path:path) => {
+        pub fn $name(mut window: Pin<&mut ffi::HydrusMainWindow>, $( $arg: $ty ),*) {
+            let commands = with_state_mut(|state| $path(state, $( $arg ),*));
+            record_notifications(&commands);
+            for command in commands {
+                panels::execute(window.as_mut(), command);
+            }
+        }
+    };
+}
+
+typed_handler!(handle_service_delete(key: &str) => crate::gui::app::services::service_delete_typed);
+typed_handler!(handle_login_remove(domain: &str) => crate::gui::app::services::login_remove);
+
+pub fn handle_service_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    original: &str,
+    name: &str,
+    type_int: i32,
+    remote: bool,
+    host: &str,
+    port: i32,
+    access_key: &str,
+    has_update: bool,
+    update_period: i64,
+    has_nullify: bool,
+    nullify_period: i64,
+    max_storage: i64,
+    log_uploader_ips: bool,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::services::service_save_typed(
+            state, original, name, type_int, remote, host, port, access_key, has_update,
+            update_period, has_nullify, nullify_period, max_storage, log_uploader_ips,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+typed_handler!(handle_login_save_typed(
+    domain: &str, username: &str, password: &str, access_key: &str, expires: i64
+) => crate::gui::app::services::login_save_typed);
+
+typed_handler!(handle_admin_connect(address: &str, access_key: &str) => crate::gui::app::services::admin_connect_typed);
+typed_handler!(handle_admin_select_service(service_key: &str, access_key: &str) => crate::gui::app::services::admin_select_service_typed);
+typed_handler!(handle_admin_service_action(action: &str, period: i64) => crate::gui::app::services::admin_service_action_typed);
+typed_handler!(handle_admin_add_service(name: &str, type_int: i32, port: i32) => crate::gui::app::services::admin_add_service_typed);
+typed_handler!(handle_admin_edit_service(service_key: &str, name: &str, port: i32) => crate::gui::app::services::admin_edit_service_typed);
+
+pub fn handle_admin_account_action(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    action: &str,
+    subject_account_key: &str,
+    text: &str,
+    expires: i64,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::services::admin_account_action_typed(
+            state, action, subject_account_key, text, expires,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+typed_handler!(handle_network_header(name: &str, value: &str, remove: bool) => crate::gui::app::options::network_header_typed);
+typed_handler!(handle_network_url_class_remove(name: &str) => crate::gui::app::options::network_url_class_remove_typed);
+typed_handler!(handle_network_pool_set(domain: &str, limit: i32) => crate::gui::app::options::network_pool_set_typed);
+typed_handler!(handle_network_pool_remove(domain: &str) => crate::gui::app::options::network_pool_remove_typed);
+typed_handler!(handle_network_rule_remove(context_type: &str, context: &str, bandwidth_type: &str) => crate::gui::app::options::network_rule_remove_typed);
+
+pub fn handle_network_url_class_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    original: &str,
+    name: &str,
+    url_type: i32,
+    preferred_scheme: &str,
+    netloc: &str,
+    path: &str,
+    parameters: &str,
+    example_url: &str,
+    match_subdomains: bool,
+    keep_matched_subdomains: bool,
+    can_produce_multiple_files: bool,
+    should_be_associated_with_files: bool,
+    is_add: bool,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::options::network_url_class_save_typed(
+            state, original, name, url_type, preferred_scheme, netloc, path, parameters,
+            example_url, match_subdomains, keep_matched_subdomains,
+            can_produce_multiple_files, should_be_associated_with_files, is_add,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_network_rule_set(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    context_type: &str,
+    context: &str,
+    bandwidth_type: &str,
+    time_delta: i64,
+    max_allowed: i64,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::options::network_rule_set_typed(
+            state, context_type, context, bandwidth_type, time_delta, max_allowed,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_network_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    api_enabled: bool,
+    network_timeout: i32,
+    max_network_jobs: i32,
+    max_network_jobs_per_domain: i32,
+    api_port: i32,
+    api_access_key: &str,
+    http_proxy: &str,
+    https_proxy: &str,
+    no_proxy: &str,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::options::network_save_typed(
+            state, api_enabled, network_timeout, max_network_jobs,
+            max_network_jobs_per_domain, api_port, api_access_key, http_proxy,
+            https_proxy, no_proxy,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
 fn record_notifications(commands: &[UiCommand]) {
     with_state_mut(|state| {
         for command in commands {

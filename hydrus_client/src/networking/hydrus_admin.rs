@@ -496,6 +496,29 @@ impl HydrusServiceClient {
     }
 
     pub fn modify_account(&self, action: &str, payload: &Value) -> Result<(), String> {
+        let subject = payload
+            .get("subject_account_key")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let text = match action {
+            "ban" => payload.get("reason").and_then(Value::as_str).unwrap_or("banned by admin"),
+            "message" => payload.get("message").and_then(Value::as_str).unwrap_or_default(),
+            "account_type" => payload.get("account_type_key").and_then(Value::as_str).unwrap_or_default(),
+            _ => "",
+        };
+        let expires = payload.get("expires").and_then(Value::as_i64);
+        self.modify_account_typed(action, subject, text, expires)
+    }
+
+    /// Typed reverse seam (WS-15.2.4c): same as `modify_account` without JSON.
+    /// `expires`: `Some(ts)` sets expiry, `None` clears it (or null for ban).
+    pub fn modify_account_typed(
+        &self,
+        action: &str,
+        subject_account_key: &str,
+        text: &str,
+        expires: Option<i64>,
+    ) -> Result<(), String> {
         let path = match action {
             "ban" => "modify_account_ban",
             "unban" => "modify_account_unban",
@@ -506,10 +529,10 @@ impl HydrusServiceClient {
             _ => return Err("unknown account action".to_string()),
         };
 
-        let subject = payload
-            .get("subject_account_key")
-            .and_then(Value::as_str)
-            .ok_or_else(|| "the account key is missing".to_string())?;
+        let subject = subject_account_key;
+        if subject.is_empty() {
+            return Err("the account key is missing".to_string());
+        }
 
         let mut args = ParsedRequestArguments::new();
         args.insert(
@@ -521,20 +544,20 @@ impl HydrusServiceClient {
             "ban" => {
                 args.insert(
                     "reason",
-                    payload
-                        .get("reason")
-                        .and_then(Value::as_str)
-                        .unwrap_or("banned by admin")
-                        .to_string(),
+                    if text.is_empty() {
+                        "banned by admin".to_string()
+                    } else {
+                        text.to_string()
+                    },
                 );
 
-                match payload.get("expires").and_then(Value::as_i64) {
+                match expires {
                     Some(expires) => args.insert("expires", expires),
                     None => args.insert("expires", ArgValue::null()),
                 };
             }
             "expires" => {
-                let _ = match payload.get("expires").and_then(Value::as_i64) {
+                let _ = match expires {
                     Some(expires) => args.insert("expires", expires),
                     None => args.insert("expires", ArgValue::null()),
                 };
@@ -542,18 +565,11 @@ impl HydrusServiceClient {
             "message" => {
                 args.insert(
                     "message",
-                    payload
-                        .get("message")
-                        .and_then(Value::as_str)
-                        .unwrap_or_default()
-                        .to_string(),
+                    text.to_string(),
                 );
             }
             "account_type" => {
-                let key = payload
-                    .get("account_type_key")
-                    .and_then(Value::as_str)
-                    .and_then(decode_hex)
+                let key = decode_hex(text)
                     .ok_or_else(|| "choose an account type".to_string())?;
 
                 args.insert("account_type_key", ArgValue::Bytes(key));

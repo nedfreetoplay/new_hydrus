@@ -475,14 +475,15 @@ void HydrusServicesDialog::set_state(const ServicesDialogState &state) {
         const RemoteServiceRow &first = state.remote_services[0];
         remote_services->selectRow(0);
 
-        QJsonObject select;
-        select.insert(QStringLiteral("action"), QStringLiteral("select"));
-        select.insert(QStringLiteral("service_key"), to_qstring(first.key));
-        select.insert(QStringLiteral("access_key"),
-                      to_qstring(first.access_key).isEmpty()
-                          ? admin_key->text().trimmed()
-                          : to_qstring(first.access_key));
-        main->notify(UiAction::AdminServiceAction, QString(), json_payload(select));
+        const QByteArray select_key = to_qstring(first.key).toUtf8();
+        const QByteArray select_access = (to_qstring(first.access_key).isEmpty()
+                                              ? admin_key->text().trimmed()
+                                              : to_qstring(first.access_key))
+                                             .toUtf8();
+        app_admin_select_service(
+            *main,
+            rust::Str(select_key.constData(), select_key.size()),
+            rust::Str(select_access.constData(), select_access.size()));
         main->notify(UiAction::AccountTypesOpen, QString(), to_qstring(first.key));
     }
 

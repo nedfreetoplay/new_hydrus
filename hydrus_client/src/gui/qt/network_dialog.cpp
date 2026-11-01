@@ -323,28 +323,19 @@ void HydrusNetworkDialog::set_state(const NetworkDialogState &state) {
 }
 
 void HydrusNetworkDialog::save() {
-    QJsonObject booleans;
-    booleans.insert(QStringLiteral("api_enabled"), api_enabled->isChecked());
-
-    QJsonObject integers;
-    integers.insert(QStringLiteral("network_timeout"), timeout->value());
-    integers.insert(QStringLiteral("max_network_jobs"), max_jobs->value());
-    integers.insert(QStringLiteral("max_network_jobs_per_domain"), max_jobs_domain->value());
-    integers.insert(QStringLiteral("api_port"), api_port->value());
-
-    QJsonObject strings;
-    strings.insert(QStringLiteral("api_access_key"), api_key->text());
-
-    QJsonObject noneable_strings;
-    noneable_strings.insert(QStringLiteral("http_proxy"), http_proxy->text());
-    noneable_strings.insert(QStringLiteral("https_proxy"), https_proxy->text());
-    noneable_strings.insert(QStringLiteral("no_proxy"), no_proxy->text());
-
-    QJsonObject payload;
-    payload.insert(QStringLiteral("booleans"), booleans);
-    payload.insert(QStringLiteral("integers"), integers);
-    payload.insert(QStringLiteral("strings"), strings);
-    payload.insert(QStringLiteral("noneable_strings"), noneable_strings);
-
-    main->notify(UiAction::NetworkSave, QString(), json_payload(payload));
+    const QByteArray api_key_bytes = api_key->text().toUtf8();
+    const QByteArray http_bytes = http_proxy->text().toUtf8();
+    const QByteArray https_bytes = https_proxy->text().toUtf8();
+    const QByteArray no_proxy_bytes = no_proxy->text().toUtf8();
+    app_network_save(
+        *main,
+        api_enabled->isChecked(),
+        timeout->value(),
+        max_jobs->value(),
+        max_jobs_domain->value(),
+        api_port->value(),
+        rust::Str(api_key_bytes.constData(), api_key_bytes.size()),
+        rust::Str(http_bytes.constData(), http_bytes.size()),
+        rust::Str(https_bytes.constData(), https_bytes.size()),
+        rust::Str(no_proxy_bytes.constData(), no_proxy_bytes.size()));
 }

@@ -164,34 +164,29 @@ void build_service_editor(HydrusMainWindow *main, QWidget *parent, const std::ve
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("original"), original);
-    payload.insert(QStringLiteral("name"), name->text().trimmed());
-    payload.insert(QStringLiteral("type_int"), type->currentData().toInt());
-
-    QJsonObject next_dictionary;
     const QString family = service_family(types, type->currentData().toInt());
     const bool repository = type->currentText().contains(QStringLiteral("repository"));
-
-    if (family == QStringLiteral("remote")) {
-        next_dictionary.insert(QStringLiteral("host"), host->text().trimmed());
-        next_dictionary.insert(QStringLiteral("port"), port->value());
-        next_dictionary.insert(QStringLiteral("access_key"),
-                               access_key->text().trimmed().toLower());
-    }
-
-    if (repository) {
-        next_dictionary.insert(QStringLiteral("update_period"), update_period->value());
-        next_dictionary.insert(QStringLiteral("nullification_period"), nullification_period->value());
-    }
-
-    if (type->currentData().toInt() == 1) {
-        next_dictionary.insert(QStringLiteral("max_storage"), max_storage->value());
-        next_dictionary.insert(QStringLiteral("log_uploader_ips"), log_uploader_ips->isChecked());
-    }
-
-    payload.insert(QStringLiteral("dictionary"), next_dictionary);
-    main->notify(UiAction::ServiceSave, QString(), json_payload(payload));
+    const QByteArray save_original = original.toUtf8();
+    const QByteArray save_name = name->text().trimmed().toUtf8();
+    const QByteArray save_host = family == QStringLiteral("remote") ? host->text().trimmed().toUtf8() : QByteArray();
+    const QByteArray save_access = family == QStringLiteral("remote")
+        ? access_key->text().trimmed().toLower().toUtf8()
+        : QByteArray();
+    app_service_save(
+        *main,
+        rust::Str(save_original.constData(), save_original.size()),
+        rust::Str(save_name.constData(), save_name.size()),
+        type->currentData().toInt(),
+        family == QStringLiteral("remote"),
+        rust::Str(save_host.constData(), save_host.size()),
+        port->value(),
+        rust::Str(save_access.constData(), save_access.size()),
+        repository,
+        update_period->value(),
+        repository,
+        nullification_period->value(),
+        max_storage->value(),
+        log_uploader_ips->isChecked());
 }
 
 QString cell_value(QTableWidget *table, int row, int column) {

@@ -34,9 +34,37 @@
 #include <QVBoxLayout>
 #include <algorithm>
 
+namespace {
+
+void send_url_class(HydrusMainWindow &main, const QJsonObject &payload, bool is_add) {
+    const QByteArray original = payload.value(QStringLiteral("original")).toString().toUtf8();
+    const QByteArray name = payload.value(QStringLiteral("name")).toString().toUtf8();
+    const QByteArray scheme = payload.value(QStringLiteral("preferred_scheme")).toString().toUtf8();
+    const QByteArray netloc = payload.value(QStringLiteral("netloc")).toString().toUtf8();
+    const QByteArray path = payload.value(QStringLiteral("path")).toString().toUtf8();
+    const QByteArray parameters = payload.value(QStringLiteral("parameters")).toString().toUtf8();
+    const QByteArray example = payload.value(QStringLiteral("example_url")).toString().toUtf8();
+    app_network_url_class_save(
+        main,
+        rust::Str(original.constData(), original.size()),
+        rust::Str(name.constData(), name.size()),
+        payload.value(QStringLiteral("url_type")).toInt(),
+        rust::Str(scheme.constData(), scheme.size()),
+        rust::Str(netloc.constData(), netloc.size()),
+        rust::Str(path.constData(), path.size()),
+        rust::Str(parameters.constData(), parameters.size()),
+        rust::Str(example.constData(), example.size()),
+        payload.value(QStringLiteral("match_subdomains")).toBool(),
+        payload.value(QStringLiteral("keep_matched_subdomains")).toBool(),
+        payload.value(QStringLiteral("can_produce_multiple_files")).toBool(),
+        payload.value(QStringLiteral("should_be_associated_with_files")).toBool(),
+        is_add);
+}
+
+}
+
 void HydrusNetworkDialog::add_header() {
-    QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("add custom header"));
+    QDialog dialog(this);    dialog.setWindowTitle(QStringLiteral("add custom header"));
     auto *layout = new QVBoxLayout(&dialog);
     auto *form = new QFormLayout();
     auto *name = new QLineEdit(&dialog);
@@ -53,11 +81,13 @@ void HydrusNetworkDialog::add_header() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("name"), name->text().trimmed());
-    payload.insert(QStringLiteral("value"), value->text());
-
-    main->notify(UiAction::NetworkHeaderAdd, QString(), json_payload(payload));
+    const QByteArray header_name = name->text().trimmed().toUtf8();
+    const QByteArray header_value = value->text().toUtf8();
+    app_network_header(
+        *main,
+        rust::Str(header_name.constData(), header_name.size()),
+        rust::Str(header_value.constData(), header_value.size()),
+        false);
 }
 
 void HydrusNetworkDialog::remove_header() {
@@ -67,10 +97,12 @@ void HydrusNetworkDialog::remove_header() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("name"), headers->item(row, 0)->text());
-
-    main->notify(UiAction::NetworkHeaderRemove, QString(), json_payload(payload));
+    const QByteArray remove_name = headers->item(row, 0)->text().toUtf8();
+    app_network_header(
+        *main,
+        rust::Str(remove_name.constData(), remove_name.size()),
+        rust::Str("", 0),
+        true);
 }
 
 void HydrusNetworkDialog::add_url_class() {
@@ -81,13 +113,13 @@ void HydrusNetworkDialog::add_url_class() {
         return;
     }
 
-    QJsonObject payload = dialog.payload();
+    const QJsonObject payload = dialog.payload();
 
     if (payload.value(QStringLiteral("netloc")).toString().isEmpty()) {
         return;
     }
 
-    main->notify(UiAction::NetworkUrlClassAdd, QString(), json_payload(payload));
+    send_url_class(*main, payload, true);
 }
 
 void HydrusNetworkDialog::edit_url_class() {
@@ -103,9 +135,7 @@ void HydrusNetworkDialog::edit_url_class() {
         return;
     }
 
-    main->notify(UiAction::NetworkUrlClassSave,
-        QString(),
-        json_payload(dialog.payload()));
+    send_url_class(*main, dialog.payload(), false);
 }
 
 void HydrusNetworkDialog::remove_url_class() {
@@ -115,10 +145,9 @@ void HydrusNetworkDialog::remove_url_class() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("name"), url_classes->item(row, 0)->text());
-
-    main->notify(UiAction::NetworkUrlClassRemove, QString(), json_payload(payload));
+    const QByteArray class_name = url_classes->item(row, 0)->text().toUtf8();
+    app_network_url_class_remove(
+        *main, rust::Str(class_name.constData(), class_name.size()));
 }
 
 void HydrusNetworkDialog::add_pool() {
@@ -143,10 +172,9 @@ void HydrusNetworkDialog::add_pool() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("domain"), domain->text().trimmed());
-    payload.insert(QStringLiteral("limit"), limit->value());
-    main->notify(UiAction::NetworkPoolSet, QString(), json_payload(payload));
+    const QByteArray pool_domain = domain->text().trimmed().toUtf8();
+    app_network_pool_set(
+        *main, rust::Str(pool_domain.constData(), pool_domain.size()), limit->value());
 }
 
 void HydrusNetworkDialog::remove_pool() {
@@ -156,9 +184,8 @@ void HydrusNetworkDialog::remove_pool() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("domain"), pools->item(row, 0)->text());
-    main->notify(UiAction::NetworkPoolRemove, QString(), json_payload(payload));
+    const QByteArray pool_name = pools->item(row, 0)->text().toUtf8();
+    app_network_pool_remove(*main, rust::Str(pool_name.constData(), pool_name.size()));
 }
 
 void HydrusNetworkDialog::add_bandwidth_rule() {
@@ -210,24 +237,20 @@ void HydrusNetworkDialog::add_bandwidth_rule() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("context_type"), context_type->currentData().toString());
-    payload.insert(QStringLiteral("context"), context->text().trimmed());
-    payload.insert(QStringLiteral("bandwidth_type"), bandwidth_type->currentData().toString());
-
-    if (period->value() <= 0) {
-        payload.insert(QStringLiteral("time_delta"), QJsonValue::Null);
-    } else {
-        payload.insert(QStringLiteral("time_delta"), period->value());
-    }
-
-    payload.insert(
-        QStringLiteral("max_allowed"),
-        bandwidth_type->currentData().toString() == QStringLiteral("data")
-            ? static_cast<qint64>(maximum->value()) * 1024 * 1024
-            : static_cast<qint64>(maximum->value()));
-
-    main->notify(UiAction::NetworkRuleSet, QString(), json_payload(payload));
+    const QByteArray rule_context_type = context_type->currentData().toString().toUtf8();
+    const QByteArray rule_context = context->text().trimmed().toUtf8();
+    const QByteArray rule_bandwidth = bandwidth_type->currentData().toString().toUtf8();
+    const int64_t time_delta = period->value() <= 0 ? -1 : static_cast<int64_t>(period->value());
+    const int64_t max_allowed = bandwidth_type->currentData().toString() == QStringLiteral("data")
+        ? static_cast<int64_t>(maximum->value()) * 1024 * 1024
+        : static_cast<int64_t>(maximum->value());
+    app_network_rule_set(
+        *main,
+        rust::Str(rule_context_type.constData(), rule_context_type.size()),
+        rust::Str(rule_context.constData(), rule_context.size()),
+        rust::Str(rule_bandwidth.constData(), rule_bandwidth.size()),
+        time_delta,
+        max_allowed);
 }
 
 void HydrusNetworkDialog::remove_bandwidth_rule() {
@@ -237,10 +260,12 @@ void HydrusNetworkDialog::remove_bandwidth_rule() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("context_type"), bandwidth_rules->item(row, 0)->text());
-    payload.insert(QStringLiteral("context"), bandwidth_rules->item(row, 1)->text());
-    payload.insert(QStringLiteral("bandwidth_type"), bandwidth_rules->item(row, 2)->text());
-
-    main->notify(UiAction::NetworkRuleRemove, QString(), json_payload(payload));
+    const QByteArray rm_context_type = bandwidth_rules->item(row, 0)->text().toUtf8();
+    const QByteArray rm_context = bandwidth_rules->item(row, 1)->text().toUtf8();
+    const QByteArray rm_bandwidth = bandwidth_rules->item(row, 2)->text().toUtf8();
+    app_network_rule_remove(
+        *main,
+        rust::Str(rm_context_type.constData(), rm_context_type.size()),
+        rust::Str(rm_context.constData(), rm_context.size()),
+        rust::Str(rm_bandwidth.constData(), rm_bandwidth.size()));
 }

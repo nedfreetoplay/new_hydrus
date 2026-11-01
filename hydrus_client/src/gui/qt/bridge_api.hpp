@@ -242,6 +242,100 @@ void app_page_manager_activate(HydrusMainWindow &window, rust::Str page_id) noex
 void app_page_sort(HydrusMainWindow &window, rust::Str page_id, rust::Str sort, bool ascending) noexcept;
 void app_history_step(HydrusMainWindow &window, int step) noexcept;
 
+// Typed reverse seams (WS-15.2.4c): services + network. Implemented in Rust.
+void app_service_save(
+    HydrusMainWindow &window,
+    rust::Str original,
+    rust::Str name,
+    int type_int,
+    bool remote,
+    rust::Str host,
+    int port,
+    rust::Str access_key,
+    bool has_update,
+    int64_t update_period,
+    bool has_nullify,
+    int64_t nullify_period,
+    int64_t max_storage,
+    bool log_uploader_ips) noexcept;
+void app_service_delete(HydrusMainWindow &window, rust::Str key) noexcept;
+void app_login_save(
+    HydrusMainWindow &window,
+    rust::Str domain,
+    rust::Str username,
+    rust::Str password,
+    rust::Str access_key,
+    int64_t expires) noexcept;
+void app_login_remove(HydrusMainWindow &window, rust::Str domain) noexcept;
+void app_admin_connect(HydrusMainWindow &window, rust::Str address, rust::Str access_key) noexcept;
+void app_admin_select_service(
+    HydrusMainWindow &window,
+    rust::Str service_key,
+    rust::Str access_key) noexcept;
+void app_admin_service_action(HydrusMainWindow &window, rust::Str action, int64_t period) noexcept;
+void app_admin_add_service(
+    HydrusMainWindow &window,
+    rust::Str name,
+    int type_int,
+    int port) noexcept;
+void app_admin_edit_service(
+    HydrusMainWindow &window,
+    rust::Str service_key,
+    rust::Str name,
+    int port) noexcept;
+void app_admin_account_action(
+    HydrusMainWindow &window,
+    rust::Str action,
+    rust::Str subject_account_key,
+    rust::Str text,
+    int64_t expires) noexcept;
+void app_network_save(
+    HydrusMainWindow &window,
+    bool api_enabled,
+    int network_timeout,
+    int max_network_jobs,
+    int max_network_jobs_per_domain,
+    int api_port,
+    rust::Str api_access_key,
+    rust::Str http_proxy,
+    rust::Str https_proxy,
+    rust::Str no_proxy) noexcept;
+void app_network_header(
+    HydrusMainWindow &window,
+    rust::Str name,
+    rust::Str value,
+    bool remove) noexcept;
+void app_network_url_class_save(
+    HydrusMainWindow &window,
+    rust::Str original,
+    rust::Str name,
+    int url_type,
+    rust::Str preferred_scheme,
+    rust::Str netloc,
+    rust::Str path,
+    rust::Str parameters,
+    rust::Str example_url,
+    bool match_subdomains,
+    bool keep_matched_subdomains,
+    bool can_produce_multiple_files,
+    bool should_be_associated_with_files,
+    bool is_add) noexcept;
+void app_network_url_class_remove(HydrusMainWindow &window, rust::Str name) noexcept;
+void app_network_pool_set(HydrusMainWindow &window, rust::Str domain, int limit) noexcept;
+void app_network_pool_remove(HydrusMainWindow &window, rust::Str domain) noexcept;
+void app_network_rule_set(
+    HydrusMainWindow &window,
+    rust::Str context_type,
+    rust::Str context,
+    rust::Str bandwidth_type,
+    int64_t time_delta,
+    int64_t max_allowed) noexcept;
+void app_network_rule_remove(
+    HydrusMainWindow &window,
+    rust::Str context_type,
+    rust::Str context,
+    rust::Str bandwidth_type) noexcept;
+
 // Implemented in Rust: the Python VetoException text for an invalid export
 // filename phrase, or an empty string when the phrase parses.
 rust::String hydrus_validate_export_phrase(rust::Str phrase) noexcept;

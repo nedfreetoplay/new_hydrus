@@ -880,6 +880,179 @@ fn selected_client(state: &AppState) -> Result<HydrusServiceClient, String> {
         .map(|client| client.with_port(service.port))
 }
 
+/// Typed reverse seams (WS-15.2.4c): same cores as the `notify(...)`
+/// JSON actions, with flat arguments. `expires_*`: -1 means none.
+/// `update/nullify`: -1 means absent (field not stored).
+pub fn service_save_typed(
+    state: &mut AppState,
+    original: &str,
+    name: &str,
+    type_int: i32,
+    remote: bool,
+    host: &str,
+    port: i32,
+    access_key: &str,
+    has_update: bool,
+    update_period: i64,
+    has_nullify: bool,
+    nullify_period: i64,
+    max_storage: i64,
+    log_uploader_ips: bool,
+) -> Vec<UiCommand> {
+    let mut dictionary = json!({});
+    if remote {
+        dictionary["host"] = json!(host.trim());
+        dictionary["port"] = json!(port);
+        dictionary["access_key"] = json!(access_key.trim().to_lowercase());
+    }
+    if has_update {
+        dictionary["update_period"] = json!(update_period);
+    }
+    if has_nullify {
+        dictionary["nullification_period"] = json!(nullify_period);
+    }
+    if type_int == 1 {
+        dictionary["max_storage"] = json!(max_storage);
+        dictionary["log_uploader_ips"] = json!(log_uploader_ips);
+    }
+    let payload = json!({
+        "original": original,
+        "name": name,
+        "type_int": type_int,
+        "dictionary": dictionary,
+    });
+    save_service(state, &payload.to_string())
+}
+
+pub fn service_delete_typed(state: &mut AppState, key: &str) -> Vec<UiCommand> {
+    delete_service(state, key.trim())
+}
+
+pub fn login_save_typed(
+    state: &mut AppState,
+    domain: &str,
+    username: &str,
+    password: &str,
+    access_key: &str,
+    expires: i64,
+) -> Vec<UiCommand> {
+    let mut payload = json!({
+        "domain": domain,
+        "username": username,
+        "password": password,
+        "access_key": access_key,
+    });
+    if expires >= 0 {
+        payload["expires"] = json!(expires);
+    }
+    login_save(state, &payload.to_string())
+}
+
+pub fn admin_connect_typed(
+    state: &mut AppState,
+    address: &str,
+    access_key: &str,
+) -> Vec<UiCommand> {
+    let payload = json!({ "address": address, "access_key": access_key });
+    admin_connect(state, &payload.to_string())
+}
+
+pub fn admin_select_service_typed(
+    state: &mut AppState,
+    service_key: &str,
+    access_key: &str,
+) -> Vec<UiCommand> {
+    let payload = json!({
+        "action": "select",
+        "service_key": service_key,
+        "access_key": access_key,
+    });
+    admin_service_action(state, &payload.to_string())
+}
+
+pub fn admin_service_action_typed(
+    state: &mut AppState,
+    action: &str,
+    period: i64,
+) -> Vec<UiCommand> {
+    let mut payload = json!({ "action": action });
+    if period >= 0 {
+        payload["period"] = json!(period);
+    }
+    // Non-select actions resolve the service/access key from admin state,
+    // exactly like the JSON branch (selected service + stored key).
+    let selected = state.admin.selected_service.clone();
+    let access_key = state
+        .admin
+        .service_keys
+        .get(&selected)
+        .cloned()
+        .unwrap_or_default();
+    payload["service_key"] = json!(selected);
+    payload["access_key"] = json!(access_key);
+    admin_service_action(state, &payload.to_string())
+}
+
+pub fn admin_add_service_typed(
+    state: &mut AppState,
+    name: &str,
+    type_int: i32,
+    port: i32,
+) -> Vec<UiCommand> {
+    let payload = json!({ "name": name, "type_int": type_int, "port": port });
+    admin_add_service(state, &payload.to_string())
+}
+
+pub fn admin_edit_service_typed(
+    state: &mut AppState,
+    service_key: &str,
+    name: &str,
+    port: i32,
+) -> Vec<UiCommand> {
+    let payload = json!({ "service_key": service_key, "name": name, "port": port });
+    admin_edit_service(state, &payload.to_string())
+}
+
+pub fn admin_account_action_typed(
+    state: &mut AppState,
+    action: &str,
+    subject_account_key: &str,
+    text: &str,
+    expires: i64,
+) -> Vec<UiCommand> {
+    let Some(service) = selected_service(state) else {
+        return service_commands(state, "choose a server service first");
+    };
+    let Some(access_key) = state.admin.service_keys.get(&service.key).cloned() else {
+        return service_commands(state, "enter the access key for that service first");
+    };
+    let client = match HydrusServiceClient::new(&state.admin.address, &access_key) {
+        Ok(client) => client.with_port(service.port),
+        Err(error) => return service_commands(state, error),
+    };
+    let expires_opt = if expires >= 0 { Some(expires) } else { None };
+    match client.modify_account_typed(action, subject_account_key, text, expires_opt) {
+        Ok(()) => {
+            let message = match action {
+                "ban" => "account banned",
+                "unban" => "account unbanned",
+                "expires" => "account expiry saved",
+                "message" => "account message saved",
+                "account_type" => "account type changed",
+                "delete_all_content" => "account content deleted",
+                _ => "account updated",
+            };
+            state.admin.status = message.to_string();
+            if let Ok(snapshot) = read_service(&state.admin.address, &service, &access_key) {
+                state.admin.accounts = snapshot.accounts;
+                state.admin.account_types = snapshot.account_types;
+            }
+            service_commands(state, message)
+        }
+        Err(error) => service_commands(state, format!("server error: {error}")),
+    }
+}
+
 /// R2: auto-creation cell text (`disabled` for zero accounts,
 /// `N / M s` otherwise).
 pub fn auto_creation_text(accounts: i64, time_delta: i64) -> String {

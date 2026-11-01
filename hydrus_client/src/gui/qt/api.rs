@@ -2021,6 +2021,110 @@ pub(crate) mod ffi {
             ascending: bool,
         );
         fn app_history_step(window: Pin<&mut HydrusMainWindow>, step: i32);
+        /// Typed reverse seams (WS-15.2.4c): services + network.
+        fn app_service_save(
+            window: Pin<&mut HydrusMainWindow>,
+            original: &str,
+            name: &str,
+            type_int: i32,
+            remote: bool,
+            host: &str,
+            port: i32,
+            access_key: &str,
+            has_update: bool,
+            update_period: i64,
+            has_nullify: bool,
+            nullify_period: i64,
+            max_storage: i64,
+            log_uploader_ips: bool,
+        );
+        fn app_service_delete(window: Pin<&mut HydrusMainWindow>, key: &str);
+        fn app_login_save(
+            window: Pin<&mut HydrusMainWindow>,
+            domain: &str,
+            username: &str,
+            password: &str,
+            access_key: &str,
+            expires: i64,
+        );
+        fn app_login_remove(window: Pin<&mut HydrusMainWindow>, domain: &str);
+        fn app_admin_connect(window: Pin<&mut HydrusMainWindow>, address: &str, access_key: &str);
+        fn app_admin_select_service(
+            window: Pin<&mut HydrusMainWindow>,
+            service_key: &str,
+            access_key: &str,
+        );
+        fn app_admin_service_action(window: Pin<&mut HydrusMainWindow>, action: &str, period: i64);
+        fn app_admin_add_service(
+            window: Pin<&mut HydrusMainWindow>,
+            name: &str,
+            type_int: i32,
+            port: i32,
+        );
+        fn app_admin_edit_service(
+            window: Pin<&mut HydrusMainWindow>,
+            service_key: &str,
+            name: &str,
+            port: i32,
+        );
+        fn app_admin_account_action(
+            window: Pin<&mut HydrusMainWindow>,
+            action: &str,
+            subject_account_key: &str,
+            text: &str,
+            expires: i64,
+        );
+        fn app_network_save(
+            window: Pin<&mut HydrusMainWindow>,
+            api_enabled: bool,
+            network_timeout: i32,
+            max_network_jobs: i32,
+            max_network_jobs_per_domain: i32,
+            api_port: i32,
+            api_access_key: &str,
+            http_proxy: &str,
+            https_proxy: &str,
+            no_proxy: &str,
+        );
+        fn app_network_header(
+            window: Pin<&mut HydrusMainWindow>,
+            name: &str,
+            value: &str,
+            remove: bool,
+        );
+        fn app_network_url_class_save(
+            window: Pin<&mut HydrusMainWindow>,
+            original: &str,
+            name: &str,
+            url_type: i32,
+            preferred_scheme: &str,
+            netloc: &str,
+            path: &str,
+            parameters: &str,
+            example_url: &str,
+            match_subdomains: bool,
+            keep_matched_subdomains: bool,
+            can_produce_multiple_files: bool,
+            should_be_associated_with_files: bool,
+            is_add: bool,
+        );
+        fn app_network_url_class_remove(window: Pin<&mut HydrusMainWindow>, name: &str);
+        fn app_network_pool_set(window: Pin<&mut HydrusMainWindow>, domain: &str, limit: i32);
+        fn app_network_pool_remove(window: Pin<&mut HydrusMainWindow>, domain: &str);
+        fn app_network_rule_set(
+            window: Pin<&mut HydrusMainWindow>,
+            context_type: &str,
+            context: &str,
+            bandwidth_type: &str,
+            time_delta: i64,
+            max_allowed: i64,
+        );
+        fn app_network_rule_remove(
+            window: Pin<&mut HydrusMainWindow>,
+            context_type: &str,
+            context: &str,
+            bandwidth_type: &str,
+        );
         fn hydrus_validate_export_phrase(phrase: &str) -> String;
         fn hydrus_static_dir() -> String;
     }
@@ -2136,6 +2240,187 @@ fn app_page_sort(
 
 fn app_history_step(mut window: Pin<&mut ffi::HydrusMainWindow>, step: i32) {
     crate::gui::app::handle_history_step(window.as_mut(), step);
+}
+
+fn app_service_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    original: &str,
+    name: &str,
+    type_int: i32,
+    remote: bool,
+    host: &str,
+    port: i32,
+    access_key: &str,
+    has_update: bool,
+    update_period: i64,
+    has_nullify: bool,
+    nullify_period: i64,
+    max_storage: i64,
+    log_uploader_ips: bool,
+) {
+    crate::gui::app::handle_service_save(
+        window.as_mut(), original, name, type_int, remote, host, port, access_key, has_update,
+        update_period, has_nullify, nullify_period, max_storage, log_uploader_ips,
+    );
+}
+
+fn app_service_delete(mut window: Pin<&mut ffi::HydrusMainWindow>, key: &str) {
+    crate::gui::app::handle_service_delete(window.as_mut(), key);
+}
+
+fn app_login_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    domain: &str,
+    username: &str,
+    password: &str,
+    access_key: &str,
+    expires: i64,
+) {
+    crate::gui::app::handle_login_save_typed(
+        window.as_mut(), domain, username, password, access_key, expires,
+    );
+}
+
+fn app_login_remove(mut window: Pin<&mut ffi::HydrusMainWindow>, domain: &str) {
+    crate::gui::app::handle_login_remove(window.as_mut(), domain);
+}
+
+fn app_admin_connect(mut window: Pin<&mut ffi::HydrusMainWindow>, address: &str, access_key: &str) {
+    crate::gui::app::handle_admin_connect(window.as_mut(), address, access_key);
+}
+
+fn app_admin_select_service(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    service_key: &str,
+    access_key: &str,
+) {
+    crate::gui::app::handle_admin_select_service(window.as_mut(), service_key, access_key);
+}
+
+fn app_admin_service_action(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    action: &str,
+    period: i64,
+) {
+    crate::gui::app::handle_admin_service_action(window.as_mut(), action, period);
+}
+
+fn app_admin_add_service(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    name: &str,
+    type_int: i32,
+    port: i32,
+) {
+    crate::gui::app::handle_admin_add_service(window.as_mut(), name, type_int, port);
+}
+
+fn app_admin_edit_service(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    service_key: &str,
+    name: &str,
+    port: i32,
+) {
+    crate::gui::app::handle_admin_edit_service(window.as_mut(), service_key, name, port);
+}
+
+fn app_admin_account_action(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    action: &str,
+    subject_account_key: &str,
+    text: &str,
+    expires: i64,
+) {
+    crate::gui::app::handle_admin_account_action(
+        window.as_mut(), action, subject_account_key, text, expires,
+    );
+}
+
+fn app_network_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    api_enabled: bool,
+    network_timeout: i32,
+    max_network_jobs: i32,
+    max_network_jobs_per_domain: i32,
+    api_port: i32,
+    api_access_key: &str,
+    http_proxy: &str,
+    https_proxy: &str,
+    no_proxy: &str,
+) {
+    crate::gui::app::handle_network_save(
+        window.as_mut(), api_enabled, network_timeout, max_network_jobs,
+        max_network_jobs_per_domain, api_port, api_access_key, http_proxy, https_proxy,
+        no_proxy,
+    );
+}
+
+fn app_network_header(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    name: &str,
+    value: &str,
+    remove: bool,
+) {
+    crate::gui::app::handle_network_header(window.as_mut(), name, value, remove);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn app_network_url_class_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    original: &str,
+    name: &str,
+    url_type: i32,
+    preferred_scheme: &str,
+    netloc: &str,
+    path: &str,
+    parameters: &str,
+    example_url: &str,
+    match_subdomains: bool,
+    keep_matched_subdomains: bool,
+    can_produce_multiple_files: bool,
+    should_be_associated_with_files: bool,
+    is_add: bool,
+) {
+    crate::gui::app::handle_network_url_class_save(
+        window.as_mut(), original, name, url_type, preferred_scheme, netloc, path,
+        parameters, example_url, match_subdomains, keep_matched_subdomains,
+        can_produce_multiple_files, should_be_associated_with_files, is_add,
+    );
+}
+
+fn app_network_url_class_remove(mut window: Pin<&mut ffi::HydrusMainWindow>, name: &str) {
+    crate::gui::app::handle_network_url_class_remove(window.as_mut(), name);
+}
+
+fn app_network_pool_set(mut window: Pin<&mut ffi::HydrusMainWindow>, domain: &str, limit: i32) {
+    crate::gui::app::handle_network_pool_set(window.as_mut(), domain, limit);
+}
+
+fn app_network_pool_remove(mut window: Pin<&mut ffi::HydrusMainWindow>, domain: &str) {
+    crate::gui::app::handle_network_pool_remove(window.as_mut(), domain);
+}
+
+fn app_network_rule_set(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    context_type: &str,
+    context: &str,
+    bandwidth_type: &str,
+    time_delta: i64,
+    max_allowed: i64,
+) {
+    crate::gui::app::handle_network_rule_set(
+        window.as_mut(), context_type, context, bandwidth_type, time_delta, max_allowed,
+    );
+}
+
+fn app_network_rule_remove(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    context_type: &str,
+    context: &str,
+    bandwidth_type: &str,
+) {
+    crate::gui::app::handle_network_rule_remove(
+        window.as_mut(), context_type, context, bandwidth_type,
+    );
 }
 
 /// Returns the Python `VetoException` text for an invalid export filename

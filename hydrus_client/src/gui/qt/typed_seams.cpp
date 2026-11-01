@@ -248,18 +248,13 @@ void HydrusMainWindow::set_menus(const MenuBar &state) {
             action->setToolTip(tooltip);
         }
 
-        const QString action_id = to_qstring(entry.action);
+        const UiAction action_id = entry.action;
         const QString item_target = to_qstring(entry.target);
         const QString payload = to_qstring(entry.payload);
 
         connect(action, &QAction::triggered, this, [this, action_id, item_target, payload]() {
-            if (!action_id.isEmpty()) {
-                const QByteArray action_bytes = action_id.toUtf8();
-                const UiAction ua = ui_action_from_str(
-                    rust::Str(action_bytes.constData(), action_bytes.size()));
-                if (ua != UiAction::None) {
-                    notify(ua, item_target, payload);
-                }
+            if (action_id != UiAction::None) {
+                notify(action_id, item_target, payload);
             }
         });
     }

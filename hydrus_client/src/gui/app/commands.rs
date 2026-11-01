@@ -9,7 +9,7 @@
 
 use crate::gui::qt::api::ffi::{
     AboutInfo, DownloaderPageState, FileSeedCacheState, GallerySeedLogState, ImportOptionsDialogState,
-    MenuBar, PageProgress, PageTree, Pages, QueryPageState, SelectionState, StatusBar,
+    MenuBar, PageProgress, PageTree, Pages, QueryPageState, SelectionState, StatusBar, UiAction,
     SubscriptionsDialogState, SubscriptionsPageState, SubscriptionEditorState, ViewerState,
     ViewingStats,
 };
@@ -23,7 +23,7 @@ pub enum UiCommand {
     UpdatePage(QueryPageState),
     PageProgress(PageProgress),
     Defer {
-        action: String,
+        action: UiAction,
         target: String,
         payload: String,
         delay_ms: i32,
@@ -61,13 +61,13 @@ pub enum UiCommand {
     PageManagerDialog(PageTree),
     CommandPalette,
     PromptText {
-        action: String,
+        action: UiAction,
         title: String,
         label: String,
         initial: String,
     },
     ConfirmAction {
-        action: String,
+        action: UiAction,
         target: String,
         title: String,
         text: String,

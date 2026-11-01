@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 
 use crate::client_options::ClientOptions;
 use crate::gui::app::{AppState, UiCommand, render};
+use crate::gui::qt::api::ffi;
 use crate::networking::client_networking_url_class::PathComponent;
 
 #[derive(Debug, Clone, Copy)]
@@ -907,9 +908,9 @@ pub fn network_json(state: &AppState) -> String {
     .to_string()
 }
 
-pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<UiCommand> {
+pub fn network_action(state: &mut AppState, action: ffi::UiAction, payload: &str) -> Vec<UiCommand> {
     match action {
-        "network_save" => {
+        ffi::UiAction::NetworkSave => {
             let Ok(value) = serde_json::from_str::<Value>(payload) else {
                 state.message = "invalid network payload".to_string();
                 return network_commands(state);
@@ -957,7 +958,7 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
 
             state.message = format!("network settings saved; {status}");
         }
-        "network_pause" => {
+        ffi::UiAction::NetworkPause => {
             let paused = !state.controller.network_paused();
             state.controller.set_network_paused(paused);
             state.message = if paused {
@@ -966,7 +967,7 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
                 "network traffic resumed".to_string()
             };
         }
-        "network_header_add" | "network_header_remove" => {
+        ffi::UiAction::NetworkHeaderAdd | ffi::UiAction::NetworkHeaderRemove => {
             let Ok(value) = serde_json::from_str::<Value>(payload) else {
                 state.message = "invalid header payload".to_string();
                 return network_commands(state);
@@ -986,7 +987,7 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
 
             let mut manager = state.controller.domain_manager().write().unwrap();
 
-            if action == "network_header_remove" {
+            if action == ffi::UiAction::NetworkHeaderRemove {
                 manager.remove_custom_header(&name);
                 state.message = format!("removed header '{name}'");
             } else {
@@ -1005,7 +1006,7 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
                 state.message = format!("saved header '{name}'");
             }
         }
-        "network_url_class_add" | "network_url_class_save" => {
+        ffi::UiAction::NetworkUrlClassAdd | ffi::UiAction::NetworkUrlClassSave => {
             let Ok(value) = serde_json::from_str::<Value>(payload) else {
                 state.message = "invalid url class payload".to_string();
                 return network_commands(state);
@@ -1037,14 +1038,14 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
 
             if !original.is_empty() && original != name {
                 manager.remove_url_class(original);
-            } else if action == "network_url_class_add" {
+            } else if action == ffi::UiAction::NetworkUrlClassAdd {
                 manager.remove_url_class(&name);
             }
 
             manager.add_url_class(class);
             state.message = format!("url class '{name}' saved");
         }
-        "network_url_class_remove" => {
+        ffi::UiAction::NetworkUrlClassRemove => {
             let Ok(value) = serde_json::from_str::<Value>(payload) else {
                 state.message = "invalid url class payload".to_string();
                 return network_commands(state);
@@ -1067,7 +1068,7 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
                 format!("url class '{name}' was not found")
             };
         }
-        "network_pool_set" => {
+        ffi::UiAction::NetworkPoolSet => {
             let Ok(value) = serde_json::from_str::<Value>(payload) else {
                 state.message = "invalid pool payload".to_string();
                 return network_commands(state);
@@ -1086,7 +1087,7 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
             state.runtime.update_pools(pools);
             state.message = format!("download pool for '{domain}' set to {limit}");
         }
-        "network_pool_remove" => {
+        ffi::UiAction::NetworkPoolRemove => {
             let Ok(value) = serde_json::from_str::<Value>(payload) else {
                 state.message = "invalid pool payload".to_string();
                 return network_commands(state);
@@ -1104,7 +1105,7 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
             state.runtime.update_pools(pools);
             state.message = format!("download pool for '{domain}' removed");
         }
-        "network_rule_set" => {
+        ffi::UiAction::NetworkRuleSet => {
             let Ok(value) = serde_json::from_str::<Value>(payload) else {
                 state.message = "invalid bandwidth rule".to_string();
                 return network_commands(state);
@@ -1127,7 +1128,7 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
             state.controller.replace_bandwidth_rule_entries(rules);
             state.message = "bandwidth rule saved".to_string();
         }
-        "network_rule_remove" => {
+        ffi::UiAction::NetworkRuleRemove => {
             let Ok(value) = serde_json::from_str::<Value>(payload) else {
                 state.message = "invalid bandwidth rule".to_string();
                 return network_commands(state);
@@ -1161,7 +1162,7 @@ pub fn network_action(state: &mut AppState, action: &str, payload: &str) -> Vec<
             };
         }
         _ => {
-            state.message = format!("unknown network action: {action}");
+            state.message = format!("unknown network action: {action:?}");
         }
     }
 

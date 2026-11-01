@@ -23,42 +23,42 @@ HydrusCommandPalette::HydrusCommandPalette(HydrusMainWindow *main_window, QWidge
     list->setSelectionMode(QAbstractItemView::SingleSelection);
     layout->addWidget(list, 1);
 
-    const QList<QPair<QString, QString>> commands = {
-        {QStringLiteral("new page..."), QStringLiteral("new_page")},
-        {QStringLiteral("manage pages..."), QStringLiteral("page_manager")},
-        {QStringLiteral("duplicate current page"), QStringLiteral("duplicate_page")},
-        {QStringLiteral("back"), QStringLiteral("history_back")},
-        {QStringLiteral("forward"), QStringLiteral("history_forward")},
-        {QStringLiteral("refresh current page"), QStringLiteral("refresh_page")},
-        {QStringLiteral("options..."), QStringLiteral("options")},
-        {QStringLiteral("manage tags..."), QStringLiteral("manage_tags_active")},
-        {QStringLiteral("import files..."), QStringLiteral("import_files")},
-        {QStringLiteral("import url..."), QStringLiteral("import_url")},
-        {QStringLiteral("import folders..."), QStringLiteral("new_import_folders")},
-        {QStringLiteral("manage export folders\u2026"), QStringLiteral("manage_export_folders")},
-        {QStringLiteral("run all export folders"), QStringLiteral("export_folder_run_all")},
-        {QStringLiteral("check all import folders"), QStringLiteral("import_folder_check_all")},
-        {QStringLiteral("manage services..."), QStringLiteral("manage_services")},
-        {QStringLiteral("client api permissions..."), QStringLiteral("api_permissions")},
-        {QStringLiteral("clear orphan files..."), QStringLiteral("orphan_files_scan")},
-        {QStringLiteral("review duplicate pending decisions..."), QStringLiteral("duplicates_review")},
-        {QStringLiteral("back up database..."), QStringLiteral("db_backup_open")},
-        {QStringLiteral("manage network..."), QStringLiteral("options_network")},
-        {QStringLiteral("save session as..."), QStringLiteral("session_save_as")},
-        {QStringLiteral("backup session"), QStringLiteral("session_backup")},
-        {QStringLiteral("check database"), QStringLiteral("db_check")},
-        {QStringLiteral("analyze database"), QStringLiteral("db_analyze")},
-        {QStringLiteral("vacuum database"), QStringLiteral("db_vacuum")},
-        {QStringLiteral("database statistics"), QStringLiteral("db_stats")},
-        {QStringLiteral("undo closed page"), QStringLiteral("undo")},
-        {QStringLiteral("documentation"), QStringLiteral("docs")},
-        {QStringLiteral("about"), QStringLiteral("about")},
-        {QStringLiteral("exit"), QStringLiteral("exit")},
+    const QList<QPair<QString, UiAction>> commands = {
+        {QStringLiteral("new page..."), UiAction::NewPage},
+        {QStringLiteral("manage pages..."), UiAction::PageManager},
+        {QStringLiteral("duplicate current page"), UiAction::DuplicatePage},
+        {QStringLiteral("back"), UiAction::HistoryBack},
+        {QStringLiteral("forward"), UiAction::HistoryForward},
+        {QStringLiteral("refresh current page"), UiAction::RefreshPage},
+        {QStringLiteral("options..."), UiAction::Options},
+        {QStringLiteral("manage tags..."), UiAction::ManageTagsActive},
+        {QStringLiteral("import files..."), UiAction::ImportFiles},
+        {QStringLiteral("import url..."), UiAction::ImportUrl},
+        {QStringLiteral("import folders..."), UiAction::NewImportFolders},
+        {QStringLiteral("manage export folders\u2026"), UiAction::ManageExportFolders},
+        {QStringLiteral("run all export folders"), UiAction::ExportFolderRunAll},
+        {QStringLiteral("check all import folders"), UiAction::ImportFolderCheckAll},
+        {QStringLiteral("manage services..."), UiAction::ManageServices},
+        {QStringLiteral("client api permissions..."), UiAction::ApiPermissions},
+        {QStringLiteral("clear orphan files..."), UiAction::OrphanFilesScan},
+        {QStringLiteral("review duplicate pending decisions..."), UiAction::DuplicatesReview},
+        {QStringLiteral("back up database..."), UiAction::DbBackupOpen},
+        {QStringLiteral("manage network..."), UiAction::OptionsNetwork},
+        {QStringLiteral("save session as..."), UiAction::SessionSaveAs},
+        {QStringLiteral("backup session"), UiAction::SessionBackup},
+        {QStringLiteral("check database"), UiAction::DbCheck},
+        {QStringLiteral("analyze database"), UiAction::DbAnalyze},
+        {QStringLiteral("vacuum database"), UiAction::DbVacuum},
+        {QStringLiteral("database statistics"), UiAction::DbStats},
+        {QStringLiteral("undo closed page"), UiAction::Undo},
+        {QStringLiteral("documentation"), UiAction::Docs},
+        {QStringLiteral("about"), UiAction::About},
+        {QStringLiteral("exit"), UiAction::Exit},
     };
 
     for (const auto &[label, action] : commands) {
         auto *item = new QListWidgetItem(label, list);
-        item->setData(Qt::UserRole, action);
+        item->setData(Qt::UserRole, static_cast<int>(action));
     }
 
     connect(filter, &QLineEdit::textChanged, this, [this](const QString &text) {
@@ -96,13 +96,10 @@ void HydrusCommandPalette::run_current() {
         return;
     }
 
-    const QString action = item->data(Qt::UserRole).toString();
+    const UiAction ua = static_cast<UiAction>(item->data(Qt::UserRole).toInt());
     accept();
 
-    if (!action.isEmpty()) {
-        const QByteArray action_bytes = action.toUtf8();
-        const UiAction ua = ui_action_from_str(
-            rust::Str(action_bytes.constData(), action_bytes.size()));
+    if (ua != UiAction::None) {
         if (ua == UiAction::DuplicatePage || ua == UiAction::RefreshPage) {
             main->notify(ua, main->active_page);
         } else {

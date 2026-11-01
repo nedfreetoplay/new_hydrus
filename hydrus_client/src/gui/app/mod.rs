@@ -258,7 +258,7 @@ pub fn run_script_for_testing(script: &str) -> Vec<UiCommand> {
             let payload = parts.next().unwrap_or_default().trim();
 
             if !action.is_empty() {
-                commands.extend(state.dispatch(action, target, payload));
+                commands.extend(state.dispatch(crate::gui::app::action_from_str(action), target, payload));
             }
         }
 
@@ -296,7 +296,7 @@ pub fn open_first_for_testing() -> Vec<UiCommand> {
 
 pub fn handle_action(
     mut window: Pin<&mut ffi::HydrusMainWindow>,
-    action: &str,
+    action: ffi::UiAction,
     target: &str,
     payload: &str,
 ) {
@@ -674,6 +674,7 @@ impl ffi::UiAction {
         ffi::UiAction::ServiceDelete => "service_delete",
         ffi::UiAction::ServiceRename => "service_rename",
         ffi::UiAction::ServiceSave => "service_save",
+        ffi::UiAction::ServiceInfo => "service_info",
         ffi::UiAction::SessionAppend => "session_append",
         ffi::UiAction::SessionAppendBackup => "session_append_backup",
         ffi::UiAction::SessionBackup => "session_backup",
@@ -770,7 +771,7 @@ impl ffi::UiAction {
     }
 }
 
-pub fn ui_action_from_str(action: &str) -> ffi::UiAction {
+pub(crate) fn action_from_str(action: &str) -> ffi::UiAction {
     match action {
             "a" => ffi::UiAction::A,
             "about" => ffi::UiAction::About,
@@ -1133,6 +1134,7 @@ pub fn ui_action_from_str(action: &str) -> ffi::UiAction {
             "service_delete" => ffi::UiAction::ServiceDelete,
             "service_rename" => ffi::UiAction::ServiceRename,
             "service_save" => ffi::UiAction::ServiceSave,
+            "service_info" => ffi::UiAction::ServiceInfo,
             "session_append" => ffi::UiAction::SessionAppend,
             "session_append_backup" => ffi::UiAction::SessionAppendBackup,
             "session_backup" => ffi::UiAction::SessionBackup,
@@ -1635,14 +1637,14 @@ impl AppState {
         ids
     }
 
-    fn dispatch(&mut self, action: &str, target: &str, payload: &str) -> Vec<UiCommand> {
+    fn dispatch(&mut self, action: ffi::UiAction, target: &str, payload: &str) -> Vec<UiCommand> {
         match action {
-            "page_selected" => self.page_selected_command(target),
-            "selection_changed" => {
+            ffi::UiAction::PageSelected => self.page_selected_command(target),
+            ffi::UiAction::SelectionChanged => {
                 let hashes: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
                 self.set_selection(target, &hashes)
             }
-            "new_page_menu" => {
+            ffi::UiAction::NewPageMenu => {
                 let notebook = if target.is_empty() {
                     self.active_notebook_id()
                 } else {
@@ -1651,53 +1653,53 @@ impl AppState {
 
                 vec![UiCommand::ShowPageChooser(notebook)]
             }
-            "new_page" => vec![UiCommand::ShowPageChooser(self.active_notebook_id())],
-            "new_notebook" => {
+            ffi::UiAction::NewPage => vec![UiCommand::ShowPageChooser(self.active_notebook_id())],
+            ffi::UiAction::NewNotebook => {
                 let notebook = self.active_notebook_id();
                 self.create_page(&notebook, "notebook")
             }
-            "new_duplicates" => {
+            ffi::UiAction::NewDuplicates => {
                 let notebook = self.active_notebook_id();
                 self.create_page(&notebook, "duplicates")
             }
-            "new_urls" => {
+            ffi::UiAction::NewUrls => {
                 let notebook = self.active_notebook_id();
                 self.create_page(&notebook, "urls")
             }
-            "new_gallery" => {
+            ffi::UiAction::NewGallery => {
                 let notebook = self.active_notebook_id();
                 self.create_page(&notebook, "gallery")
             }
-            "new_watcher" => {
+            ffi::UiAction::NewWatcher => {
                 let notebook = self.active_notebook_id();
                 self.create_page(&notebook, "watcher")
             }
-            "new_simple" => {
+            ffi::UiAction::NewSimple => {
                 let notebook = self.active_notebook_id();
                 self.create_page(&notebook, "simple")
             }
-            "notify" => vec![UiCommand::NotifyMessage(payload.to_string())],
+            ffi::UiAction::Notify => vec![UiCommand::NotifyMessage(payload.to_string())],
             // Python has no subscriptions page: network -> subscriptions... opens
             // the manage subscriptions dialog.
-            "manage_subscriptions" => download::manage_subscriptions(self),
-            "new_subscriptions" => {
+            ffi::UiAction::ManageSubscriptions => download::manage_subscriptions(self),
+            ffi::UiAction::NewSubscriptions => {
                 let notebook = self.active_notebook_id();
                 self.create_page(&notebook, "subscriptions")
             }
             // Python has no import folders page: file -> import folders opens
             // the edit import folders dialog.
-            "manage_import_folders" => import_folders::manage(self),
-            "new_import_folders" | "import_folders" => {
+            ffi::UiAction::ManageImportFolders => import_folders::manage(self),
+            ffi::UiAction::NewImportFolders | ffi::UiAction::ImportFolders => {
                 let notebook = self.active_notebook_id();
                 import_folders::create_page(self, &notebook)
             }
-            "import_folder_add" => import_folders::add(self, payload),
-            "import_folder_edit" => import_folders::edit(self, payload),
-            "import_folder_save" => import_folders::save_action(self, payload),
-            "import_folder_remove" => import_folders::remove(self, payload),
-            "import_folder_toggle" => import_folders::toggle(self, payload),
-            "import_folder_check" => import_folders::check_now(self, payload),
-            "import_folder_check_all" => {
+            ffi::UiAction::ImportFolderAdd => import_folders::add(self, payload),
+            ffi::UiAction::ImportFolderEdit => import_folders::edit(self, payload),
+            ffi::UiAction::ImportFolderSave => import_folders::save_action(self, payload),
+            ffi::UiAction::ImportFolderRemove => import_folders::remove(self, payload),
+            ffi::UiAction::ImportFolderToggle => import_folders::toggle(self, payload),
+            ffi::UiAction::ImportFolderCheck => import_folders::check_now(self, payload),
+            ffi::UiAction::ImportFolderCheckAll => {
                 let names: Vec<String> = self
                     .import_folders
                     .iter()
@@ -1717,26 +1719,26 @@ impl AppState {
 
                 commands
             }
-            "new_export_folders" | "export_folders" => {
+            ffi::UiAction::NewExportFolders | ffi::UiAction::ExportFolders => {
                 let notebook = self.active_notebook_id();
                 export::create_page(self, &notebook)
             }
             // Python has no export folders page: file -> export folders opens
             // the edit export folders dialog.
-            "manage_export_folders" => export::manage(self),
-            "export_folder_edit" => export::edit(self, payload),
-            "export_folder_save" => export::save_action(self, payload),
-            "export_folder_remove" => export::remove(self, payload),
-            "export_folder_toggle" => export::toggle(self, payload),
-            "export_folder_run" => export::run_now(self, payload),
-            "export_folder_review" => export::review(self, payload),
-            "export_folder_run_all" => export::run_all(self),
-            "export_folder_reveal" => export::reveal(self, payload),
-            "export_folder_test_examples" => export::test_examples(self, payload),
-            "create_page" => self.create_page(target, payload),
-            "close_page" => self.close_page(target),
-            "close_other_pages" => self.close_other_pages(target),
-            "move_page" => {
+            ffi::UiAction::ManageExportFolders => export::manage(self),
+            ffi::UiAction::ExportFolderEdit => export::edit(self, payload),
+            ffi::UiAction::ExportFolderSave => export::save_action(self, payload),
+            ffi::UiAction::ExportFolderRemove => export::remove(self, payload),
+            ffi::UiAction::ExportFolderToggle => export::toggle(self, payload),
+            ffi::UiAction::ExportFolderRun => export::run_now(self, payload),
+            ffi::UiAction::ExportFolderReview => export::review(self, payload),
+            ffi::UiAction::ExportFolderRunAll => export::run_all(self),
+            ffi::UiAction::ExportFolderReveal => export::reveal(self, payload),
+            ffi::UiAction::ExportFolderTestExamples => export::test_examples(self, payload),
+            ffi::UiAction::CreatePage => self.create_page(target, payload),
+            ffi::UiAction::ClosePage => self.close_page(target),
+            ffi::UiAction::CloseOtherPages => self.close_other_pages(target),
+            ffi::UiAction::MovePage => {
                 let request: Value = match serde_json::from_str(payload) {
                     Ok(value) => value,
                     Err(_) => {
@@ -1757,23 +1759,23 @@ impl AppState {
 
                 self.page_move_request(target, drop_target, position)
             }
-            "duplicate_page" => self.duplicate_page_command(target),
-            "history_back" => self.navigate_history(true),
-            "history_forward" => self.navigate_history(false),
-            "page_manager" => vec![UiCommand::PageManagerDialog(render::page_manager(self))],
-            "command_palette" => vec![UiCommand::CommandPalette],
-            "page_manager_activate" => self.page_manager_activate_command(target),
-            "page_manager_close" => {
+            ffi::UiAction::DuplicatePage => self.duplicate_page_command(target),
+            ffi::UiAction::HistoryBack => self.navigate_history(true),
+            ffi::UiAction::HistoryForward => self.navigate_history(false),
+            ffi::UiAction::PageManager => vec![UiCommand::PageManagerDialog(render::page_manager(self))],
+            ffi::UiAction::CommandPalette => vec![UiCommand::CommandPalette],
+            ffi::UiAction::PageManagerActivate => self.page_manager_activate_command(target),
+            ffi::UiAction::PageManagerClose => {
                 let ids: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
                 self.close_pages(&ids)
             }
-            "session_save_as" => vec![UiCommand::PromptText {
-                action: "session_save".to_string(),
+            ffi::UiAction::SessionSaveAs => vec![UiCommand::PromptText {
+                action: ffi::UiAction::SessionSave,
                 title: "save session".to_string(),
                 label: "session name".to_string(),
                 initial: self.session_name.clone().unwrap_or_default(),
             }],
-            "session_save" => match sessions::save_named(self, payload) {
+            ffi::UiAction::SessionSave => match sessions::save_named(self, payload) {
                 Ok(name) => {
                     self.message = format!("saved session '{name}'");
                     vec![
@@ -1786,7 +1788,7 @@ impl AppState {
                     format!("could not save the session: {error}"),
                 )],
             },
-            "session_backup" => match sessions::backup(self) {
+            ffi::UiAction::SessionBackup => match sessions::backup(self) {
                 Ok(name) => {
                     self.message = format!("backed up session as '{name}'");
                     vec![
@@ -1799,16 +1801,16 @@ impl AppState {
                     format!("could not back up the session: {error}"),
                 )],
             },
-            "session_load" => self.load_session_named(target, false, false),
-            "session_append" => self.load_session_named(target, true, false),
-            "session_append_backup" => self.load_session_named(target, true, true),
-            "session_delete" => vec![UiCommand::ConfirmAction {
-                action: "session_delete_confirmed".to_string(),
+            ffi::UiAction::SessionLoad => self.load_session_named(target, false, false),
+            ffi::UiAction::SessionAppend => self.load_session_named(target, true, false),
+            ffi::UiAction::SessionAppendBackup => self.load_session_named(target, true, true),
+            ffi::UiAction::SessionDelete => vec![UiCommand::ConfirmAction {
+                action: ffi::UiAction::SessionDeleteConfirmed,
                 target: target.to_string(),
                 title: "delete session".to_string(),
                 text: format!("Delete the session '{target}'? This cannot be undone."),
             }],
-            "session_delete_confirmed" => match sessions::delete_named(self, target) {
+            ffi::UiAction::SessionDeleteConfirmed => match sessions::delete_named(self, target) {
                 Ok(()) => {
                     self.message = format!("deleted session '{target}'");
                     vec![
@@ -1821,12 +1823,12 @@ impl AppState {
                     format!("could not delete the session: {error}"),
                 )],
             },
-            "rename_page" => self.rename_page(target, payload),
-            "refresh_page" => {
+            ffi::UiAction::RenamePage => self.rename_page(target, payload),
+            ffi::UiAction::RefreshPage => {
                 let id = self.page_id_or_active(target);
                 self.refresh_page_commands(&id)
             }
-            "search" => {
+            ffi::UiAction::Search => {
                 let controller = self.controller.clone();
 
                 if let Some(page) = self.find_query_mut(target) {
@@ -1856,7 +1858,7 @@ impl AppState {
                         page,
                     )));
                     commands.push(UiCommand::Defer {
-                        action: "run_query".to_string(),
+                        action: ffi::UiAction::RunQuery,
                         target: target.to_string(),
                         payload: String::new(),
                         delay_ms: 1,
@@ -1866,7 +1868,7 @@ impl AppState {
                 commands.push(self.status_command());
                 commands
             }
-            "run_query" => {
+            ffi::UiAction::RunQuery => {
                 let controller = self.controller.clone();
 
                 let state = {
@@ -1886,7 +1888,7 @@ impl AppState {
                     self.status_command(),
                 ]
             }
-            "or_dialog" => {
+            ffi::UiAction::OrDialog => {
                 let initial = self
                     .find_query(target)
                     .map(|page| page.query.clone())
@@ -1897,7 +1899,7 @@ impl AppState {
                     initial,
                 }]
             }
-            "or_insert" => {
+            ffi::UiAction::OrInsert => {
                 let controller = self.controller.clone();
 
                 if let Some(page) = self.find_query_mut(target) {
@@ -1929,7 +1931,7 @@ impl AppState {
                         page,
                     )));
                     commands.push(UiCommand::Defer {
-                        action: "run_query".to_string(),
+                        action: ffi::UiAction::RunQuery,
                         target: target.to_string(),
                         payload: String::new(),
                         delay_ms: 1,
@@ -1939,17 +1941,17 @@ impl AppState {
                 commands.push(self.status_command());
                 commands
             }
-            "notifications" => vec![UiCommand::NotificationsDialog(render::notifications_json(
+            ffi::UiAction::Notifications => vec![UiCommand::NotificationsDialog(render::notifications_json(
                 self,
             ))],
-            "notifications_clear" => {
+            ffi::UiAction::NotificationsClear => {
                 self.notifications.clear();
                 vec![
                     UiCommand::Menus(render::menus(self)),
                     self.status_command(),
                 ]
             }
-            "downloader_export" => {
+            ffi::UiAction::DownloaderExport => {
                 let Some(page_id) = self.active.clone().filter(|id| {
                     matches!(
                         model::find_node(&self.root, id),
@@ -1963,11 +1965,11 @@ impl AppState {
 
                 vec![UiCommand::ExportDownloader(page_id)]
             }
-            "downloader_import" => {
+            ffi::UiAction::DownloaderImport => {
                 let target = self.active.clone().unwrap_or_else(|| "root".to_string());
                 vec![UiCommand::ImportDownloader(target)]
             }
-            "downloader_export_to" => {
+            ffi::UiAction::DownloaderExportTo => {
                 let path = PathBuf::from(payload);
                 let Some(node) = model::find_node(&self.root, target) else {
                     return vec![UiCommand::NotifyMessage("page is missing".to_string())];
@@ -2003,7 +2005,7 @@ impl AppState {
                     )],
                 }
             }
-            "downloader_import_from" => {
+            ffi::UiAction::DownloaderImportFrom => {
                 let text = match std::fs::read_to_string(payload) {
                     Ok(text) => text,
                     Err(error) => {
@@ -2057,7 +2059,7 @@ impl AppState {
                     self.status_command(),
                 ]
             }
-            "viewing_stats" => {
+            ffi::UiAction::ViewingStats => {
                 let hash_bytes = if payload.is_empty() {
                     let Some(page) = self.active_query() else {
                         return vec![UiCommand::NotifyMessage("no page selected".to_string())];
@@ -2078,7 +2080,7 @@ impl AppState {
                     &hash_bytes,
                 ))]
             }
-            "undo_search" => {
+            ffi::UiAction::UndoSearch => {
                 let controller = self.controller.clone();
                 let page_id = self.page_id_or_active(target);
 
@@ -2098,7 +2100,7 @@ impl AppState {
                 commands.extend(self.replace_query_and_refresh(&controller, &page_id));
                 commands
             }
-            "redo_search" => {
+            ffi::UiAction::RedoSearch => {
                 let controller = self.controller.clone();
                 let page_id = self.page_id_or_active(target);
 
@@ -2118,7 +2120,7 @@ impl AppState {
                 commands.extend(self.replace_query_and_refresh(&controller, &page_id));
                 commands
             }
-            "apply_search_history" => {
+            ffi::UiAction::ApplySearchHistory => {
                 let controller = self.controller.clone();
                 let page_id = self.page_id_or_active("");
 
@@ -2138,7 +2140,7 @@ impl AppState {
                 commands.extend(self.replace_query_and_refresh(&controller, &page_id));
                 commands
             }
-            "set_location" => {
+            ffi::UiAction::SetLocation => {
                 if let Some(page) = self.find_query_mut(target) {
                     if page.location != payload {
                         page.location = payload.to_string();
@@ -2153,7 +2155,7 @@ impl AppState {
                 let controller = self.controller.clone();
                 self.replace_query_and_refresh(&controller, target)
             }
-            "set_tag_service" => {
+            ffi::UiAction::SetTagService => {
                 if let Some(page) = self.find_query_mut(target) {
                     if page.tag_service != payload {
                         page.tag_service = payload.to_string();
@@ -2168,7 +2170,7 @@ impl AppState {
                 let controller = self.controller.clone();
                 self.replace_query_and_refresh(&controller, target)
             }
-            "autocomplete" => {
+            ffi::UiAction::Autocomplete => {
                 let Some(page) = self.find_query(target) else {
                     return vec![];
                 };
@@ -2224,7 +2226,7 @@ impl AppState {
                     .to_string(),
                 )]
             }
-            "set_sort" => {
+            ffi::UiAction::SetSort => {
                 let Ok(request) = serde_json::from_str::<Value>(payload) else {
                     return vec![UiCommand::NotifyMessage("invalid sort request".to_string())];
                 };
@@ -2237,7 +2239,7 @@ impl AppState {
 
                 self.set_sort_command(target, sort.as_deref(), ascending)
             }
-            "favourite_save" => {
+            ffi::UiAction::FavouriteSave => {
                 let initial = self
                     .active_query()
                     .map(|page| {
@@ -2250,13 +2252,13 @@ impl AppState {
                     .unwrap_or_default();
 
                 vec![UiCommand::PromptText {
-                    action: "favourite_save_confirmed".to_string(),
+                    action: ffi::UiAction::FavouriteSaveConfirmed,
                     title: "save favourite search".to_string(),
                     label: "name".to_string(),
                     initial,
                 }]
             }
-            "favourite_save_confirmed" => {
+            ffi::UiAction::FavouriteSaveConfirmed => {
                 let Some(page) = self.active_query() else {
                     return vec![UiCommand::NotifyMessage("no page selected".to_string())];
                 };
@@ -2277,7 +2279,7 @@ impl AppState {
                     self.status_command(),
                 ]
             }
-            "favourite_apply" => {
+            ffi::UiAction::FavouriteApply => {
                 let Some(favourite) = self
                     .favourites
                     .iter()
@@ -2305,13 +2307,13 @@ impl AppState {
 
                 self.replace_query_and_refresh(&controller, &page_id)
             }
-            "favourite_delete" => vec![UiCommand::ConfirmAction {
-                action: "favourite_delete_confirmed".to_string(),
+            ffi::UiAction::FavouriteDelete => vec![UiCommand::ConfirmAction {
+                action: ffi::UiAction::FavouriteDeleteConfirmed,
                 target: target.to_string(),
                 title: "delete favourite search".to_string(),
                 text: format!("Delete the favourite search '{target}'?"),
             }],
-            "favourite_delete_confirmed" => {
+            ffi::UiAction::FavouriteDeleteConfirmed => {
                 if favourites::remove(&mut self.favourites, target) {
                     let _ = favourites::persist(self);
                     self.message = format!("deleted favourite search '{target}'");
@@ -2322,14 +2324,14 @@ impl AppState {
                     self.status_command(),
                 ]
             }
-            "add_hashes_to_page" => {
+            ffi::UiAction::AddHashesToPage => {
                 let hashes: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
                 self.add_hashes(target, &hashes)
             }
-            "focus_hash" => self.focus(target, payload),
-            "open_viewer" => self.open_viewer(target, payload),
-            "viewer_nav" => self.viewer_nav(target, payload),
-            "viewer_close" => {
+            ffi::UiAction::FocusHash => self.focus(target, payload),
+            ffi::UiAction::OpenViewer => self.open_viewer(target, payload),
+            ffi::UiAction::ViewerNav => self.viewer_nav(target, payload),
+            ffi::UiAction::ViewerClose => {
                 if let Some(context) = self.viewers.remove(target) {
                     record_viewing(
                         &self.controller,
@@ -2341,89 +2343,89 @@ impl AppState {
 
                 vec![]
             }
-            "manage_tags" => self.manage_tags(target, payload, false),
-            "manage_tags_active" => self.manage_tags("", "", true),
-            "edit_timestamps" => self.edit_timestamps(),
-            "timestamps_save" => self.save_timestamps(payload),
-            "tag_add" => metadata::tag_action(self, true, payload),
-            "tag_remove" => metadata::tag_action(self, false, payload),
-            "copy_tags" => metadata::copy_tags(self),
-            "paste_tags" => metadata::apply_tags_selection(self, payload),
-            "paste_tags_prompt" | "apply_tags_selection" => vec![UiCommand::PromptText {
-                action: "apply_tags_selection_apply".to_string(),
+            ffi::UiAction::ManageTags => self.manage_tags(target, payload, false),
+            ffi::UiAction::ManageTagsActive => self.manage_tags("", "", true),
+            ffi::UiAction::EditTimestamps => self.edit_timestamps(),
+            ffi::UiAction::TimestampsSave => self.save_timestamps(payload),
+            ffi::UiAction::TagAdd => metadata::tag_action(self, true, payload),
+            ffi::UiAction::TagRemove => metadata::tag_action(self, false, payload),
+            ffi::UiAction::CopyTags => metadata::copy_tags(self),
+            ffi::UiAction::PasteTags => metadata::apply_tags_selection(self, payload),
+            ffi::UiAction::PasteTagsPrompt | ffi::UiAction::ApplyTagsSelection => vec![UiCommand::PromptText {
+                action: ffi::UiAction::ApplyTagsSelectionApply,
                 title: "apply tags to selection".to_string(),
                 label: "tags, one per line; prefix - to remove".to_string(),
                 initial: String::new(),
             }],
-            "apply_tags_selection_apply" => metadata::apply_tags_selection(self, payload),
-            "rating_set" => metadata::rating_action(self, payload),
-            "notes_manage" | "manage_notes_active" => {
-                if action == "manage_notes_active" {
+            ffi::UiAction::ApplyTagsSelectionApply => metadata::apply_tags_selection(self, payload),
+            ffi::UiAction::RatingSet => metadata::rating_action(self, payload),
+            ffi::UiAction::NotesManage | ffi::UiAction::ManageNotesActive => {
+                if action == ffi::UiAction::ManageNotesActive {
                     metadata::manage_notes_active(self)
                 } else {
                     metadata::notes_action(self, payload, false)
                 }
             }
-            "notes_save" => metadata::notes_action(self, payload, true),
-            "apply_tags" => self.apply_tags(payload),
-            "archive_files" => self.set_inbox(target, payload, false),
-            "inbox_files" => self.set_inbox(target, payload, true),
-            "archive_hashes" => self.set_inbox_many(target, payload, false),
-            "inbox_hashes" => self.set_inbox_many(target, payload, true),
-            "delete_hashes" => self.delete_files_many(target, payload),
-            "archive_active" => self.set_inbox_active(false),
-            "inbox_active" => self.set_inbox_active(true),
-            "delete_files" => self.delete_files(target, payload),
-            "import_files" | "review_local_imports" => local_import::open(self),
-            "local_import_open_paths" => local_import::open_paths(self, payload),
-            "local_import_add_paths" => local_import::add_paths(self, payload),
-            "local_import_remove" => local_import::remove_paths(self, payload),
-            "local_import_search_subdirectories" => {
+            ffi::UiAction::NotesSave => metadata::notes_action(self, payload, true),
+            ffi::UiAction::ApplyTags => self.apply_tags(payload),
+            ffi::UiAction::ArchiveFiles => self.set_inbox(target, payload, false),
+            ffi::UiAction::InboxFiles => self.set_inbox(target, payload, true),
+            ffi::UiAction::ArchiveHashes => self.set_inbox_many(target, payload, false),
+            ffi::UiAction::InboxHashes => self.set_inbox_many(target, payload, true),
+            ffi::UiAction::DeleteHashes => self.delete_files_many(target, payload),
+            ffi::UiAction::ArchiveActive => self.set_inbox_active(false),
+            ffi::UiAction::InboxActive => self.set_inbox_active(true),
+            ffi::UiAction::DeleteFiles => self.delete_files(target, payload),
+            ffi::UiAction::ImportFiles | ffi::UiAction::ReviewLocalImports => local_import::open(self),
+            ffi::UiAction::LocalImportOpenPaths => local_import::open_paths(self, payload),
+            ffi::UiAction::LocalImportAddPaths => local_import::add_paths(self, payload),
+            ffi::UiAction::LocalImportRemove => local_import::remove_paths(self, payload),
+            ffi::UiAction::LocalImportSearchSubdirectories => {
                 local_import::set_search_subdirectories(self, payload)
             }
-            "local_import_delete_after_success" => {
+            ffi::UiAction::LocalImportDeleteAfterSuccess => {
                 local_import::set_delete_after_success(self, payload)
             }
-            "local_import_import" => local_import::import_now(self),
-            "local_import_options" => import_options::open_caller(self, "local_import"),
-            "local_import_tagging_open" => local_import::tagging_open(self),
-            "local_import_tagging_save" => local_import::tagging_save(self, payload),
-            "repair_file_locations" => file_locations::open(self),
-            "repair_locations_set" => file_locations::set_locations(self, payload),
-            "repair_locations_probe" => file_locations::probe(self, payload),
-            "repair_locations_apply" => file_locations::apply(self, payload),
-            "import_options" => import_options::open(self),
-            "import_options_save" => import_options::save_action(self, payload),
-            "import_url" => vec![UiCommand::PromptUrl],
-            "download_url" => self.download_one_url(payload),
-            "import_paths" => self.import_paths(payload),
-            "downloader_start" => download::start(self, target, payload),
-            "downloader_pause" => download::pause(self, target),
-            "downloader_jobs_set" => download::jobs_set(self, target, payload),
-            "downloader_set_site" => download::set_site(self, target, payload),
-            "downloader_set_formula" => download::set_formula(self, target, payload),
-            "watcher_add_url" => download::set_watcher_url(self, target, payload),
-            "watcher_remove" => download::remove_watcher(self, target),
-            "watcher_checker_options" => vec![UiCommand::NotifyMessage(
+            ffi::UiAction::LocalImportImport => local_import::import_now(self),
+            ffi::UiAction::LocalImportOptions => import_options::open_caller(self, "local_import"),
+            ffi::UiAction::LocalImportTaggingOpen => local_import::tagging_open(self),
+            ffi::UiAction::LocalImportTaggingSave => local_import::tagging_save(self, payload),
+            ffi::UiAction::RepairFileLocations => file_locations::open(self),
+            ffi::UiAction::RepairLocationsSet => file_locations::set_locations(self, payload),
+            ffi::UiAction::RepairLocationsProbe => file_locations::probe(self, payload),
+            ffi::UiAction::RepairLocationsApply => file_locations::apply(self, payload),
+            ffi::UiAction::ImportOptions => import_options::open(self),
+            ffi::UiAction::ImportOptionsSave => import_options::save_action(self, payload),
+            ffi::UiAction::ImportUrl => vec![UiCommand::PromptUrl],
+            ffi::UiAction::DownloadUrl => self.download_one_url(payload),
+            ffi::UiAction::ImportPaths => self.import_paths(payload),
+            ffi::UiAction::DownloaderStart => download::start(self, target, payload),
+            ffi::UiAction::DownloaderPause => download::pause(self, target),
+            ffi::UiAction::DownloaderJobsSet => download::jobs_set(self, target, payload),
+            ffi::UiAction::DownloaderSetSite => download::set_site(self, target, payload),
+            ffi::UiAction::DownloaderSetFormula => download::set_formula(self, target, payload),
+            ffi::UiAction::WatcherAddUrl => download::set_watcher_url(self, target, payload),
+            ffi::UiAction::WatcherRemove => download::remove_watcher(self, target),
+            ffi::UiAction::WatcherCheckerOptions => vec![UiCommand::NotifyMessage(
                 "checker options are not implemented yet".to_string(),
             )],
-            "downloader_clear" => download::clear(self, target),
-            "downloader_retry" => download::retry(self, target, payload),
-            "downloader_open_results" => download::open_results(self, target),
-            "downloader_import_options" => download::open_import_options(self, target),
-            "downloader_import_options_save" => download::save_import_options(self, payload),
-            "subscription_import_options" => {
+            ffi::UiAction::DownloaderClear => download::clear(self, target),
+            ffi::UiAction::DownloaderRetry => download::retry(self, target, payload),
+            ffi::UiAction::DownloaderOpenResults => download::open_results(self, target),
+            ffi::UiAction::DownloaderImportOptions => download::open_import_options(self, target),
+            ffi::UiAction::DownloaderImportOptionsSave => download::save_import_options(self, payload),
+            ffi::UiAction::SubscriptionImportOptions => {
                 download::open_subscription_import_options(self, payload.trim())
             }
-            "subscription_import_options_save" => {
+            ffi::UiAction::SubscriptionImportOptionsSave => {
                 download::save_subscription_import_options(self, payload)
             }
-            "file_seed_cache" => seeds::open_file_seed_cache(self, target),
-            "file_seed_cache_action" => seeds::file_seed_action(self, payload),
-            "gallery_seed_log" => seeds::open_gallery_seed_log(self, target),
-            "gallery_seed_log_action" => seeds::gallery_seed_action(self, payload),
-            "watcher_check" => download::start(self, target, payload),
-            "watcher_auto" => {
+            ffi::UiAction::FileSeedCache => seeds::open_file_seed_cache(self, target),
+            ffi::UiAction::FileSeedCacheAction => seeds::file_seed_action(self, payload),
+            ffi::UiAction::GallerySeedLog => seeds::open_gallery_seed_log(self, target),
+            ffi::UiAction::GallerySeedLogAction => seeds::gallery_seed_action(self, payload),
+            ffi::UiAction::WatcherCheck => download::start(self, target, payload),
+            ffi::UiAction::WatcherAuto => {
                 if let Some(page) = self.find_downloader_mut(target) {
                     page.auto_watch = !page.auto_watch;
                     page.status = if page.auto_watch {
@@ -2434,44 +2436,44 @@ impl AppState {
                 }
                 self.downloader_update(target)
             }
-            "subscription_check" => download::start_subscription(self, target, payload),
-            "subscription_toggle" => download::toggle_subscription(self, target, payload),
-            "subscription_delete" => download::delete_subscription(self, target, payload),
-            "subscription_edit" => download::edit_subscription_dialog(self, target, payload),
-            "subscription_edit_save" => download::save_subscription_dialog(self, target, payload),
-            "subscription_add" => download::add_subscription(self, target, payload),
-            "subscription_duplicate" => {
+            ffi::UiAction::SubscriptionCheck => download::start_subscription(self, target, payload),
+            ffi::UiAction::SubscriptionToggle => download::toggle_subscription(self, target, payload),
+            ffi::UiAction::SubscriptionDelete => download::delete_subscription(self, target, payload),
+            ffi::UiAction::SubscriptionEdit => download::edit_subscription_dialog(self, target, payload),
+            ffi::UiAction::SubscriptionEditSave => download::save_subscription_dialog(self, target, payload),
+            ffi::UiAction::SubscriptionAdd => download::add_subscription(self, target, payload),
+            ffi::UiAction::SubscriptionDuplicate => {
                 download::duplicate_subscription(self, target, payload)
             }
-            "subscription_lowercase_queries" => {
+            ffi::UiAction::SubscriptionLowercaseQueries => {
                 download::lowercase_subscription_queries(self, target, payload)
             }
-            "subscription_scrub_delays" => {
+            ffi::UiAction::SubscriptionScrubDelays => {
                 download::scrub_subscription_delays(self, target, payload)
             }
-            "subscription_reset" => download::reset_subscription(self, target, payload),
-            "subscription_import_options_clear" => {
+            ffi::UiAction::SubscriptionReset => download::reset_subscription(self, target, payload),
+            ffi::UiAction::SubscriptionImportOptionsClear => {
                 download::clear_subscription_import_options(self, target, payload)
             }
-            "subscription_open_results" => {
+            ffi::UiAction::SubscriptionOpenResults => {
                 download::open_subscription_results(self, target, payload)
             }
-            "duplicates_rules" => vec![UiCommand::DuplicatesRulesDialog(
+            ffi::UiAction::DuplicatesRules => vec![UiCommand::DuplicatesRulesDialog(
                 auto_resolution::dialog_json(self),
             )],
-            "duplicates_merge_options_dialog" => vec![UiCommand::DuplicatesMergeOptionsDialog(
+            ffi::UiAction::DuplicatesMergeOptionsDialog => vec![UiCommand::DuplicatesMergeOptionsDialog(
                 duplicates::merge_options_json(self),
             )],
-            "duplicates_rule_add" | "duplicates_rule_save" => {
+            ffi::UiAction::DuplicatesRuleAdd | ffi::UiAction::DuplicatesRuleSave => {
                 auto_resolution::save_rule(self, payload)
             }
-            "duplicates_rule_remove" => auto_resolution::remove_rule(self, payload),
-            "duplicates_rule_preview" => auto_resolution::preview_rule(self, payload),
-            "duplicates_review" => auto_resolution::review_open(self),
-            "duplicates_show_pair" => auto_resolution::show_pair_action(self, payload),
-            "duplicates_merge_options" => duplicates::save_merge_options_action(self, payload),
-            "duplicates_review_apply" => auto_resolution::review_apply(self, payload),
-            "duplicates_auto_toggle" => {
+            ffi::UiAction::DuplicatesRuleRemove => auto_resolution::remove_rule(self, payload),
+            ffi::UiAction::DuplicatesRulePreview => auto_resolution::preview_rule(self, payload),
+            ffi::UiAction::DuplicatesReview => auto_resolution::review_open(self),
+            ffi::UiAction::DuplicatesShowPair => auto_resolution::show_pair_action(self, payload),
+            ffi::UiAction::DuplicatesMergeOptions => duplicates::save_merge_options_action(self, payload),
+            ffi::UiAction::DuplicatesReviewApply => auto_resolution::review_apply(self, payload),
+            ffi::UiAction::DuplicatesAutoToggle => {
                 let mut options = self.controller.options();
                 let enabled = !options.get_boolean("duplicates_auto_resolution_enabled");
                 options.set_boolean("duplicates_auto_resolution_enabled", enabled);
@@ -2490,43 +2492,53 @@ impl AppState {
                 commands.push(UiCommand::Status(render::status(self)));
                 commands
             }
-            action if action.starts_with("duplicates_") => {
+            ffi::UiAction::DuplicatesAlternates | ffi::UiAction::DuplicatesBatchSize | ffi::UiAction::DuplicatesCustom | ffi::UiAction::DuplicatesCustomAction | ffi::UiAction::DuplicatesDeleteBoth | ffi::UiAction::DuplicatesFalse | ffi::UiAction::DuplicatesGroupAction | ffi::UiAction::DuplicatesKeepA | ffi::UiAction::DuplicatesKeepAKeep | ffi::UiAction::DuplicatesKeepB | ffi::UiAction::DuplicatesKeepBKeep | ffi::UiAction::DuplicatesNextBatch | ffi::UiAction::DuplicatesRefresh | ffi::UiAction::DuplicatesSame | ffi::UiAction::DuplicatesSearchContext | ffi::UiAction::DuplicatesSkip => {
                 duplicates::action(self, target, action, payload)
             }
-            "options" => vec![UiCommand::OptionsDialog(options::options_json(self))],
-            "options_apply" => options::apply_options(self, payload),
-            "manage_services" => vec![UiCommand::ServicesDialog(services::services_json(self))],
-            "api_permissions" => api_permissions::open(self),
-            "api_permissions_save" => api_permissions::save(self, payload),
-            "api_permissions_delete" => api_permissions::delete(self, payload),
-            "service_save" => services::save_service(self, payload),
-            "service_delete" => services::delete_service(self, payload),
-            "login_save" => services::login_save(self, payload),
-            "login_remove" => services::login_remove(self, payload),
-            "admin_connect" => services::admin_connect(self, payload),
-            "admin_service_action" => services::admin_service_action(self, payload),
-            "admin_add_service" => services::admin_add_service(self, payload),
-            "admin_edit_service" => services::admin_edit_service(self, payload),
-            "admin_remove_service" => services::admin_remove_service(self, payload),
-            "admin_account_action" => services::admin_account_action(self, payload),
-            "account_types_open" => services::open_account_types(self, payload),
-            "account_type_save" => services::save_account_type(self, payload),
-            "account_type_delete" => services::delete_account_type(self, payload),
-            "service_add" | "service_rename" => services::save_service(self, payload),
-            "options_network" => vec![UiCommand::NetworkDialog(options::network_json(self))],
-            action if action.starts_with("network_") => {
+            ffi::UiAction::Options => vec![UiCommand::OptionsDialog(options::options_json(self))],
+            ffi::UiAction::OptionsApply => options::apply_options(self, payload),
+            ffi::UiAction::ManageServices => vec![UiCommand::ServicesDialog(services::services_json(self))],
+            ffi::UiAction::ApiPermissions => api_permissions::open(self),
+            ffi::UiAction::ApiPermissionsSave => api_permissions::save(self, payload),
+            ffi::UiAction::ApiPermissionsDelete => api_permissions::delete(self, payload),
+            ffi::UiAction::ServiceSave => services::save_service(self, payload),
+            ffi::UiAction::ServiceDelete => services::delete_service(self, payload),
+            ffi::UiAction::LoginSave => services::login_save(self, payload),
+            ffi::UiAction::LoginRemove => services::login_remove(self, payload),
+            ffi::UiAction::AdminConnect => services::admin_connect(self, payload),
+            ffi::UiAction::AdminServiceAction => services::admin_service_action(self, payload),
+            ffi::UiAction::AdminAddService => services::admin_add_service(self, payload),
+            ffi::UiAction::AdminEditService => services::admin_edit_service(self, payload),
+            ffi::UiAction::AdminRemoveService => services::admin_remove_service(self, payload),
+            ffi::UiAction::AdminAccountAction => services::admin_account_action(self, payload),
+            ffi::UiAction::AccountTypesOpen => services::open_account_types(self, payload),
+            ffi::UiAction::AccountTypeSave => services::save_account_type(self, payload),
+            ffi::UiAction::AccountTypeDelete => services::delete_account_type(self, payload),
+            ffi::UiAction::ServiceAdd | ffi::UiAction::ServiceRename => services::save_service(self, payload),
+            ffi::UiAction::OptionsNetwork => vec![UiCommand::NetworkDialog(options::network_json(self))],
+            ffi::UiAction::NetworkHeaderAdd
+            | ffi::UiAction::NetworkHeaderRemove
+            | ffi::UiAction::NetworkPause
+            | ffi::UiAction::NetworkPoolRemove
+            | ffi::UiAction::NetworkPoolSet
+            | ffi::UiAction::NetworkRuleRemove
+            | ffi::UiAction::NetworkRuleSet
+            | ffi::UiAction::NetworkSave
+            | ffi::UiAction::NetworkUrlClassAdd
+            | ffi::UiAction::NetworkUrlClassRemove
+            | ffi::UiAction::NetworkUrlClassSave => {
                 options::network_action(self, action, payload)
             }
-            "exit" => vec![UiCommand::Quit],
-            "open_db_dir" => vec![UiCommand::OpenPath(
+            ffi::UiAction::Exit => vec![UiCommand::Quit],
+            ffi::UiAction::OpenDbDir => vec![UiCommand::OpenPath(
                 self.controller.db_dir().display().to_string(),
             )],
-            "open_install_dir" => vec![UiCommand::OpenPath(dirs().base_dir.display().to_string())],
-            "docs" => vec![UiCommand::OpenUrl(
+            ffi::UiAction::OpenInstallDir => vec![UiCommand::OpenPath(dirs().base_dir.display().to_string())],
+            ffi::UiAction::Docs => vec![UiCommand::OpenUrl(
                 "https://hydrusnetwork.github.io/hydrus/".to_string(),
             )],
-            "about" => vec![UiCommand::AboutDialog(render::about(self))],
-            "db_info" => {
+            ffi::UiAction::About => vec![UiCommand::AboutDialog(render::about(self))],
+            ffi::UiAction::DbInfo => {
                 let version = self.controller.db().get_version().unwrap_or(0);
                 let services = self.controller.services().get_num_services();
                 let dir = self.controller.db_dir().display();
@@ -2539,8 +2551,8 @@ impl AppState {
                     ),
                 )]
             }
-            other if other.starts_with("service_info:") => {
-                let name = other.trim_start_matches("service_info:");
+            ffi::UiAction::ServiceInfo => {
+                let name = target;
                 let service = self
                     .controller
                     .services()
@@ -2563,25 +2575,18 @@ impl AppState {
                     ))],
                 }
             }
-            "tag_filter_open" => tag_filter::open(self, payload),
-            "tag_filter_save" => tag_filter::save(self, payload),
-            "tag_filter_test" => tag_filter::test(self, payload),
-            "purge_tags" => tag_filter::purge(self, payload),
-            other if other.starts_with("tag_filter:") => {
-                tag_filter::open(self, other.trim_start_matches("tag_filter:"))
-            }
-            "pause_network" => options::network_action(self, "network_pause", ""),
-            "tag_siblings" => tag_relations::show(self, tag_relations::SIBLINGS),
-            "tag_parents" => tag_relations::show(self, tag_relations::PARENTS),
-            "tag_relations_add" => tag_relations::action(self, payload, true),
-            "tag_relations_remove" => tag_relations::action(self, payload, false),
-            "orphan_files_scan" => orphans::open(self),
-            "orphan_files_delete" => orphans::delete(self, payload),
-            "orphan_files_move" => orphans::move_to(self, payload),
-            "db_backup_open" => backup::open(self),
-            "db_backup_set_path" => backup::set_path(self, payload),
-            "db_backup_run" => backup::run(self),
-            "db_check" => {
+            ffi::UiAction::PauseNetwork => options::network_action(self, ffi::UiAction::NetworkPause, ""),
+            ffi::UiAction::TagSiblings => tag_relations::show(self, tag_relations::SIBLINGS),
+            ffi::UiAction::TagParents => tag_relations::show(self, tag_relations::PARENTS),
+            ffi::UiAction::TagRelationsAdd => tag_relations::action(self, payload, true),
+            ffi::UiAction::TagRelationsRemove => tag_relations::action(self, payload, false),
+            ffi::UiAction::OrphanFilesScan => orphans::open(self),
+            ffi::UiAction::OrphanFilesDelete => orphans::delete(self, payload),
+            ffi::UiAction::OrphanFilesMove => orphans::move_to(self, payload),
+            ffi::UiAction::DbBackupOpen => backup::open(self),
+            ffi::UiAction::DbBackupSetPath => backup::set_path(self, payload),
+            ffi::UiAction::DbBackupRun => backup::run(self),
+            ffi::UiAction::DbCheck => {
                 let result =
                     self.controller
                         .db()
@@ -2602,7 +2607,7 @@ impl AppState {
                     )],
                 }
             }
-            "db_vacuum" => {
+            ffi::UiAction::DbVacuum => {
                 let result = self.controller.db().db().execute_batch("VACUUM;");
 
                 match result {
@@ -2616,7 +2621,7 @@ impl AppState {
                     )],
                 }
             }
-            "db_analyze" => {
+            ffi::UiAction::DbAnalyze => {
                 let result = self
                     .controller
                     .db()
@@ -2634,7 +2639,7 @@ impl AppState {
                     )],
                 }
             }
-            "db_vacuum_info" => {
+            ffi::UiAction::DbVacuumInfo => {
                 let db = self.controller.db().db();
                 let page_count = pragma_i64(db, "page_count");
                 let freelist = pragma_i64(db, "freelist_count");
@@ -2651,7 +2656,7 @@ impl AppState {
                     ),
                 )]
             }
-            "db_deferred_deletes" => {
+            ffi::UiAction::DbDeferredDeletes => {
                 let db = self.controller.db().db();
                 let trash = query::trash_service_id(&self.controller)
                     .and_then(|service_id| {
@@ -2665,11 +2670,11 @@ impl AppState {
                     format!("files waiting in trash: {trash}"),
                 )]
             }
-            "db_file_maintenance" => vec![UiCommand::Message(
+            ffi::UiAction::DbFileMaintenance => vec![UiCommand::Message(
                 "file maintenance jobs".to_string(),
                 render::maintenance_json(self),
             )],
-            "db_run_file_maintenance" => {
+            ffi::UiAction::DbRunFileMaintenance => {
                 let (done, failed) = run_maintenance(self, 500);
                 self.message = format!("file maintenance finished: {done} done, {failed} failed");
                 vec![
@@ -2684,7 +2689,7 @@ impl AppState {
                     self.status_command(),
                 ]
             }
-            "db_fix_archive_times" => {
+            ffi::UiAction::DbFixArchiveTimes => {
                 let manager = self.controller.services();
                 let Some(service) = manager.get_service(b"my files") else {
                     return vec![UiCommand::NotifyMessage(
@@ -2709,7 +2714,7 @@ impl AppState {
                     ))],
                 }
             }
-            "db_stats" => {
+            ffi::UiAction::DbStats => {
                 let db = self.controller.db().db();
                 let version = self.controller.db().get_version().unwrap_or(0);
                 let services = self.controller.services().get_num_services();
@@ -2734,10 +2739,10 @@ impl AppState {
                     ),
                 )]
             }
-            "pending" => vec![UiCommand::NotifyMessage(
+            ffi::UiAction::Pending => vec![UiCommand::NotifyMessage(
                 "there is no pending upload in this local-only build".to_string(),
             )],
-            "undo" => match self.undo_closed_page() {
+            ffi::UiAction::Undo => match self.undo_closed_page() {
                 Some(id) => {
                     self.message = format!("restored page '{id}'");
                     vec![
@@ -2749,7 +2754,7 @@ impl AppState {
                 None => vec![UiCommand::NotifyMessage("nothing to undo".to_string())],
             },
             unknown => vec![UiCommand::NotifyMessage(format!(
-                "unknown action: {unknown}"
+                "unknown action: {unknown:?}"
             ))],
         }
     }

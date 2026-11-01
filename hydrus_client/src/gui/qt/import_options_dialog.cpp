@@ -365,7 +365,7 @@ void HydrusImportOptionsDialog::save() {
         const QString action_text = specific.value(QStringLiteral("action")).toString();
         const QByteArray action_bytes = action_text.toUtf8();
         main->notify(
-            ui_action_from_str(rust::Str(action_bytes.constData(), action_bytes.size())),
+            action_from_str(rust::Str(action_bytes.constData(), action_bytes.size())),
             QString(),
             json_payload(payload));
 

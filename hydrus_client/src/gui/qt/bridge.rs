@@ -179,7 +179,7 @@ pub fn run_application(controller: Arc<Controller>) {
             let payload = parts.next().unwrap_or_default();
 
             if !action.is_empty() {
-                let ua = crate::gui::app::ui_action_from_str(action);
+                let ua = crate::gui::app::action_from_str(action);
                 ffi::hydrus_defer_action(
                     window.pin_mut(),
                     ua,

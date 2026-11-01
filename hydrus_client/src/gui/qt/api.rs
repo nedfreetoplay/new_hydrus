@@ -79,7 +79,7 @@ pub(crate) mod ffi {
         depth: i32,
         title: String,
         label: String,
-        action: String,
+        action: UiAction,
         target: String,
         payload: String,
         tooltip: String,
@@ -476,6 +476,7 @@ pub(crate) mod ffi {
         ServiceDelete,
         ServiceRename,
         ServiceSave,
+        ServiceInfo,
         SessionAppend,
         SessionAppendBackup,
         SessionBackup,
@@ -956,8 +957,8 @@ pub(crate) mod ffi {
             target: &str,
             payload: &str,
         );
-        fn ui_action_from_str(action: &str) -> UiAction;
         fn app_tick(window: Pin<&mut HydrusMainWindow>);
+        fn action_from_str(action: &str) -> UiAction;
         /// Typed reverse seam (WS-15.2.2a): tab drag & drop between notebooks.
         fn app_move_page(
             window: Pin<&mut HydrusMainWindow>,
@@ -1027,11 +1028,7 @@ fn app_action(
     target: &str,
     payload: &str,
 ) {
-    crate::gui::app::handle_action(window.as_mut(), action.as_str(), target, payload);
-}
-
-fn ui_action_from_str(action: &str) -> ffi::UiAction {
-    crate::gui::app::ui_action_from_str(action)
+    crate::gui::app::handle_action(window.as_mut(), action, target, payload);
 }
 
 fn app_tick(mut window: Pin<&mut ffi::HydrusMainWindow>) {
@@ -1155,4 +1152,8 @@ fn hydrus_static_dir() -> String {
     crate::gui::app::static_assets::resolve_static_dir()
         .map(|path| path.to_string_lossy().to_string())
         .unwrap_or_default()
+}
+
+fn action_from_str(action: &str) -> ffi::UiAction {
+    crate::gui::app::action_from_str(action)
 }

@@ -22,6 +22,7 @@ use crate::gui::app::model::{
     PixelDupesPreference,
 };
 use crate::gui::app::{AppState, UiCommand, query, render};
+use crate::gui::qt::api::ffi;
 use serde_json::{Value, json};
 
 const MIN_BATCH_SIZE: i64 = 5;
@@ -62,7 +63,7 @@ pub fn refresh_for(
     load_queue(controller, page, rules, review)
 }
 
-pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) -> Vec<UiCommand> {
+pub fn action(state: &mut AppState, page_id: &str, action: ffi::UiAction, payload: &str) -> Vec<UiCommand> {
     let controller = state.controller.clone();
     let rules = state.auto_rules.clone();
     let mut review = std::mem::take(&mut state.duplicate_review);
@@ -77,25 +78,25 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
     };
 
     match action {
-        "duplicates_skip" => {
+        ffi::UiAction::DuplicatesSkip => {
             if !page.pairs.is_empty() {
                 page.index = (page.index + 1) % page.pairs.len();
                 page.status = format!("{} pairs left", page.pairs.len());
             }
         }
-        "duplicates_review" => {
+        ffi::UiAction::DuplicatesReview => {
             state.duplicate_review = review;
 
             return auto_resolution::review_open(state);
         }
-        "duplicates_refresh" => {
+        ffi::UiAction::DuplicatesRefresh => {
             queued = load_queue(&controller, page, &rules, &mut review).1;
         }
-        "duplicates_next_batch" => {
+        ffi::UiAction::DuplicatesNextBatch => {
             queued = load_queue(&controller, page, &rules, &mut review).1;
             page.status = format!("next batch; {}", page.status);
         }
-        "duplicates_batch_size" => {
+        ffi::UiAction::DuplicatesBatchSize => {
             let Ok(requested) = payload.trim().parse::<i64>() else {
                 state.duplicate_review = review;
 
@@ -112,7 +113,7 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
             queued = load_queue(&controller, page, &rules, &mut review).1;
             page.status = format!("batch size {size}; {}", page.status);
         }
-        "duplicates_search_context" => {
+        ffi::UiAction::DuplicatesSearchContext => {
             match serde_json::from_str::<DuplicateSearchContext>(payload) {
                 Ok(mut context) => {
                     context.normalise();
@@ -128,11 +129,11 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
                 }
             }
         }
-        "duplicates_keep_a"
-        | "duplicates_keep_b"
-        | "duplicates_keep_a_keep"
-        | "duplicates_keep_b_keep"
-        | "duplicates_same" => {
+        ffi::UiAction::DuplicatesKeepA
+        | ffi::UiAction::DuplicatesKeepB
+        | ffi::UiAction::DuplicatesKeepAKeep
+        | ffi::UiAction::DuplicatesKeepBKeep
+        | ffi::UiAction::DuplicatesSame => {
             let Some(pair) = page.current().cloned() else {
                 state.duplicate_review = review;
 
@@ -142,25 +143,25 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
             };
 
             let (keep, discard, trash, kind) = match action {
-                "duplicates_keep_a" => (
+                ffi::UiAction::DuplicatesKeepA => (
                     pair.a.clone(),
                     pair.b.clone(),
                     true,
                     MergeActionKind::Better,
                 ),
-                "duplicates_keep_b" => (
+                ffi::UiAction::DuplicatesKeepB => (
                     pair.b.clone(),
                     pair.a.clone(),
                     true,
                     MergeActionKind::Better,
                 ),
-                "duplicates_keep_a_keep" => (
+                ffi::UiAction::DuplicatesKeepAKeep => (
                     pair.a.clone(),
                     pair.b.clone(),
                     false,
                     MergeActionKind::Better,
                 ),
-                "duplicates_keep_b_keep" => (
+                ffi::UiAction::DuplicatesKeepBKeep => (
                     pair.b.clone(),
                     pair.a.clone(),
                     false,
@@ -193,7 +194,7 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
                 }
             }
         }
-        "duplicates_alternates" => {
+        ffi::UiAction::DuplicatesAlternates => {
             let Some(pair) = page.current().cloned() else {
                 state.duplicate_review = review;
 
@@ -219,13 +220,13 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
                 }
             }
         }
-        "duplicates_custom_action" => {
+        ffi::UiAction::DuplicatesCustomAction => {
             let json = custom_action_dialog_json(&controller, page);
             state.duplicate_review = review;
 
             return vec![UiCommand::DuplicateCustomActionDialog(json)];
         }
-        "duplicates_custom" => {
+        ffi::UiAction::DuplicatesCustom => {
             let Some(pair) = page.current().cloned() else {
                 state.duplicate_review = review;
 
@@ -244,7 +245,7 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
                 }
             }
         }
-        "duplicates_group_action" => {
+        ffi::UiAction::DuplicatesGroupAction => {
             let Some(pair) = page.current().cloned() else {
                 state.duplicate_review = review;
 
@@ -268,7 +269,7 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
                 }
             }
         }
-        "duplicates_false" => {
+        ffi::UiAction::DuplicatesFalse => {
             let Some(pair) = page.current().cloned() else {
                 state.duplicate_review = review;
 
@@ -287,7 +288,7 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
                 }
             }
         }
-        "duplicates_delete_both" => {
+        ffi::UiAction::DuplicatesDeleteBoth => {
             let Some(pair) = page.current().cloned() else {
                 state.duplicate_review = review;
 
@@ -316,7 +317,7 @@ pub fn action(state: &mut AppState, page_id: &str, action: &str, payload: &str) 
 
     let mut commands = duplicates_commands(state, page_id);
 
-    if action != "duplicates_skip" && action != "duplicates_refresh" {
+    if action != ffi::UiAction::DuplicatesSkip && action != ffi::UiAction::DuplicatesRefresh {
         commands.extend(state.refresh_commands());
     }
 
@@ -2313,7 +2314,7 @@ mod tests {
         let mut state = action_state(&directory);
         let controller = state.controller.clone();
         add_sized_pair(&controller, 101, 1_000, 2_000, 1);
-        action(&mut state, "dup-actions", "duplicates_refresh", "");
+        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesRefresh, "");
 
         let page = state.find_duplicates("dup-actions").unwrap();
         let value: Value =
@@ -2352,7 +2353,7 @@ mod tests {
         let mut state = action_state(&directory);
         let controller = state.controller.clone();
         let (_, _, first_id, second_id) = add_sized_pair(&controller, 61, 1_000, 4_000, 2);
-        action(&mut state, "dup-actions", "duplicates_refresh", "");
+        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesRefresh, "");
         let pair = state
             .find_duplicates("dup-actions")
             .unwrap()
@@ -2360,7 +2361,7 @@ mod tests {
             .cloned()
             .unwrap();
 
-        let commands = action(&mut state, "dup-actions", "duplicates_keep_a_keep", "");
+        let commands = action(&mut state, "dup-actions", ffi::UiAction::DuplicatesKeepAKeep, "");
         assert!(matches!(
             commands.first(),
             Some(UiCommand::UpdateDuplicates(_, _))
@@ -2398,8 +2399,8 @@ mod tests {
 
         // A second pair can be marked as related alternates without deleting.
         let (_, _, third_id, fourth_id) = add_sized_pair(&controller, 63, 1_000, 2_000, 1);
-        action(&mut state, "dup-actions", "duplicates_refresh", "");
-        action(&mut state, "dup-actions", "duplicates_alternates", "");
+        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesRefresh, "");
+        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesAlternates, "");
 
         assert_eq!(
             duplicates::get_alternate_group_ids_for_hash(db, third_id)
@@ -2428,7 +2429,7 @@ mod tests {
         let mut state = action_state(&directory);
         let controller = state.controller.clone();
         let (_, _, _, _) = add_sized_pair(&controller, 71, 1_000, 4_000, 2);
-        action(&mut state, "dup-actions", "duplicates_refresh", "");
+        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesRefresh, "");
 
         let pair = state
             .find_duplicates("dup-actions")
@@ -2454,7 +2455,7 @@ mod tests {
         })
         .to_string();
 
-        action(&mut state, "dup-actions", "duplicates_custom", &payload);
+        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesCustom, &payload);
 
         let db = controller.db().db();
         let my_files = query::local_file_service_id(&controller, "my files").unwrap();
@@ -2481,7 +2482,7 @@ mod tests {
         let controller = state.controller.clone();
         let (first_hash, _second_hash, first_id, second_id) =
             add_sized_pair(&controller, 81, 1_000, 2_000, 2);
-        action(&mut state, "dup-actions", "duplicates_refresh", "");
+        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesRefresh, "");
         let pair = state
             .find_duplicates("dup-actions")
             .unwrap()
@@ -2497,7 +2498,7 @@ mod tests {
         action(
             &mut state,
             "dup-actions",
-            "duplicates_group_action",
+            ffi::UiAction::DuplicatesGroupAction,
             r#"{"kind":"clear_false_positives","target":"both"}"#,
         );
 
@@ -2509,7 +2510,7 @@ mod tests {
         action(
             &mut state,
             "dup-actions",
-            "duplicates_group_action",
+            ffi::UiAction::DuplicatesGroupAction,
             r#"{"kind":"remove_from_alternate_group","target":"a"}"#,
         );
 
@@ -2535,7 +2536,7 @@ mod tests {
         action(
             &mut state,
             "dup-actions",
-            "duplicates_group_action",
+            ffi::UiAction::DuplicatesGroupAction,
             r#"{"kind":"reset_potential_search","target":"both"}"#,
         );
 
@@ -2549,7 +2550,7 @@ mod tests {
         action(
             &mut state,
             "dup-actions",
-            "duplicates_group_action",
+            ffi::UiAction::DuplicatesGroupAction,
             r#"{"kind":"remove_potentials","target":"both"}"#,
         );
 
@@ -2568,7 +2569,7 @@ mod tests {
         let mut state = action_state(&directory);
         let controller = state.controller.clone();
         let (_, _, first_id, second_id) = add_sized_pair(&controller, 91, 1_000, 2_000, 1);
-        action(&mut state, "dup-actions", "duplicates_refresh", "");
+        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesRefresh, "");
         let db = controller.db().db();
 
         duplicates::set_duplicate_group(db, 10, first_id, &[first_id, second_id]).unwrap();
@@ -2580,7 +2581,7 @@ mod tests {
         action(
             &mut state,
             "dup-actions",
-            "duplicates_group_action",
+            ffi::UiAction::DuplicatesGroupAction,
             r#"{"kind":"dissolve_duplicate_group","target":"both"}"#,
         );
 
@@ -2738,4 +2739,32 @@ mod tests {
             "6 potential duplicate pairs (batch of 5, max 5)"
         );
     }
+
+    #[test]
+    fn dispatch_handles_every_ui_action_without_panic() {
+        let directory = temp_directory("dispatch-completeness");
+        let mut state = action_state(&directory);
+        for action in [
+            ffi::UiAction::None,
+            ffi::UiAction::ClosePage,
+            ffi::UiAction::CommandPalette,
+            ffi::UiAction::DuplicatesRefresh,
+            ffi::UiAction::DuplicatesSkip,
+            ffi::UiAction::HistoryBack,
+            ffi::UiAction::HistoryForward,
+            ffi::UiAction::NewPage,
+            ffi::UiAction::Options,
+            ffi::UiAction::PageManager,
+            ffi::UiAction::Search,
+            ffi::UiAction::ServiceInfo,
+            ffi::UiAction::TagFilterOpen,
+            ffi::UiAction::Unknown,
+        ] {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let _ = state.dispatch(action, "", "");
+            }));
+            assert!(result.is_ok(), "dispatch panicked for {action:?}");
+        }
+    }
+
 }

@@ -5,7 +5,7 @@ use crate::gui::app::model::{
     DownloaderKind, DownloaderPage, ImportQueueState, Notebook, PageNode, PlaceholderPage,
     QueryPage,
 };
-use crate::gui::qt::api::ffi::PageKind;
+use crate::gui::qt::api::ffi::{PageKind, UiAction};
 
 #[test]
 fn query_state_carries_count_loading_and_thumbnail_options() {
@@ -219,13 +219,13 @@ fn testing_state(name: &str) -> (std::path::PathBuf, crate::gui::app::model::App
 
 fn entry<'entries>(
     menus: &'entries MenuBar,
-    action: &str,
+    action: UiAction,
 ) -> &'entries crate::gui::qt::api::ffi::MenuEntry {
     menus
         .entries
         .iter()
         .find(|entry| entry.action == action)
-        .unwrap_or_else(|| panic!("menu action {action} is missing"))
+        .unwrap_or_else(|| panic!("menu action {action:?} is missing"))
 }
 
 #[test]
@@ -255,18 +255,18 @@ fn menus_flat_rows_keep_order_and_predicates() {
         "fresh database has no repository services, so &pending stays hidden"
     );
 
-    let undo = entry(&menus, "undo");
+    let undo = entry(&menus, UiAction::Undo);
     assert!(!undo.enabled);
 
-    for action in ["history_back", "history_forward", "undo_search", "redo_search"] {
-        assert!(!entry(&menus, action).enabled, "{action} starts disabled");
+    for action in [UiAction::HistoryBack, UiAction::HistoryForward, UiAction::UndoSearch, UiAction::RedoSearch] {
+        assert!(!entry(&menus, action).enabled, "{action:?} starts disabled");
     }
 
-    let pause = entry(&menus, "pause_network");
+    let pause = entry(&menus, UiAction::PauseNetwork);
     assert!(pause.checkable);
     assert!(!pause.checked);
 
-    let palette = entry(&menus, "command_palette");
+    let palette = entry(&menus, UiAction::CommandPalette);
     assert_eq!(palette.tooltip, "Ctrl+K");
 
     // Submenu contents sit one depth below their submenu row.

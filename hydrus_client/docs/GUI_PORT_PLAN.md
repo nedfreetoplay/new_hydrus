@@ -1198,7 +1198,7 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
 - [ ] 13.9 Charts (file history, statistics).
 - [x] 13.10 Полноценный About window.
 - [~] 13.11 Command palette/locator.
-- [x] 13.12 Application commands и настраиваемые shortcut sets.
+- [~] 13.12 Application commands и настраиваемые shortcut sets.
   Модель наборов + дефолтный набор + активный набор + конфликты/валидация/
   импорт-экспорт + хранение в опциях (`shortcuts`) + применение активного
   набора как `QShortcut` без перезапуска + диалог `file -> shortcuts ->
@@ -1210,7 +1210,8 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   ошибками, сохранение в опции сразу после изменения. Упрощение vs Python:
   один набор главного окна (QKeySequence-строки) вместо мультиконтекстных
   reserved/custom сетов ShortcutsPanel и без mouse-shortcut виджетов —
-  это остаётся за WS-13.13.
+  это остаётся за WS-13.13. Поэтому флаг `[~]`, а не `[x]`: раскладка диалога
+  и набор действий в нём совпадают с Python, но модель контекстов ещё нет.
 - [ ] 13.13 Mouse shortcuts и press/release/double-click/drag.
 - [ ] 13.14 Drag & drop страниц/вкладок/файлов между окнами.
 - [ ] 13.15 Colours/style/theming как в Hydrus.

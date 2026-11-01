@@ -88,18 +88,25 @@ duplicates/subscriptions, меню и данные вьюера. Никакой 
 метрики живут в `gui/app/**` с unit-тестами, C++ только применяет значения;
 R3 — новый файл не больше 600 строк, иначе делится по экрану или слою.
 
-### Как добавить новое UI-действие (WS-15.2.3b)
+### Как добавить новое UI-действие (WS-15.2.4)
 
 1. Добавить вариант в `enum UiAction` в `hydrus_client/src/gui/qt/api.rs`
-   (`#[repr(i32)]`, имя — PascalCase от snake_case ключа: `close_page` → `ClosePage`).
+   (`#[repr(i32)]`, имя — PascalCase от snake_case ключа: `close_page` → `ClosePage`),
+   а также строку в `UiAction::as_str` и (если нужно для данных) в
+   `crate::gui::app::action_from_str`.
 2. Добавить ветку в `AppState::dispatch` (или соответствующий `handle_*`) в
    `hydrus_client/src/gui/app/mod.rs`, переиспользуя существующее ядро.
-   Преобразование `UiAction` ↔ строка ключа живёт в `ui_action_from_str` /
-   `UiAction::as_str` (они генерируются по тому же списку ключей).
-3. В C++ вызывать `notify(UiAction::X, target, payload)` или
+   Строковое сопоставление действий внутри диспетчера запрещено: `dispatch`
+   принимает `UiAction` и матчит варианты напрямую. `ui_action_from_str`
+   удалён; `as_str` остаётся только для логов/тестов.
+3. Добавить строковый ключ в C++-меню/команды не нужно: `MenuEntry.action` и
+   `UiCommand::Defer/PromptText/ConfirmAction.action` несут `UiAction`.
+   В C++ вызывать `notify(UiAction::X, target, payload)` или
    `app_action(window, UiAction::X, ...)`; строковых action-литералов в C++
-   не должно оставаться.
-4. Проверить `cargo build/test -p hydrus_client`.
+   и в Rust-диспетчере не должно оставаться.
+4. Добавить/обновить table-driven тест полноты (каждый вариант `UiAction`
+   имеет ветку в `dispatch` или явно помечен неиспользуемым и удалён).
+5. Проверить `cargo build/test -p hydrus_client`.
 
 ### Шаблон типизированного шва (WS-15.2.1)
 

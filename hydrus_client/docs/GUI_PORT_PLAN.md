@@ -472,7 +472,7 @@ C++.
   на команду.
   - 15.2.3a [x] страницы/вкладки/сессия: notify 191→186 (коммит 93513a1)
    - 15.2.3b [x] все notify переведены на UiAction (было 186 строковых вызовов, стало 0) (коммит 3443b05)
-  - 15.2.3c [x] page-команды: 14 структур, 113 полей типизировано, JSON-парсинг в C++ 39→34 (`QJsonObject` 630→574, `QJsonArray` 162→149), 7 обработчиков без `QJsonDocument::fromJson` (коммит d3ee3ff). Типизированы downloader (32 поля), subscriptions page/dialog/editor (32), duplicates (31), seed cache/log (12) и `PageRow` (query/downloader/subscriptions/duplicates); статусы, проценты, склонения и относительное время считает Rust с тестами. Остался один произвольный вложенный dict — `SubscriptionDialogRow.import_options_json` (копирование import options в буфер); `PageRow.state` — только import/export-папки (их шов в отдельной подзадаче).
+  - 15.2.3c [x] page-команды: 14 структур, 114 полей типизировано, JSON-парсинг в C++ 39→34 (`QJsonObject` 630→574, `QJsonArray` 162→149), 7 обработчиков без `QJsonDocument::fromJson` (коммит d3ee3ff). Типизированы downloader (32 поля), subscriptions page/dialog/editor (32), duplicates (31), seed cache/log (12) и `PageRow` (query/downloader/subscriptions/duplicates); статусы, проценты, склонения и относительное время считает Rust с тестами. Остался один произвольный вложенный dict — `SubscriptionDialogRow.import_options_json` (копирование import options в буфер); `PageRow.state` — только import/export-папки (их шов в отдельной подзадаче).
 - [x] 15.2.4 Удалить `parse_object`/`json_payload` из C++ и `serde_json` с шва.
   - 15.2.4 [x] handle_action(UiAction), строковый диспетчер удалён (коммит 623bbd9)
 - [ ] 15.2.5 Правило на будущее: новый экран не добавляет `&str`-payload.

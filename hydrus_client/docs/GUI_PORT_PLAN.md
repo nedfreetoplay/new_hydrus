@@ -644,7 +644,7 @@ WS-15.2 закрыт: `parse_object(` и `json_payload(` в `gui/qt` остал�
     C++ из типизированных структур и тонких геттеров; C++-дубли удалены.
     Остались C++-копии: дефолты `add_rule`/`pretty` (#3–4, Rust-каноникал с
     тестами уже в `status_texts`), `QString::number(value)` редактора (#11),
-    QDateTime-формат seed-таблицы (Qt-представление). Хеш см. ниже.
+    QDateTime-формат seed-таблицы (Qt-представление). Коммит a6e20a1.
   - [ ] 15.3.2b Предикаты доступности/видимости (таблица № 9–10, 25–31, 41–50:
     `max_pending`, kind-панели, edit/delete, file limit, видимость строк
     downloader'а, дистанции, import/tagging).

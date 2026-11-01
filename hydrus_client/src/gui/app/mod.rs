@@ -1496,6 +1496,42 @@ pub fn handle_shortcut_set_activate(mut window: Pin<&mut ffi::HydrusMainWindow>,
     }
 }
 
+pub fn shortcut_set_export_text(name: &str) -> String {
+    with_state_mut(|state| shortcut_sets::export_text(state, name))
+}
+
+macro_rules! shortcut_handler {
+    ($name:ident ( $( $arg:ident : $ty:ty ),* ) => $call:expr) => {
+        pub fn $name(mut window: Pin<&mut ffi::HydrusMainWindow>, $( $arg: $ty ),*) {
+            let commands = with_state_mut(|state| $call(state, $( $arg ),*));
+            record_notifications(&commands);
+            for command in commands {
+                panels::execute(window.as_mut(), command);
+            }
+        }
+    };
+}
+
+shortcut_handler!(handle_shortcut_set_create(name: &str) => shortcut_sets::create_set);
+shortcut_handler!(handle_shortcut_set_duplicate(name: &str) => shortcut_sets::duplicate_set_full);
+shortcut_handler!(handle_shortcut_set_rename(old: &str, new_name: &str) => shortcut_sets::rename_set);
+shortcut_handler!(handle_shortcut_set_delete(name: &str) => shortcut_sets::delete_set);
+shortcut_handler!(handle_shortcut_set_import(text: &str) => shortcut_sets::import_text);
+
+pub fn handle_shortcut_binding_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    set_name: &str,
+    action: &str,
+    combos: Vec<String>,
+) {
+    let commands =
+        with_state_mut(|state| shortcut_sets::save_binding(state, set_name, action, &combos));
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
 /// Typed reverse seams (WS-15.2.4c): services + network.
 macro_rules! typed_handler {
     ($name:ident ( $( $arg:ident : $ty:ty ),* ) => $path:path) => {

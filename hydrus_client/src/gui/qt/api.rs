@@ -1,4 +1,4 @@
-//! Typed cxx bridge seam (WS-15.2.1).
+﻿//! Typed cxx bridge seam (WS-15.2.1).
 //!
 //! The single cxx bridge of the Qt facade: shared POD structs plus every
 //! `extern "C++"` declaration. One type per seam: Rust builds the struct,
@@ -2111,6 +2111,21 @@ pub(crate) mod ffi {
         fn app_history_step(window: Pin<&mut HydrusMainWindow>, step: i32);
         /// Typed reverse seam (WS-13.12): activate a shortcut set by name.
         fn app_shortcut_set_activate(window: Pin<&mut HydrusMainWindow>, name: &str);
+        fn app_shortcut_set_create(window: Pin<&mut HydrusMainWindow>, name: &str);
+        fn app_shortcut_set_duplicate(window: Pin<&mut HydrusMainWindow>, name: &str);
+        fn app_shortcut_set_rename(
+            window: Pin<&mut HydrusMainWindow>,
+            old: &str, new_name: &str,
+        );
+        fn app_shortcut_set_delete(window: Pin<&mut HydrusMainWindow>, name: &str);
+        fn app_shortcut_binding_save(
+            window: Pin<&mut HydrusMainWindow>,
+            set_name: &str,
+            action: &str,
+            combos: Vec<String>,
+        );
+        fn app_shortcut_set_import(window: Pin<&mut HydrusMainWindow>, text: &str);
+        fn hydrus_shortcut_set_export(name: &str) -> String;
         /// Typed reverse seams (WS-15.2.4c): services + network.
         fn app_service_save(
             window: Pin<&mut HydrusMainWindow>,
@@ -2363,7 +2378,7 @@ pub(crate) mod ffi {
             delete_a: bool,
             delete_b: bool,
         );
-        /// Typed reverse seams (WS-15.2.4c, партия 4): admin dialogs and the
+        /// Typed reverse seams (WS-15.2.4c, РїР°СЂС‚РёСЏ 4): admin dialogs and the
         /// last duplicate dialogs. C++ calls these directly instead of
         /// `notify` + JSON reverse payload.
         fn app_account_type_save(
@@ -2702,6 +2717,39 @@ fn app_history_step(mut window: Pin<&mut ffi::HydrusMainWindow>, step: i32) {
 
 fn app_shortcut_set_activate(mut window: Pin<&mut ffi::HydrusMainWindow>, name: &str) {
     crate::gui::app::handle_shortcut_set_activate(window.as_mut(), name);
+}
+
+fn app_shortcut_set_create(mut window: Pin<&mut ffi::HydrusMainWindow>, name: &str) {
+    crate::gui::app::handle_shortcut_set_create(window.as_mut(), name);
+}
+
+fn app_shortcut_set_duplicate(mut window: Pin<&mut ffi::HydrusMainWindow>, name: &str) {
+    crate::gui::app::handle_shortcut_set_duplicate(window.as_mut(), name);
+}
+
+fn app_shortcut_set_rename(mut window: Pin<&mut ffi::HydrusMainWindow>, old: &str, new_name: &str) {
+    crate::gui::app::handle_shortcut_set_rename(window.as_mut(), old, new_name);
+}
+
+fn app_shortcut_set_delete(mut window: Pin<&mut ffi::HydrusMainWindow>, name: &str) {
+    crate::gui::app::handle_shortcut_set_delete(window.as_mut(), name);
+}
+
+fn app_shortcut_binding_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    set_name: &str,
+    action: &str,
+    combos: Vec<String>,
+) {
+    crate::gui::app::handle_shortcut_binding_save(window.as_mut(), set_name, action, combos);
+}
+
+fn app_shortcut_set_import(mut window: Pin<&mut ffi::HydrusMainWindow>, text: &str) {
+    crate::gui::app::handle_shortcut_set_import(window.as_mut(), text);
+}
+
+fn hydrus_shortcut_set_export(name: &str) -> String {
+    crate::gui::app::shortcut_set_export_text(name)
 }
 
 fn app_service_save(
@@ -3108,7 +3156,7 @@ fn app_duplicates_rule_preview(
     );
 }
 
-/// Typed reverse seams (WS-15.2.4c, партия 4): admin dialogs and the last
+/// Typed reverse seams (WS-15.2.4c, РїР°СЂС‚РёСЏ 4): admin dialogs and the last
 /// duplicate dialogs.
 fn app_account_type_save(
     mut window: Pin<&mut ffi::HydrusMainWindow>,

@@ -81,4 +81,43 @@ mod shortcut_sets_tests {
         assert!(state.sets[0].active);
         assert!(!state.bindings.is_empty());
     }
+
+    #[test]
+    fn protected_set_cannot_be_renamed_or_deleted() {
+        assert!(is_protected("default"));
+        assert!(!is_protected("mine"));
+        assert!(validate_set_name("  ", &[]).is_err());
+    }
+
+    #[test]
+    fn duplicate_set_names_do_not_collide() {
+        let mut sets = default_sets();
+        let existing = sets.set_names();
+        let fresh = duplicate_name(&existing, "default");
+        assert_eq!(fresh, "default (1)");
+        sets.sets.push(ShortcutSetData {
+            name: fresh,
+            bindings: Vec::new(),
+        });
+        assert_eq!(duplicate_name(&sets.set_names(), "default"), "default (2)");
+    }
+
+    #[test]
+    fn set_combos_trims_empties_and_sorts() {
+        let mut set = ShortcutSetData {
+            name: "x".to_string(),
+            bindings: Vec::new(),
+        };
+        set.set_combos("undo", vec!["Ctrl+Z".to_string(), "  ".to_string(), "Ctrl+Z".to_string()]);
+        assert_eq!(set.combos_for("undo"), &["Ctrl+Z".to_string()]);
+        set.set_combos("undo", Vec::new());
+        assert!(set.combos_for("undo").is_empty());
+    }
+
+    #[test]
+    fn import_rejects_bad_shapes() {
+        assert!(import_set(&json!({"name": "x"})).is_err());
+        assert!(import_set(&json!({"name": "", "bindings": {}})).is_err());
+        assert!(import_set(&json!({"name": "x", "bindings": {"undo": "nope"}})).is_err());
+    }
 }

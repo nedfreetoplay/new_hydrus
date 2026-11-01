@@ -373,10 +373,195 @@ pub fn action_label(action: &str) -> String {    match action {
     }
 }
 
-/// Open the manage-shortcuts dialog (read-only editor in WS-13.12).
+pub const DEFAULT_SET_NAME: &str = "default";
+
+/// Python: reserved `main_gui` set cannot be deleted/renamed; custom sets can.
+pub fn is_protected(name: &str) -> bool {
+    name == DEFAULT_SET_NAME
+}
+
+fn persist(state: &mut crate::gui::app::model::AppState, sets: &ShortcutSets) {
+    let mut options = state.controller.options();
+    save_to_options(&mut options, sets);
+    state.controller.replace_options(options);
+    let _ = state.controller.save_options();
+}
+
+fn refreshed(sets: &ShortcutSets, message: String) -> Vec<crate::gui::app::UiCommand> {
+    vec![
+        crate::gui::app::UiCommand::ApplyShortcuts(dialog_state(sets)),
+        crate::gui::app::UiCommand::ShortcutSetsDialog(dialog_state(sets)),
+        crate::gui::app::UiCommand::NotifyMessage(message),
+    ]
+}
+
+pub fn create_set(
+    state: &mut crate::gui::app::model::AppState,
+    name: &str,
+) -> Vec<crate::gui::app::UiCommand> {
+    let mut sets = load_from_options(&state.controller.options());
+    let trimmed = name.trim();
+    let existing = sets.set_names();
+    if let Err(error) = validate_set_name(trimmed, &existing) {
+        state.message = error.clone();
+        return vec![crate::gui::app::UiCommand::NotifyMessage(error)];
+    }
+    let mut fresh = ShortcutSetData { name: trimmed.to_string(), bindings: Vec::new() };
+    for (action, combos) in default_bindings() {
+        let _ = (action, combos);
+    }
+    // New sets start as a copy of the active set (Python `SetNonDupeName` flow).
+    if let Some(active) = sets.active_set().cloned() {
+        fresh.bindings = active.bindings;
+    }
+    sets.sets.push(fresh);
+    sets.active = trimmed.to_string();
+    persist(state, &sets);
+    state.message = format!("created shortcut set '{trimmed}'");
+    refreshed(&sets, state.message.clone())
+}
 pub fn open_dialog(state: &mut crate::gui::app::model::AppState) -> Vec<crate::gui::app::UiCommand> {
     let sets = load_from_options(&state.controller.options());
     vec![crate::gui::app::UiCommand::ShortcutSetsDialog(dialog_state(&sets))]
+}
+
+pub fn duplicate_set_full(
+    state: &mut crate::gui::app::model::AppState,
+    name: &str,
+) -> Vec<crate::gui::app::UiCommand> {
+    let mut sets = load_from_options(&state.controller.options());
+    let Some(source) = sets.get(name).cloned() else {
+        state.message = format!("shortcut set '{name}' was not found");
+        return vec![crate::gui::app::UiCommand::NotifyMessage(state.message.clone())];
+    };
+    let existing = sets.set_names();
+    let fresh_name = duplicate_name(&existing, &source.name);
+    let mut fresh = source;
+    fresh.name = fresh_name.clone();
+    sets.sets.push(fresh);
+    sets.active = fresh_name.clone();
+    persist(state, &sets);
+    state.message = format!("duplicated shortcut set as '{fresh_name}'");
+    refreshed(&sets, state.message.clone())
+}
+
+pub fn rename_set(
+    state: &mut crate::gui::app::model::AppState,
+    old: &str,
+    new: &str,
+) -> Vec<crate::gui::app::UiCommand> {
+    let mut sets = load_from_options(&state.controller.options());
+    if is_protected(old) {
+        state.message = "The default set cannot be renamed!".to_string();
+        return vec![crate::gui::app::UiCommand::NotifyMessage(state.message.clone())];
+    }
+    let trimmed = new.trim().to_string();
+    let mut existing: Vec<String> = sets.set_names();
+    existing.retain(|other| other != old);
+    if let Err(error) = validate_set_name(&trimmed, &existing) {
+        state.message = error.clone();
+        return vec![crate::gui::app::UiCommand::NotifyMessage(error)];
+    }
+    let Some(entry) = sets.get_mut(old) else {
+        state.message = format!("shortcut set '{old}' was not found");
+        return vec![crate::gui::app::UiCommand::NotifyMessage(state.message.clone())];
+    };
+    entry.name = trimmed.clone();
+    if sets.active == old {
+        sets.active = trimmed.clone();
+    }
+    persist(state, &sets);
+    state.message = format!("renamed shortcut set to '{trimmed}'");
+    refreshed(&sets, state.message.clone())
+}
+
+pub fn delete_set(
+    state: &mut crate::gui::app::model::AppState,
+    name: &str,
+) -> Vec<crate::gui::app::UiCommand> {
+    let mut sets = load_from_options(&state.controller.options());
+    if is_protected(name) {
+        state.message = "The default set cannot be deleted!".to_string();
+        return vec![crate::gui::app::UiCommand::NotifyMessage(state.message.clone())];
+    }
+    let before = sets.sets.len();
+    sets.sets.retain(|set| set.name != name);
+    if sets.sets.len() == before {
+        state.message = format!("shortcut set '{name}' was not found");
+        return vec![crate::gui::app::UiCommand::NotifyMessage(state.message.clone())];
+    }
+    if sets.active == name {
+        sets.active = sets.sets.first().map(|set| set.name.clone()).unwrap_or_else(|| DEFAULT_SET_NAME.to_string());
+    }
+    if sets.sets.is_empty() {
+        sets = default_sets();
+    }
+    persist(state, &sets);
+    state.message = format!("deleted shortcut set '{name}'");
+    refreshed(&sets, state.message.clone())
+}
+
+pub fn save_binding(
+    state: &mut crate::gui::app::model::AppState,
+    set_name: &str,
+    action: &str,
+    combos: &[String],
+) -> Vec<crate::gui::app::UiCommand> {
+    let mut sets = load_from_options(&state.controller.options());
+    let Some(entry) = sets.get_mut(set_name) else {
+        state.message = format!("shortcut set '{set_name}' was not found");
+        return vec![crate::gui::app::UiCommand::NotifyMessage(state.message.clone())];
+    };
+    let normalised: Vec<String> = combos.iter().map(|combo| normalise_combo(combo)).filter(|combo| !combo.is_empty()).collect();
+    for combo in &normalised {
+        for (other_action, other_combos) in &entry.bindings.clone() {
+            if other_action != action && other_combos.iter().any(|owned| owned == combo) {
+                let message = format!("The shortcut {combo} is already used by '{other_action}'. The system only supports one command per shortcut in a set for now, please remove one.");
+                state.message = message.clone();
+                return vec![crate::gui::app::UiCommand::NotifyMessage(message)];
+            }
+        }
+    }
+    entry.set_combos(action, normalised);
+    persist(state, &sets);
+    state.message = format!("updated '{action}' in '{set_name}'");
+    refreshed(&sets, state.message.clone())
+}
+
+pub fn import_text(
+    state: &mut crate::gui::app::model::AppState,
+    text: &str,
+) -> Vec<crate::gui::app::UiCommand> {
+    let value: Value = match serde_json::from_str(text) {
+        Ok(value) => value,
+        Err(error) => {
+            state.message = format!("Could not parse that file! ({error})");
+            return vec![crate::gui::app::UiCommand::NotifyMessage(state.message.clone())];
+        }
+    };
+    let mut imported = match import_set(&value) {
+        Ok(set) => set,
+        Err(error) => {
+            state.message = error.clone();
+            return vec![crate::gui::app::UiCommand::NotifyMessage(error)];
+        }
+    };
+    let mut sets = load_from_options(&state.controller.options());
+    let existing = sets.set_names();
+    if existing.iter().any(|other| other == &imported.name) {
+        imported.name = duplicate_name(&existing, &imported.name);
+    }
+    let name = imported.name.clone();
+    sets.sets.push(imported);
+    sets.active = name.clone();
+    persist(state, &sets);
+    state.message = format!("imported shortcut set '{name}'");
+    refreshed(&sets, state.message.clone())
+}
+
+pub fn export_text(state: &mut crate::gui::app::model::AppState, name: &str) -> String {
+    let sets = load_from_options(&state.controller.options());
+    sets.get(name).map(|set| export_set(set).to_string()).unwrap_or_default()
 }
 
 /// Activate a set by name: persist, then re-apply without restart.

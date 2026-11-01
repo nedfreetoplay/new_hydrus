@@ -1,21 +1,32 @@
-#include <hydrus_client/src/gui/qt/api.cxx.h>
+﻿#include <hydrus_client/src/gui/qt/api.cxx.h>
 
-// WS-13.12: manage-shortcuts dialog (read-only editor) + applying the active
+// WS-13.12: manage-shortcuts dialog (full editor) + applying the active
 // set as QShortcuts. All texts/rows come from Rust; C++ only assigns widgets.
 
 #include "support/support.hpp"
 
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QFile>
+#include <QFileDialog>
+
+static rust::String rs(const QString &s) {
+    const QByteArray bytes = s.toUtf8();
+    return rust::String(bytes.constData());
+}
 #include <QHeaderView>
+#include <QInputDialog>
 #include <QKeySequence>
 #include <QLabel>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QObject>
 #include <QPushButton>
 #include <QShortcut>
 #include <QTableWidget>
+#include <QTextStream>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 
 static UiAction shortcut_action_for(const QString &action) {
     if (action == QStringLiteral("new_page")) return UiAction::NewPage;
@@ -85,12 +96,20 @@ void hydrus_apply_shortcuts(HydrusMainWindow &window, const ShortcutSetsDialogSt
     }
 }
 
+static QString selected_set_name(QListWidget *sets, const ShortcutSetsDialogState &state) {
+    const int row = sets->currentRow();
+    if (row < 0 || row >= static_cast<int>(state.sets.size())) {
+        return to_qstring(state.active_name);
+    }
+    return to_qstring(state.sets[row].name);
+}
+
 void hydrus_show_shortcut_sets(HydrusMainWindow &window, const ShortcutSetsDialogState &state) {
     hydrus_apply_shortcuts(window, state);
 
     QDialog dialog(&window);
     dialog.setWindowTitle(QStringLiteral("manage shortcuts"));
-    dialog.resize(640, 480);
+    dialog.resize(680, 520);
 
     auto *layout = new QVBoxLayout(&dialog);
 
@@ -109,7 +128,26 @@ void hydrus_show_shortcut_sets(HydrusMainWindow &window, const ShortcutSetsDialo
         label += QStringLiteral(" - %1 bindings").arg(row.count);
         sets->addItem(label);
     }
+    for (size_t i = 0; i < state.sets.size(); ++i) {
+        if (to_qstring(state.sets[i].name) == to_qstring(state.active_name)) {
+            sets->setCurrentRow(static_cast<int>(i));
+            break;
+        }
+    }
     layout->addWidget(sets);
+
+    auto *set_buttons = new QHBoxLayout();
+    auto *add_btn = new QPushButton(QStringLiteral("add"), &dialog);
+    auto *dup_btn = new QPushButton(QStringLiteral("duplicate"), &dialog);
+    auto *rename_btn = new QPushButton(QStringLiteral("rename"), &dialog);
+    auto *delete_btn = new QPushButton(QStringLiteral("delete"), &dialog);
+    auto *use_btn = new QPushButton(QStringLiteral("use this set"), &dialog);
+    set_buttons->addWidget(add_btn);
+    set_buttons->addWidget(dup_btn);
+    set_buttons->addWidget(rename_btn);
+    set_buttons->addWidget(delete_btn);
+    set_buttons->addWidget(use_btn);
+    layout->addLayout(set_buttons);
 
     auto *bindings = new QTableWidget(&dialog);
     bindings->setColumnCount(2);
@@ -121,13 +159,22 @@ void hydrus_show_shortcut_sets(HydrusMainWindow &window, const ShortcutSetsDialo
     bindings->setRowCount(static_cast<int>(state.bindings.size()));
     int row_index = 0;
     for (const auto &binding : state.bindings) {
-        bindings->setItem(
-            row_index, 0, new QTableWidgetItem(to_qstring(binding.label)));
-        bindings->setItem(
-            row_index, 1, new QTableWidgetItem(to_qstring(binding.combo_text)));
+        bindings->setItem(row_index, 0, new QTableWidgetItem(to_qstring(binding.label)));
+        bindings->setItem(row_index, 1, new QTableWidgetItem(to_qstring(binding.combo_text)));
         ++row_index;
     }
     layout->addWidget(bindings);
+
+    auto *bind_buttons = new QHBoxLayout();
+    auto *edit_btn = new QPushButton(QStringLiteral("edit"), &dialog);
+    auto *clear_btn = new QPushButton(QStringLiteral("clear"), &dialog);
+    auto *import_btn = new QPushButton(QStringLiteral("import"), &dialog);
+    auto *export_btn = new QPushButton(QStringLiteral("export"), &dialog);
+    bind_buttons->addWidget(edit_btn);
+    bind_buttons->addWidget(clear_btn);
+    bind_buttons->addWidget(import_btn);
+    bind_buttons->addWidget(export_btn);
+    layout->addLayout(bind_buttons);
 
     auto *conflicts = new QLabel(&dialog);
     conflicts->setWordWrap(true);
@@ -143,11 +190,120 @@ void hydrus_show_shortcut_sets(HydrusMainWindow &window, const ShortcutSetsDialo
     }
     layout->addWidget(conflicts);
 
-    auto *note = new QLabel(
-        QStringLiteral("Creating, renaming and editing bindings is not implemented yet."),
-        &dialog);
-    note->setWordWrap(true);
-    layout->addWidget(note);
+    QObject::connect(add_btn, &QPushButton::clicked, &dialog, [&]() {
+        bool ok = false;
+        const QString name = QInputDialog::getText(
+            &dialog, QStringLiteral("add shortcut set"),
+            QStringLiteral("Enter a name for the new set:"), QLineEdit::Normal,
+            QStringLiteral("new shortcuts"), &ok);
+        if (ok && !name.trimmed().isEmpty()) {
+            app_shortcut_set_create(window, rs(name.trimmed()));
+            dialog.accept();
+        }
+    });
+    QObject::connect(dup_btn, &QPushButton::clicked, &dialog, [&]() {
+        app_shortcut_set_duplicate(window, rs(selected_set_name(sets, state)));
+        dialog.accept();
+    });
+    QObject::connect(rename_btn, &QPushButton::clicked, &dialog, [&]() {
+        const QString current = selected_set_name(sets, state);
+        bool ok = false;
+        const QString name = QInputDialog::getText(
+            &dialog, QStringLiteral("rename shortcut set"),
+            QStringLiteral("Enter a new name:"), QLineEdit::Normal, current, &ok);
+        if (ok && !name.trimmed().isEmpty()) {
+            app_shortcut_set_rename(window, rs(current), rs(name.trimmed()));
+            dialog.accept();
+        }
+    });
+    QObject::connect(delete_btn, &QPushButton::clicked, &dialog, [&]() {
+        const QString current = selected_set_name(sets, state);
+        if (QMessageBox::question(
+                &dialog, QStringLiteral("delete shortcut set"),
+                QStringLiteral("Remove '%1'?").arg(current))
+            == QMessageBox::Yes) {
+            app_shortcut_set_delete(window, rs(current));
+            dialog.accept();
+        }
+    });
+    QObject::connect(use_btn, &QPushButton::clicked, &dialog, [&]() {
+        app_shortcut_set_activate(window, rs(selected_set_name(sets, state)));
+        dialog.accept();
+    });
+    QObject::connect(edit_btn, &QPushButton::clicked, &dialog, [&]() {
+        const int row = bindings->currentRow();
+        if (row < 0 || row >= static_cast<int>(state.bindings.size())) {
+            return;
+        }
+        const QString action = to_qstring(state.bindings[row].action);
+        const QString current = to_qstring(state.bindings[row].combo_text);
+        bool ok = false;
+        const QString text = QInputDialog::getText(
+            &dialog, QStringLiteral("edit shortcut"),
+            QStringLiteral("Enter comma-separated shortcuts for '%1':").arg(action),
+            QLineEdit::Normal, current, &ok);
+        if (!ok) {
+            return;
+        }
+        rust::Vec<rust::String> combos;
+        for (const QString &part : text.split(QStringLiteral(","))) {
+            const QString trimmed = part.trimmed();
+            if (!trimmed.isEmpty()) {
+                combos.push_back(rs(trimmed));
+            }
+        }
+        app_shortcut_binding_save(
+            window, rs(selected_set_name(sets, state)), rs(action), combos);
+        dialog.accept();
+    });
+    QObject::connect(clear_btn, &QPushButton::clicked, &dialog, [&]() {
+        const int row = bindings->currentRow();
+        if (row < 0 || row >= static_cast<int>(state.bindings.size())) {
+            return;
+        }
+        app_shortcut_binding_save(
+            window, rs(selected_set_name(sets, state)),
+            rs(to_qstring(state.bindings[row].action)), rust::Vec<rust::String>());
+        dialog.accept();
+    });
+    QObject::connect(import_btn, &QPushButton::clicked, &dialog, [&]() {
+        const QString path = QFileDialog::getOpenFileName(
+            &dialog, QStringLiteral("import shortcut set"), QString(),
+            QStringLiteral("JSON files (*.json);;All files (*)"));
+        if (path.isEmpty()) {
+            return;
+        }
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QMessageBox::warning(
+                &dialog, QStringLiteral("import shortcut set"),
+                QStringLiteral("Could not read that file!"));
+            return;
+        }
+        QTextStream stream(&file);
+        app_shortcut_set_import(window, rs(stream.readAll()));
+        dialog.accept();
+    });
+    QObject::connect(export_btn, &QPushButton::clicked, &dialog, [&]() {
+        const QString current = selected_set_name(sets, state);
+        const QString path = QFileDialog::getSaveFileName(
+            &dialog, QStringLiteral("export shortcut set"),
+            current + QStringLiteral(".json"),
+            QStringLiteral("JSON files (*.json);;All files (*)"));
+        if (path.isEmpty()) {
+            return;
+        }
+        const rust::String text = hydrus_shortcut_set_export(rs(current));
+        QFile file(path);
+        if (text.empty() || !file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QMessageBox::warning(
+                &dialog, QStringLiteral("export shortcut set"),
+                QStringLiteral("Could not write that file!"));
+            return;
+        }
+        QTextStream stream(&file);
+        stream << to_qstring(text);
+    });
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
     layout->addWidget(buttons);

@@ -202,6 +202,18 @@ struct DuplicateMergePage {
     QTableWidget *ratings = nullptr;
 };
 
+// One page of duplicate content merge options as plain Qt values (no JSON).
+struct DuplicateMergePageValues {
+    QString archive;
+    QString modified_date;
+    QString urls;
+    QString notes;
+    QStringList tag_services;
+    QStringList tag_actions;
+    QStringList rating_services;
+    QStringList rating_actions;
+};
+
 void build_duplicate_merge_page(
     QWidget *parent,
     QTabWidget *tabs,
@@ -212,7 +224,7 @@ void fill_duplicate_merge_page(
     DuplicateMergePage &page,
     const MergeOptionsInfo &data,
     const MergeOptionsPageInfo &options);
-QJsonObject read_duplicate_merge_page(const DuplicateMergePage &page);
+DuplicateMergePageValues read_duplicate_merge_page(const DuplicateMergePage &page);
 
 // Which metadata a duplicate merge copies from the worse file, for each
 // duplicate action ("this is better" and "same quality").

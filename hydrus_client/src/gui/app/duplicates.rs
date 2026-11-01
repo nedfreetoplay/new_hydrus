@@ -899,38 +899,41 @@ fn custom_action_dialog_state(
     }
 }
 
-fn apply_custom_action(
+#[allow(clippy::too_many_arguments)]
+pub fn apply_custom_action_typed(
     controller: &Controller,
     pair: &DuplicatePairView,
-    payload: &str,
+    action: &str,
+    better_side: &str,
+    delete_mode: &str,
+    better_archive: &str,
+    better_modified: &str,
+    better_urls: &str,
+    better_notes: &str,
+    better_tag_services: &[String],
+    better_tag_actions: &[String],
+    better_rating_services: &[String],
+    better_rating_actions: &[String],
+    same_archive: &str,
+    same_modified: &str,
+    same_urls: &str,
+    same_notes: &str,
+    same_tag_services: &[String],
+    same_tag_actions: &[String],
+    same_rating_services: &[String],
+    same_rating_actions: &[String],
 ) -> Result<String, String> {
-    let value: Value =
-        serde_json::from_str(payload).map_err(|error| format!("invalid custom action: {error}"))?;
-
-    let action = value
-        .get("action")
-        .and_then(Value::as_str)
-        .unwrap_or("better");
-    let better_side = value
-        .get("better_side")
-        .and_then(Value::as_str)
-        .unwrap_or("a");
-    let delete = value
-        .get("delete")
-        .and_then(Value::as_str)
-        .unwrap_or("neither");
-    let delete_a = delete == "a" || delete == "both";
-    let delete_b = delete == "b" || delete == "both";
+    let delete_a = delete_mode == "a" || delete_mode == "both";
+    let delete_b = delete_mode == "b" || delete_mode == "both";
 
     match action {
         "better" => {
-            let options: DuplicateContentMergeOptions = value
-                .get("better")
-                .cloned()
-                .ok_or_else(|| "missing merge options".to_string())
-                .and_then(|value| {
-                    serde_json::from_value(value).map_err(|error| error.to_string())
-                })?;
+            let options = merge_options_from_parts(
+                better_archive, better_modified, better_urls, better_notes,
+                better_tag_services, better_tag_actions,
+                better_rating_services, better_rating_actions,
+            )
+            .map_err(|error| format!("invalid custom action: {error}"))?;
 
             let (keep, discard) = if better_side == "b" {
                 (&pair.b, &pair.a)
@@ -941,13 +944,12 @@ fn apply_custom_action(
             merge_pair(controller, keep, discard, false, &options)?;
         }
         "same" => {
-            let options: DuplicateContentMergeOptions = value
-                .get("same")
-                .cloned()
-                .ok_or_else(|| "missing merge options".to_string())
-                .and_then(|value| {
-                    serde_json::from_value(value).map_err(|error| error.to_string())
-                })?;
+            let options = merge_options_from_parts(
+                same_archive, same_modified, same_urls, same_notes,
+                same_tag_services, same_tag_actions,
+                same_rating_services, same_rating_actions,
+            )
+            .map_err(|error| format!("invalid custom action: {error}"))?;
 
             merge_pair(controller, &pair.a, &pair.b, false, &options)?;
         }
@@ -991,6 +993,142 @@ fn apply_custom_action(
         "alternate" => "marked as related alternates".to_string(),
         _ => "marked as not duplicates".to_string(),
     })
+}
+
+/// Typed reverse seam (WS-15.2.4c, партия 4): custom action из диалога,
+/// страница и пара находятся по `page_id`, как в ветке `DuplicatesCustom`.
+#[allow(clippy::too_many_arguments)]
+pub fn custom_apply_typed(
+    state: &mut AppState,
+    page_id: &str,
+    action: &str,
+    better_side: &str,
+    delete_mode: &str,
+    better_archive: &str,
+    better_modified: &str,
+    better_urls: &str,
+    better_notes: &str,
+    better_tag_services: Vec<String>,
+    better_tag_actions: Vec<String>,
+    better_rating_services: Vec<String>,
+    better_rating_actions: Vec<String>,
+    same_archive: &str,
+    same_modified: &str,
+    same_urls: &str,
+    same_notes: &str,
+    same_tag_services: Vec<String>,
+    same_tag_actions: Vec<String>,
+    same_rating_services: Vec<String>,
+    same_rating_actions: Vec<String>,
+) -> Vec<UiCommand> {
+    let controller = state.controller.clone();
+    let review = std::mem::take(&mut state.duplicate_review);
+    let Some(page) = state.find_duplicates_mut(page_id) else {
+        state.duplicate_review = review;
+
+        return vec![UiCommand::NotifyMessage(
+            "no duplicates page selected".to_string(),
+        )];
+    };
+
+    let Some(pair) = page.current().cloned() else {
+        state.duplicate_review = review;
+
+        return vec![UiCommand::NotifyMessage(
+            "no duplicate pair left".to_string(),
+        )];
+    };
+
+    match apply_custom_action_typed(
+        &controller, &pair, action, better_side, delete_mode,
+        better_archive, better_modified, better_urls, better_notes,
+        &better_tag_services, &better_tag_actions,
+        &better_rating_services, &better_rating_actions,
+        same_archive, same_modified, same_urls, same_notes,
+        &same_tag_services, &same_tag_actions,
+        &same_rating_services, &same_rating_actions,
+    ) {
+        Ok(message) => {
+            page.remove_current();
+            page.status = message;
+        }
+        Err(error) => {
+            page.status = format!("custom action failed: {error}");
+        }
+    }
+
+    let page_id_owned = page.id.clone();
+    state.duplicate_review = review;
+
+    finish_action(state, &page_id_owned, ffi::UiAction::DuplicatesCustom, 0)
+}
+
+fn apply_custom_action(
+    controller: &Controller,
+    pair: &DuplicatePairView,
+    payload: &str,
+) -> Result<String, String> {
+    let value: Value =
+        serde_json::from_str(payload).map_err(|error| format!("invalid custom action: {error}"))?;
+
+    let action = value
+        .get("action")
+        .and_then(Value::as_str)
+        .unwrap_or("better");
+    let better_side = value
+        .get("better_side")
+        .and_then(Value::as_str)
+        .unwrap_or("a");
+    let delete = value
+        .get("delete")
+        .and_then(Value::as_str)
+        .unwrap_or("neither");
+    let parts = |page: &str| {
+        let options = value.get(page).cloned().unwrap_or(Value::Null);
+        let get = |key: &str| {
+            options
+                .get(key)
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string()
+        };
+        let pairs = |key: &str| {
+            let mut services = Vec::new();
+            let mut actions = Vec::new();
+
+            if let Some(map) = options.get(key).and_then(Value::as_object) {
+                for (service, action) in map {
+                    services.push(service.clone());
+                    actions.push(action.as_str().unwrap_or("none").to_string());
+                }
+            }
+
+            (services, actions)
+        };
+        let (tag_services, tag_actions) = pairs("tag_service_actions");
+        let (rating_services, rating_actions) = pairs("rating_service_actions");
+
+        (
+            get("sync_archive_action"),
+            get("sync_file_modified_date_action"),
+            get("sync_urls_action"),
+            get("sync_notes_action"),
+            tag_services,
+            tag_actions,
+            rating_services,
+            rating_actions,
+        )
+    };
+    let better = parts("better");
+    let same = parts("same");
+
+    apply_custom_action_typed(
+        controller, pair, action, better_side, delete,
+        &better.0, &better.1, &better.2, &better.3,
+        &better.4, &better.5, &better.6, &better.7,
+        &same.0, &same.1, &same.2, &same.3,
+        &same.4, &same.5, &same.6, &same.7,
+    )
 }
 
 fn apply_group_action(
@@ -1368,37 +1506,78 @@ fn save_merge_options(
     let _ = controller.save_options();
 }
 
-/// Saves one merge options page from the editor dialog. This runs without an
-/// active duplicates page so the dialog can be opened from anywhere.
-pub fn save_merge_options_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
-    let controller = state.controller.clone();
+/// Чистая сборка merge options из типизированных полей диалога (R2):
+/// пустые списки сервисов означают «не трогать», `none` пропускается.
+pub fn merge_options_from_parts(
+    archive: &str,
+    modified: &str,
+    urls: &str,
+    notes: &str,
+    tag_services: &[String],
+    tag_actions: &[String],
+    rating_services: &[String],
+    rating_actions: &[String],
+) -> Result<DuplicateContentMergeOptions, String> {
+    if tag_services.len() != tag_actions.len() || rating_services.len() != rating_actions.len() {
+        return Err("the merge options are out of sync".to_string());
+    }
 
-    let value: serde_json::Value = match serde_json::from_str(payload) {
-        Ok(value) => value,
-        Err(error) => {
-            return vec![UiCommand::NotifyMessage(format!(
-                "could not read the merge options: {error}"
-            ))];
+    let mut tag_service_actions = BTreeMap::new();
+
+    for (service, action) in tag_services.iter().zip(tag_actions.iter()) {
+        let action = MergeAction::from_str(action);
+
+        if action != MergeAction::None {
+            tag_service_actions.insert(service.clone(), action);
         }
-    };
+    }
 
-    let kind = match value.get("action").and_then(|value| value.as_str()) {
-        Some("same") => MergeActionKind::Same,
+    let mut rating_service_actions = BTreeMap::new();
+
+    for (service, action) in rating_services.iter().zip(rating_actions.iter()) {
+        let action = MergeAction::from_str(action);
+
+        if action != MergeAction::None {
+            rating_service_actions.insert(service.clone(), action);
+        }
+    }
+
+    Ok(DuplicateContentMergeOptions {
+        sync_archive_action: ArchiveSyncAction::from_str(archive),
+        sync_file_modified_date_action: MergeAction::from_str(modified),
+        sync_urls_action: MergeAction::from_str(urls),
+        sync_notes_action: MergeAction::from_str(notes),
+        tag_service_actions,
+        rating_service_actions,
+    })
+}
+
+/// Typed reverse seam (WS-15.2.4c, партия 4): C++ передаёт одну страницу
+/// merge options полями вместо JSON-payload.
+#[allow(clippy::too_many_arguments)]
+pub fn save_merge_options_typed(
+    state: &mut AppState,
+    kind: &str,
+    archive: &str,
+    modified: &str,
+    urls: &str,
+    notes: &str,
+    tag_services: Vec<String>,
+    tag_actions: Vec<String>,
+    rating_services: Vec<String>,
+    rating_actions: Vec<String>,
+) -> Vec<UiCommand> {
+    let kind = match kind {
+        "same" => MergeActionKind::Same,
         _ => MergeActionKind::Better,
     };
 
-    let options = value
-        .get("options")
-        .cloned()
-        .ok_or_else(|| "missing options".to_string())
-        .and_then(|value| {
-            serde_json::from_value::<DuplicateContentMergeOptions>(value)
-                .map_err(|error| error.to_string())
-        });
-
-    match options {
+    match merge_options_from_parts(
+        archive, modified, urls, notes,
+        &tag_services, &tag_actions, &rating_services, &rating_actions,
+    ) {
         Ok(options) => {
-            save_merge_options(&controller, kind, options);
+            save_merge_options(&state.controller.clone(), kind, options);
 
             vec![
                 UiCommand::NotifyMessage(format!("{} merge options saved", kind.label())),
@@ -1409,6 +1588,55 @@ pub fn save_merge_options_action(state: &mut AppState, payload: &str) -> Vec<UiC
             "could not read the merge options: {error}"
         ))],
     }
+}
+
+/// Saves one merge options page from the editor dialog. This runs without an
+/// active duplicates page so the dialog can be opened from anywhere.
+pub fn save_merge_options_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
+    let value: serde_json::Value = match serde_json::from_str(payload) {
+        Ok(value) => value,
+        Err(error) => {
+            return vec![UiCommand::NotifyMessage(format!(
+                "could not read the merge options: {error}"
+            ))];
+        }
+    };
+
+    let kind = value
+        .get("action")
+        .and_then(|value| value.as_str())
+        .unwrap_or("better")
+        .to_string();
+    let options = value.get("options").cloned().unwrap_or(Value::Null);
+    let get = |key: &str| options.get(key).and_then(Value::as_str).unwrap_or("");
+    let pairs = |key: &str| {
+        let mut services = Vec::new();
+        let mut actions = Vec::new();
+
+        if let Some(map) = options.get(key).and_then(Value::as_object) {
+            for (service, action) in map {
+                services.push(service.clone());
+                actions.push(action.as_str().unwrap_or("none").to_string());
+            }
+        }
+
+        (services, actions)
+    };
+    let (tag_services, tag_actions) = pairs("tag_service_actions");
+    let (rating_services, rating_actions) = pairs("rating_service_actions");
+
+    save_merge_options_typed(
+        state,
+        &kind,
+        get("sync_archive_action"),
+        get("sync_file_modified_date_action"),
+        get("sync_urls_action"),
+        get("sync_notes_action"),
+        tag_services,
+        tag_actions,
+        rating_services,
+        rating_actions,
+    )
 }
 
 fn merge_pair(
@@ -2901,6 +3129,31 @@ mod tests {
             custom_pair_summary("abcdef0123456789hash", "info a", "0123456789abcdefhash", "info b"),
             "A: abcdef0123456789  info a\nB: 0123456789abcdef  info b"
         );
+    }
+
+    #[test]
+    fn merge_options_from_parts_skips_none_and_rejects_desync() {
+        let options = merge_options_from_parts(
+            "if_one_do_both",
+            "copy",
+            "move",
+            "none",
+            &["tags".to_string()],
+            &["copy".to_string()],
+            &["like".to_string()],
+            &["none".to_string()],
+        )
+        .unwrap();
+
+        assert_eq!(options.sync_archive_action, ArchiveSyncAction::IfOneDoBoth);
+        assert_eq!(options.sync_urls_action, MergeAction::Move);
+        assert_eq!(options.sync_notes_action, MergeAction::None);
+        assert_eq!(
+            options.tag_service_actions.get("tags"),
+            Some(&MergeAction::Copy)
+        );
+        assert!(options.rating_service_actions.is_empty());
+        assert!(merge_options_from_parts("x", "y", "z", "w", &["a".to_string()], &[], &[], &[]).is_err());
     }
 
     #[test]

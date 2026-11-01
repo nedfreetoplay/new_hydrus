@@ -160,9 +160,7 @@ void HydrusOrphanFilesDialog::delete_selected(bool all) {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("paths"), QJsonArray::fromStringList(paths));
-    main->notify(UiAction::OrphanFilesDelete, QString(), json_payload(payload));
+    app_orphan_files_delete(*main, to_rust_vec(paths));
 }
 
 void HydrusOrphanFilesDialog::move_selected(bool all) {
@@ -182,10 +180,11 @@ void HydrusOrphanFilesDialog::move_selected(bool all) {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("paths"), QJsonArray::fromStringList(paths));
-    payload.insert(QStringLiteral("target"), directory);
-    main->notify(UiAction::OrphanFilesMove, QString(), json_payload(payload));
+    const QByteArray directory_bytes = directory.toUtf8();
+    app_orphan_files_move(
+        *main,
+        to_rust_vec(paths),
+        rust::Str(directory_bytes.constData(), directory_bytes.size()));
 }
 
 void HydrusMainWindow::show_orphan_files(const OrphanFilesDialogState &state) {

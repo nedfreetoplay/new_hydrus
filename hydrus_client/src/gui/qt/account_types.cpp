@@ -104,7 +104,8 @@ void show_account_type_editor(HydrusMainWindow *main, QWidget *parent, const std
         return;
     }
 
-    QJsonArray permissions;
+    rust::Vec<int32_t> content_types;
+    rust::Vec<int32_t> actions;
 
     for (auto iterator = permission_controls.constBegin(); iterator != permission_controls.constEnd(); ++iterator) {
         const int action = iterator.value()->currentData().toInt();
@@ -113,17 +114,20 @@ void show_account_type_editor(HydrusMainWindow *main, QWidget *parent, const std
             continue;
         }
 
-        permissions.append(QJsonArray{iterator.key(), action});
+        content_types.push_back(iterator.key());
+        actions.push_back(action);
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("account_type_key"), key);
-    payload.insert(QStringLiteral("title"), title->text().trimmed());
-    payload.insert(QStringLiteral("permissions"), permissions);
-    payload.insert(QStringLiteral("auto_create_accounts"), accounts->value());
-    payload.insert(QStringLiteral("auto_create_time_delta"), time_delta->value());
-
-    main->notify(UiAction::AccountTypeSave, QString(), json_payload(payload));
+    const QByteArray key_bytes = key.toUtf8();
+    const QByteArray title_bytes = title->text().trimmed().toUtf8();
+    app_account_type_save(
+        *main,
+        rust::Str(key_bytes.constData(), key_bytes.size()),
+        rust::Str(title_bytes.constData(), title_bytes.size()),
+        std::move(content_types),
+        std::move(actions),
+        static_cast<int64_t>(accounts->value()),
+        static_cast<int64_t>(time_delta->value()));
 }
 
 HydrusAccountTypesDialog::HydrusAccountTypesDialog(HydrusMainWindow *main_window, const AccountTypesDialogState &state, QWidget *parent)
@@ -336,11 +340,12 @@ void HydrusAccountTypesDialog::delete_selected() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("account_type_key"), entry.key);
-    payload.insert(QStringLiteral("replacement_account_type_key"), keys.at(titles.indexOf(title)));
-
-    main->notify(UiAction::AccountTypeDelete, QString(), json_payload(payload));
+    const QByteArray key_bytes = entry.key.toUtf8();
+    const QByteArray replacement_bytes = keys.at(titles.indexOf(title)).toUtf8();
+    app_account_type_delete(
+        *main,
+        rust::Str(key_bytes.constData(), key_bytes.size()),
+        rust::Str(replacement_bytes.constData(), replacement_bytes.size()));
 }
 
 void HydrusMainWindow::show_account_types(const AccountTypesDialogState &typed) {

@@ -108,30 +108,6 @@ void show_api_permission_editor(HydrusMainWindow *main, QWidget *parent, const s
     tabs->addTab(blacklist, QStringLiteral("denied search tags"));
     layout->addWidget(tabs, 1);
 
-    auto collect_rules = [](QPlainTextEdit *edit, const QString &rule) {
-        QJsonArray rules;
-
-        for (const QString &line : edit->toPlainText().split(QLatin1Char('\n'))) {
-            const QString trimmed = line.trimmed();
-
-            if (trimmed.isEmpty()) {
-                continue;
-            }
-
-            QString slice = trimmed;
-
-            if (trimmed == QStringLiteral("*")) {
-                slice = QString();
-            } else if (trimmed == QStringLiteral("*:*") || trimmed == QStringLiteral("*:")) {
-                slice = QStringLiteral(":");
-            }
-
-            rules.append(QJsonArray{slice, rule});
-        }
-
-        return rules;
-    };
-
     auto update_enabled = [permits_everything, permission_list]() {
         permission_list->setEnabled(!permits_everything->isChecked());
     };
@@ -161,31 +137,55 @@ void show_api_permission_editor(HydrusMainWindow *main, QWidget *parent, const s
         return;
     }
 
-    QJsonArray permissions;
+    rust::Vec<int32_t> basic;
 
     for (int index = 0; index < permission_list->count(); ++index) {
         QListWidgetItem *item = permission_list->item(index);
 
         if (item->checkState() == Qt::Checked) {
-            permissions.append(item->data(Qt::UserRole).toInt());
+            basic.push_back(item->data(Qt::UserRole).toInt());
         }
     }
 
-    QJsonArray rules = collect_rules(whitelist, QStringLiteral("whitelist"));
+    QStringList rule_slices;
+    QStringList rule_kinds;
 
-    for (const QJsonValue &rule : collect_rules(blacklist, QStringLiteral("blacklist"))) {
-        rules.append(rule);
-    }
+    auto collect_rules = [](QPlainTextEdit *edit, const QString &rule, QStringList *slices, QStringList *kinds) {
+        for (const QString &line : edit->toPlainText().split(QLatin1Char('\n'))) {
+            const QString trimmed = line.trimmed();
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("name"), name->text().trimmed());
-    payload.insert(QStringLiteral("access_key"), access_key->text().trimmed().toLower());
-    payload.insert(QStringLiteral("original_access_key"), original);
-    payload.insert(QStringLiteral("permits_everything"), permits_everything->isChecked());
-    payload.insert(QStringLiteral("basic_permissions"), permissions);
-    payload.insert(QStringLiteral("rules"), rules);
+            if (trimmed.isEmpty()) {
+                continue;
+            }
 
-    main->notify(UiAction::ApiPermissionsSave, QString(), json_payload(payload));
+            QString slice = trimmed;
+
+            if (trimmed == QStringLiteral("*")) {
+                slice = QString();
+            } else if (trimmed == QStringLiteral("*:*") || trimmed == QStringLiteral("*:")) {
+                slice = QStringLiteral(":");
+            }
+
+            slices->append(slice);
+            kinds->append(rule);
+        }
+    };
+
+    collect_rules(whitelist, QStringLiteral("whitelist"), &rule_slices, &rule_kinds);
+    collect_rules(blacklist, QStringLiteral("blacklist"), &rule_slices, &rule_kinds);
+
+    const QByteArray name_bytes = name->text().trimmed().toUtf8();
+    const QByteArray key_bytes = access_key->text().trimmed().toLower().toUtf8();
+    const QByteArray original_bytes = original.toUtf8();
+    app_api_permissions_save(
+        *main,
+        rust::Str(name_bytes.constData(), name_bytes.size()),
+        rust::Str(key_bytes.constData(), key_bytes.size()),
+        rust::Str(original_bytes.constData(), original_bytes.size()),
+        permits_everything->isChecked(),
+        std::move(basic),
+        to_rust_vec(rule_slices),
+        to_rust_vec(rule_kinds));
 }
 
 HydrusApiPermissionsDialog::HydrusApiPermissionsDialog(HydrusMainWindow *main_window, const ApiPermissionsDialogState &state, QWidget *parent)
@@ -354,7 +354,9 @@ void HydrusApiPermissionsDialog::delete_selected() {
         return;
     }
 
-    main->notify(UiAction::ApiPermissionsDelete, QString(), entry.access_key);
+    const QByteArray key_bytes = entry.access_key.toUtf8();
+    app_api_permissions_delete(
+        *main, rust::Str(key_bytes.constData(), key_bytes.size()));
 }
 
 void HydrusMainWindow::show_api_permissions(const ApiPermissionsDialogState &typed) {

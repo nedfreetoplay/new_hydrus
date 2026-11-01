@@ -560,6 +560,8 @@ fn auto_resolution_sidebar_status_helpers() {
     assert!(!pause_play_enabled(0));
     assert!(review_actions_enabled(2));
     assert!(!review_actions_enabled(0));
+    assert_eq!(review_summary(2, 0, 1, true), "approved 2 pair(s); 1 failed");
+    assert_eq!(review_summary(0, 3, 0, false), "denied 3 pair(s)");
 }
 
 #[test]

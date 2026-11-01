@@ -2305,6 +2305,84 @@ pub(crate) mod ffi {
             delete_a: bool,
             delete_b: bool,
         );
+        /// Typed reverse seams (WS-15.2.4c, партия 4): admin dialogs and the
+        /// last duplicate dialogs. C++ calls these directly instead of
+        /// `notify` + JSON reverse payload.
+        fn app_account_type_save(
+            window: Pin<&mut HydrusMainWindow>,
+            key: &str,
+            title: &str,
+            content_types: Vec<i32>,
+            actions: Vec<i32>,
+            auto_create_accounts: i64,
+            auto_create_time_delta: i64,
+        );
+        fn app_account_type_delete(
+            window: Pin<&mut HydrusMainWindow>,
+            key: &str,
+            replacement: &str,
+        );
+        fn app_api_permissions_save(
+            window: Pin<&mut HydrusMainWindow>,
+            name: &str,
+            access_key: &str,
+            original: &str,
+            permits_everything: bool,
+            basic: Vec<i32>,
+            slices: Vec<String>,
+            rules: Vec<String>,
+        );
+        fn app_api_permissions_delete(window: Pin<&mut HydrusMainWindow>, access_key: &str);
+        #[allow(clippy::too_many_arguments)]
+        fn app_duplicates_merge_options_save(
+            window: Pin<&mut HydrusMainWindow>,
+            kind: &str,
+            archive: &str,
+            modified: &str,
+            urls: &str,
+            notes: &str,
+            tag_services: Vec<String>,
+            tag_actions: Vec<String>,
+            rating_services: Vec<String>,
+            rating_actions: Vec<String>,
+        );
+        #[allow(clippy::too_many_arguments)]
+        fn app_duplicates_custom_apply(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            action: &str,
+            better_side: &str,
+            delete_mode: &str,
+            better_archive: &str,
+            better_modified: &str,
+            better_urls: &str,
+            better_notes: &str,
+            better_tag_services: Vec<String>,
+            better_tag_actions: Vec<String>,
+            better_rating_services: Vec<String>,
+            better_rating_actions: Vec<String>,
+            same_archive: &str,
+            same_modified: &str,
+            same_urls: &str,
+            same_notes: &str,
+            same_tag_services: Vec<String>,
+            same_tag_actions: Vec<String>,
+            same_rating_services: Vec<String>,
+            same_rating_actions: Vec<String>,
+        );
+        fn app_duplicates_review_apply(
+            window: Pin<&mut HydrusMainWindow>,
+            indices: Vec<i64>,
+            approve: bool,
+            all: bool,
+        );
+        fn app_duplicates_show_pair(window: Pin<&mut HydrusMainWindow>, hashes: Vec<String>);
+        fn app_orphan_files_delete(window: Pin<&mut HydrusMainWindow>, paths: Vec<String>);
+        fn app_orphan_files_move(
+            window: Pin<&mut HydrusMainWindow>,
+            paths: Vec<String>,
+            target: &str,
+        );
         #[allow(clippy::too_many_arguments)]
         fn app_export_folder_run(
             window: Pin<&mut HydrusMainWindow>,
@@ -2920,6 +2998,130 @@ fn app_duplicates_rule_preview(
         window.as_mut(), name, paused, operation_mode, max_pending_pairs, search_query,
         search_mode, max_distance, selectors, action, delete_a, delete_b,
     );
+}
+
+/// Typed reverse seams (WS-15.2.4c, партия 4): admin dialogs and the last
+/// duplicate dialogs.
+fn app_account_type_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    key: &str,
+    title: &str,
+    content_types: Vec<i32>,
+    actions: Vec<i32>,
+    auto_create_accounts: i64,
+    auto_create_time_delta: i64,
+) {
+    crate::gui::app::handle_account_type_save(
+        window.as_mut(), key, title, content_types, actions, auto_create_accounts,
+        auto_create_time_delta,
+    );
+}
+
+fn app_account_type_delete(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    key: &str,
+    replacement: &str,
+) {
+    crate::gui::app::handle_account_type_delete(window.as_mut(), key, replacement);
+}
+
+fn app_api_permissions_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    name: &str,
+    access_key: &str,
+    original: &str,
+    permits_everything: bool,
+    basic: Vec<i32>,
+    slices: Vec<String>,
+    rules: Vec<String>,
+) {
+    crate::gui::app::handle_api_permissions_save(
+        window.as_mut(), name, access_key, original, permits_everything, basic, slices,
+        rules,
+    );
+}
+
+fn app_api_permissions_delete(mut window: Pin<&mut ffi::HydrusMainWindow>, access_key: &str) {
+    crate::gui::app::handle_api_permissions_delete(window.as_mut(), access_key);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn app_duplicates_merge_options_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    kind: &str,
+    archive: &str,
+    modified: &str,
+    urls: &str,
+    notes: &str,
+    tag_services: Vec<String>,
+    tag_actions: Vec<String>,
+    rating_services: Vec<String>,
+    rating_actions: Vec<String>,
+) {
+    crate::gui::app::handle_duplicates_merge_options_save(
+        window.as_mut(), kind, archive, modified, urls, notes, tag_services, tag_actions,
+        rating_services, rating_actions,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn app_duplicates_custom_apply(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    action: &str,
+    better_side: &str,
+    delete_mode: &str,
+    better_archive: &str,
+    better_modified: &str,
+    better_urls: &str,
+    better_notes: &str,
+    better_tag_services: Vec<String>,
+    better_tag_actions: Vec<String>,
+    better_rating_services: Vec<String>,
+    better_rating_actions: Vec<String>,
+    same_archive: &str,
+    same_modified: &str,
+    same_urls: &str,
+    same_notes: &str,
+    same_tag_services: Vec<String>,
+    same_tag_actions: Vec<String>,
+    same_rating_services: Vec<String>,
+    same_rating_actions: Vec<String>,
+) {
+    crate::gui::app::handle_duplicates_custom_apply(
+        window.as_mut(), page_id, action, better_side, delete_mode,
+        better_archive, better_modified, better_urls, better_notes,
+        better_tag_services, better_tag_actions,
+        better_rating_services, better_rating_actions,
+        same_archive, same_modified, same_urls, same_notes,
+        same_tag_services, same_tag_actions,
+        same_rating_services, same_rating_actions,
+    );
+}
+
+fn app_duplicates_review_apply(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    indices: Vec<i64>,
+    approve: bool,
+    all: bool,
+) {
+    crate::gui::app::handle_duplicates_review_apply(window.as_mut(), indices, approve, all);
+}
+
+fn app_duplicates_show_pair(mut window: Pin<&mut ffi::HydrusMainWindow>, hashes: Vec<String>) {
+    crate::gui::app::handle_duplicates_show_pair(window.as_mut(), hashes);
+}
+
+fn app_orphan_files_delete(mut window: Pin<&mut ffi::HydrusMainWindow>, paths: Vec<String>) {
+    crate::gui::app::handle_orphan_files_delete(window.as_mut(), paths);
+}
+
+fn app_orphan_files_move(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    paths: Vec<String>,
+    target: &str,
+) {
+    crate::gui::app::handle_orphan_files_move(window.as_mut(), paths, target);
 }
 
 /// Typed reverse seams (WS-15.2.4c): export/import folders, local import,

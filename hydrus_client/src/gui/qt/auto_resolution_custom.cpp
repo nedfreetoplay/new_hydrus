@@ -166,16 +166,44 @@ HydrusDuplicateCustomActionDialog::HydrusDuplicateCustomActionDialog(
 }
 
 void HydrusDuplicateCustomActionDialog::apply() {
-    QJsonObject payload;
-    payload.insert(QStringLiteral("action"), action->currentData().toString());
-    payload.insert(QStringLiteral("better_side"), better_side->currentData().toString());
-    payload.insert(QStringLiteral("delete"), delete_mode->currentData().toString());
-    payload.insert(QStringLiteral("better"), read_duplicate_merge_page(better));
-    payload.insert(QStringLiteral("same"), read_duplicate_merge_page(same));
+    const DuplicateMergePageValues better_values = read_duplicate_merge_page(better);
+    const DuplicateMergePageValues same_values = read_duplicate_merge_page(same);
 
-    main->notify(UiAction::DuplicatesCustom,
-        page_id,
-        json_payload(payload));
+    const QByteArray page_bytes = page_id.toUtf8();
+    const QByteArray action_bytes = action->currentData().toString().toUtf8();
+    const QByteArray better_side_bytes = better_side->currentData().toString().toUtf8();
+    const QByteArray delete_bytes = delete_mode->currentData().toString().toUtf8();
+    const QByteArray better_archive_bytes = better_values.archive.toUtf8();
+    const QByteArray better_modified_bytes = better_values.modified_date.toUtf8();
+    const QByteArray better_urls_bytes = better_values.urls.toUtf8();
+    const QByteArray better_notes_bytes = better_values.notes.toUtf8();
+    const QByteArray same_archive_bytes = same_values.archive.toUtf8();
+    const QByteArray same_modified_bytes = same_values.modified_date.toUtf8();
+    const QByteArray same_urls_bytes = same_values.urls.toUtf8();
+    const QByteArray same_notes_bytes = same_values.notes.toUtf8();
+
+    app_duplicates_custom_apply(
+        *main,
+        rust::Str(page_bytes.constData(), page_bytes.size()),
+        rust::Str(action_bytes.constData(), action_bytes.size()),
+        rust::Str(better_side_bytes.constData(), better_side_bytes.size()),
+        rust::Str(delete_bytes.constData(), delete_bytes.size()),
+        rust::Str(better_archive_bytes.constData(), better_archive_bytes.size()),
+        rust::Str(better_modified_bytes.constData(), better_modified_bytes.size()),
+        rust::Str(better_urls_bytes.constData(), better_urls_bytes.size()),
+        rust::Str(better_notes_bytes.constData(), better_notes_bytes.size()),
+        to_rust_vec(better_values.tag_services),
+        to_rust_vec(better_values.tag_actions),
+        to_rust_vec(better_values.rating_services),
+        to_rust_vec(better_values.rating_actions),
+        rust::Str(same_archive_bytes.constData(), same_archive_bytes.size()),
+        rust::Str(same_modified_bytes.constData(), same_modified_bytes.size()),
+        rust::Str(same_urls_bytes.constData(), same_urls_bytes.size()),
+        rust::Str(same_notes_bytes.constData(), same_notes_bytes.size()),
+        to_rust_vec(same_values.tag_services),
+        to_rust_vec(same_values.tag_actions),
+        to_rust_vec(same_values.rating_services),
+        to_rust_vec(same_values.rating_actions));
 
     close();
 }

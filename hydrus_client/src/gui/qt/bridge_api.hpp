@@ -476,6 +476,81 @@ void app_duplicates_rule_preview(
     rust::Str action,
     bool delete_a,
     bool delete_b) noexcept;
+// Typed reverse seams (WS-15.2.4c, партия 4): admin dialogs and the last
+// duplicate dialogs. C++ calls these directly instead of the old
+// `notify` + JSON reverse payload.
+void app_account_type_save(
+    HydrusMainWindow &window,
+    rust::Str key,
+    rust::Str title,
+    rust::Vec<int32_t> content_types,
+    rust::Vec<int32_t> actions,
+    int64_t auto_create_accounts,
+    int64_t auto_create_time_delta) noexcept;
+void app_account_type_delete(
+    HydrusMainWindow &window,
+    rust::Str key,
+    rust::Str replacement) noexcept;
+void app_api_permissions_save(
+    HydrusMainWindow &window,
+    rust::Str name,
+    rust::Str access_key,
+    rust::Str original,
+    bool permits_everything,
+    rust::Vec<int32_t> basic,
+    rust::Vec<rust::String> slices,
+    rust::Vec<rust::String> rules) noexcept;
+void app_api_permissions_delete(
+    HydrusMainWindow &window,
+    rust::Str access_key) noexcept;
+void app_duplicates_merge_options_save(
+    HydrusMainWindow &window,
+    rust::Str kind,
+    rust::Str archive,
+    rust::Str modified,
+    rust::Str urls,
+    rust::Str notes,
+    rust::Vec<rust::String> tag_services,
+    rust::Vec<rust::String> tag_actions,
+    rust::Vec<rust::String> rating_services,
+    rust::Vec<rust::String> rating_actions) noexcept;
+void app_duplicates_custom_apply(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Str action,
+    rust::Str better_side,
+    rust::Str delete_mode,
+    rust::Str better_archive,
+    rust::Str better_modified,
+    rust::Str better_urls,
+    rust::Str better_notes,
+    rust::Vec<rust::String> better_tag_services,
+    rust::Vec<rust::String> better_tag_actions,
+    rust::Vec<rust::String> better_rating_services,
+    rust::Vec<rust::String> better_rating_actions,
+    rust::Str same_archive,
+    rust::Str same_modified,
+    rust::Str same_urls,
+    rust::Str same_notes,
+    rust::Vec<rust::String> same_tag_services,
+    rust::Vec<rust::String> same_tag_actions,
+    rust::Vec<rust::String> same_rating_services,
+    rust::Vec<rust::String> same_rating_actions) noexcept;
+void app_duplicates_review_apply(
+    HydrusMainWindow &window,
+    rust::Vec<int64_t> indices,
+    bool approve,
+    bool all) noexcept;
+void app_duplicates_show_pair(
+    HydrusMainWindow &window,
+    rust::Vec<rust::String> hashes) noexcept;
+void app_orphan_files_delete(
+    HydrusMainWindow &window,
+    rust::Vec<rust::String> paths) noexcept;
+void app_orphan_files_move(
+    HydrusMainWindow &window,
+    rust::Vec<rust::String> paths,
+    rust::Str target) noexcept;
 // Typed reverse seams (WS-15.2.4c): export/import folders, local import,
 // options, notes. C++ calls these directly instead of `notify(..., json)`.
 void app_export_folder_run(

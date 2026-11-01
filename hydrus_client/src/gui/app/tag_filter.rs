@@ -484,6 +484,13 @@ pub(super) fn parse_rules(value: &Value) -> Result<Vec<(String, String)>, String
     Ok(rules)
 }
 
+pub(super) fn zip_rules_for_api(
+    slices: &[String],
+    rules: &[String],
+) -> Result<Vec<(String, String)>, String> {
+    zip_rules(slices, rules)
+}
+
 fn zip_rules(slices: &[String], rules: &[String]) -> Result<Vec<(String, String)>, String> {
     if slices.len() != rules.len() {
         return Err("the tag filter rules are out of sync".to_string());

@@ -1593,6 +1593,78 @@ pub fn handle_network_rule_set(
 }
 
 typed_handler!(handle_tag_filter_test(slices: Vec<String>, rules: Vec<String>, tag: &str) => crate::gui::app::tag_filter::test_typed);
+typed_handler!(handle_account_type_save(key: &str, title: &str, content_types: Vec<i32>, actions: Vec<i32>, auto_create_accounts: i64, auto_create_time_delta: i64) => crate::gui::app::services::save_account_type_typed);
+typed_handler!(handle_account_type_delete(key: &str, replacement: &str) => crate::gui::app::services::delete_account_type_typed);
+typed_handler!(handle_api_permissions_save(name: &str, access_key: &str, original: &str, permits_everything: bool, basic: Vec<i32>, slices: Vec<String>, rules: Vec<String>) => crate::gui::app::api_permissions::save_typed);
+typed_handler!(handle_api_permissions_delete(access_key: &str) => crate::gui::app::api_permissions::delete_typed);
+typed_handler!(handle_duplicates_merge_options_save(kind: &str, archive: &str, modified: &str, urls: &str, notes: &str, tag_services: Vec<String>, tag_actions: Vec<String>, rating_services: Vec<String>, rating_actions: Vec<String>) => crate::gui::app::duplicates::save_merge_options_typed);
+typed_handler!(handle_duplicates_review_apply(indices: Vec<i64>, approve: bool, all: bool) => crate::gui::app::auto_resolution::review_apply_typed);
+typed_handler!(handle_duplicates_show_pair(hashes: Vec<String>) => crate::gui::app::auto_resolution::show_pair_typed);
+
+pub fn handle_orphan_files_delete(mut window: Pin<&mut ffi::HydrusMainWindow>, paths: Vec<String>) {
+    let paths: Vec<std::path::PathBuf> = paths.iter().map(std::path::PathBuf::from).collect();
+    let commands =
+        with_state_mut(|state| crate::gui::app::orphans::delete_typed(state, paths));
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_orphan_files_move(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    paths: Vec<String>,
+    target: &str,
+) {
+    let paths: Vec<std::path::PathBuf> = paths.iter().map(std::path::PathBuf::from).collect();
+    let commands =
+        with_state_mut(|state| crate::gui::app::orphans::move_typed(state, paths, target));
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn handle_duplicates_custom_apply(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    action: &str,
+    better_side: &str,
+    delete_mode: &str,
+    better_archive: &str,
+    better_modified: &str,
+    better_urls: &str,
+    better_notes: &str,
+    better_tag_services: Vec<String>,
+    better_tag_actions: Vec<String>,
+    better_rating_services: Vec<String>,
+    better_rating_actions: Vec<String>,
+    same_archive: &str,
+    same_modified: &str,
+    same_urls: &str,
+    same_notes: &str,
+    same_tag_services: Vec<String>,
+    same_tag_actions: Vec<String>,
+    same_rating_services: Vec<String>,
+    same_rating_actions: Vec<String>,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::duplicates::custom_apply_typed(
+            state, page_id, action, better_side, delete_mode,
+            better_archive, better_modified, better_urls, better_notes,
+            better_tag_services, better_tag_actions,
+            better_rating_services, better_rating_actions,
+            same_archive, same_modified, same_urls, same_notes,
+            same_tag_services, same_tag_actions,
+            same_rating_services, same_rating_actions,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
 typed_handler!(handle_tag_filter_save(service_key: &str, slices: Vec<String>, rules: Vec<String>) => crate::gui::app::tag_filter::save_typed);
 typed_handler!(handle_purge_tags(service_key: &str, tags: Vec<String>, reason: &str) => crate::gui::app::tag_filter::purge_typed);
 typed_handler!(handle_tag_relation_add(relation: &str, service: &str, first: &str, second: &str) => crate::gui::app::tag_relations::add_typed);

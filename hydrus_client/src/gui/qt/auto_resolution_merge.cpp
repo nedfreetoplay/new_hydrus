@@ -244,10 +244,8 @@ void fill_duplicate_merge_page(
     fill_table(page.ratings, data.rating_services, options.rating_actions);
 }
 
-QJsonObject read_duplicate_merge_page(const DuplicateMergePage &page) {
-    auto read_table = [](QTableWidget *table) {
-        QJsonObject values;
-
+DuplicateMergePageValues read_duplicate_merge_page(const DuplicateMergePage &page) {
+    auto read_table = [](QTableWidget *table, QStringList *services, QStringList *actions) {
         for (int row = 0; row < table->rowCount(); ++row) {
             const QTableWidgetItem *service = table->item(row, 0);
             auto *combo = qobject_cast<QComboBox *>(table->cellWidget(row, 1));
@@ -256,34 +254,48 @@ QJsonObject read_duplicate_merge_page(const DuplicateMergePage &page) {
                 continue;
             }
 
-            const QString action = combo->currentData().toString();
-
-            if (action != QStringLiteral("none")) {
-                values.insert(service->text(), action);
-            }
+            services->append(service->text());
+            actions->append(combo->currentData().toString());
         }
-
-        return values;
     };
 
-    QJsonObject options;
-    options.insert(QStringLiteral("sync_archive_action"), page.archive->currentData().toString());
-    options.insert(QStringLiteral("sync_file_modified_date_action"), page.modified_date->currentData().toString());
-    options.insert(QStringLiteral("sync_urls_action"), page.urls->currentData().toString());
-    options.insert(QStringLiteral("sync_notes_action"), page.notes->currentData().toString());
-    options.insert(QStringLiteral("tag_service_actions"), read_table(page.tags));
-    options.insert(QStringLiteral("rating_service_actions"), read_table(page.ratings));
+    DuplicateMergePageValues values;
+    values.archive = page.archive->currentData().toString();
+    values.modified_date = page.modified_date->currentData().toString();
+    values.urls = page.urls->currentData().toString();
+    values.notes = page.notes->currentData().toString();
+    read_table(page.tags, &values.tag_services, &values.tag_actions);
+    read_table(page.ratings, &values.rating_services, &values.rating_actions);
 
-    return options;
+    return values;
+}
+
+void send_merge_options(
+    HydrusMainWindow *main,
+    const QString &kind,
+    const DuplicateMergePageValues &values) {
+    const QByteArray kind_bytes = kind.toUtf8();
+    const QByteArray archive_bytes = values.archive.toUtf8();
+    const QByteArray modified_bytes = values.modified_date.toUtf8();
+    const QByteArray urls_bytes = values.urls.toUtf8();
+    const QByteArray notes_bytes = values.notes.toUtf8();
+    app_duplicates_merge_options_save(
+        *main,
+        rust::Str(kind_bytes.constData(), kind_bytes.size()),
+        rust::Str(archive_bytes.constData(), archive_bytes.size()),
+        rust::Str(modified_bytes.constData(), modified_bytes.size()),
+        rust::Str(urls_bytes.constData(), urls_bytes.size()),
+        rust::Str(notes_bytes.constData(), notes_bytes.size()),
+        to_rust_vec(values.tag_services),
+        to_rust_vec(values.tag_actions),
+        to_rust_vec(values.rating_services),
+        to_rust_vec(values.rating_actions));
 }
 
 void HydrusDuplicateMergeOptionsDialog::save() {
     for (const auto &[key, page] : std::initializer_list<std::pair<QString, const DuplicateMergePage *>>{
              {QStringLiteral("better"), &better}, {QStringLiteral("same"), &same}}) {
-        QJsonObject payload;
-        payload.insert(QStringLiteral("action"), key);
-        payload.insert(QStringLiteral("options"), read_duplicate_merge_page(*page));
-        main->notify(UiAction::DuplicatesMergeOptions, QString(), json_payload(payload));
+        send_merge_options(main, key, read_duplicate_merge_page(*page));
     }
 
     close();

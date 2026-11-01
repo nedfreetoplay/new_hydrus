@@ -23,16 +23,8 @@ const PARSE_OBJECT_ALLOWLIST: &[(&str, usize)] = &[
 
 /// Files whose `.cpp`/`.hpp` still build a `json_payload(...)` reverse payload.
 const JSON_PAYLOAD_ALLOWLIST: &[(&str, usize)] = &[
-    ("src/gui/qt/support/pairs.cpp", 1),
     ("src/gui/qt/support/strings.cpp", 1),
     ("src/gui/qt/support/strings.hpp", 1),
-    ("src/gui/qt/account_types.cpp", 2),
-    ("src/gui/qt/api_permissions.cpp", 1),
-    ("src/gui/qt/auto_resolution_custom.cpp", 1),
-    ("src/gui/qt/auto_resolution_merge.cpp", 1),
-    ("src/gui/qt/auto_resolution_review.cpp", 2),
-    ("src/gui/qt/orphan_files.cpp", 2),
-    ("src/gui/qt/repair_locations.cpp", 1),
 ];
 
 /// `api.rs` structs that are still a typed envelope around one JSON blob

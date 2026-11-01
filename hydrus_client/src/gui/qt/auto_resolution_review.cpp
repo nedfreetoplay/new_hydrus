@@ -201,20 +201,15 @@ void HydrusDuplicateReviewDialog::apply_selected(bool approve) {
         return;
     }
 
-    QJsonArray indices;
+    rust::Vec<int64_t> indices;
+    indices.reserve(rows.size());
     for (int row : rows) {
-        indices.append(row);
+        indices.push_back(row);
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("indices"), indices);
-    payload.insert(QStringLiteral("approve"), approve);
-    main->notify(UiAction::DuplicatesReviewApply, QString(), json_payload(payload));
+    app_duplicates_review_apply(*main, std::move(indices), approve, false);
 }
 
 void HydrusDuplicateReviewDialog::apply_all(bool approve) {
-    QJsonObject payload;
-    payload.insert(QStringLiteral("all"), true);
-    payload.insert(QStringLiteral("approve"), approve);
-    main->notify(UiAction::DuplicatesReviewApply, QString(), json_payload(payload));
+    app_duplicates_review_apply(*main, rust::Vec<int64_t>(), approve, true);
 }

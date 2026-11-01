@@ -1187,6 +1187,90 @@ pub fn open_account_types(state: &mut AppState, _payload: &str) -> Vec<UiCommand
     }
 }
 
+/// Typed reverse seam (WS-15.2.4c, партия 4): C++ передаёт пары
+/// `(content_type, action)` параллельными списками вместо JSON-payload.
+pub fn zip_account_permissions(
+    content_types: &[i32],
+    actions: &[i32],
+) -> Result<indexmap::IndexMap<ContentType, Option<PermissionAction>>, String> {
+    if content_types.len() != actions.len() {
+        return Err("a permission was not a pair".to_string());
+    }
+
+    let mut permissions = indexmap::IndexMap::new();
+
+    for (content_type, action) in content_types.iter().zip(actions.iter()) {
+        let Some(content_type) = u16::try_from(*content_type)
+            .ok()
+            .and_then(ContentType::try_from_int)
+        else {
+            return Err("unknown permission content type".to_string());
+        };
+
+        let action = if *action < 0 {
+            None
+        } else {
+            let Some(action) = u8::try_from(*action)
+                .ok()
+                .and_then(PermissionAction::try_from_int)
+            else {
+                return Err("unknown permission action".to_string());
+            };
+
+            Some(action)
+        };
+
+        permissions.insert(content_type, action);
+    }
+
+    Ok(permissions)
+}
+
+pub fn save_account_type_typed(
+    state: &mut AppState,
+    key: &str,
+    title: &str,
+    content_types: Vec<i32>,
+    actions: Vec<i32>,
+    auto_create_accounts: i64,
+    auto_create_time_delta: i64,
+) -> Vec<UiCommand> {
+    let key = key.trim().to_ascii_lowercase();
+    let title = title.trim().to_string();
+
+    if title.is_empty() {
+        return service_commands(state, "enter an account type title");
+    }
+
+    let permissions = match zip_account_permissions(&content_types, &actions) {
+        Ok(permissions) => permissions,
+        Err(error) => return service_commands(state, error),
+    };
+
+    save_account_type_core(
+        state,
+        &key,
+        &title,
+        permissions,
+        (
+            auto_create_accounts.max(0),
+            auto_create_time_delta.max(60),
+        ),
+    )
+}
+
+pub fn delete_account_type_typed(
+    state: &mut AppState,
+    key: &str,
+    replacement: &str,
+) -> Vec<UiCommand> {
+    delete_account_type_core(
+        state,
+        key.trim().to_ascii_lowercase(),
+        replacement.trim().to_ascii_lowercase(),
+    )
+}
+
 pub fn save_account_type(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     let Ok(value) = serde_json::from_str::<Value>(payload) else {
         return service_commands(state, "invalid account type payload");
@@ -1204,28 +1288,41 @@ pub fn save_account_type(state: &mut AppState, payload: &str) -> Vec<UiCommand> 
         .trim()
         .to_string();
 
-    if title.is_empty() {
-        return service_commands(state, "enter an account type title");
-    }
-
-    let permissions = match parse_account_type_permissions(&value) {
-        Ok(permissions) => permissions,
-        Err(error) => return service_commands(state, error),
-    };
-
     let auto_create = (
         value
             .get("auto_create_accounts")
             .and_then(Value::as_i64)
-            .unwrap_or(0)
-            .max(0),
+            .unwrap_or(0),
         value
             .get("auto_create_time_delta")
             .and_then(Value::as_i64)
-            .unwrap_or(86_400)
-            .max(60),
+            .unwrap_or(86_400),
     );
 
+    let (content_types, actions) = match parse_account_type_permission_pairs(&value) {
+        Ok(pairs) => pairs,
+        Err(error) => return service_commands(state, error),
+    };
+
+    save_account_type_typed(
+        state,
+        &key,
+        &title,
+        content_types,
+        actions,
+        auto_create.0,
+        auto_create.1,
+    )
+}
+
+fn save_account_type_core(
+    state: &mut AppState,
+    key: &str,
+    title: &str,
+    permissions: indexmap::IndexMap<ContentType, Option<PermissionAction>>,
+    auto_create: (i64, i64),
+) -> Vec<UiCommand> {
+    let auto_create = (auto_create.0.max(0), auto_create.1.max(60));
     let mut tuples: Vec<Value> = state
         .admin
         .account_types
@@ -1237,7 +1334,7 @@ pub fn save_account_type(state: &mut AppState, payload: &str) -> Vec<UiCommand> 
     let tuple = if key.is_empty() {
         let account_type = AccountType::new(
             random_key(),
-            &title,
+            title,
             permissions,
             std::sync::Arc::new(hydrus_core::networking::hydrus_networking::BandwidthRules::new()),
             auto_create,
@@ -1261,7 +1358,7 @@ pub fn save_account_type(state: &mut AppState, payload: &str) -> Vec<UiCommand> 
             return service_commands(state, "the null account type cannot be edited");
         }
 
-        match edit_account_type_tuple(&existing.tuple, &title, permissions, auto_create) {
+        match edit_account_type_tuple(&existing.tuple, title, permissions, auto_create) {
             Ok(tuple) => tuple,
             Err(error) => return service_commands(state, error),
         }
@@ -1295,14 +1392,17 @@ pub fn delete_account_type(state: &mut AppState, payload: &str) -> Vec<UiCommand
         .get("account_type_key")
         .and_then(Value::as_str)
         .unwrap_or_default()
-        .trim()
-        .to_ascii_lowercase();
+        .to_string();
     let replacement = value
         .get("replacement_account_type_key")
         .and_then(Value::as_str)
         .unwrap_or_default()
-        .trim()
-        .to_ascii_lowercase();
+        .to_string();
+
+    delete_account_type_typed(state, &key, &replacement)
+}
+
+fn delete_account_type_core(state: &mut AppState, key: String, replacement: String) -> Vec<UiCommand> {
 
     let Some(existing) = state
         .admin
@@ -1348,14 +1448,13 @@ pub fn delete_account_type(state: &mut AppState, payload: &str) -> Vec<UiCommand
     }
 }
 
-fn parse_account_type_permissions(
-    value: &Value,
-) -> Result<indexmap::IndexMap<ContentType, Option<PermissionAction>>, String> {
+fn parse_account_type_permission_pairs(value: &Value) -> Result<(Vec<i32>, Vec<i32>), String> {
     let Some(entries) = value.get("permissions").and_then(Value::as_array) else {
-        return Ok(indexmap::IndexMap::new());
+        return Ok((Vec::new(), Vec::new()));
     };
 
-    let mut permissions = indexmap::IndexMap::new();
+    let mut content_types = Vec::with_capacity(entries.len());
+    let mut actions = Vec::with_capacity(entries.len());
 
     for entry in entries {
         let Some(pair) = entry.as_array() else {
@@ -1364,32 +1463,23 @@ fn parse_account_type_permissions(
         let (Some(content_type), Some(action)) = (pair.first(), pair.get(1)) else {
             return Err("a permission was not a pair".to_string());
         };
-        let Some(content_type) = content_type
-            .as_u64()
-            .and_then(|value| u16::try_from(value).ok())
-            .and_then(ContentType::try_from_int)
-        else {
+        let Some(content_type) = content_type.as_u64().and_then(|value| i32::try_from(value).ok()) else {
             return Err("unknown permission content type".to_string());
         };
-
         let action = if action.is_null() {
-            None
+            -1
         } else {
-            let Some(action) = action
-                .as_u64()
-                .and_then(|value| u8::try_from(value).ok())
-                .and_then(PermissionAction::try_from_int)
-            else {
+            let Some(action) = action.as_u64().and_then(|value| i32::try_from(value).ok()) else {
                 return Err("unknown permission action".to_string());
             };
-
-            Some(action)
+            action
         };
 
-        permissions.insert(content_type, action);
+        content_types.push(content_type);
+        actions.push(action);
     }
 
-    Ok(permissions)
+    Ok((content_types, actions))
 }
 
 fn edit_account_type_tuple(
@@ -1803,11 +1893,8 @@ mod tests {
 
     #[test]
     fn account_type_permissions_round_trip() {
-        let payload = json!({
-            "permissions": [[3, 1], [9, 2], [10, null]],
-        });
-
-        let permissions = parse_account_type_permissions(&payload).unwrap();
+        let permissions =
+            zip_account_permissions(&[3, 9, 10], &[1, 2, -1]).unwrap();
 
         assert_eq!(
             permissions.get(&ContentType::Files),
@@ -1822,8 +1909,9 @@ mod tests {
 
     #[test]
     fn invalid_account_type_permissions_are_rejected() {
-        assert!(parse_account_type_permissions(&json!({"permissions": [[3, 99]]})).is_err());
-        assert!(parse_account_type_permissions(&json!({"permissions": [[999, 1]]})).is_err());
+        assert!(zip_account_permissions(&[3], &[99]).is_err());
+        assert!(zip_account_permissions(&[999], &[1]).is_err());
+        assert!(zip_account_permissions(&[3, 9], &[1]).is_err());
     }
 
     #[test]

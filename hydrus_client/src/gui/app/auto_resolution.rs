@@ -1665,17 +1665,27 @@ pub fn show_pair_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         return notify(state, "invalid pair selection");
     };
 
-    let hashes: Vec<Vec<u8>> = value
+    let hashes: Vec<String> = value
         .get("hashes")
         .and_then(Value::as_array)
         .map(|values| {
             values
                 .iter()
                 .filter_map(Value::as_str)
-                .filter_map(query::unhex)
+                .map(str::to_string)
                 .collect()
         })
         .unwrap_or_default();
+
+    show_pair_typed(state, hashes)
+}
+
+/// Typed reverse seam (WS-15.2.4c, партия 4): C++ передаёт hex-хэши списком.
+pub fn show_pair_typed(state: &mut AppState, hashes: Vec<String>) -> Vec<UiCommand> {
+    let hashes: Vec<Vec<u8>> = hashes
+        .iter()
+        .filter_map(|hash| query::unhex(hash))
+        .collect();
 
     if hashes.is_empty() {
         return notify(state, "no local files to show");
@@ -1693,20 +1703,36 @@ pub fn review_apply(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         .and_then(Value::as_bool)
         .unwrap_or(false);
     let all = value.get("all").and_then(Value::as_bool).unwrap_or(false);
+    let indices: Vec<i64> = value
+        .get("indices")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(Value::as_u64)
+                .map(|index| index as i64)
+                .collect()
+        })
+        .unwrap_or_default();
+
+    review_apply_typed(state, indices, approve, all)
+}
+
+/// Typed reverse seam (WS-15.2.4c, партия 4): C++ передаёт индексы, флаг
+/// approve и флаг «все» вместо JSON-payload.
+pub fn review_apply_typed(
+    state: &mut AppState,
+    indices: Vec<i64>,
+    approve: bool,
+    all: bool,
+) -> Vec<UiCommand> {
     let indices: Vec<usize> = if all {
         (0..state.duplicate_review.pending.len()).collect()
     } else {
-        value
-            .get("indices")
-            .and_then(Value::as_array)
-            .map(|values| {
-                values
-                    .iter()
-                    .filter_map(Value::as_u64)
-                    .map(|index| index as usize)
-                    .collect()
-            })
-            .unwrap_or_default()
+        indices
+            .into_iter()
+            .filter_map(|index| usize::try_from(index).ok())
+            .collect()
     };
 
     if indices.is_empty() {
@@ -1760,11 +1786,7 @@ pub fn review_apply(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 
     let _ = save_state_review(state);
 
-    state.message = if approve {
-        format!("approved {approved} pair(s); {failures} failed")
-    } else {
-        format!("denied {denied} pair(s)")
-    };
+    state.message = review_summary(approved, denied, failures, approve);
 
     state.refresh_all();
 
@@ -1773,6 +1795,15 @@ pub fn review_apply(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     commands.push(UiCommand::NotifyMessage(state.message.clone()));
 
     commands
+}
+
+/// Чистая подпись результата review-применения (R2).
+pub fn review_summary(approved: usize, denied: usize, failures: usize, approve: bool) -> String {
+    if approve {
+        format!("approved {approved} pair(s); {failures} failed")
+    } else {
+        format!("denied {denied} pair(s)")
+    }
 }
 
 /// Label shown in the sidebar status column for a rule.

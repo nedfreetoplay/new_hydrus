@@ -72,9 +72,7 @@ void show_selected_pair_rows(QTableWidget *table, HydrusMainWindow *main) {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("hashes"), QJsonArray::fromStringList(hashes));
-    main->notify(UiAction::DuplicatesShowPair, QString(), json_payload(payload));
+    app_duplicates_show_pair(*main, to_rust_vec(hashes));
 }
 
 void install_pair_list_actions(QTableWidget *table, HydrusMainWindow *main) {

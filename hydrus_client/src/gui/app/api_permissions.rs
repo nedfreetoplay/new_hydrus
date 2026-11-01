@@ -101,6 +101,51 @@ pub fn open(state: &AppState) -> Vec<UiCommand> {
     vec![UiCommand::ApiPermissionsDialog(permissions_state(state))]
 }
 
+/// Typed reverse seam (WS-15.2.4c, партия 4): C++ передаёт basic
+/// permissions списком, а tag filter — параллельными списками
+/// `(slice, rule)` вместо JSON-payload.
+pub fn save_typed(
+    state: &mut AppState,
+    name: &str,
+    access_key: &str,
+    original: &str,
+    permits_everything: bool,
+    basic: Vec<i32>,
+    slices: Vec<String>,
+    rules: Vec<String>,
+) -> Vec<UiCommand> {
+    let name = name.trim().to_string();
+
+    if name.is_empty() {
+        return notify(state, "the access key needs a name");
+    }
+
+    let access_key = access_key.trim().to_ascii_lowercase();
+
+    if access_key.len() != 64
+        || !access_key
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
+    {
+        return notify(state, "the access key must be 64 hex characters");
+    }
+
+    let rules = match tag_filter::zip_rules_for_api(&slices, &rules) {
+        Ok(rules) => rules,
+        Err(error) => return notify(state, error),
+    };
+
+    save_core(
+        state,
+        name,
+        access_key,
+        original.trim().to_ascii_lowercase(),
+        permits_everything,
+        basic,
+        rules,
+    )
+}
+
 pub fn save(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     let Ok(value) = serde_json::from_str::<Value>(payload) else {
         return notify(state, "invalid API permissions payload");
@@ -136,28 +181,19 @@ pub fn save(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         .get("original_access_key")
         .and_then(Value::as_str)
         .unwrap_or_default()
-        .trim()
-        .to_ascii_lowercase();
+        .to_string();
 
     let rules = match tag_filter::parse_rules(&value) {
         Ok(rules) => rules,
         Err(error) => return notify(state, error),
     };
 
-    let mut available: BTreeSet<u16> = ALLOWED_PERMISSIONS
-        .iter()
-        .map(|(value, _)| *value)
-        .collect();
-    let mut basic_permissions = Vec::new();
+    let mut basic = Vec::new();
 
     if let Some(values) = value.get("basic_permissions").and_then(Value::as_array) {
         for permission in values.iter().filter_map(Value::as_u64) {
-            let Ok(permission) = u16::try_from(permission) else {
-                continue;
-            };
-
-            if available.remove(&permission) {
-                basic_permissions.push(permission);
+            if let Ok(permission) = i32::try_from(permission) {
+                basic.push(permission);
             }
         }
     }
@@ -166,6 +202,48 @@ pub fn save(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         .get("permits_everything")
         .and_then(Value::as_bool)
         .unwrap_or(false);
+
+    save_typed(
+        state,
+        &name,
+        &access_key,
+        &original,
+        permits_everything,
+        basic,
+        rules.iter().map(|(slice, _)| slice.clone()).collect(),
+        rules.iter().map(|(_, rule)| rule.clone()).collect(),
+    )
+}
+
+/// Чистый отбор basic permissions: только разрешённые, без дублей (R2).
+pub fn filter_basic_permissions(chosen: &[i32]) -> Vec<u16> {
+    let mut available: BTreeSet<u16> = ALLOWED_PERMISSIONS
+        .iter()
+        .map(|(value, _)| *value)
+        .collect();
+    let mut basic_permissions = Vec::new();
+
+    for permission in chosen {
+        if let Ok(permission) = u16::try_from(*permission) {
+            if available.remove(&permission) {
+                basic_permissions.push(permission);
+            }
+        }
+    }
+
+    basic_permissions
+}
+
+fn save_core(
+    state: &mut AppState,
+    name: String,
+    access_key: String,
+    original: String,
+    permits_everything: bool,
+    basic: Vec<i32>,
+    rules: Vec<(String, String)>,
+) -> Vec<UiCommand> {
+    let basic_permissions = filter_basic_permissions(&basic);
 
     if !permits_everything && basic_permissions.is_empty() {
         return notify(state, "choose at least one permission");
@@ -228,7 +306,13 @@ pub fn save(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 }
 
 pub fn delete(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
-    let access_key = payload.trim().to_ascii_lowercase();
+    // Строковый диспетчер (меню/палитра): полезной нагрузки нет, ключ едет
+    // типизированно через `delete_typed`.
+    delete_typed(state, payload)
+}
+
+pub fn delete_typed(state: &mut AppState, access_key: &str) -> Vec<UiCommand> {
+    let access_key = access_key.trim().to_ascii_lowercase();
     let mut permissions = load_permissions(&state.controller.api_permissions_path());
     let before = permissions.len();
     permissions.retain(|entry| entry.access_key != access_key);
@@ -428,5 +512,12 @@ mod tests {
         assert_eq!(loaded[0].access_key, second);
 
         let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn basic_permission_filter_keeps_only_known_once() {
+        let first = ALLOWED_PERMISSIONS[0].0 as i32;
+        assert_eq!(filter_basic_permissions(&[first, first, 9999]), vec![ALLOWED_PERMISSIONS[0].0]);
+        assert!(filter_basic_permissions(&[]).is_empty());
     }
 }

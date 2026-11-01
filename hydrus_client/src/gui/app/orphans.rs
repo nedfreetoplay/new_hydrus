@@ -254,6 +254,17 @@ pub fn delete(state: &AppState, payload: &str) -> Vec<UiCommand> {
         Err(error) => return notify(state, error),
     };
 
+    delete_typed(state, paths)
+}
+
+/// Typed reverse seam (WS-15.2.4c, партия 4): C++ передаёт пути списком.
+pub fn delete_typed(state: &AppState, paths: Vec<PathBuf>) -> Vec<UiCommand> {
+    let paths = clean_paths(&paths);
+
+    if paths.is_empty() {
+        return notify(state, "choose at least one orphan file");
+    }
+
     let manager = state.controller.files_manager();
     let db = state.controller.db().db();
     let mut removed = 0usize;
@@ -269,13 +280,38 @@ pub fn delete(state: &AppState, payload: &str) -> Vec<UiCommand> {
         }
     }
 
-    let mut message = format!("deleted {removed} orphan file(s)");
+    updated(state, orphan_result_message(removed, skipped, "deleted"))
+}
+
+/// Чистая подпись результата orphan-действия (R2).
+pub fn orphan_result_message(removed: usize, skipped: usize, verb: &str) -> String {
+    let mut message = format!("{verb} {removed} orphan file(s)");
 
     if skipped > 0 {
         message.push_str(&format!("; {skipped} path(s) were skipped"));
     }
 
-    updated(state, message)
+    message
+}
+
+/// Чистая подпись результата orphan-перемещения (R2).
+pub fn orphan_move_message(moved: usize, skipped: usize, target: &PathBuf) -> String {
+    let mut message = format!("moved {moved} orphan file(s) to {}", target.display());
+
+    if skipped > 0 {
+        message.push_str(&format!("; {skipped} path(s) were skipped"));
+    }
+
+    message
+}
+
+/// Чистый отбор непустых путей (R2).
+pub fn clean_paths(paths: &[PathBuf]) -> Vec<PathBuf> {
+    paths
+        .iter()
+        .filter(|path| !path.as_os_str().is_empty())
+        .cloned()
+        .collect()
 }
 
 pub fn move_to(state: &AppState, payload: &str) -> Vec<UiCommand> {
@@ -286,17 +322,29 @@ pub fn move_to(state: &AppState, payload: &str) -> Vec<UiCommand> {
         .get("target")
         .and_then(Value::as_str)
         .unwrap_or_default()
-        .trim()
         .to_string();
-
-    if target.is_empty() {
-        return notify(state, "choose a directory to move the orphans to");
-    }
 
     let paths = match parse_paths(payload) {
         Ok(paths) => paths,
         Err(error) => return notify(state, error),
     };
+
+    move_typed(state, paths, &target)
+}
+
+/// Typed reverse seam (WS-15.2.4c, партия 4): C++ передаёт пути и каталог.
+pub fn move_typed(state: &AppState, paths: Vec<PathBuf>, target: &str) -> Vec<UiCommand> {
+    let target = target.trim().to_string();
+
+    if target.is_empty() {
+        return notify(state, "choose a directory to move the orphans to");
+    }
+
+    let paths = clean_paths(&paths);
+
+    if paths.is_empty() {
+        return notify(state, "choose at least one orphan file");
+    }
 
     let target = PathBuf::from(target);
 
@@ -350,13 +398,7 @@ pub fn move_to(state: &AppState, payload: &str) -> Vec<UiCommand> {
         }
     }
 
-    let mut message = format!("moved {moved} orphan file(s) to {}", target.display());
-
-    if skipped > 0 {
-        message.push_str(&format!("; {skipped} path(s) were skipped"));
-    }
-
-    updated(state, message)
+    updated(state, orphan_move_message(moved, skipped, &target))
 }
 
 /// Re-checks at action time that the path is inside the storage and still has
@@ -638,5 +680,19 @@ mod tests {
         );
         assert_eq!(parse_stored_name("notes.txt"), None);
         assert_eq!(parse_stored_name(&format!("{}.png", "ab".repeat(31))), None);
+    }
+
+    #[test]
+    fn orphan_result_messages_cover_skips_and_moves() {
+        assert_eq!(orphan_result_message(2, 0, "deleted"), "deleted 2 orphan file(s)");
+        assert_eq!(
+            orphan_result_message(1, 3, "deleted"),
+            "deleted 1 orphan file(s); 3 path(s) were skipped"
+        );
+        assert_eq!(
+            orphan_move_message(1, 0, &PathBuf::from("out")),
+            format!("moved 1 orphan file(s) to {}", PathBuf::from("out").display())
+        );
+        assert!(!clean_paths(&[PathBuf::from("a"), PathBuf::new()]).contains(&PathBuf::new()));
     }
 }

@@ -455,6 +455,8 @@ C++.
 - [ ] 15.2.2 `UiCommand`: 68 `String`-вариантов → типизированные, по экранам,
   начиная с тех, что правим сейчас.
   - 15.2.2a [x] страницы/вкладки/дерево/меню: 4 варианта, parse_object 56→54 (коммит 178bdfd)
+  - 15.2.2b [x] media/selection/viewer/metadata: parse_object/json_payload 54/61 → 0/0, тесты 719 (коммит e800d00)
+  - 15.2.2c [x] downloader/subscription seams: typed UiCommand variants + reverse glue, тесты 719 (коммит 64b8f1a)
     (`Menus(MenuBar)`, `BuildPages(Pages)`, `PageProgress(PageProgress)`,
     `PageManagerDialog(PageTree)` + типизированные `app_move_page`/`app_close_pages`
     вместо `notify(move_page/page_manager_close)` с JSON; per-screen blob'ы страниц

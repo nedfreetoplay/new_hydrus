@@ -555,7 +555,7 @@ WS-15.2 закрыт: `parse_object(` и `json_payload(` в `gui/qt` остал�
    Закрыто в WS-15.2.4c (партия services + network, f889e77): 20 вызовов в 5 файлах —
    `network_tables.cpp` (9), `services_server.cpp` (8), `services_dialog.cpp`
    (1), `services_helpers.cpp` (1), `network_dialog.cpp` (1). Осталось 37.
-   Закрыто в WS-15.2.4c (партия tags + duplicates + subscriptions, 50efd4): 16 вызовов в 9 файлах — `tag_filter.cpp` (3),
+   Закрыто в WS-15.2.4c (партия tags + duplicates + subscriptions, 50fefd4): 16 вызовов в 9 файлах — `tag_filter.cpp` (3),
    `tag_relations_dialog.cpp` (2), `duplicates_page_media.cpp` (2),
    `subscriptions_page.cpp` (2), `subscriptions_dialog.cpp` (2),
    `seed_cache_dialog.cpp` (1), `downloader_page_state.cpp` (1),
@@ -607,7 +607,7 @@ WS-15.2 закрыт: `parse_object(` и `json_payload(` в `gui/qt` остал�
     определения в `support/strings.cpp`/`strings.hpp`; allowlist
     `seam_guard.rs` ужат до этих двух файлов.
    Итог пункта 4: `json_payload` 57 → 0 вызовов, 4 партии, хеши `f889e77`,
-   `50efd4`, `e2c1571`, `857e2f2`.
+   `50fefd4`, `e2c1571`, `857e2f2`.
 
    Три оставшиеся `json: String`-обёртки — разрешённое R1-исключение:
 

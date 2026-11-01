@@ -200,6 +200,17 @@ pub fn menus(state: &AppState) -> MenuBar {
     );
     menu_separator(&mut entries, 1);
     menu_action(&mut entries, 1, "options...", "options", "", "", "", true);
+    menu_submenu(&mut entries, 1, "shortcuts");
+    menu_action(
+        &mut entries,
+        2,
+        "manage shortcuts...",
+        "shortcut_sets",
+        "",
+        "",
+        "Edit shortcut sets.",
+        true,
+    );
     menu_separator(&mut entries, 1);
     menu_action(&mut entries, 1, "exit", "exit", "", "", "", true);
 

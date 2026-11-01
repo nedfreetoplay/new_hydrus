@@ -43,6 +43,7 @@ pub mod seeds;
 pub mod services;
 pub mod session;
 pub mod sessions;
+pub mod shortcut_sets;
 pub mod sort_group;
 pub mod static_assets;
 pub mod status_texts;
@@ -693,6 +694,8 @@ impl ffi::UiAction {
         ffi::UiAction::SetLocation => "set_location",
         ffi::UiAction::SetSort => "set_sort",
         ffi::UiAction::SetTagService => "set_tag_service",
+        ffi::UiAction::ShortcutSetActivate => "shortcut_set_activate",
+        ffi::UiAction::ShortcutSets => "shortcut_sets",
         ffi::UiAction::Sibling => "sibling",
         ffi::UiAction::Similarity => "similarity",
         ffi::UiAction::Simple => "simple",
@@ -1158,6 +1161,8 @@ pub(crate) fn action_from_str(action: &str) -> ffi::UiAction {
             "set_location" => ffi::UiAction::SetLocation,
             "set_sort" => ffi::UiAction::SetSort,
             "set_tag_service" => ffi::UiAction::SetTagService,
+            "shortcut_set_activate" => ffi::UiAction::ShortcutSetActivate,
+            "shortcut_sets" => ffi::UiAction::ShortcutSets,
             "sibling" => ffi::UiAction::Sibling,
             "similarity" => ffi::UiAction::Similarity,
             "simple" => ffi::UiAction::Simple,
@@ -1473,6 +1478,16 @@ pub fn handle_history_step(mut window: Pin<&mut ffi::HydrusMainWindow>, step: i3
             Vec::new()
         }
     });
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_shortcut_set_activate(mut window: Pin<&mut ffi::HydrusMainWindow>, name: &str) {
+    let commands = with_state_mut(|state| shortcut_sets::activate(state, name));
 
     record_notifications(&commands);
 
@@ -2371,6 +2386,8 @@ impl AppState {
             ffi::UiAction::HistoryForward => self.navigate_history(false),
             ffi::UiAction::PageManager => vec![UiCommand::PageManagerDialog(render::page_manager(self))],
             ffi::UiAction::CommandPalette => vec![UiCommand::CommandPalette],
+            ffi::UiAction::ShortcutSets => shortcut_sets::open_dialog(self),
+            ffi::UiAction::ShortcutSetActivate => shortcut_sets::activate(self, target),
             ffi::UiAction::PageManagerActivate => self.page_manager_activate_command(target),
             ffi::UiAction::PageManagerClose => {
                 let ids: Vec<String> = serde_json::from_str(payload).unwrap_or_default();

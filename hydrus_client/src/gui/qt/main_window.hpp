@@ -99,6 +99,7 @@ struct SelectionState;
 struct MetadataState;
 struct ViewerState;
 struct NoteState;
+struct ShortcutSetsDialogState;
 struct FolderRow;
 struct FolderPageState;
 struct AutocompleteState;

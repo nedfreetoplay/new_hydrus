@@ -74,6 +74,24 @@ duplicates/subscriptions, меню и данные вьюера. Никакой 
 - `bridge_api.cpp` / `bridge_api.hpp` — свободный клей cxx
   (`hydrus_*`, splash, qapp); `screens.hpp` + `bridge.hpp` — тонкие агрегаторы.
 
+### Shortcut sets (WS-13.12)
+
+Модель наборов живёт в `gui/app/shortcut_sets.rs`: `ShortcutSets`
+(имя + `action -> Vec<QKeySequence-текст>`), дефолтный набор (17 привязок
+главного окна), `validate_set_name`/`duplicate_name`, `find_conflicts`,
+`normalise_combo`, `export_set`/`import_set` (формат файла Python:
+`{name, bindings}`), `load_from_options`/`save_to_options` (группа опций
+`shortcuts`: наборы + `active_set`; переживает перезапуски). Шов —
+`ShortcutSetsDialogState` (`api.rs`: `ShortcutSetRow`/`ShortcutBindingRow`;
+без JSON-полей), команды `UiCommand::ShortcutSetsDialog`/`ApplyShortcuts`,
+действия `UiAction::ShortcutSets`/`ShortcutSetActivate`; C++ —
+`gui/qt/shortcuts_dialog.cpp` (диалог `manage shortcuts...` из меню
+`file -> shortcuts`, применение набора как `QShortcut` без перезапуска).
+Чтобы добавить новое действие: внести пару `(ключ, комбинации)` в
+`default_bindings()`, подпись в `action_label()`, ветку в C++
+`shortcut_action_for()`/`shortcut_fire()`, пункт меню в
+`render::menus` при необходимости.
+
 Граница cxx — один модуль `#[cxx::bridge] mod ffi` в `gui/qt/api.rs` с одним
 `include!("bridge.hpp")`: агрегатор подтягивает все заголовки, поэтому
 разделять мост на `ffi_pages`/`ffi_dialogs` не понадобилось. Rust-шимы

@@ -58,6 +58,7 @@ struct DuplicateReviewDialogState;
 struct DirectoryTaggingRow;
 struct QuickNamespaceRow;
 struct FilenameTaggingEntry;
+struct ShortcutSetsDialogState;
 
 // Flattens the tagging editor's `filename_tagging` object (WS-15.2.4c).
 rust::Vec<FilenameTaggingEntry> filename_tagging_entries(const QJsonObject &tagging);
@@ -122,6 +123,8 @@ void hydrus_set_selection(HydrusMainWindow &window, const SelectionState &select
 void hydrus_show_page_chooser(HydrusMainWindow &window, rust::Str notebook_id);
 void hydrus_show_page_manager(HydrusMainWindow &window, const PageTree &tree);
 void hydrus_show_command_palette(HydrusMainWindow &window);
+void hydrus_show_shortcut_sets(HydrusMainWindow &window, const ShortcutSetsDialogState &state);
+void hydrus_apply_shortcuts(HydrusMainWindow &window, const ShortcutSetsDialogState &state);
 void hydrus_prompt_text(
     HydrusMainWindow &window,
     UiAction action,

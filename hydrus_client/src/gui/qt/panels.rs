@@ -134,6 +134,12 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::CommandPalette => {
             ffi::hydrus_show_command_palette(window.as_mut());
         }
+        UiCommand::ShortcutSetsDialog(state) => {
+            ffi::hydrus_show_shortcut_sets(window.as_mut(), &state);
+        }
+        UiCommand::ApplyShortcuts(state) => {
+            ffi::hydrus_apply_shortcuts(window.as_mut(), &state);
+        }
         UiCommand::PromptText {
             action,
             title,

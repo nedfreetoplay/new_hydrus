@@ -1198,7 +1198,13 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
 - [ ] 13.9 Charts (file history, statistics).
 - [x] 13.10 Полноценный About window.
 - [~] 13.11 Command palette/locator.
-- [ ] 13.12 Application commands и настраиваемые shortcut sets.
+- [~] 13.12 Application commands и настраиваемые shortcut sets.
+  Модель наборов + дефолтный набор + активный набор + конфликты/валидация/
+  импорт-экспорт + хранение в опциях (`shortcuts`) + применение активного
+  набора как `QShortcut` без перезапуска + диалог `file -> shortcuts ->
+  manage shortcuts...` (read-only: список наборов, привязки активного,
+  конфликты). Остаток: создание/переименование/удаление/дублирование наборов,
+  выбор активного и редактирование привязок из диалога, импорт/экспорт из файла.
 - [ ] 13.13 Mouse shortcuts и press/release/double-click/drag.
 - [ ] 13.14 Drag & drop страниц/вкладок/файлов между окнами.
 - [ ] 13.15 Colours/style/theming как в Hydrus.

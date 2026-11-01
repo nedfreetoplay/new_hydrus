@@ -84,6 +84,7 @@ fn main() {
                 "src/gui/qt/notes_dialog.cpp",
                 "src/gui/qt/tag_filter.cpp",
                 "src/gui/qt/export_review.cpp",
+                "src/gui/qt/shortcuts_dialog.cpp",
             ])
             .cc_builder(|cc| {
                 cc.flag_if_supported("/utf-8");

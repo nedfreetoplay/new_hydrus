@@ -490,6 +490,8 @@ pub(crate) mod ffi {
         SetLocation,
         SetSort,
         SetTagService,
+        ShortcutSetActivate,
+        ShortcutSets,
         Sibling,
         Similarity,
         Simple,
@@ -1761,6 +1763,35 @@ pub(crate) mod ffi {
         regexes: Vec<String>,
     }
 
+    /// One binding of a shortcut set (WS-13.12): action key plus the
+    /// `QKeySequence` texts C++ installs. `combo_text` is pre-joined in Rust.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ShortcutBindingRow {
+        action: String,
+        label: String,
+        combos: Vec<String>,
+        combo_text: String,
+    }
+
+    /// One set row of the manage-shortcuts dialog (WS-13.12).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ShortcutSetRow {
+        name: String,
+        active: bool,
+        count: i64,
+    }
+
+    /// Manage-shortcuts dialog contents (WS-13.12). The editor is read-only:
+    /// sets list, active-set bindings and conflict lines, all formatted in
+    /// Rust; C++ only assigns widgets.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ShortcutSetsDialogState {
+        sets: Vec<ShortcutSetRow>,
+        bindings: Vec<ShortcutBindingRow>,
+        active_name: String,
+        conflicts: Vec<String>,
+    }
+
     /// Media viewer contents (WS-15.2.2b).
     ///
     /// Only fields the C++ side reads. The old JSON seam also carried `tags`,
@@ -1912,6 +1943,11 @@ pub(crate) mod ffi {
         fn hydrus_show_page_chooser(window: Pin<&mut HydrusMainWindow>, notebook_id: &str);
         fn hydrus_show_page_manager(window: Pin<&mut HydrusMainWindow>, tree: &PageTree);
         fn hydrus_show_command_palette(window: Pin<&mut HydrusMainWindow>);
+        fn hydrus_show_shortcut_sets(
+            window: Pin<&mut HydrusMainWindow>,
+            state: &ShortcutSetsDialogState,
+        );
+        fn hydrus_apply_shortcuts(window: Pin<&mut HydrusMainWindow>, state: &ShortcutSetsDialogState);
         fn hydrus_prompt_text(
             window: Pin<&mut HydrusMainWindow>,
             action: UiAction,
@@ -2073,6 +2109,8 @@ pub(crate) mod ffi {
             ascending: bool,
         );
         fn app_history_step(window: Pin<&mut HydrusMainWindow>, step: i32);
+        /// Typed reverse seam (WS-13.12): activate a shortcut set by name.
+        fn app_shortcut_set_activate(window: Pin<&mut HydrusMainWindow>, name: &str);
         /// Typed reverse seams (WS-15.2.4c): services + network.
         fn app_service_save(
             window: Pin<&mut HydrusMainWindow>,
@@ -2660,6 +2698,10 @@ fn app_page_sort(
 
 fn app_history_step(mut window: Pin<&mut ffi::HydrusMainWindow>, step: i32) {
     crate::gui::app::handle_history_step(window.as_mut(), step);
+}
+
+fn app_shortcut_set_activate(mut window: Pin<&mut ffi::HydrusMainWindow>, name: &str) {
+    crate::gui::app::handle_shortcut_set_activate(window.as_mut(), name);
 }
 
 fn app_service_save(

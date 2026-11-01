@@ -16,7 +16,7 @@ use crate::gui::qt::api::ffi::{
     LocalImportReviewDialogState, LocalImportTaggingDialogState, ManageTagsDialogState, MenuBar,
     NetworkDialogState, NotesDialogState, NotificationsDialogState, OptionsDialogState,
     OrphanFilesDialogState, PageProgress, PageTree, Pages, QueryPageState,
-    RepairFileLocationsDialogState, SeedCacheState, SelectionState, ServicesDialogState, StatusBar,
+    RepairFileLocationsDialogState, SeedCacheState, SelectionState, ServicesDialogState, ShortcutSetsDialogState, StatusBar,
     SubscriptionEditorState, SubscriptionsDialogState, SubscriptionsPageState, TagDialogState,
     TagFilterDialogState, TagRelationsDialogState, TimestampsDialogState, UiAction, ViewerState,
     ViewingStats,
@@ -68,6 +68,8 @@ pub enum UiCommand {
     ShowPageChooser(String),
     PageManagerDialog(PageTree),
     CommandPalette,
+    ShortcutSetsDialog(ShortcutSetsDialogState),
+    ApplyShortcuts(ShortcutSetsDialogState),
     PromptText {
         action: UiAction,
         title: String,

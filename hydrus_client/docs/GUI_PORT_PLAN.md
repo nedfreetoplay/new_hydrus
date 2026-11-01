@@ -1245,6 +1245,7 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   shortcuts (сохранение `app_shortcut_key_save` есть, UI нет — диалог правит
   только главный набор); контекстное меню вьюера по right-release (жест
   резолвится, меню нет); smoke вручную не проводился (нет GUI-сессии).
+   WS-13.13-доделка 2: диалог manage shortcuts показывает для выбранного контекста эффективные keyboard-привязки (context_bindings с флагом inherited: свои - обычным текстом, унаследованные - с пометкой "(inherited from <контекст>)", как резолвит Python через предков); edit/clear в неглавном контексте идут через app_shortcut_key_save с вето конфликтов текстом Python и сохраняются в key_sets; вьюер показывает по right-release контекстное меню в порядке Python CanvasPanel.ShowMenuFromSignal: info-подменю, archive/inbox (по inbox-состоянию), delete, manage-подменю (tags, notes с числом, times, viewing stats). Проверено вживую: переключение контекста, смена next_file на N в media_viewer_browser, правый клик в новом вьюере, пункт archive отработал (пункт сменился на inbox). Остаток: подменю audio volume, known URLs, open, share и player (нет типизированных reverse-швов), посервисное delete from X (один пункт delete), пункты trashed, force filetype и ratings; times правит сфокусированный файл, а не файл вьюера.
 - [ ] 13.14 Drag & drop страниц/вкладок/файлов между окнами.
 - [ ] 13.15 Colours/style/theming как в Hydrus.
 - [ ] 13.16 Полные меню: sessions, petitions, pending, services admin,

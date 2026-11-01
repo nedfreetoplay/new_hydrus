@@ -50,6 +50,7 @@ pub mod status_texts;
 pub mod tag_filter;
 pub mod tag_relations;
 pub mod undo;
+pub mod viewer_menu;
 pub mod worker;
 
 pub use commands::UiCommand;
@@ -1556,6 +1557,34 @@ pub fn keyboard_action(context: &str, combo: &str) -> String {
     })
 }
 
+/// Build the viewer right-click menu for a viewer window (WS-13.13).
+/// Facts come from the viewer context + metadata; composition in
+/// `viewer_menu::viewer_menu` (R2).
+pub fn viewer_menu_for(viewer: &str) -> ffi::MenuBar {
+    with_state_mut(|state| {
+        let Some(context) = state.viewers.get(viewer).cloned() else {
+            return ffi::MenuBar { entries: Vec::new() };
+        };
+        let controller = state.controller.clone();
+        let metadata = render::metadata_state(&controller, &context.hash);
+        let inbox = query::hash_id_for(&controller, &context.hash)
+            .and_then(|hash_id| files_storage::is_inbox(controller.db().db(), hash_id).ok())
+            .unwrap_or(true);
+        let info_title = query::file_info_for(&controller, &context.hash)
+            .map(|info| format!("{}, {}", info.mime.as_str(), render::human_size(info.size)))
+            .unwrap_or_else(|| "file".to_string());
+        viewer_menu::viewer_menu(&viewer_menu::ViewerMenuFacts {
+            has_media: true,
+            inbox,
+            archived: !inbox,
+            note_count: metadata.notes.len() as i64,
+            info_title,
+            page_id: context.page_id.clone(),
+            hash_hex: query::hex(&context.hash),
+        })
+    })
+}
+
 pub fn handle_shortcut_key_save(
     mut window: Pin<&mut ffi::HydrusMainWindow>,
     set_name: &str,
@@ -1594,9 +1623,10 @@ pub fn handle_shortcut_context_open(
 ) {
     let commands = with_state_mut(|state| {
         let sets = shortcut_sets::load_from_options(&state.controller.options());
+        let keys = shortcut_sets::load_keys_from_options(&state.controller.options());
         let mouse = shortcut_sets::load_mouse_from_options(&state.controller.options());
         vec![crate::gui::app::UiCommand::ShortcutSetsDialog(
-            shortcut_sets::dialog_state_context(&sets, &mouse, context),
+            shortcut_sets::dialog_state_context(&sets, &keys, &mouse, context),
         )]
     });
     for command in commands {

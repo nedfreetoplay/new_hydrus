@@ -75,7 +75,7 @@ mod shortcut_sets_tests {
 
     #[test]
     fn dialog_state_marks_active() {
-        let state = dialog_state(&default_sets());
+        let state = dialog_state(&default_sets(), &KeySets::default());
         assert_eq!(state.active_name, "default");
         assert_eq!(state.sets.len(), 1);
         assert!(state.sets[0].active);
@@ -176,7 +176,7 @@ mod shortcut_sets_tests {
     #[test]
     fn mouse_contexts_list_and_dialog_rows() {
         assert!(all_contexts().contains(&"thumbnails".to_string()));
-        let state = dialog_state_context(&default_sets(), &MouseSets::default(), "thumbnails");
+        let state = dialog_state_context(&default_sets(), &KeySets::default(), &MouseSets::default(), "thumbnails");
         assert_eq!(state.active_context, "thumbnails");
         assert!(!state.mouse_bindings.is_empty());
         assert!(state.mouse_bindings.iter().any(|row| row.action == "open_viewer"
@@ -241,5 +241,55 @@ mod shortcut_sets_tests {
         let loaded = load_keys_from_options(&options);
         assert_eq!(loaded, keys);
         assert_eq!(loaded.combos_for("default", "thumbnails", "open_viewer"), vec!["Space".to_string()]);
+    }
+
+    #[test]
+    fn keyboard_context_rows_show_inheritance() {
+        // Browser context shows defaults marked inherited.
+        let state = dialog_state_context(
+            &default_sets(),
+            &KeySets::default(),
+            &MouseSets::default(),
+            "media_viewer_browser",
+        );
+        let next = state
+            .context_bindings
+            .iter()
+            .find(|row| row.action == "next_file")
+            .expect("browser next_file row");
+        assert!(next.inherited);
+        assert!(next.combo_text.contains("Right"));
+        assert!(next.label.contains("inherited from media_viewer_browser"));
+        // Main context rows stay the flat set bindings, never inherited.
+        let main = dialog_state(&default_sets(), &KeySets::default());
+        assert!(main.bindings.iter().all(|row| !row.inherited));
+        assert!(main.context_bindings.is_empty());
+        // A stored override clears the inherited flag for that action only.
+        let mut keys = KeySets::default();
+        keys.rows.push((
+            "default".to_string(),
+            "media_viewer_browser".to_string(),
+            "next_file".to_string(),
+            vec!["N".to_string()],
+        ));
+        let overridden = dialog_state_context(
+            &default_sets(),
+            &keys,
+            &MouseSets::default(),
+            "media_viewer_browser",
+        );
+        let next = overridden
+            .context_bindings
+            .iter()
+            .find(|row| row.action == "next_file")
+            .expect("overridden next_file row");
+        assert!(!next.inherited);
+        assert_eq!(next.combo_text, "N");
+        let prev = overridden
+            .context_bindings
+            .iter()
+            .find(|row| row.action == "previous_file")
+            .expect("previous_file row");
+        assert!(prev.inherited);
     }
 }

@@ -157,12 +157,17 @@ void hydrus_show_shortcut_sets(HydrusMainWindow &window, const ShortcutSetsDialo
     bindings->verticalHeader()->setVisible(false);
     bindings->setEditTriggers(QAbstractItemView::NoEditTriggers);
     bindings->setSelectionBehavior(QAbstractItemView::SelectRows);
-    bindings->setRowCount(static_cast<int>(state.bindings.size()));
-    int row_index = 0;
-    for (const auto &binding : state.bindings) {
-        bindings->setItem(row_index, 0, new QTableWidgetItem(to_qstring(binding.label)));
-        bindings->setItem(row_index, 1, new QTableWidgetItem(to_qstring(binding.combo_text)));
-        ++row_index;
+    // WS-13.13: per-context keyboard rows with inheritance labels; the main
+    // context keeps editing the flat set bindings.
+    const bool is_main_context = to_qstring(state.active_context) == QStringLiteral("main_gui");
+    const size_t key_count = is_main_context ? state.bindings.size() : state.context_bindings.size();
+    bindings->setRowCount(static_cast<int>(key_count));
+    for (size_t row_index = 0; row_index < key_count; ++row_index) {
+        const ShortcutBindingRow &binding = is_main_context
+            ? state.bindings[row_index]
+            : state.context_bindings[row_index];
+        bindings->setItem(static_cast<int>(row_index), 0, new QTableWidgetItem(to_qstring(binding.label)));
+        bindings->setItem(static_cast<int>(row_index), 1, new QTableWidgetItem(to_qstring(binding.combo_text)));
     }
     layout->addWidget(bindings);
 
@@ -310,11 +315,15 @@ void hydrus_show_shortcut_sets(HydrusMainWindow &window, const ShortcutSetsDialo
     });
     QObject::connect(edit_btn, &QPushButton::clicked, &dialog, [&]() {
         const int row = bindings->currentRow();
-        if (row < 0 || row >= static_cast<int>(state.bindings.size())) {
+        if (row < 0 || row >= static_cast<int>(key_count)) {
             return;
         }
-        const QString action = to_qstring(state.bindings[row].action);
-        const QString current = to_qstring(state.bindings[row].combo_text);
+        const QString action = is_main_context
+            ? to_qstring(state.bindings[row].action)
+            : to_qstring(state.context_bindings[row].action);
+        const QString current = is_main_context
+            ? to_qstring(state.bindings[row].combo_text)
+            : to_qstring(state.context_bindings[row].combo_text);
         bool ok = false;
         const QString text = QInputDialog::getText(
             &dialog, QStringLiteral("edit shortcut"),
@@ -330,18 +339,34 @@ void hydrus_show_shortcut_sets(HydrusMainWindow &window, const ShortcutSetsDialo
                 combos.push_back(rs(trimmed));
             }
         }
-        app_shortcut_binding_save(
-            window, rs(selected_set_name(sets, state)), rs(action), combos);
+        if (is_main_context) {
+            app_shortcut_binding_save(
+                window, rs(selected_set_name(sets, state)), rs(action), combos);
+        } else {
+            app_shortcut_key_save(
+                window, rs(selected_set_name(sets, state)),
+                rs(to_qstring(state.active_context)), rs(action), combos);
+        }
         dialog.accept();
     });
     QObject::connect(clear_btn, &QPushButton::clicked, &dialog, [&]() {
         const int row = bindings->currentRow();
-        if (row < 0 || row >= static_cast<int>(state.bindings.size())) {
+        if (row < 0 || row >= static_cast<int>(key_count)) {
             return;
         }
-        app_shortcut_binding_save(
-            window, rs(selected_set_name(sets, state)),
-            rs(to_qstring(state.bindings[row].action)), rust::Vec<rust::String>());
+        const QString action = is_main_context
+            ? to_qstring(state.bindings[row].action)
+            : to_qstring(state.context_bindings[row].action);
+        if (is_main_context) {
+            app_shortcut_binding_save(
+                window, rs(selected_set_name(sets, state)),
+                rs(action), rust::Vec<rust::String>());
+        } else {
+            app_shortcut_key_save(
+                window, rs(selected_set_name(sets, state)),
+                rs(to_qstring(state.active_context)),
+                rs(action), rust::Vec<rust::String>());
+        }
         dialog.accept();
     });
     QObject::connect(import_btn, &QPushButton::clicked, &dialog, [&]() {

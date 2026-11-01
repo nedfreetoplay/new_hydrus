@@ -816,7 +816,10 @@ pub fn save_key_binding(
     state.controller.replace_options(options);
     let _ = state.controller.save_options();
     state.message = format!("updated keyboard '{action}' in '{set_name}' ({context})");
-    vec![crate::gui::app::UiCommand::NotifyMessage(state.message.clone())]
+    let sets = load_from_options(&state.controller.options());
+    let keys = load_keys_from_options(&state.controller.options());
+    let mouse = load_mouse_from_options(&state.controller.options());
+    refreshed_context(&sets, &keys, &mouse, context, state.message.clone())
 }
 
 /// Save one mouse binding with Python-style conflict veto.
@@ -872,30 +875,33 @@ pub fn save_mouse_binding(
     let _ = state.controller.save_options();
     state.message = format!("updated mouse '{action}' in '{set_name}' ({context})");
     let sets = load_from_options(&state.controller.options());
-    refreshed_context(&sets, &mouse, context, state.message.clone())
+    let keys = load_keys_from_options(&state.controller.options());
+    refreshed_context(&sets, &keys, &mouse, context, state.message.clone())
 }
 
 fn refreshed_context(
     sets: &ShortcutSets,
+    keys: &KeySets,
     mouse: &MouseSets,
     context: &str,
     message: String,
 ) -> Vec<crate::gui::app::UiCommand> {
     vec![
-        crate::gui::app::UiCommand::ApplyShortcuts(dialog_state_context(sets, mouse, context)),
-        crate::gui::app::UiCommand::ShortcutSetsDialog(dialog_state_context(sets, mouse, context)),
+        crate::gui::app::UiCommand::ApplyShortcuts(dialog_state_context(sets, keys, mouse, context)),
+        crate::gui::app::UiCommand::ShortcutSetsDialog(dialog_state_context(sets, keys, mouse, context)),
         crate::gui::app::UiCommand::NotifyMessage(message),
     ]
 }
 
 /// Typed rows for the manage dialog (read-only editor in WS-13.12: sets list
 /// plus bindings of the active set; conflicts listed as text).
-pub fn dialog_state(sets: &ShortcutSets) -> ShortcutSetsDialogState {
-    dialog_state_context(sets, &MouseSets::default(), CONTEXT_MAIN)
+pub fn dialog_state(sets: &ShortcutSets, keys: &KeySets) -> ShortcutSetsDialogState {
+    dialog_state_context(sets, keys, &MouseSets::default(), CONTEXT_MAIN)
 }
 
 pub fn dialog_state_context(
     sets: &ShortcutSets,
+    keys: &KeySets,
     mouse: &MouseSets,
     context: &str,
 ) -> ShortcutSetsDialogState {
@@ -918,10 +924,35 @@ pub fn dialog_state_context(
                     label: action_label(action),
                     combos: combos.clone(),
                     combo_text: combos.join(", "),
+                    inherited: false,
                 })
                 .collect()
         })
         .unwrap_or_default();
+    let active_name = sets.active.clone();
+    // The main context edits the flat set rows (`bindings`); per-context
+    // rows only exist for the other contexts.
+    let context_bindings: Vec<ShortcutBindingRow> = if context == CONTEXT_MAIN {
+        Vec::new()
+    } else {
+        keyboard_actions_for(&active_name, keys, context)
+            .into_iter()
+        .map(|(action, combos, inherited, source)| {
+            let label = if inherited {
+                format!("{} (inherited from {source})", key_action_label(&action))
+            } else {
+                key_action_label(&action)
+            };
+            ShortcutBindingRow {
+                action,
+                label,
+                combo_text: combos.join(", "),
+                combos,
+                inherited,
+            }
+        })
+        .collect()
+    };
     let conflicts: Vec<String> = active
         .map(|set| {
             find_conflicts(set)
@@ -930,6 +961,11 @@ pub fn dialog_state_context(
                 .collect()
         })
         .unwrap_or_default();
+    let mut key_conflicts: Vec<String> = keys
+        .conflicts_in(&active_name, context)
+        .into_iter()
+        .map(|(combo, actions)| format!("{combo} ({context}): {}", actions.join(", ")))
+        .collect();
     // Mouse rows: union of stored actions and defaults for this context chain.
     let mut mouse_actions: std::collections::BTreeSet<String> = Default::default();
     for (action, _) in default_mouse_bindings(CONTEXT_MAIN) {
@@ -952,7 +988,6 @@ pub fn dialog_state_context(
             mouse_actions.insert(action.clone());
         }
     }
-    let active_name = sets.active.clone();
     let mouse_bindings: Vec<MouseBindingRow> = mouse_actions
         .into_iter()
         .map(|action| {
@@ -972,10 +1007,12 @@ pub fn dialog_state_context(
         .map(|(gesture, actions)| format!("{gesture}: {}", actions.join(", ")))
         .collect();
     let mut all_conflicts = conflicts;
+    all_conflicts.append(&mut key_conflicts);
     all_conflicts.append(&mut mouse_conflicts);
     ShortcutSetsDialogState {
         sets: set_rows,
         bindings,
+        context_bindings,
         active_name: sets.active.clone(),
         conflicts: all_conflicts,
         mouse_bindings,
@@ -984,7 +1021,76 @@ pub fn dialog_state_context(
     }
 }
 
-/// Human label for an action key (mirrors the menu label where possible).
+/// Keyboard actions visible for a set+context: union of stored rows and
+/// defaults along the inheritance chain, with effective combos, an
+/// `inherited` flag (no stored row for the exact context) and the source
+/// context the effective binding comes from (Python ancestor lookup).
+pub fn keyboard_actions_for(
+    set_name: &str,
+    keys: &KeySets,
+    context: &str,
+) -> Vec<(String, Vec<String>, bool, String)> {
+    let mut chain: Vec<String> = Vec::new();
+    let mut current = Some(context.to_string());
+    while let Some(context_name) = current {
+        chain.push(context_name.clone());
+        current = parent_context(&context_name).map(str::to_string);
+    }
+    let mut actions: Vec<String> = Vec::new();
+    for context_name in &chain {
+        for (action, _) in default_key_bindings(context_name) {
+            if !actions.contains(&action) {
+                actions.push(action.clone());
+            }
+        }
+        for (row_set, row_context, action, _) in &keys.rows {
+            if row_set == set_name && row_context == context_name && !actions.contains(action) {
+                actions.push(action.clone());
+            }
+        }
+    }
+    actions
+        .into_iter()
+        .map(|action| {
+            let combos = keys.combos_for(set_name, context, &action);
+            let own = keys.rows.iter().any(|(row_set, row_context, row_action, _)| {
+                row_set == set_name && row_context == context && row_action == &action
+            });
+            let mut source = context.to_string();
+            for context_name in &chain {
+                if keys.rows.iter().any(|(row_set, row_context, row_action, _)| {
+                    row_set == set_name && row_context == context_name && row_action == &action
+                }) {
+                    source = context_name.clone();
+                    break;
+                }
+            }
+            if source == context && !own {
+                for context_name in &chain {
+                    if default_key_bindings(context_name)
+                        .iter()
+                        .any(|(default_action, _)| default_action == &action)
+                    {
+                        source = context_name.clone();
+                        break;
+                    }
+                }
+            }
+            (action, combos, !own, source)
+        })
+        .collect()
+}
+
+/// Human label for a per-context keyboard action.
+pub fn key_action_label(action: &str) -> String {
+    match action {
+        "previous_file" | "next_file" | "first_file" | "last_file" | "close_viewer"
+        | "show_context_menu" | "open_viewer" | "zoom_in" | "zoom_out" => {
+            mouse_action_label(action)
+        }
+        _ => action_label(action),
+    }
+}
 pub fn action_label(action: &str) -> String {    match action {
         "new_page" => "new page...".to_string(),
         "close_page" => "close page".to_string(),
@@ -1021,12 +1127,8 @@ fn persist(state: &mut crate::gui::app::model::AppState, sets: &ShortcutSets) {
     let _ = state.controller.save_options();
 }
 
-fn refreshed(sets: &ShortcutSets, message: String) -> Vec<crate::gui::app::UiCommand> {
-    vec![
-        crate::gui::app::UiCommand::ApplyShortcuts(dialog_state(sets)),
-        crate::gui::app::UiCommand::ShortcutSetsDialog(dialog_state(sets)),
-        crate::gui::app::UiCommand::NotifyMessage(message),
-    ]
+fn refreshed(sets: &ShortcutSets, keys: &KeySets, message: String) -> Vec<crate::gui::app::UiCommand> {
+    refreshed_context(sets, keys, &MouseSets::default(), CONTEXT_MAIN, message)
 }
 
 pub fn create_set(
@@ -1052,11 +1154,15 @@ pub fn create_set(
     sets.active = trimmed.to_string();
     persist(state, &sets);
     state.message = format!("created shortcut set '{trimmed}'");
-    refreshed(&sets, state.message.clone())
+    {
+        let keys = load_keys_from_options(&state.controller.options());
+        refreshed(&sets, &keys, state.message.clone())
+    }
 }
 pub fn open_dialog(state: &mut crate::gui::app::model::AppState) -> Vec<crate::gui::app::UiCommand> {
     let sets = load_from_options(&state.controller.options());
-    vec![crate::gui::app::UiCommand::ShortcutSetsDialog(dialog_state(&sets))]
+    let keys = load_keys_from_options(&state.controller.options());
+    vec![crate::gui::app::UiCommand::ShortcutSetsDialog(dialog_state(&sets, &keys))]
 }
 
 pub fn duplicate_set_full(
@@ -1076,7 +1182,10 @@ pub fn duplicate_set_full(
     sets.active = fresh_name.clone();
     persist(state, &sets);
     state.message = format!("duplicated shortcut set as '{fresh_name}'");
-    refreshed(&sets, state.message.clone())
+    {
+        let keys = load_keys_from_options(&state.controller.options());
+        refreshed(&sets, &keys, state.message.clone())
+    }
 }
 
 pub fn rename_set(
@@ -1106,7 +1215,10 @@ pub fn rename_set(
     }
     persist(state, &sets);
     state.message = format!("renamed shortcut set to '{trimmed}'");
-    refreshed(&sets, state.message.clone())
+    {
+        let keys = load_keys_from_options(&state.controller.options());
+        refreshed(&sets, &keys, state.message.clone())
+    }
 }
 
 pub fn delete_set(
@@ -1132,7 +1244,10 @@ pub fn delete_set(
     }
     persist(state, &sets);
     state.message = format!("deleted shortcut set '{name}'");
-    refreshed(&sets, state.message.clone())
+    {
+        let keys = load_keys_from_options(&state.controller.options());
+        refreshed(&sets, &keys, state.message.clone())
+    }
 }
 
 pub fn save_binding(
@@ -1159,7 +1274,10 @@ pub fn save_binding(
     entry.set_combos(action, normalised);
     persist(state, &sets);
     state.message = format!("updated '{action}' in '{set_name}'");
-    refreshed(&sets, state.message.clone())
+    {
+        let keys = load_keys_from_options(&state.controller.options());
+        refreshed(&sets, &keys, state.message.clone())
+    }
 }
 
 pub fn import_text(
@@ -1190,7 +1308,10 @@ pub fn import_text(
     sets.active = name.clone();
     persist(state, &sets);
     state.message = format!("imported shortcut set '{name}'");
-    refreshed(&sets, state.message.clone())
+    {
+        let keys = load_keys_from_options(&state.controller.options());
+        refreshed(&sets, &keys, state.message.clone())
+    }
 }
 
 pub fn export_text(state: &mut crate::gui::app::model::AppState, name: &str) -> String {
@@ -1206,9 +1327,10 @@ pub fn activate(
     let mut sets = load_from_options(&state.controller.options());
     if sets.get(name).is_none() {
         state.message = format!("shortcut set '{name}' was not found");
+        let keys = load_keys_from_options(&state.controller.options());
         return vec![
             crate::gui::app::UiCommand::NotifyMessage(state.message.clone()),
-            crate::gui::app::UiCommand::ShortcutSetsDialog(dialog_state(&sets)),
+            crate::gui::app::UiCommand::ShortcutSetsDialog(dialog_state(&sets, &keys)),
         ];
     }
     sets.active = name.to_string();
@@ -1220,9 +1342,10 @@ pub fn activate(
     } else {
         state.message = format!("active shortcut set: {name}");
     }
+    let keys = load_keys_from_options(&state.controller.options());
     vec![
-        crate::gui::app::UiCommand::ApplyShortcuts(dialog_state(&sets)),
-        crate::gui::app::UiCommand::ShortcutSetsDialog(dialog_state(&sets)),
+        crate::gui::app::UiCommand::ApplyShortcuts(dialog_state(&sets, &keys)),
+        crate::gui::app::UiCommand::ShortcutSetsDialog(dialog_state(&sets, &keys)),
         crate::gui::app::UiCommand::NotifyMessage(state.message.clone()),
     ]
 }

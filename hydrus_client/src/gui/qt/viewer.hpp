@@ -11,6 +11,7 @@ class QEvent;
 class QKeyEvent;
 class QLabel;
 class QPushButton;
+class QPoint;
 class HydrusCanvas;
 class HydrusMainWindow;
 class HydrusMetadataPanel;
@@ -36,6 +37,7 @@ protected:
 private:
     void navigate(const QString &direction);
     void show_hover_frame();
+    void show_context_menu(const QPoint &global_pos);
 
     HydrusMainWindow *main = nullptr;
     QString id;

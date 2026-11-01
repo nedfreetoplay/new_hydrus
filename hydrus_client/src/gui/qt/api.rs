@@ -1772,6 +1772,9 @@ pub(crate) mod ffi {
         label: String,
         combos: Vec<String>,
         combo_text: String,
+        /// True when the row shows effective bindings inherited from a
+        /// parent context (no stored row for the selected context).
+        inherited: bool,
     }
 
     /// One set row of the manage-shortcuts dialog (WS-13.12).
@@ -1801,6 +1804,10 @@ pub(crate) mod ffi {
     struct ShortcutSetsDialogState {
         sets: Vec<ShortcutSetRow>,
         bindings: Vec<ShortcutBindingRow>,
+        /// Keyboard rows of the selected context (effective bindings with
+        /// the `inherited` flag); `bindings` stays the main-gui set used
+        /// by `hydrus_apply_shortcuts`.
+        context_bindings: Vec<ShortcutBindingRow>,
         active_name: String,
         conflicts: Vec<String>,
         mouse_bindings: Vec<MouseBindingRow>,
@@ -2160,6 +2167,8 @@ pub(crate) mod ffi {
             gestures: Vec<String>,
         );
         fn app_shortcut_context_open(window: Pin<&mut HydrusMainWindow>, context: &str);
+        /// Typed reverse seam (WS-13.13): viewer context menu (right-release).
+        fn hydrus_viewer_menu(viewer: &str) -> MenuBar;
         /// Typed reverse seams (WS-15.2.4c): services + network.
         fn app_service_save(
             window: Pin<&mut HydrusMainWindow>,
@@ -2816,6 +2825,10 @@ fn app_shortcut_mouse_save(
 
 fn app_shortcut_context_open(mut window: Pin<&mut ffi::HydrusMainWindow>, context: &str) {
     crate::gui::app::handle_shortcut_context_open(window.as_mut(), context);
+}
+
+fn hydrus_viewer_menu(viewer: &str) -> ffi::MenuBar {
+    crate::gui::app::viewer_menu_for(viewer)
 }
 
 fn app_service_save(

@@ -12,6 +12,7 @@
 #include <QKeySequence>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPixmap>
 #include <QPixmapCache>
@@ -124,9 +125,85 @@ bool HydrusViewerWindow::eventFilter(QObject *watched, QEvent *event) {
                 return true;
             }
         }
+        // WS-13.13: right-release opens the viewer context menu (Python
+        // CanvasPanel.ShowMenuFromSignal order); composition comes from Rust.
+        if (event->type() == QEvent::MouseButtonRelease) {
+            const auto *mouse = static_cast<QMouseEvent *>(event);
+            if (mouse->button() == Qt::RightButton
+                && viewer_gesture_action(QStringLiteral("right release"))
+                    == QStringLiteral("show_context_menu")) {
+                show_context_menu(mouse->globalPosition().toPoint());
+                return true;
+            }
+        }
     }
 
     return QWidget::eventFilter(watched, event);
+}
+
+void HydrusViewerWindow::show_context_menu(const QPoint &global_pos) {
+    const QByteArray viewer_bytes = id.toUtf8();
+    const MenuBar menu = hydrus_viewer_menu(
+        rust::Str(viewer_bytes.constData(), viewer_bytes.size()));
+    if (menu.entries.empty()) {
+        return;
+    }
+    if (menu.entries.empty()) {
+        return;
+    }
+    QMenu popup;
+    popup.setToolTipsVisible(true);
+    std::vector<QMenu *> stack;
+    stack.push_back(&popup);
+    for (const MenuEntry &entry : menu.entries) {
+        if (entry.depth <= 0 && entry.is_submenu) {
+            // Top-level submenu rows own the depth-1 rows that follow them.
+            QMenu *submenu = stack.front()->addMenu(to_qstring(entry.label));
+            submenu->setToolTipsVisible(true);
+            if (stack.size() == 1) {
+                stack.push_back(submenu);
+            } else {
+                stack.back() = submenu;
+            }
+            continue;
+        }
+        while (stack.size() > 1 && static_cast<int>(stack.size()) > entry.depth + 1) {
+            stack.pop_back();
+        }
+        QMenu *parent = stack.back();
+        if (entry.is_separator) {
+            parent->addSeparator();
+            continue;
+        }
+        if (entry.is_submenu) {
+            QMenu *submenu = parent->addMenu(to_qstring(entry.label));
+            submenu->setToolTipsVisible(true);
+            stack.push_back(submenu);
+            continue;
+        }
+        const QString label = to_qstring(entry.label);
+        if (label.isEmpty()) {
+            continue;
+        }
+        QAction *action = parent->addAction(label);
+        action->setEnabled(entry.enabled);
+        const QString tooltip = to_qstring(entry.tooltip);
+        if (!tooltip.isEmpty()) {
+            action->setToolTip(tooltip);
+        }
+        const UiAction action_id = entry.action;
+        const QString item_target = to_qstring(entry.target);
+        const QString payload = to_qstring(entry.payload);
+        connect(action, &QAction::triggered, this, [this, action_id, item_target, payload]() {
+            if (action_id == UiAction::NotesManage) {
+                const QByteArray hash_bytes = payload.toUtf8();
+                app_manage_notes(*main, rust::Str(hash_bytes.constData(), hash_bytes.size()));
+            } else if (action_id != UiAction::None) {
+                main->notify(action_id, item_target, payload);
+            }
+        });
+    }
+    popup.exec(global_pos);
 }
 
 void HydrusViewerWindow::keyPressEvent(QKeyEvent *event) {

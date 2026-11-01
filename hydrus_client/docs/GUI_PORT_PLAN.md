@@ -461,7 +461,8 @@ C++.
     (`Menus(MenuBar)`, `BuildPages(Pages)`, `PageProgress(PageProgress)`,
     `PageManagerDialog(PageTree)` + типизированные `app_move_page`/`app_close_pages`
     вместо `notify(move_page/page_manager_close)` с JSON; per-screen blob'ы страниц
-    пока JSON внутри `PageRow.state` по R1-исключению. Замеры тем же способом, что в
+    тогда оставались JSON внутри `PageRow.state` по R1-исключению (закрыто в
+    15.2.3c). Замеры тем же способом, что в
     15.2.1 (только `.cpp` для C++, только `gui/app` без `tests` для `json!`):
     `parse_object(` 56→54, `json_payload(` 61→61, `json!` 247→188,
     tuple-`String` варианты `UiCommand` 65→61; тесты 713 unit + 2 integration,
@@ -471,6 +472,7 @@ C++.
   на команду.
   - 15.2.3a [x] страницы/вкладки/сессия: notify 191→186 (коммит 93513a1)
    - 15.2.3b [x] все notify переведены на UiAction (было 186 строковых вызовов, стало 0) (коммит 3443b05)
+  - 15.2.3c [x] page-команды: 14 структур, 113 полей типизировано, JSON-парсинг в C++ 39→34 (`QJsonObject` 630→574, `QJsonArray` 162→149), 7 обработчиков без `QJsonDocument::fromJson` (коммит d3ee3ff). Типизированы downloader (32 поля), subscriptions page/dialog/editor (32), duplicates (31), seed cache/log (12) и `PageRow` (query/downloader/subscriptions/duplicates); статусы, проценты, склонения и относительное время считает Rust с тестами. Остался один произвольный вложенный dict — `SubscriptionDialogRow.import_options_json` (копирование import options в буфер); `PageRow.state` — только import/export-папки (их шов в отдельной подзадаче).
 - [x] 15.2.4 Удалить `parse_object`/`json_payload` из C++ и `serde_json` с шва.
   - 15.2.4 [x] handle_action(UiAction), строковый диспетчер удалён (коммит 623bbd9)
 - [ ] 15.2.5 Правило на будущее: новый экран не добавляет `&str`-payload.

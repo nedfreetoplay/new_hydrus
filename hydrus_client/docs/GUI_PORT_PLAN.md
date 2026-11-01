@@ -519,6 +519,9 @@ C++.
     Закрыто в WS-15.2.4b (92b4391): tag filter, tag relations, manage tags,
     export review, local import review (5 структур, parse_object в bridge_api
     12→11, `QJsonObject &` в заголовках 80→64; осталось 12 обёрток).
+    Закрыто в WS-15.2.4b (партия 3, 655c35c): services, network, account types,
+    API permissions (4 структуры с плоскими row-структурами, тексты считает
+    Rust; осталось 8 обёрток).
     LocalImportTaggingDialogState оставлена следующему заходу: диалог редактирует
     произвольно вложенные `FilenameTaggingOptions` через общий редактор опций.
  2. `PageRow.state` → частично закрыто в WS-15.2.4b: добавлен типизированный

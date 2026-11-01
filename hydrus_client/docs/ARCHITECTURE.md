@@ -223,9 +223,9 @@ import/export-папок (их шов — отдельная подзадача)
 
 | Шов | Где | Кол-во | Почему JSON остаётся | Статус |
 | --- | --- | --- | --- | --- |
-| Forward: состояние диалога | `api.rs`: 12 структур с единственным полем `json: String` (остались из 17; закрыты 92b4391: tag filter/relations/manage tags/export review/local import review; `LocalImportTaggingDialogState` — следующий заход: произвольно вложенные `FilenameTaggingOptions`) | 12 | Содержимое диалога в Python — фиксированный `JObject`, но шов ещё не разобран по полям | долг 15.2.2/15.2.3 |
+| Forward: состояние диалога | `api.rs`: 8 структур с единственным полем `json: String` (остались из 17; закрыты 92b4391: tag filter/relations/manage tags/export review/local import review; партия 3: services/network/account types/API permissions; `LocalImportTaggingDialogState` — следующий заход: произвольно вложенные `FilenameTaggingOptions`) | 8 | Содержимое диалога в Python — фиксированный `JObject`, но шов ещё не разобран по полям | долг 15.2.2/15.2.3 |
 | Forward: стартовое состояние страницы | `PageRow.state: String` + `PageRow.folder: FolderPageState` | 1+1 | `state` — только placeholder-сообщение (не JSON); folder-страницы несут типизированный `FolderPageState` | частично закрыто (WS-15.2.4b) |
-| Forward: произвольный dict | `SubscriptionDialogRow.import_options_json` | 1 | Import options — словарь произвольной формы, копируется в буфер как есть; `dict` и в Python | допустимое исключение R1 |
+| Forward: произвольный dict | `SubscriptionDialogRow.import_options_json`, `AdminBlobs.options_json`, `AdminBlobs.service_info_json` | 3 | Словари опций/сервера произвольной формы, показываются или копируются как есть; `dict` и в Python | допустимое исключение R1 |
 | Forward: C++-точки входа | `bridge_api.cpp`: 11 `parse_object(...)` (import/export folders 6, notes, tag dialog, autocomplete, manage tags закрыт в 92b4391) | 11 | Старые JSON-обёртки этих экранов ещё не переведены на `hydrus_show_*` со структурой | долг |
 | Reverse: payload события | `notify(UiAction, target, payload)` + 57 `json_payload(...)` в 34 файлах | 57 | `UiAction` уже enum, но данные события всё ещё сериализуются в строку | долг 15.2.3 |
 | Инфраструктура | `support/strings.{hpp,cpp}` (объявления/определения), `typed_seams.cpp:389` (`parse_string` для `PageRow.state`) | 5 | Плумбинг; удаляется вместе с последним вызовом | — |
@@ -235,8 +235,9 @@ import/export-папок (их шов — отдельная подзадача)
 selection/viewer/metadata, downloader/subscriptions/seed cache, duplicates,
 page-команды и часть диалогов (10 структур / диалоги timestamps, notifications,
 repair locations, orphan files, database backup, tag filter, tag relations,
-manage tags, export review, local import review). Не типизированы:
-12 диалогов-обёрток (+ filename tagging отдельно), import/export folders,
+manage tags, export review, local import review, services, network,
+account types, API permissions). Не типизированы:
+8 диалогов-обёрток (+ filename tagging отдельно), import/export folders,
 notes/tag dialog/autocomplete и весь reverse-payload `notify`.
 
 Правило 15.2.5 (обязательно для новых экранов и фич):

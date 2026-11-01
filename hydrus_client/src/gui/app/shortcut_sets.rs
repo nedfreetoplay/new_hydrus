@@ -310,12 +310,15 @@ pub fn save_to_options(options: &mut ClientOptions, sets: &ShortcutSets) {
 
 /// Shortcut contexts, mirroring Python `shortcut_names_sorted` (subset we
 /// implement; the rest fall back to `main_gui`). Each context inherits from
-/// its parent when a lookup misses: `thumbnails`/`media_viewer` -> `media` ->
-/// `main_gui` -> `default set main_gui`.
+/// its parent when a lookup misses: `thumbnails -> media -> main_gui`,
+/// `media_viewer_media_window -> media_viewer_browser -> media_viewer ->
+/// media -> main_gui` (the window sees the browser file-flip bindings, like
+/// Python's ancestor handler lookup).
 pub const CONTEXT_MAIN: &str = "main_gui";
 pub const CONTEXT_MEDIA: &str = "media";
 pub const CONTEXT_THUMBNAILS: &str = "thumbnails";
 pub const CONTEXT_MEDIA_VIEWER: &str = "media_viewer";
+pub const CONTEXT_MEDIA_VIEWER_BROWSER: &str = "media_viewer_browser";
 pub const CONTEXT_PREVIEW_MEDIA: &str = "preview_media_window";
 pub const CONTEXT_VIEWER_MEDIA: &str = "media_viewer_media_window";
 
@@ -325,6 +328,7 @@ pub fn all_contexts() -> Vec<String> {
         CONTEXT_MEDIA.to_string(),
         CONTEXT_THUMBNAILS.to_string(),
         CONTEXT_MEDIA_VIEWER.to_string(),
+        CONTEXT_MEDIA_VIEWER_BROWSER.to_string(),
         CONTEXT_PREVIEW_MEDIA.to_string(),
         CONTEXT_VIEWER_MEDIA.to_string(),
     ]
@@ -333,9 +337,10 @@ pub fn all_contexts() -> Vec<String> {
 fn parent_context(context: &str) -> Option<&'static str> {
     match context {
         s if s == CONTEXT_THUMBNAILS => Some(CONTEXT_MEDIA),
+        s if s == CONTEXT_MEDIA_VIEWER_BROWSER => Some(CONTEXT_MEDIA_VIEWER),
         s if s == CONTEXT_MEDIA_VIEWER => Some(CONTEXT_MEDIA),
         s if s == CONTEXT_PREVIEW_MEDIA => Some(CONTEXT_VIEWER_MEDIA),
-        s if s == CONTEXT_VIEWER_MEDIA => Some(CONTEXT_MEDIA_VIEWER),
+        s if s == CONTEXT_VIEWER_MEDIA => Some(CONTEXT_MEDIA_VIEWER_BROWSER),
         s if s == CONTEXT_MEDIA => Some(CONTEXT_MAIN),
         _ => None,
     }
@@ -435,19 +440,33 @@ pub fn parse_mouse_gesture(text: &str) -> Result<MouseGesture, String> {
     Ok(MouseGesture { button, press_type, modifiers })
 }
 
-/// Defaults per context, mirroring Python's default mouse shortcuts for the
-/// canvas (viewer/media window) and the thumbnail grid.
+/// Defaults per context, mirroring Python `ClientDefaults.GetDefaultShortcuts()`.
+/// Only press/release/double gestures that Python binds are listed here;
+/// actions without a Python binding stay explicitly empty (not invented).
+/// Drag gestures have no Python bindings anywhere: panning is canvas behaviour,
+/// not a shortcut, so `drag` never appears below.
 pub fn default_mouse_bindings(context: &str) -> Vec<(String, Vec<String>)> {
     match context {
-        s if s == CONTEXT_MEDIA_VIEWER || s == CONTEXT_VIEWER_MEDIA || s == CONTEXT_PREVIEW_MEDIA => vec![
-            ("zoom_in".to_string(), vec!["scroll up press".to_string()]),
-            ("zoom_out".to_string(), vec!["scroll down press".to_string()]),
-            ("pan_drag".to_string(), vec!["middle drag".to_string(), "left drag".to_string()]),
-            ("toggle_fullscreen".to_string(), vec!["left double".to_string()]),
-            ("previous_file".to_string(), vec!["back press".to_string()]),
-            ("next_file".to_string(), vec!["forward press".to_string()]),
-            ("show_context_menu".to_string(), vec!["right press".to_string()]),
+        // `media_viewer_browser`: plain wheel flips files, right-release opens
+        // the menu, left-double and middle-click close the viewer.
+        s if s == CONTEXT_MEDIA_VIEWER_BROWSER => vec![
+            ("previous_file".to_string(), vec!["scroll up press".to_string()]),
+            ("next_file".to_string(), vec!["scroll down press".to_string()]),
+            ("show_context_menu".to_string(), vec!["right release".to_string()]),
+            (
+                "close_viewer".to_string(),
+                vec!["left double".to_string(), "middle press".to_string()],
+            ),
         ],
+        // `media_viewer`: ctrl+wheel zooms; plain wheel/double-click fall
+        // through to the browser context via the chain below.
+        s if s == CONTEXT_MEDIA_VIEWER || s == CONTEXT_VIEWER_MEDIA || s == CONTEXT_PREVIEW_MEDIA => vec![
+            ("zoom_in".to_string(), vec!["ctrl+scroll up press".to_string()]),
+            ("zoom_out".to_string(), vec!["ctrl+scroll down press".to_string()]),
+        ],
+        // `thumbnails`: Python binds no mouse shortcuts here (native Qt
+        // selection); the rows below are the Qt-native equivalents the grid
+        // needs to route clicks, kept as the only non-Python exception.
         s if s == CONTEXT_THUMBNAILS => vec![
             ("select".to_string(), vec!["left press".to_string()]),
             ("range_select".to_string(), vec!["shift+left press".to_string()]),
@@ -473,6 +492,9 @@ pub fn mouse_action_label(action: &str) -> String {
         "toggle_fullscreen" => "toggle fullscreen".to_string(),
         "previous_file" => "previous file".to_string(),
         "next_file" => "next file".to_string(),
+        "first_file" => "first file".to_string(),
+        "last_file" => "last file".to_string(),
+        "close_viewer" => "close viewer".to_string(),
         "select" => "select".to_string(),
         "range_select" => "range select".to_string(),
         "toggle_select" => "toggle select".to_string(),
@@ -596,6 +618,205 @@ pub fn save_mouse_to_options(options: &mut ClientOptions, sets: &MouseSets) {
         })
         .collect();
     options.set_group_value(SHORTCUTS_GROUP, MOUSE_SETS_KEY, Value::Array(entries));
+}
+
+/// Keyboard defaults per context, mirroring Python
+/// `ClientDefaults.GetDefaultShortcuts()`. Only contexts with Python keyboard
+/// bindings are listed; every other context inherits from its parent chain
+/// (`media_viewer_browser -> media_viewer -> media -> main_gui`).
+/// `main_gui` itself is the flat `default_bindings()` set.
+pub fn default_key_bindings(context: &str) -> Vec<(String, Vec<String>)> {
+    match context {
+        s if s == CONTEXT_MEDIA_VIEWER_BROWSER => vec![
+            (
+                "previous_file".to_string(),
+                vec!["Up".to_string(), "Left".to_string(), "PageUp".to_string()],
+            ),
+            (
+                "next_file".to_string(),
+                vec!["Down".to_string(), "Right".to_string(), "PageDown".to_string()],
+            ),
+            ("first_file".to_string(), vec!["Home".to_string()]),
+            ("last_file".to_string(), vec!["End".to_string()]),
+        ],
+        s if s == CONTEXT_THUMBNAILS => vec![
+            ("open_viewer".to_string(), vec!["Enter".to_string(), "Return".to_string()]),
+        ],
+        s if s == CONTEXT_MAIN => default_bindings(),
+        _ => Vec::new(),
+    }
+}
+
+/// Keyboard bindings stored per named set: `set name -> context -> action -> combos`.
+/// Persisted inside the same `shortcuts` options group under `key_sets`.
+pub const KEY_SETS_KEY: &str = "key_sets";
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct KeySets {
+    /// (set name, context, action, combos)
+    pub rows: Vec<(String, String, String, Vec<String>)>,
+}
+
+impl KeySets {
+    pub fn combos_for(&self, set: &str, context: &str, action: &str) -> Vec<String> {
+        let mut current = Some(context.to_string());
+        while let Some(context_name) = current {
+            if let Some(row) = self.rows.iter().find(|(set_name, row_context, row_action, _)| {
+                set_name == set && row_context == &context_name && row_action == action
+            }) {
+                return row.3.clone();
+            }
+            current = parent_context(&context_name).map(str::to_string);
+        }
+        default_key_bindings(context)
+            .into_iter()
+            .find(|(key, _)| key == action)
+            .map(|(_, combos)| combos)
+            .unwrap_or_default()
+    }
+
+    /// Resolve a live `QKeySequence` text to an action: exact context first,
+    /// then parents. Comparison uses normalised combos.
+    pub fn resolve(&self, set: &str, context: &str, combo_text: &str) -> Option<String> {
+        let combo = normalise_combo(combo_text);
+        if combo.is_empty() {
+            return None;
+        }
+        let mut current = Some(context.to_string());
+        while let Some(context_name) = current {
+            for (set_name, row_context, action, combos) in &self.rows {
+                if set_name == set
+                    && row_context == &context_name
+                    && combos.iter().any(|owned| normalise_combo(owned) == combo)
+                {
+                    return Some(action.clone());
+                }
+            }
+            for (action, combos) in default_key_bindings(&context_name) {
+                if combos.iter().any(|owned| normalise_combo(owned) == combo) {
+                    return Some(action.clone());
+                }
+            }
+            current = parent_context(&context_name).map(str::to_string);
+        }
+        None
+    }
+
+    pub fn conflicts_in(&self, set: &str, context: &str) -> Vec<(String, Vec<String>)> {
+        let mut owners: std::collections::BTreeMap<String, String> = Default::default();
+        let mut conflicts: Vec<(String, Vec<String>)> = Vec::new();
+        let mut actions: std::collections::BTreeSet<String> = Default::default();
+        for (row_set, row_context, action, _) in &self.rows {
+            if row_set == set && row_context == context {
+                actions.insert(action.clone());
+            }
+        }
+        for (action, _) in default_key_bindings(context) {
+            actions.insert(action);
+        }
+        for action in &actions {
+            for combo in self.combos_for(set, context, action) {
+                let combo = normalise_combo(&combo);
+                if let Some(other) = owners.insert(combo.clone(), action.clone()) {
+                    if other != *action {
+                        conflicts.push((combo, vec![other, action.clone()]));
+                    }
+                }
+            }
+        }
+        conflicts.sort();
+        conflicts
+    }
+}
+
+pub fn load_keys_from_options(options: &ClientOptions) -> KeySets {
+    let mut sets = KeySets::default();
+    let Some(value) = options.get_group_value(SHORTCUTS_GROUP, KEY_SETS_KEY) else {
+        return sets;
+    };
+    for entry in value.as_array().cloned().unwrap_or_default() {
+        let get = |key: &str| entry.get(key).and_then(Value::as_str).unwrap_or_default().to_string();
+        let set = get("set");
+        let context = get("context");
+        let action = get("action");
+        if set.trim().is_empty() || action.trim().is_empty() {
+            continue;
+        }
+        let combos: Vec<String> = entry
+            .get("combos")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .iter()
+            .filter_map(Value::as_str)
+            .map(normalise_combo)
+            .filter(|combo| !combo.is_empty())
+            .collect();
+        sets.rows.push((set, context, action, combos));
+    }
+    sets
+}
+
+pub fn save_keys_to_options(options: &mut ClientOptions, sets: &KeySets) {
+    let entries: Vec<Value> = sets
+        .rows
+        .iter()
+        .map(|(set, context, action, combos)| {
+            json!({ "set": set, "context": context, "action": action, "combos": combos })
+        })
+        .collect();
+    options.set_group_value(SHORTCUTS_GROUP, KEY_SETS_KEY, Value::Array(entries));
+}
+
+/// Save one per-context keyboard binding with Python-style conflict veto.
+pub fn save_key_binding(
+    state: &mut crate::gui::app::model::AppState,
+    set_name: &str,
+    context: &str,
+    action: &str,
+    combos: &[String],
+) -> Vec<crate::gui::app::UiCommand> {
+    let mut keys = load_keys_from_options(&state.controller.options());
+    let normalised: Vec<String> = combos
+        .iter()
+        .map(|combo| normalise_combo(combo))
+        .filter(|combo| !combo.is_empty())
+        .collect();
+    if normalised.len() != combos.iter().filter(|combo| !combo.trim().is_empty()).count() {
+        state.message = "Bad shortcut! Use '<modifiers+>key'.".to_string();
+        return vec![crate::gui::app::UiCommand::NotifyMessage(state.message.clone())];
+    }
+    let mut actions: std::collections::BTreeSet<String> = Default::default();
+    for (row_set, row_context, row_action, _) in &keys.rows {
+        if row_set == set_name && row_context == context && row_action != action {
+            actions.insert(row_action.clone());
+        }
+    }
+    for (default_action, _) in default_key_bindings(context) {
+        if default_action != action {
+            actions.insert(default_action);
+        }
+    }
+    for other in &actions {
+        for combo in keys.combos_for(set_name, context, other) {
+            if normalised.iter().any(|owned| normalise_combo(owned) == normalise_combo(&combo)) {
+                let message = format!("The shortcut {combo} is already used by '{other}'. The system only supports one command per shortcut in a set for now, please remove one.");
+                state.message = message.clone();
+                return vec![crate::gui::app::UiCommand::NotifyMessage(message)];
+            }
+        }
+    }
+    keys.rows.retain(|(row_set, row_context, row_action, _)| {
+        !(row_set == set_name && row_context == context && row_action == action)
+    });
+    keys.rows.push((set_name.to_string(), context.to_string(), action.to_string(), normalised));
+    keys.rows.sort();
+    let mut options = state.controller.options();
+    save_keys_to_options(&mut options, &keys);
+    state.controller.replace_options(options);
+    let _ = state.controller.save_options();
+    state.message = format!("updated keyboard '{action}' in '{set_name}' ({context})");
+    vec![crate::gui::app::UiCommand::NotifyMessage(state.message.clone())]
 }
 
 /// Save one mouse binding with Python-style conflict veto.

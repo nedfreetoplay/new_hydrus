@@ -1414,6 +1414,58 @@ impl AppState {
         Ok(())
     }
 
+    /// Python `_ShowSelectionInNewPage` + `ShowFilesInNewPage`: copy the
+    /// current selection (ordered like the page, like Python's
+    /// `_GetSelectedHashes(ordered=True)`) into a new query page showing
+    /// exactly those files. Duplicating the page would copy the search
+    /// instead, which is a different command.
+    pub fn open_selection_in_new_page_model(&mut self, page_id: &str) -> Result<String, String> {
+        let source = find_node(&self.root, page_id)
+            .cloned()
+            .ok_or_else(|| "page is missing".to_string())?;
+        let PageNode::Query(query) = &source else {
+            return Err("page is missing".to_string());
+        };
+        let mut hashes: Vec<Vec<u8>> = query
+            .hashes
+            .iter()
+            .filter(|hash| query.selected.contains(hash))
+            .cloned()
+            .collect();
+        if hashes.is_empty() {
+            if let Some(focused) = &query.focused {
+                hashes.push(focused.clone());
+            }
+        }
+        if hashes.is_empty() {
+            return Err("no files selected".to_string());
+        }
+        let parent_id =
+            parent_notebook_id(&self.root, page_id).ok_or_else(|| "page is missing".to_string())?;
+        let new_id = self.new_id("p");
+        let mut page = QueryPage::new(new_id.clone(), "files", query.location.clone());
+        page.sort = query.sort.clone();
+        page.sort_ascending = query.sort_ascending;
+        page.fixed_hashes = Some(hashes.clone());
+        page.hashes = hashes;
+        page.status = match page.hashes.len() {
+            1 => "1 file".to_string(),
+            count => format!("{count} files"),
+        };
+        let node = PageNode::Query(page);
+        let parent = self
+            .find_notebook_mut(&parent_id)
+            .ok_or_else(|| "notebook is missing".to_string())?;
+        let index = parent
+            .children
+            .iter()
+            .position(|child| child.id() == page_id)
+            .ok_or_else(|| "page is missing".to_string())?;
+        parent.children.insert(index + 1, node);
+        self.select_page(&new_id);
+        Ok(new_id)
+    }
+
     /// Deep-copies a page and puts the copy right after the original.
     pub fn duplicate_page(&mut self, page_id: &str) -> Result<String, String> {
         let parent_id =

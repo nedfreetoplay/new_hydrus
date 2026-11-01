@@ -67,6 +67,13 @@ void app_page_sort(HydrusMainWindow &window, rust::Str page_id, rust::Str sort, 
 void app_history_step(HydrusMainWindow &window, int step) noexcept;
 void app_shortcut_set_activate(HydrusMainWindow &window, rust::Str name) noexcept;
 rust::String hydrus_mouse_gesture_action(rust::Str context, rust::Str gesture) noexcept;
+rust::String hydrus_keyboard_action(rust::Str context, rust::Str combo) noexcept;
+void app_shortcut_key_save(
+    HydrusMainWindow &window,
+    rust::Str set_name,
+    rust::Str context,
+    rust::Str action,
+    rust::Vec<rust::String> combos) noexcept;
 void app_shortcut_mouse_save(
     HydrusMainWindow &window,
     rust::Str set_name,

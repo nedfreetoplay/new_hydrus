@@ -210,6 +210,37 @@ fn refuses_to_move_a_notebook_into_itself() {
 }
 
 #[test]
+fn selection_opens_a_new_fixed_page_like_python() {
+    let (mut state, directory) = test_state();
+
+    let mut source = QueryPage::new("p2", "files", "my files");
+    source.hashes = vec![vec![1], vec![2], vec![3]];
+    source.selected = vec![vec![3], vec![1]];
+    state.root.add(PageNode::Query(source));
+
+    let new_id = state.open_selection_in_new_page_model("p2").unwrap();
+
+    // Ordered like the page, not like the selection (Python ordered=True).
+    let PageNode::Query(copy) = find_node(&state.root, &new_id).unwrap().clone() else {
+        panic!("new page is not a query page");
+    };
+    assert_eq!(copy.fixed_hashes, Some(vec![vec![1], vec![3]]));
+    assert_eq!(copy.hashes, vec![vec![1], vec![3]]);
+    assert_eq!(copy.location, "my files");
+    // Inserted right after the source and selected.
+    let ids: Vec<&str> = state.root.children.iter().map(|child| child.id()).collect();
+    let source_pos = ids.iter().position(|id| *id == "p2").unwrap();
+    assert_eq!(ids[source_pos + 1], new_id);
+    assert_eq!(state.active.as_deref(), Some(new_id.as_str()));
+
+    // Empty selection falls back to the focused file; nothing -> error.
+    state.root.add(PageNode::Query(QueryPage::new("p9", "files", "my files")));
+    assert!(state.open_selection_in_new_page_model("p9").is_err());
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn duplicating_a_notebook_gives_every_child_a_fresh_id() {
     let (mut state, directory) = test_state();
 

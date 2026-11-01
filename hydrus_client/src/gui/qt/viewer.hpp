@@ -8,6 +8,7 @@
 class QCloseEvent;
 class QComboBox;
 class QEvent;
+class QKeyEvent;
 class QLabel;
 class QPushButton;
 class HydrusCanvas;
@@ -30,6 +31,7 @@ public:
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
 
 private:
     void navigate(const QString &direction);

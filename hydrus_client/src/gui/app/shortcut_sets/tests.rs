@@ -143,14 +143,34 @@ mod shortcut_sets_tests {
         assert_eq!(mouse.resolve("default", "media", "right press").as_deref(), Some("show_context_menu"));
         assert!(mouse.resolve("default", "main_gui", "left press").is_none());
         assert_eq!(
-            mouse.resolve("default", "media_viewer_media_window", "scroll up press").as_deref(),
+            mouse.resolve("default", "media_viewer_media_window", "ctrl+scroll up press").as_deref(),
             Some("zoom_in")
         );
-        // Viewer inherits via media_viewer -> media chain.
+        // Plain wheel flips files (Python browser set); release opens the menu.
         assert_eq!(
-            mouse.resolve("default", "media_viewer_media_window", "right press").as_deref(),
+            mouse.resolve("default", "media_viewer_browser", "scroll up press").as_deref(),
+            Some("previous_file")
+        );
+        assert_eq!(
+            mouse.resolve("default", "media_viewer_browser", "scroll down press").as_deref(),
+            Some("next_file")
+        );
+        assert_eq!(
+            mouse.resolve("default", "media_viewer_browser", "right release").as_deref(),
             Some("show_context_menu")
         );
+        assert_eq!(
+            mouse.resolve("default", "media_viewer_browser", "left double").as_deref(),
+            Some("close_viewer")
+        );
+        // The media window inherits the browser bindings through the chain.
+        assert_eq!(
+            mouse.resolve("default", "media_viewer_media_window", "scroll down press").as_deref(),
+            Some("next_file")
+        );
+        // Drag has no Python binding anywhere.
+        assert!(mouse.resolve("default", "media_viewer_browser", "left drag").is_none());
+        assert!(mouse.resolve("default", "thumbnails", "middle drag").is_none());
     }
 
     #[test]
@@ -162,5 +182,64 @@ mod shortcut_sets_tests {
         assert!(state.mouse_bindings.iter().any(|row| row.action == "open_viewer"
             && row.gesture_text.contains("left double")));
         assert!(state.contexts.contains(&"media_viewer".to_string()));
+        assert!(state.contexts.contains(&"media_viewer_browser".to_string()));
+    }
+
+    #[test]
+    fn key_defaults_match_python_browser_and_thumbnails() {
+        let keys = KeySets::default();
+        assert_eq!(keys.resolve("default", "media_viewer_browser", "Up").as_deref(), Some("previous_file"));
+        assert_eq!(keys.resolve("default", "media_viewer_browser", "Left").as_deref(), Some("previous_file"));
+        assert_eq!(keys.resolve("default", "media_viewer_browser", "PageUp").as_deref(), Some("previous_file"));
+        assert_eq!(keys.resolve("default", "media_viewer_browser", "Down").as_deref(), Some("next_file"));
+        assert_eq!(keys.resolve("default", "media_viewer_browser", "Right").as_deref(), Some("next_file"));
+        assert_eq!(keys.resolve("default", "media_viewer_browser", "PageDown").as_deref(), Some("next_file"));
+        assert_eq!(keys.resolve("default", "media_viewer_browser", "Home").as_deref(), Some("first_file"));
+        assert_eq!(keys.resolve("default", "media_viewer_browser", "End").as_deref(), Some("last_file"));
+        // No plain-key zoom in the browser set (Python zooms on F/+/-, not arrows).
+        assert!(keys.resolve("default", "media_viewer_browser", "F").is_none());
+        // Thumbnails: Enter opens the viewer.
+        assert_eq!(keys.resolve("default", "thumbnails", "Enter").as_deref(), Some("open_viewer"));
+        assert_eq!(keys.resolve("default", "thumbnails", "Return").as_deref(), Some("open_viewer"));
+        // main_gui set has no viewer actions; media context has no keyboard rows.
+        assert!(keys.resolve("default", "main_gui", "Left").is_none());
+        assert!(keys.resolve("default", "media", "Left").is_none());
+    }
+
+    #[test]
+    fn key_context_inherits_up_the_chain() {
+        let keys = KeySets::default();
+        // Media window inherits browser nav keys through media_viewer.
+        assert_eq!(
+            keys.resolve("default", "media_viewer_media_window", "Right").as_deref(),
+            Some("next_file")
+        );
+        // Stored override wins over the default in the same context.
+        let mut stored = KeySets::default();
+        stored.rows.push((
+            "default".to_string(),
+            "media_viewer_browser".to_string(),
+            "next_file".to_string(),
+            vec!["N".to_string()],
+        ));
+        assert_eq!(stored.resolve("default", "media_viewer_browser", "N").as_deref(), Some("next_file"));
+        // ...but the default still applies in sibling contexts.
+        assert_eq!(stored.resolve("default", "media_viewer_browser", "Right").as_deref(), Some("next_file"));
+    }
+
+    #[test]
+    fn key_sets_persist_rows() {
+        let mut options = ClientOptions::new();
+        let mut keys = KeySets::default();
+        keys.rows.push((
+            "default".to_string(),
+            "thumbnails".to_string(),
+            "open_viewer".to_string(),
+            vec!["Space".to_string()],
+        ));
+        save_keys_to_options(&mut options, &keys);
+        let loaded = load_keys_from_options(&options);
+        assert_eq!(loaded, keys);
+        assert_eq!(loaded.combos_for("default", "thumbnails", "open_viewer"), vec!["Space".to_string()]);
     }
 }

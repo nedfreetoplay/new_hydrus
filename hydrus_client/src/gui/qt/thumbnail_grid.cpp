@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
@@ -242,6 +243,14 @@ static QString grid_resolve(const QString &gesture) {
         rust::Str(gesture_bytes.constData(), gesture_bytes.size())));
 }
 
+static QString grid_key_resolve(const QString &combo) {
+    const QByteArray context_bytes = QByteArrayLiteral("thumbnails");
+    const QByteArray combo_bytes = combo.toUtf8();
+    return to_qstring(hydrus_keyboard_action(
+        rust::Str(context_bytes.constData(), context_bytes.size()),
+        rust::Str(combo_bytes.constData(), combo_bytes.size())));
+}
+
 void HydrusThumbnailGrid::mousePressEvent(QMouseEvent *event) {
     const QString action =
         grid_resolve(grid_gesture_for_button(event->button(), QStringLiteral("press"), event->modifiers()));
@@ -249,7 +258,7 @@ void HydrusThumbnailGrid::mousePressEvent(QMouseEvent *event) {
         if (!page_id_value.isEmpty()) {
             const QByteArray page_bytes = page_id_value.toUtf8();
             app_action(
-                *main, UiAction::DuplicatePage,
+                *main, UiAction::OpenSelectionInNewPage,
                 rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str("", 0));
         }
         event->accept();
@@ -275,4 +284,28 @@ void HydrusThumbnailGrid::mouseDoubleClickEvent(QMouseEvent *event) {
         return;
     }
     QListWidget::mouseDoubleClickEvent(event);
+}
+
+// WS-13.13: Enter opens the viewer for the current item, like Python's
+// thumbnails-context keyboard binding (Resolve via Rust so custom sets apply).
+void HydrusThumbnailGrid::keyPressEvent(QKeyEvent *event) {
+    if (event->key() == Qt::Key_Enter || event->key() == Qt::Key_Return) {
+        const QString key = event->key() == Qt::Key_Enter ? QStringLiteral("Enter") : QStringLiteral("Return");
+        if (grid_key_resolve(key) == QStringLiteral("open_viewer")) {
+            if (QListWidgetItem *item = currentItem()) {
+                const QString hash = page_hash_from_item(item);
+                if (!hash.isEmpty()) {
+                    const QByteArray hash_bytes = hash.toUtf8();
+                    const QByteArray page_bytes = page_id_value.toUtf8();
+                    app_open_viewer(
+                        *main,
+                        rust::Str(page_bytes.constData(), page_bytes.size()),
+                        rust::Str(hash_bytes.constData(), hash_bytes.size()));
+                    event->accept();
+                    return;
+                }
+            }
+        }
+    }
+    QListWidget::keyPressEvent(event);
 }

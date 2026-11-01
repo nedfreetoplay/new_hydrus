@@ -411,6 +411,7 @@ pub(crate) mod ffi {
         Older,
         OpenDbDir,
         OpenInstallDir,
+        OpenSelectionInNewPage,
         OpenViewer,
         Options,
         OptionsApply,
@@ -2143,6 +2144,14 @@ pub(crate) mod ffi {
         fn hydrus_shortcut_set_export(name: &str) -> String;
         /// Typed reverse seams (WS-13.13): mouse gestures + context switching.
         fn hydrus_mouse_gesture_action(context: &str, gesture: &str) -> String;
+        fn hydrus_keyboard_action(context: &str, combo: &str) -> String;
+        fn app_shortcut_key_save(
+            window: Pin<&mut HydrusMainWindow>,
+            set_name: &str,
+            context: &str,
+            action: &str,
+            combos: Vec<String>,
+        );
         fn app_shortcut_mouse_save(
             window: Pin<&mut HydrusMainWindow>,
             set_name: &str,
@@ -2779,6 +2788,20 @@ fn hydrus_shortcut_set_export(name: &str) -> String {
 
 fn hydrus_mouse_gesture_action(context: &str, gesture: &str) -> String {
     crate::gui::app::mouse_gesture_action(context, gesture)
+}
+
+fn hydrus_keyboard_action(context: &str, combo: &str) -> String {
+    crate::gui::app::keyboard_action(context, combo)
+}
+
+fn app_shortcut_key_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    set_name: &str,
+    context: &str,
+    action: &str,
+    combos: Vec<String>,
+) {
+    crate::gui::app::handle_shortcut_key_save(window.as_mut(), set_name, context, action, combos);
 }
 
 fn app_shortcut_mouse_save(

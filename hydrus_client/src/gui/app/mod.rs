@@ -615,6 +615,7 @@ impl ffi::UiAction {
         ffi::UiAction::Older => "older",
         ffi::UiAction::OpenDbDir => "open_db_dir",
         ffi::UiAction::OpenInstallDir => "open_install_dir",
+        ffi::UiAction::OpenSelectionInNewPage => "open_selection_in_new_page",
         ffi::UiAction::OpenViewer => "open_viewer",
         ffi::UiAction::Options => "options",
         ffi::UiAction::OptionsApply => "options_apply",
@@ -1082,6 +1083,7 @@ pub(crate) fn action_from_str(action: &str) -> ffi::UiAction {
             "older" => ffi::UiAction::Older,
             "open_db_dir" => ffi::UiAction::OpenDbDir,
             "open_install_dir" => ffi::UiAction::OpenInstallDir,
+            "open_selection_in_new_page" => ffi::UiAction::OpenSelectionInNewPage,
             "open_viewer" => ffi::UiAction::OpenViewer,
             "options" => ffi::UiAction::Options,
             "options_apply" => ffi::UiAction::OptionsApply,
@@ -1542,6 +1544,32 @@ pub fn mouse_gesture_action(context: &str, gesture: &str) -> String {
             .resolve(&sets.active, context, gesture)
             .unwrap_or_default()
     })
+}
+
+/// Resolve one keyboard combo to an action name for a context (WS-13.13).
+/// Pure lookup over the active set + context chain; empty when unbound.
+pub fn keyboard_action(context: &str, combo: &str) -> String {
+    with_state_mut(|state| {
+        let sets = shortcut_sets::load_from_options(&state.controller.options());
+        let keys = shortcut_sets::load_keys_from_options(&state.controller.options());
+        keys.resolve(&sets.active, context, combo).unwrap_or_default()
+    })
+}
+
+pub fn handle_shortcut_key_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    set_name: &str,
+    context: &str,
+    action: &str,
+    combos: Vec<String>,
+) {
+    let commands = with_state_mut(|state| {
+        shortcut_sets::save_key_binding(state, set_name, context, action, &combos)
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
 }
 
 pub fn handle_shortcut_mouse_save(
@@ -3034,6 +3062,7 @@ impl AppState {
             }
             ffi::UiAction::FocusHash => self.focus(target, payload),
             ffi::UiAction::OpenViewer => self.open_viewer(target, payload),
+            ffi::UiAction::OpenSelectionInNewPage => self.open_selection_in_new_page(target),
             ffi::UiAction::ViewerNav => self.viewer_nav(target, payload),
             ffi::UiAction::ViewerClose => {
                 if let Some(context) = self.viewers.remove(target) {
@@ -3970,6 +3999,20 @@ impl AppState {
         }
 
         commands
+    }
+
+    fn open_selection_in_new_page(&mut self, page_id: &str) -> Vec<UiCommand> {
+        match self.open_selection_in_new_page_model(page_id) {
+            Ok(id) => {
+                self.record_history(&id);
+                vec![
+                    UiCommand::BuildPages(render::pages(self)),
+                    UiCommand::Menus(render::menus(self)),
+                    self.status_command(),
+                ]
+            }
+            Err(error) => vec![UiCommand::NotifyMessage(error)],
+        }
     }
 
     fn duplicate_page_command(&mut self, page_id: &str) -> Vec<UiCommand> {

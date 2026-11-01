@@ -612,6 +612,17 @@ pub fn neighbour(page: &QueryPage, hash: &[u8], direction: &str) -> Option<Vec<u
         return None;
     }
 
+    // Python `MediaList._GetNext/_GetPrevious` wraps around the ends; the
+    // first/last commands jump straight to the ends. The list itself only
+    // holds displayable files (Python filters with `for_media_viewer`), so no
+    // skipping happens here.
+    if direction == "first" {
+        return page.hashes.first().cloned();
+    }
+    if direction == "last" {
+        return page.hashes.last().cloned();
+    }
+
     let index = page.hashes.iter().position(|candidate| candidate == hash)?;
 
     let next = if direction == "next" {

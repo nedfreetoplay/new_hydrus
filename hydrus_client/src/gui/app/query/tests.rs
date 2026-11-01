@@ -158,6 +158,24 @@ fn append_hashes_dedupes_and_updates_fixed_pages() {
 }
 
 #[test]
+fn neighbour_wraps_like_python_and_jumps_to_ends() {
+    let mut page = QueryPage::new("p1", "files", "my files");
+    page.hashes = vec![vec![1], vec![2], vec![3]];
+
+    assert_eq!(neighbour(&page, &[1], "next"), Some(vec![2]));
+    assert_eq!(neighbour(&page, &[1], "previous"), Some(vec![3]));
+    assert_eq!(neighbour(&page, &[3], "next"), Some(vec![1]));
+    assert_eq!(neighbour(&page, &[2], "previous"), Some(vec![1]));
+    assert_eq!(neighbour(&page, &[2], "first"), Some(vec![1]));
+    assert_eq!(neighbour(&page, &[1], "last"), Some(vec![3]));
+    // Unknown hash and empty pages stay put, like Python's guarded calls.
+    assert_eq!(neighbour(&page, &[9], "next"), None);
+    page.hashes.clear();
+    assert_eq!(neighbour(&page, &[1], "next"), None);
+    assert_eq!(neighbour(&page, &[1], "first"), None);
+}
+
+#[test]
 fn hex_round_trips_hashes() {
     let hash = vec![0x00, 0xab, 0xff, 0x10];
 

@@ -490,23 +490,4 @@ void HydrusSubscriptionsDialog::add_subscription() {
     main->notify(QStringLiteral("subscription_add"), QString(), json_payload(payload));
 }
 
-void HydrusMainWindow::show_subscriptions_dialog(const QJsonObject &state) {
-    if (subscriptions_dialog == nullptr) {
-        subscriptions_dialog = new HydrusSubscriptionsDialog(this, state, this);
-        connect(subscriptions_dialog, &QObject::destroyed, this, [this]() {
-            subscriptions_dialog = nullptr;
-        });
-    } else {
-        subscriptions_dialog->set_state(state);
-    }
 
-    subscriptions_dialog->show();
-    subscriptions_dialog->raise();
-    subscriptions_dialog->activateWindow();
-}
-
-void HydrusMainWindow::update_subscriptions_dialog(const QJsonObject &state) {
-    if (subscriptions_dialog != nullptr) {
-        subscriptions_dialog->set_state(state);
-    }
-}

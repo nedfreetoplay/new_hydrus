@@ -222,24 +222,24 @@ void hydrus_update_page_progress(HydrusMainWindow &window, const PageProgress &p
     window.update_page_progress(progress);
 }
 
-void hydrus_update_downloader(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
-    window.update_downloader(to_qstring(page_id), parse_object(json));
+void hydrus_update_downloader(HydrusMainWindow &window, const DownloaderPageState &state) {
+    window.update_downloader(state);
 }
 
-void hydrus_update_subscriptions(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
-    window.update_subscriptions(to_qstring(page_id), parse_object(json));
+void hydrus_update_subscriptions(HydrusMainWindow &window, const SubscriptionsPageState &state) {
+    window.update_subscriptions(state);
 }
 
-void hydrus_show_subscriptions_dialog(HydrusMainWindow &window, rust::Str json) {
-    window.show_subscriptions_dialog(parse_object(json));
+void hydrus_show_subscriptions_dialog(HydrusMainWindow &window, const SubscriptionsDialogState &state) {
+    window.show_subscriptions_dialog(state);
 }
 
-void hydrus_update_subscriptions_dialog(HydrusMainWindow &window, rust::Str json) {
-    window.update_subscriptions_dialog(parse_object(json));
+void hydrus_update_subscriptions_dialog(HydrusMainWindow &window, const SubscriptionsDialogState &state) {
+    window.update_subscriptions_dialog(state);
 }
 
-void hydrus_show_subscription_editor(HydrusMainWindow &window, rust::Str json) {
-    window.show_subscription_editor(parse_object(json));
+void hydrus_show_subscription_editor(HydrusMainWindow &window, const SubscriptionEditorState &state) {
+    window.show_subscription_editor(state);
 }
 
 void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
@@ -282,16 +282,16 @@ void hydrus_show_duplicate_custom_action(HydrusMainWindow &window, rust::Str jso
     window.show_duplicate_custom_action(parse_object(json));
 }
 
-void hydrus_show_import_options(HydrusMainWindow &window, rust::Str json) {
-    window.show_import_options(parse_object(json));
+void hydrus_show_import_options(HydrusMainWindow &window, const ImportOptionsDialogState &state) {
+    window.show_import_options(state);
 }
 
-void hydrus_show_file_seed_cache(HydrusMainWindow &window, rust::Str json) {
-    window.show_file_seed_cache(parse_object(json));
+void hydrus_show_file_seed_cache(HydrusMainWindow &window, const FileSeedCacheState &state) {
+    window.show_file_seed_cache(state);
 }
 
-void hydrus_show_gallery_seed_log(HydrusMainWindow &window, rust::Str json) {
-    window.show_gallery_seed_log(parse_object(json));
+void hydrus_show_gallery_seed_log(HydrusMainWindow &window, const GallerySeedLogState &state) {
+    window.show_gallery_seed_log(state);
 }
 
 void hydrus_update_auto_resolution_preview(HydrusMainWindow &window, rust::Str json) {

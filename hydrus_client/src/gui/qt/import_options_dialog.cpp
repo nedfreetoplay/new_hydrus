@@ -21,13 +21,14 @@
 #include <QVBoxLayout>
 
 HydrusImportOptionsDialog::HydrusImportOptionsDialog(
-    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    HydrusMainWindow *main_window, const QString &json, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("import options"));
     setObjectName(QStringLiteral("hydrus_import_options_dialog"));
     setAttribute(Qt::WA_DeleteOnClose, true);
     resize(1120, 760);
 
+    const QJsonObject state = QJsonDocument::fromJson(json.toUtf8()).object();
     data = state;
     const QJsonObject specific = state.value(QStringLiteral("specific")).toObject();
     specific_mode = !specific.isEmpty();
@@ -382,15 +383,3 @@ void HydrusImportOptionsDialog::save() {
     close();
 }
 
-void HydrusMainWindow::show_import_options(const QJsonObject &state) {
-    if (import_options_dialog != nullptr) {
-        import_options_dialog->close();
-    }
-
-    import_options_dialog = new HydrusImportOptionsDialog(this, state, this);
-    connect(import_options_dialog, &QObject::destroyed, this, [this]() { import_options_dialog = nullptr; });
-
-    import_options_dialog->show();
-    import_options_dialog->raise();
-    import_options_dialog->activateWindow();
-}

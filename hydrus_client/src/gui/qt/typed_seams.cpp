@@ -28,6 +28,7 @@
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QLabel>
@@ -560,4 +561,109 @@ void HydrusPageManager::build(const PageTree &page_tree) {
     }
 
     tree->expandAll();
+}
+
+// --- WS-15.2.2c downloader/subscription glue ------------------------------
+void HydrusMainWindow::update_downloader(const DownloaderPageState &typed) {
+    const QString page_id = to_qstring(typed.page_id);
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
+
+    if (HydrusDownloaderPage *page = downloaders.value(page_id, nullptr)) {
+        page->update_state(state);
+    }
+}
+
+void HydrusMainWindow::update_subscriptions(const SubscriptionsPageState &typed) {
+    const QString page_id = to_qstring(typed.page_id);
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
+
+    if (HydrusSubscriptionsPage *page = subscriptions.value(page_id, nullptr)) {
+        page->update_state(state);
+    }
+}
+
+void HydrusMainWindow::show_subscriptions_dialog(const SubscriptionsDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
+
+    if (subscriptions_dialog == nullptr) {
+        subscriptions_dialog = new HydrusSubscriptionsDialog(this, state, this);
+        connect(subscriptions_dialog, &QObject::destroyed, this, [this]() {
+            subscriptions_dialog = nullptr;
+        });
+    } else {
+        subscriptions_dialog->set_state(state);
+    }
+
+    subscriptions_dialog->show();
+    subscriptions_dialog->raise();
+    subscriptions_dialog->activateWindow();
+}
+
+void HydrusMainWindow::update_subscriptions_dialog(const SubscriptionsDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
+
+    if (subscriptions_dialog != nullptr) {
+        subscriptions_dialog->set_state(state);
+    }
+}
+
+void HydrusMainWindow::show_subscription_editor(const SubscriptionEditorState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
+
+    if (subscription_editor_dialog != nullptr) {
+        subscription_editor_dialog->close();
+    }
+
+    subscription_editor_dialog = new HydrusSubscriptionEditorDialog(this, state, this);
+    connect(subscription_editor_dialog, &QObject::destroyed, this, [this]() {
+        subscription_editor_dialog = nullptr;
+    });
+    subscription_editor_dialog->show();
+    subscription_editor_dialog->raise();
+    subscription_editor_dialog->activateWindow();
+}
+
+void HydrusMainWindow::show_file_seed_cache(const FileSeedCacheState &typed) {
+    const QString json = to_qstring(typed.json);
+
+    if (file_seed_cache_dialog == nullptr) {
+        file_seed_cache_dialog = new HydrusSeedCacheDialog(this, json, false, this);
+        connect(file_seed_cache_dialog, &QObject::destroyed, this, [this]() { file_seed_cache_dialog = nullptr; });
+    } else {
+        file_seed_cache_dialog->set_state(json);
+        file_seed_cache_dialog->raise();
+        file_seed_cache_dialog->activateWindow();
+    }
+
+    file_seed_cache_dialog->show();
+}
+
+void HydrusMainWindow::show_gallery_seed_log(const GallerySeedLogState &typed) {
+    const QString json = to_qstring(typed.json);
+
+    if (gallery_seed_log_dialog == nullptr) {
+        gallery_seed_log_dialog = new HydrusSeedCacheDialog(this, json, true, this);
+        connect(gallery_seed_log_dialog, &QObject::destroyed, this, [this]() { gallery_seed_log_dialog = nullptr; });
+    } else {
+        gallery_seed_log_dialog->set_state(json);
+        gallery_seed_log_dialog->raise();
+        gallery_seed_log_dialog->activateWindow();
+    }
+
+    gallery_seed_log_dialog->show();
+}
+
+void HydrusMainWindow::show_import_options(const ImportOptionsDialogState &typed) {
+    const QString json = to_qstring(typed.json);
+
+    if (import_options_dialog != nullptr) {
+        import_options_dialog->close();
+    }
+
+    import_options_dialog = new HydrusImportOptionsDialog(this, json, this);
+    connect(import_options_dialog, &QObject::destroyed, this, [this]() { import_options_dialog = nullptr; });
+
+    import_options_dialog->show();
+    import_options_dialog->raise();
+    import_options_dialog->activateWindow();
 }

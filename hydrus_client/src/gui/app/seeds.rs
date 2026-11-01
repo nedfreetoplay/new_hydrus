@@ -175,9 +175,11 @@ pub fn open_file_seed_cache(state: &AppState, page_id: &str) -> Vec<UiCommand> {
         )];
     }
 
-    vec![UiCommand::FileSeedCacheDialog(file_seed_cache_json(
-        state, page_id,
-    ))]
+    vec![UiCommand::FileSeedCacheDialog(
+        crate::gui::qt::api::ffi::FileSeedCacheState {
+            json: file_seed_cache_json(state, page_id),
+        },
+    )]
 }
 
 pub fn open_gallery_seed_log(state: &AppState, page_id: &str) -> Vec<UiCommand> {
@@ -193,9 +195,11 @@ pub fn open_gallery_seed_log(state: &AppState, page_id: &str) -> Vec<UiCommand> 
         )];
     }
 
-    vec![UiCommand::GallerySeedLogDialog(gallery_seed_log_json(
-        state, page_id,
-    ))]
+    vec![UiCommand::GallerySeedLogDialog(
+        crate::gui::qt::api::ffi::GallerySeedLogState {
+            json: gallery_seed_log_json(state, page_id),
+        },
+    )]
 }
 
 fn selected_urls(value: &Value) -> Vec<String> {
@@ -316,14 +320,18 @@ pub fn file_seed_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     }
 
     let mut commands = vec![
-        UiCommand::FileSeedCacheDialog(file_seed_cache_json(state, &page_id)),
+        UiCommand::FileSeedCacheDialog(crate::gui::qt::api::ffi::FileSeedCacheState {
+            json: file_seed_cache_json(state, &page_id),
+        }),
         UiCommand::NotifyMessage(message),
     ];
 
     if let Some(page) = find_page(state, &page_id) {
         commands.push(UiCommand::UpdateDownloader(
-            page_id.clone(),
-            render::downloader_json(&state.controller, page),
+            crate::gui::qt::api::ffi::DownloaderPageState {
+                page_id: page_id.clone(),
+                json: render::downloader_json(&state.controller, page),
+            },
         ));
     }
 
@@ -451,14 +459,18 @@ pub fn gallery_seed_action(state: &mut AppState, payload: &str) -> Vec<UiCommand
     }
 
     let mut commands = vec![
-        UiCommand::GallerySeedLogDialog(gallery_seed_log_json(state, &page_id)),
+        UiCommand::GallerySeedLogDialog(crate::gui::qt::api::ffi::GallerySeedLogState {
+            json: gallery_seed_log_json(state, &page_id),
+        }),
         UiCommand::NotifyMessage(message),
     ];
 
     if let Some(page) = find_page(state, &page_id) {
         commands.push(UiCommand::UpdateDownloader(
-            page_id.clone(),
-            render::downloader_json(&state.controller, page),
+            crate::gui::qt::api::ffi::DownloaderPageState {
+                page_id: page_id.clone(),
+                json: render::downloader_json(&state.controller, page),
+            },
         ));
     }
 

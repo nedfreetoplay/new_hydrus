@@ -1798,8 +1798,10 @@ impl AppState {
         if self.find_subscriptions(page_id).is_some() {
             return vec![
                 UiCommand::UpdateSubscriptions(
-                    page_id.to_string(),
-                    render::subscriptions_json(self, page_id),
+                    crate::gui::qt::api::ffi::SubscriptionsPageState {
+                        page_id: page_id.to_string(),
+                        json: render::subscriptions_json(self, page_id),
+                    },
                 ),
                 self.status_command(),
             ];
@@ -1824,8 +1826,10 @@ impl AppState {
         match self.find_downloader(page_id) {
             Some(page) => vec![
                 UiCommand::UpdateDownloader(
-                    page_id.to_string(),
-                    render::downloader_json(&self.controller, page),
+                    crate::gui::qt::api::ffi::DownloaderPageState {
+                        page_id: page_id.to_string(),
+                        json: render::downloader_json(&self.controller, page),
+                    },
                 ),
                 self.status_command(),
             ],

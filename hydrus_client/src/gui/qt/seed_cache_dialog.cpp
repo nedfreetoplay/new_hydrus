@@ -23,7 +23,7 @@
 #include <QVBoxLayout>
 
 HydrusSeedCacheDialog::HydrusSeedCacheDialog(
-    HydrusMainWindow *main_window, const QJsonObject &state, bool gallery_mode, QWidget *parent)
+    HydrusMainWindow *main_window, const QString &json, bool gallery_mode, QWidget *parent)
     : QDialog(parent), main(main_window), gallery(gallery_mode) {
     setWindowTitle(gallery ? QStringLiteral("gallery seed log") : QStringLiteral("file seed cache"));
     setObjectName(gallery ? QStringLiteral("hydrus_gallery_seed_log")
@@ -116,10 +116,11 @@ HydrusSeedCacheDialog::HydrusSeedCacheDialog(
     });
     connect(close_button, &QPushButton::clicked, this, &QDialog::close);
 
-    set_state(state);
+    set_state(json);
 }
 
-void HydrusSeedCacheDialog::set_state(const QJsonObject &state) {
+void HydrusSeedCacheDialog::set_state(const QString &json) {
+    const QJsonObject state = QJsonDocument::fromJson(json.toUtf8()).object();
     data = state;
 
     const QString current = filter->currentData().toString();
@@ -246,28 +247,3 @@ void HydrusSeedCacheDialog::send_action(const QString &action) {
                  json_payload(payload));
 }
 
-void HydrusMainWindow::show_file_seed_cache(const QJsonObject &state) {
-    if (file_seed_cache_dialog == nullptr) {
-        file_seed_cache_dialog = new HydrusSeedCacheDialog(this, state, false, this);
-        connect(file_seed_cache_dialog, &QObject::destroyed, this, [this]() { file_seed_cache_dialog = nullptr; });
-    } else {
-        file_seed_cache_dialog->set_state(state);
-        file_seed_cache_dialog->raise();
-        file_seed_cache_dialog->activateWindow();
-    }
-
-    file_seed_cache_dialog->show();
-}
-
-void HydrusMainWindow::show_gallery_seed_log(const QJsonObject &state) {
-    if (gallery_seed_log_dialog == nullptr) {
-        gallery_seed_log_dialog = new HydrusSeedCacheDialog(this, state, true, this);
-        connect(gallery_seed_log_dialog, &QObject::destroyed, this, [this]() { gallery_seed_log_dialog = nullptr; });
-    } else {
-        gallery_seed_log_dialog->set_state(state);
-        gallery_seed_log_dialog->raise();
-        gallery_seed_log_dialog->activateWindow();
-    }
-
-    gallery_seed_log_dialog->show();
-}

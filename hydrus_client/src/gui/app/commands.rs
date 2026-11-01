@@ -8,8 +8,10 @@
 //! per screen in WS-15.2.2.
 
 use crate::gui::qt::api::ffi::{
-    AboutInfo, MenuBar, PageProgress, PageTree, Pages, QueryPageState, SelectionState, StatusBar,
-    ViewerState, ViewingStats,
+    AboutInfo, DownloaderPageState, FileSeedCacheState, GallerySeedLogState, ImportOptionsDialogState,
+    MenuBar, PageProgress, PageTree, Pages, QueryPageState, SelectionState, StatusBar,
+    SubscriptionsDialogState, SubscriptionsPageState, SubscriptionEditorState, ViewerState,
+    ViewingStats,
 };
 
 #[derive(Debug, Clone)]
@@ -26,11 +28,11 @@ pub enum UiCommand {
         payload: String,
         delay_ms: i32,
     },
-    UpdateDownloader(String, String),
-    UpdateSubscriptions(String, String),
-    SubscriptionsDialog(String),
-    UpdateSubscriptionsDialog(String),
-    SubscriptionEditor(String),
+    UpdateDownloader(DownloaderPageState),
+    UpdateSubscriptions(SubscriptionsPageState),
+    SubscriptionsDialog(SubscriptionsDialogState),
+    UpdateSubscriptionsDialog(SubscriptionsDialogState),
+    SubscriptionEditor(SubscriptionEditorState),
     UpdateDuplicates(String, String),
     UpdateImportFolders(String, String),
     ImportFoldersDialog(String),
@@ -78,8 +80,8 @@ pub enum UiCommand {
     ViewingStatsDialog(ViewingStats),
     AboutDialog(AboutInfo),
     ExportDownloader(String),
-    FileSeedCacheDialog(String),
-    GallerySeedLogDialog(String),
+    FileSeedCacheDialog(FileSeedCacheState),
+    GallerySeedLogDialog(GallerySeedLogState),
     ImportDownloader(String),
     PickFiles,
     PromptUrl,
@@ -90,7 +92,7 @@ pub enum UiCommand {
     ManageTagsDialog(String),
     TimestampsDialog(String),
     NotesDialog(String),
-    ImportOptionsDialog(String),
+    ImportOptionsDialog(ImportOptionsDialogState),
     OptionsDialog(String),
     ServicesDialog(String),
     UpdateServices(String),

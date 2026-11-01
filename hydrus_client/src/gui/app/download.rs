@@ -447,9 +447,11 @@ pub(crate) fn open_hashes_page(
 
 /// Open the Python `network -> subscriptions...` manager dialog.
 pub fn manage_subscriptions(state: &AppState) -> Vec<UiCommand> {
-    vec![UiCommand::SubscriptionsDialog(render::subscriptions_json(
-        state, "",
-    ))]
+    vec![UiCommand::SubscriptionsDialog(
+        crate::gui::qt::api::ffi::SubscriptionsDialogState {
+            json: render::subscriptions_json(state, ""),
+        },
+    )]
 }
 
 pub fn start_subscription(state: &mut AppState, page_id: &str, name: &str) -> Vec<UiCommand> {
@@ -655,19 +657,21 @@ pub fn edit_subscription_dialog(state: &AppState, page_id: &str, name: &str) -> 
         .collect();
 
     vec![UiCommand::SubscriptionEditor(
-        json!({
-            "page_id": page_id,
-            "original": entry.name,
-            "name": entry.name,
-            "url": entry.url,
-            "query": entry.query,
-            "site": entry.site,
-            "filter": entry.filter,
-            "period": entry.period,
-            "paused": entry.paused,
-            "sites": sites,
-        })
-        .to_string(),
+        crate::gui::qt::api::ffi::SubscriptionEditorState {
+            json: json!({
+                "page_id": page_id,
+                "original": entry.name,
+                "name": entry.name,
+                "url": entry.url,
+                "query": entry.query,
+                "site": entry.site,
+                "filter": entry.filter,
+                "period": entry.period,
+                "paused": entry.paused,
+                "sites": sites,
+            })
+            .to_string(),
+        },
     )]
 }
 
@@ -1224,8 +1228,10 @@ fn downloader_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
     };
 
     vec![UiCommand::UpdateDownloader(
-        page_id.to_string(),
-        render::downloader_json(&state.controller, page),
+        crate::gui::qt::api::ffi::DownloaderPageState {
+            page_id: page_id.to_string(),
+            json: render::downloader_json(&state.controller, page),
+        },
     )]
 }
 
@@ -1240,14 +1246,18 @@ fn subscriptions_commands(state: &AppState, _page_id: &str) -> Vec<UiCommand> {
 
     for id in subscriptions_page_ids(&state.root) {
         commands.push(UiCommand::UpdateSubscriptions(
-            id.clone(),
-            render::subscriptions_json(state, &id),
+            crate::gui::qt::api::ffi::SubscriptionsPageState {
+                page_id: id.clone(),
+                json: render::subscriptions_json(state, &id),
+            },
         ));
     }
 
     // No-op in Qt when the manager dialog is closed.
     commands.push(UiCommand::UpdateSubscriptionsDialog(
-        render::subscriptions_json(state, ""),
+        crate::gui::qt::api::ffi::SubscriptionsDialogState {
+            json: render::subscriptions_json(state, ""),
+        },
     ));
     commands.push(UiCommand::Status(render::status(state)));
     commands

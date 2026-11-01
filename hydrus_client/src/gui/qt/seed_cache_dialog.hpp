@@ -19,9 +19,9 @@ class HydrusMainWindow;
 // file queue.
 class HydrusSeedCacheDialog : public QDialog {
 public:
-    HydrusSeedCacheDialog(HydrusMainWindow *main, const QJsonObject &state, bool gallery, QWidget *parent = nullptr);
+    HydrusSeedCacheDialog(HydrusMainWindow *main, const QString &json, bool gallery, QWidget *parent = nullptr);
 
-    void set_state(const QJsonObject &state);
+    void set_state(const QString &json);
 
 private:
     void rebuild();

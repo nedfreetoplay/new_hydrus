@@ -36,20 +36,20 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         } => {
             ffi::hydrus_defer_action(window.as_mut(), &action, &target, &payload, delay_ms);
         }
-        UiCommand::UpdateDownloader(page_id, json) => {
-            ffi::hydrus_update_downloader(window.as_mut(), &page_id, &json);
+        UiCommand::UpdateDownloader(state) => {
+            ffi::hydrus_update_downloader(window.as_mut(), &state);
         }
-        UiCommand::UpdateSubscriptions(page_id, json) => {
-            ffi::hydrus_update_subscriptions(window.as_mut(), &page_id, &json);
+        UiCommand::UpdateSubscriptions(state) => {
+            ffi::hydrus_update_subscriptions(window.as_mut(), &state);
         }
-        UiCommand::SubscriptionsDialog(json) => {
-            ffi::hydrus_show_subscriptions_dialog(window.as_mut(), &json);
+        UiCommand::SubscriptionsDialog(state) => {
+            ffi::hydrus_show_subscriptions_dialog(window.as_mut(), &state);
         }
-        UiCommand::UpdateSubscriptionsDialog(json) => {
-            ffi::hydrus_update_subscriptions_dialog(window.as_mut(), &json);
+        UiCommand::UpdateSubscriptionsDialog(state) => {
+            ffi::hydrus_update_subscriptions_dialog(window.as_mut(), &state);
         }
-        UiCommand::SubscriptionEditor(json) => {
-            ffi::hydrus_show_subscription_editor(window.as_mut(), &json);
+        UiCommand::SubscriptionEditor(state) => {
+            ffi::hydrus_show_subscription_editor(window.as_mut(), &state);
         }
         UiCommand::UpdateDuplicates(page_id, json) => {
             ffi::hydrus_update_duplicates(window.as_mut(), &page_id, &json);
@@ -78,8 +78,8 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::DuplicatesMergeOptionsDialog(json) => {
             ffi::hydrus_show_duplicate_merge_options(window.as_mut(), &json);
         }
-        UiCommand::ImportOptionsDialog(json) => {
-            ffi::hydrus_show_import_options(window.as_mut(), &json);
+        UiCommand::ImportOptionsDialog(state) => {
+            ffi::hydrus_show_import_options(window.as_mut(), &state);
         }
         UiCommand::DuplicateCustomActionDialog(json) => {
             ffi::hydrus_show_duplicate_custom_action(window.as_mut(), &json);
@@ -165,11 +165,11 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::ExportDownloader(page_id) => {
             ffi::hydrus_export_downloader(window.as_mut(), &page_id);
         }
-        UiCommand::FileSeedCacheDialog(json) => {
-            ffi::hydrus_show_file_seed_cache(window.as_mut(), &json);
+        UiCommand::FileSeedCacheDialog(state) => {
+            ffi::hydrus_show_file_seed_cache(window.as_mut(), &state);
         }
-        UiCommand::GallerySeedLogDialog(json) => {
-            ffi::hydrus_show_gallery_seed_log(window.as_mut(), &json);
+        UiCommand::GallerySeedLogDialog(state) => {
+            ffi::hydrus_show_gallery_seed_log(window.as_mut(), &state);
         }
         UiCommand::ImportDownloader(notebook_id) => {
             ffi::hydrus_import_downloader(window.as_mut(), &notebook_id);

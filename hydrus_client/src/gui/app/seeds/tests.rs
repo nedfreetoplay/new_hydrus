@@ -93,7 +93,7 @@ fn file_seed_cache_remove_and_clear_finished() {
         &serde_json::json!({"page": "p1", "action": "clear_finished"}).to_string(),
     );
     let updated: Value = match commands.first() {
-        Some(UiCommand::FileSeedCacheDialog(json)) => serde_json::from_str(json).unwrap(),
+        Some(UiCommand::FileSeedCacheDialog(state)) => serde_json::from_str(&state.json).unwrap(),
         other => panic!("expected the updated dialog, got {other:?}"),
     };
 

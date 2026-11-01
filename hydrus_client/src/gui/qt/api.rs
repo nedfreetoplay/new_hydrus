@@ -279,6 +279,52 @@ pub(crate) mod ffi {
         preview_path: String,
     }
 
+    /// Downloader page contents (WS-15.2.2c). The complex page dict stays as
+    /// one JSON string inside `json` (R1 exception); the page id travels
+    /// typed so C++ no longer parses a `QJsonObject` parameter.
+    #[derive(Clone, Debug, PartialEq)]
+    struct DownloaderPageState {
+        page_id: String,
+        json: String,
+    }
+
+    /// Subscriptions page contents (WS-15.2.2c).
+    #[derive(Clone, Debug, PartialEq)]
+    struct SubscriptionsPageState {
+        page_id: String,
+        json: String,
+    }
+
+    /// Manage-subscriptions dialog contents (WS-15.2.2c).
+    #[derive(Clone, Debug, PartialEq)]
+    struct SubscriptionsDialogState {
+        json: String,
+    }
+
+    /// Subscription editor dialog contents (WS-15.2.2c).
+    #[derive(Clone, Debug, PartialEq)]
+    struct SubscriptionEditorState {
+        json: String,
+    }
+
+    /// File seed cache dialog contents (WS-15.2.2c).
+    #[derive(Clone, Debug, PartialEq)]
+    struct FileSeedCacheState {
+        json: String,
+    }
+
+    /// Gallery seed log dialog contents (WS-15.2.2c).
+    #[derive(Clone, Debug, PartialEq)]
+    struct GallerySeedLogState {
+        json: String,
+    }
+
+    /// Import options dialog contents (WS-15.2.2c).
+    #[derive(Clone, Debug, PartialEq)]
+    struct ImportOptionsDialogState {
+        json: String,
+    }
+
     /// Media viewer contents (WS-15.2.2b).
     ///
     /// Only fields the C++ side reads. The old JSON seam also carried `tags`,
@@ -335,15 +381,11 @@ pub(crate) mod ffi {
         fn hydrus_build_pages(window: Pin<&mut HydrusMainWindow>, pages: &Pages);
         fn hydrus_update_page(window: Pin<&mut HydrusMainWindow>, page: &QueryPageState);
         fn hydrus_update_page_progress(window: Pin<&mut HydrusMainWindow>, progress: &PageProgress);
-        fn hydrus_update_downloader(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
-        fn hydrus_update_subscriptions(
-            window: Pin<&mut HydrusMainWindow>,
-            page_id: &str,
-            json: &str,
-        );
-        fn hydrus_show_subscriptions_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_update_subscriptions_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_subscription_editor(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_update_downloader(window: Pin<&mut HydrusMainWindow>, state: &DownloaderPageState);
+        fn hydrus_update_subscriptions(window: Pin<&mut HydrusMainWindow>, state: &SubscriptionsPageState);
+        fn hydrus_show_subscriptions_dialog(window: Pin<&mut HydrusMainWindow>, state: &SubscriptionsDialogState);
+        fn hydrus_update_subscriptions_dialog(window: Pin<&mut HydrusMainWindow>, state: &SubscriptionsDialogState);
+        fn hydrus_show_subscription_editor(window: Pin<&mut HydrusMainWindow>, state: &SubscriptionEditorState);
         fn hydrus_update_duplicates(window: Pin<&mut HydrusMainWindow>, page_id: &str, json: &str);
         fn hydrus_update_import_folders(
             window: Pin<&mut HydrusMainWindow>,
@@ -361,7 +403,7 @@ pub(crate) mod ffi {
         fn hydrus_update_export_folders_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_duplicates_rules(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_duplicate_merge_options(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_import_options(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_import_options(window: Pin<&mut HydrusMainWindow>, state: &ImportOptionsDialogState);
         fn hydrus_show_duplicate_custom_action(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_auto_resolution_preview(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_duplicate_review(window: Pin<&mut HydrusMainWindow>, json: &str);
@@ -405,8 +447,8 @@ pub(crate) mod ffi {
         fn hydrus_show_viewing_stats(window: Pin<&mut HydrusMainWindow>, state: &ViewingStats);
         fn hydrus_show_about(window: Pin<&mut HydrusMainWindow>, state: &AboutInfo);
         fn hydrus_export_downloader(window: Pin<&mut HydrusMainWindow>, page_id: &str);
-        fn hydrus_show_file_seed_cache(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_gallery_seed_log(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_file_seed_cache(window: Pin<&mut HydrusMainWindow>, state: &FileSeedCacheState);
+        fn hydrus_show_gallery_seed_log(window: Pin<&mut HydrusMainWindow>, state: &GallerySeedLogState);
         fn hydrus_import_downloader(window: Pin<&mut HydrusMainWindow>, target: &str);
         fn hydrus_show_manage_tags(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_show_timestamps(window: Pin<&mut HydrusMainWindow>, json: &str);

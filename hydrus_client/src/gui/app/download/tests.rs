@@ -96,7 +96,7 @@ fn saving_downloader_options_updates_the_page() {
     assert!(
         commands
             .iter()
-            .any(|command| matches!(command, UiCommand::UpdateDownloader(id, _) if id == "p1"))
+            .any(|command| matches!(command, UiCommand::UpdateDownloader(state) if state.page_id == "p1"))
     );
 
     drop(state);
@@ -138,7 +138,7 @@ fn subscription_options_round_trip_and_render() {
     assert!(
         commands
             .iter()
-            .any(|command| matches!(command, UiCommand::UpdateSubscriptions(_, _)))
+            .any(|command| matches!(command, UiCommand::UpdateSubscriptions(_)))
     );
 
     drop(state);
@@ -162,7 +162,7 @@ fn subscription_editor_updates_the_selected_entry() {
 
     let commands = edit_subscription_dialog(&state, "s1", "old");
     let dialog = match commands.first() {
-        Some(UiCommand::SubscriptionEditor(json)) => serde_json::from_str::<Value>(json).unwrap(),
+        Some(UiCommand::SubscriptionEditor(state)) => serde_json::from_str::<Value>(&state.json).unwrap(),
         other => panic!("expected the subscription editor, got {other:?}"),
     };
 
@@ -197,7 +197,7 @@ fn subscription_editor_updates_the_selected_entry() {
     assert!(
         commands
             .iter()
-            .any(|command| matches!(command, UiCommand::UpdateSubscriptions(_, _)))
+            .any(|command| matches!(command, UiCommand::UpdateSubscriptions(_)))
     );
 
     drop(state);

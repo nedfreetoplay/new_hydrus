@@ -208,17 +208,7 @@ HydrusQueryPage *HydrusMainWindow::find_page(const QString &page_id) const {
     return pages.value(page_id, nullptr);
 }
 
-void HydrusMainWindow::update_downloader(const QString &page_id, const QJsonObject &state) {
-    if (HydrusDownloaderPage *page = downloaders.value(page_id, nullptr)) {
-        page->update_state(state);
-    }
-}
 
-void HydrusMainWindow::update_subscriptions(const QString &page_id, const QJsonObject &state) {
-    if (HydrusSubscriptionsPage *page = subscriptions.value(page_id, nullptr)) {
-        page->update_state(state);
-    }
-}
 
 void HydrusMainWindow::update_duplicates(const QString &page_id, const QJsonObject &state) {
     if (HydrusDuplicatesPage *page = duplicates.value(page_id, nullptr)) {

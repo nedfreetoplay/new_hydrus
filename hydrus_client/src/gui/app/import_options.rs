@@ -143,7 +143,11 @@ pub fn dialog_json(state: &AppState) -> String {
 }
 
 pub fn open(state: &AppState) -> Vec<UiCommand> {
-    vec![UiCommand::ImportOptionsDialog(dialog_json(state))]
+    vec![UiCommand::ImportOptionsDialog(
+        crate::gui::qt::api::ffi::ImportOptionsDialogState {
+            json: dialog_json(state),
+        },
+    )]
 }
 
 /// Opens the options dialog with one caller row selected, used by the local
@@ -155,7 +159,11 @@ pub fn open_caller(state: &AppState, caller: &str) -> Vec<UiCommand> {
         value["selected"] = json!(format!("default:{caller}"));
     }
 
-    vec![UiCommand::ImportOptionsDialog(value.to_string())]
+    vec![UiCommand::ImportOptionsDialog(
+        crate::gui::qt::api::ffi::ImportOptionsDialogState {
+            json: value.to_string(),
+        },
+    )]
 }
 
 /// Builds the editor for a specific importer container. The container only
@@ -194,9 +202,11 @@ pub fn specific_open(
     target: &str,
     action: &str,
 ) -> Vec<UiCommand> {
-    vec![UiCommand::ImportOptionsDialog(specific_dialog_json(
-        state, caller, container, target, action,
-    ))]
+    vec![UiCommand::ImportOptionsDialog(
+        crate::gui::qt::api::ffi::ImportOptionsDialogState {
+            json: specific_dialog_json(state, caller, container, target, action),
+        },
+    )]
 }
 
 pub fn save_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {

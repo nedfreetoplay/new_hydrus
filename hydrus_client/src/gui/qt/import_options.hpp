@@ -26,7 +26,7 @@ class HydrusMainWindow;
 // container only overrides what it sets.
 class HydrusImportOptionsDialog : public QDialog {
 public:
-    explicit HydrusImportOptionsDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+    explicit HydrusImportOptionsDialog(HydrusMainWindow *main, const QString &json, QWidget *parent = nullptr);
 
 private:
     struct Editor {

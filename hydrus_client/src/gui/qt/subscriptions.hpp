@@ -17,6 +17,9 @@
 #include <QWidget>
 
 class HydrusMainWindow;
+struct SubscriptionsPageState;
+struct SubscriptionsDialogState;
+struct SubscriptionEditorState;
 
 // Edit one subscription's site, query, filter and timing.
 class HydrusSubscriptionEditorDialog : public QDialog {

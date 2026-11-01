@@ -286,17 +286,3 @@ void HydrusSubscriptionEditorDialog::save() {
 
     close();
 }
-
-void HydrusMainWindow::show_subscription_editor(const QJsonObject &state) {
-    if (subscription_editor_dialog != nullptr) {
-        subscription_editor_dialog->close();
-    }
-
-    subscription_editor_dialog = new HydrusSubscriptionEditorDialog(this, state, this);
-    connect(subscription_editor_dialog, &QObject::destroyed, this, [this]() {
-        subscription_editor_dialog = nullptr;
-    });
-    subscription_editor_dialog->show();
-    subscription_editor_dialog->raise();
-    subscription_editor_dialog->activateWindow();
-}

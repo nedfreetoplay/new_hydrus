@@ -179,15 +179,21 @@ void HydrusDuplicateReviewDialog::set_state(const DuplicateReviewDialogState &st
 }
 
 QList<int> HydrusDuplicateReviewDialog::selected_pending_rows() const {
-    QList<int> rows;
+    rust::Vec<int64_t> input;
+    input.reserve(pending->selectionModel()->selectedRows().size());
 
     for (const QModelIndex &index : pending->selectionModel()->selectedRows()) {
-        if (!rows.contains(index.row())) {
-            rows.append(index.row());
-        }
+        input.push_back(index.row());
     }
 
-    std::sort(rows.begin(), rows.end());
+    // WS-15.3.2d: order is the Rust single source of truth (sort + dedup).
+    const rust::Vec<int64_t> ordered = hydrus_sort_selected_rows(std::move(input));
+    QList<int> rows;
+    rows.reserve(int(ordered.size()));
+
+    for (int64_t row : ordered) {
+        rows.append(int(row));
+    }
 
     return rows;
 }

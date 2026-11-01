@@ -212,11 +212,8 @@ void HydrusSeedCacheDialog::rebuild() {
         table->setItem(row, 1, url_item);
 
         auto timestamp = [](qint64 seconds) {
-            if (seconds <= 0) {
-                return QString();
-            }
-
-            return QDateTime::fromSecsSinceEpoch(seconds).toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+            // WS-15.3.2d: text comes from Rust (sort_group::seed_timestamp_text).
+            return to_qstring(hydrus_seed_time_text(int64_t(seconds)));
         };
 
         table->setItem(row, 2, new QTableWidgetItem(timestamp(seed.created)));

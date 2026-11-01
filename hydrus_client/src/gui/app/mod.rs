@@ -43,6 +43,7 @@ pub mod seeds;
 pub mod services;
 pub mod session;
 pub mod sessions;
+pub mod sort_group;
 pub mod static_assets;
 pub mod status_texts;
 pub mod tag_filter;

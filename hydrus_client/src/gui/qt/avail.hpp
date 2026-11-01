@@ -52,3 +52,12 @@ int64_t hydrus_metric_scale_clamp(int64_t scale) noexcept;
 int64_t hydrus_metric_file_limit_clamp(int64_t value) noexcept;
 int64_t hydrus_metric_files_progress(int64_t done, int64_t total) noexcept;
 int64_t hydrus_metric_autocomplete_rows(int64_t count) noexcept;
+
+// Sorting/grouping/summary cells (WS-15.3.2d, gui/app/sort_group.rs): single
+// source of truth for row order, seed timestamps and summary cells.
+rust::Vec<int64_t> hydrus_sort_order_strings(rust::Vec<rust::String> keys, bool ascending) noexcept;
+rust::Vec<int64_t> hydrus_sort_order_ints(rust::Vec<int64_t> keys, bool ascending) noexcept;
+rust::Vec<int64_t> hydrus_sort_selected_rows(rust::Vec<int64_t> rows) noexcept;
+rust::String hydrus_seed_time_text(int64_t seconds) noexcept;
+rust::Vec<int64_t> hydrus_sort_group_rows(int64_t count, int64_t group_size) noexcept;
+rust::String hydrus_comparator_number_text(double value) noexcept;

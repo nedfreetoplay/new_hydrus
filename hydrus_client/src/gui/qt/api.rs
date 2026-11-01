@@ -2535,6 +2535,13 @@ pub(crate) mod ffi {
         fn hydrus_metric_file_limit_clamp(value: i64) -> i64;
         fn hydrus_metric_files_progress(done: i64, total: i64) -> i64;
         fn hydrus_metric_autocomplete_rows(count: i64) -> i64;
+        /// Thin typed getters for sorting/grouping/summary cells (WS-15.3.2d, R2).
+        fn hydrus_sort_order_strings(keys: Vec<String>, ascending: bool) -> Vec<i64>;
+        fn hydrus_sort_order_ints(keys: Vec<i64>, ascending: bool) -> Vec<i64>;
+        fn hydrus_sort_selected_rows(rows: Vec<i64>) -> Vec<i64>;
+        fn hydrus_seed_time_text(seconds: i64) -> String;
+        fn hydrus_sort_group_rows(count: i64, group_size: i64) -> Vec<i64>;
+        fn hydrus_comparator_number_text(value: f64) -> String;
     }
 }
 
@@ -3453,6 +3460,31 @@ fn hydrus_metric_files_progress(done: i64, total: i64) -> i64 {
 }
 fn hydrus_metric_autocomplete_rows(count: i64) -> i64 {
     crate::gui::app::layout_metrics::autocomplete_visible_rows(count)
+}
+fn hydrus_sort_order_strings(keys: Vec<String>, ascending: bool) -> Vec<i64> {
+    crate::gui::app::sort_group::sorted_order_strings(&keys, ascending)
+}
+fn hydrus_sort_order_ints(keys: Vec<i64>, ascending: bool) -> Vec<i64> {
+    crate::gui::app::sort_group::sorted_order_ints(&keys, ascending)
+}
+fn hydrus_sort_selected_rows(rows: Vec<i64>) -> Vec<i64> {
+    crate::gui::app::sort_group::sorted_selected_rows(&rows)
+}
+fn hydrus_seed_time_text(seconds: i64) -> String {
+    crate::gui::app::sort_group::seed_timestamp_text(seconds)
+}
+fn hydrus_sort_group_rows(count: i64, group_size: i64) -> Vec<i64> {
+    crate::gui::app::sort_group::group_rows(
+        count.max(0) as usize,
+        group_size.max(0) as usize,
+    )
+    .into_iter()
+    .flatten()
+    .collect()
+}
+
+fn hydrus_comparator_number_text(value: f64) -> String {
+    crate::gui::app::sort_group::comparator_number_text(value)
 }
 
 fn action_from_str(action: &str) -> ffi::UiAction {

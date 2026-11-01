@@ -97,7 +97,8 @@ QString comparator_pretty(const QJsonObject &comparator) {
     const QString target = comparator.value(QStringLiteral("looking_at")).toString(QStringLiteral("a"));
     const QString value = property == QLatin1String("mime")
                               ? comparator.value(QStringLiteral("text")).toString()
-                              : QString::number(comparator.value(QStringLiteral("value")).toDouble());
+                              : to_qstring(hydrus_comparator_number_text(
+                          comparator.value(QStringLiteral("value")).toDouble()));
 
     return QStringLiteral("%1 %2 %3 %4")
         .arg(target == QLatin1String("b") ? QStringLiteral("B")

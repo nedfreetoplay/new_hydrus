@@ -121,12 +121,21 @@ void HydrusExportFoldersDialog::set_state(const FolderPageState &state) {
 
     const rust::Vec<FolderRow> &folders = state.folders;
 
+    // WS-15.3.2d: row order is the Rust single source of truth.
+    rust::Vec<rust::String> name_keys;
+    name_keys.reserve(folders.size());
+    for (const FolderRow &folder : folders) {
+        name_keys.push_back(folder.name);
+    }
+    const rust::Vec<int64_t> order = hydrus_sort_order_strings(std::move(name_keys), true);
+
     table->setSortingEnabled(false);
     table->setRowCount(int(folders.size()));
 
-    for (size_t index = 0; index < folders.size(); ++index) {
+    for (size_t pos = 0; pos < order.size(); ++pos) {
+        const size_t index = size_t(order[pos]);
         const FolderRow &folder = folders[index];
-        const int row = int(index);
+        const int row = int(pos);
         const QString name = to_qstring(folder.name);
         const QStringList cells = {
             name,
@@ -154,7 +163,6 @@ void HydrusExportFoldersDialog::set_state(const FolderPageState &state) {
     }
 
     table->setSortingEnabled(true);
-    table->sortItems(0, Qt::AscendingOrder);
 
     if (!selected_name.isEmpty()) {
         for (int row = 0; row < table->rowCount(); ++row) {

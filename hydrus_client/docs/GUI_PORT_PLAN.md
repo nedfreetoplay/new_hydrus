@@ -560,7 +560,7 @@ C++.
    подписки — один `container_json` (R1-исключение, как
    `import_options_json`). Осталось 9.
 
-    Закрыто в WS-15.2.4c (партия export/import/options/notes, коммит ниже):
+    Закрыто в WS-15.2.4c (партия export/import/options/notes, e2c1571):
     12 вызовов в 9 файлах — `export_review.cpp` (1),
     `export_folder_editor.cpp` (1), `export_folder_sidecar.cpp` (1),
     `import_folder_editor.cpp` (1), `local_import_review.cpp` (1),

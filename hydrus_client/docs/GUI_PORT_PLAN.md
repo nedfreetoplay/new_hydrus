@@ -514,7 +514,7 @@ C++.
     (options, services, network, account types, API permissions, tag filter,
     tag relations, manage tags, export review, local import review/tagging,
     auto-resolution rules/merge/custom/preview/review) → типизировать по полям.
-    Закрыто в WS-15.2.4b: timestamps, notifications, repair locations,
+    Закрыто в WS-15.2.4b (f974c05): timestamps, notifications, repair locations,
     orphan files, database backup (5 структур, parse_object в bridge_api 13→12).
  2. `PageRow.state` → частично закрыто в WS-15.2.4b: добавлен типизированный
     `FolderPageState`/`FolderRow` (summary + rows) в `PageRow.folder`;

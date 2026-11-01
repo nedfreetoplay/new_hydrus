@@ -214,6 +214,8 @@ pub fn menus(state: &AppState) -> MenuBar {
         "Restore the most recently closed page.",
         !state.closed_pages.is_empty(),
     );
+    undo_closed_pages_entries(state, &mut entries);
+    undo_searching_entries(state, &mut entries);
 
     menu_title(&mut entries, "&pages");
     menu_action(&mut entries, 1, "new page...", "new_page", "", "", "", true);
@@ -894,6 +896,98 @@ fn recent_search_entries(state: &AppState, entries: &mut Vec<MenuEntry>, depth: 
     if state.search_history.is_empty() {
         menu_disabled(entries, depth, "no recent searches");
     }
+}
+
+/// `closed pages` submenu of `&undo` (WS-01.9): every remembered page by
+/// title for restore-by-index plus `clear all`, mirroring
+/// `ClientGUI._InitialiseMenuInfoUndo`. The `undo` item itself stays LIFO.
+fn undo_closed_pages_entries(state: &AppState, entries: &mut Vec<MenuEntry>) {
+    if state.closed_pages.is_empty() {
+        return;
+    }
+
+    menu_submenu(entries, 1, "closed pages");
+
+    for (index, closed) in state.closed_pages.iter().enumerate() {
+        menu_action(
+            entries,
+            2,
+            closed.node.title(),
+            "unclose_page_at",
+            &index.to_string(),
+            "",
+            "Restore this page.",
+            true,
+        );
+    }
+
+    menu_separator(entries, 2);
+    menu_action(
+        entries,
+        2,
+        "clear all...",
+        "clear_closed_pages",
+        "",
+        "",
+        "Remove all closed pages from memory.",
+        true,
+    );
+}
+
+/// `searching` submenu of `&undo` (WS-01.9): addition/removal histories with
+/// restore-by-index plus `clear history`, mirroring Python.
+fn undo_searching_entries(state: &AppState, entries: &mut Vec<MenuEntry>) {
+    if state.pred_history.is_empty() {
+        return;
+    }
+
+    menu_submenu(entries, 1, "searching");
+
+    if !state.pred_history.added().is_empty() {
+        menu_submenu(entries, 2, "addition");
+
+        for (index, entry) in state.pred_history.added().iter().enumerate() {
+            menu_action(
+                entries,
+                3,
+                &entry.predicate,
+                "undo_pred_add",
+                &index.to_string(),
+                "",
+                "undo adding this search term.",
+                true,
+            );
+        }
+    }
+
+    if !state.pred_history.removed().is_empty() {
+        menu_submenu(entries, 2, "removal");
+
+        for (index, entry) in state.pred_history.removed().iter().enumerate() {
+            menu_action(
+                entries,
+                3,
+                &entry.predicate,
+                "undo_pred_remove",
+                &index.to_string(),
+                "",
+                "undo removing this search term.",
+                true,
+            );
+        }
+    }
+
+    menu_separator(entries, 2);
+    menu_action(
+        entries,
+        2,
+        "clear history...",
+        "clear_pred_history",
+        "",
+        "",
+        "Remove all search history from memory.",
+        true,
+    );
 }
 
 fn favourite_menu_entries(state: &AppState, entries: &mut Vec<MenuEntry>, depth: i32) {

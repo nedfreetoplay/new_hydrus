@@ -48,6 +48,7 @@ pub mod static_assets;
 pub mod status_texts;
 pub mod tag_filter;
 pub mod tag_relations;
+pub mod undo;
 pub mod worker;
 
 pub use commands::UiCommand;
@@ -359,9 +360,11 @@ impl ffi::UiAction {
         ffi::UiAction::BothFiles => "both_files",
         ffi::UiAction::Bytes => "bytes",
         ffi::UiAction::Clear => "clear",
+        ffi::UiAction::ClearClosedPages => "clear_closed_pages",
         ffi::UiAction::ClearFalsePositives => "clear_false_positives",
         ffi::UiAction::ClearFinished => "clear_finished",
         ffi::UiAction::ClearInternalFalsePositives => "clear_internal_false_positives",
+        ffi::UiAction::ClearPredHistory => "clear_pred_history",
         ffi::UiAction::ClientApi => "client_api",
         ffi::UiAction::CloseOtherPages => "close_other_pages",
         ffi::UiAction::ClosePage => "close_page",
@@ -740,7 +743,10 @@ impl ffi::UiAction {
         ffi::UiAction::Ttf => "ttf",
         ffi::UiAction::TwoWayMerge => "two_way_merge",
         ffi::UiAction::Unban => "unban",
+        ffi::UiAction::UnclosePageAt => "unclose_page_at",
         ffi::UiAction::Undo => "undo",
+        ffi::UiAction::UndoPredAdd => "undo_pred_add",
+        ffi::UiAction::UndoPredRemove => "undo_pred_remove",
         ffi::UiAction::UndoSearch => "undo_search",
         ffi::UiAction::Unknown => "unknown",
         ffi::UiAction::Update => "update",
@@ -819,9 +825,11 @@ pub(crate) fn action_from_str(action: &str) -> ffi::UiAction {
             "both_files" => ffi::UiAction::BothFiles,
             "bytes" => ffi::UiAction::Bytes,
             "clear" => ffi::UiAction::Clear,
+            "clear_closed_pages" => ffi::UiAction::ClearClosedPages,
             "clear_false_positives" => ffi::UiAction::ClearFalsePositives,
             "clear_finished" => ffi::UiAction::ClearFinished,
             "clear_internal_false_positives" => ffi::UiAction::ClearInternalFalsePositives,
+            "clear_pred_history" => ffi::UiAction::ClearPredHistory,
             "client_api" => ffi::UiAction::ClientApi,
             "close_other_pages" => ffi::UiAction::CloseOtherPages,
             "close_page" => ffi::UiAction::ClosePage,
@@ -1200,7 +1208,10 @@ pub(crate) fn action_from_str(action: &str) -> ffi::UiAction {
             "ttf" => ffi::UiAction::Ttf,
             "two_way_merge" => ffi::UiAction::TwoWayMerge,
             "unban" => ffi::UiAction::Unban,
+            "unclose_page_at" => ffi::UiAction::UnclosePageAt,
             "undo" => ffi::UiAction::Undo,
+            "undo_pred_add" => ffi::UiAction::UndoPredAdd,
+            "undo_pred_remove" => ffi::UiAction::UndoPredRemove,
             "undo_search" => ffi::UiAction::UndoSearch,
             "unknown" => ffi::UiAction::Unknown,
             "update" => ffi::UiAction::Update,
@@ -2427,6 +2438,8 @@ impl AppState {
             ffi::UiAction::Search => {
                 let controller = self.controller.clone();
 
+                let old_query = self.find_query(target).map(|page| page.query.clone());
+
                 if let Some(page) = self.find_query_mut(target) {
                     if page.query != payload {
                         page.query_undo.push(page.query.clone());
@@ -2441,6 +2454,10 @@ impl AppState {
                     page.query = payload.to_string();
                     page.fixed_hashes = None;
                     page.loading = true;
+                }
+
+                if let Some(old_query) = old_query {
+                    self.record_query_diff(&old_query, payload);
                 }
 
                 search_history::record(&mut self.search_history, payload);
@@ -2512,9 +2529,11 @@ impl AppState {
                         page.query_redo.clear();
                     }
 
-                    page.query = query;
+                    let old_query = page.query.clone();
+                    page.query = query.clone();
                     page.fixed_hashes = None;
                     page.loading = true;
+                    self.record_query_diff(&old_query, &query);
                 } else {
                     return vec![UiCommand::NotifyMessage("no page selected".to_string())];
                 }
@@ -2726,8 +2745,10 @@ impl AppState {
                         page.query_redo.clear();
                     }
 
+                    let old_query = page.query.clone();
                     page.query = target.to_string();
                     page.fixed_hashes = None;
+                    self.record_query_diff(&old_query, target);
                 } else {
                     return vec![UiCommand::NotifyMessage("no page selected".to_string())];
                 }
@@ -3339,6 +3360,42 @@ impl AppState {
                 }
                 None => vec![UiCommand::NotifyMessage("nothing to undo".to_string())],
             },
+            ffi::UiAction::UnclosePageAt => {
+                let index = target.parse::<usize>().unwrap_or(usize::MAX);
+                match self.unclose_page_at(index) {
+                    Some(id) => {
+                        self.message = format!("restored page '{id}'");
+                        vec![
+                            UiCommand::Menus(render::menus(self)),
+                            UiCommand::BuildPages(render::pages(self)),
+                            self.status_command(),
+                        ]
+                    }
+                    None => vec![UiCommand::NotifyMessage("nothing to undo".to_string())],
+                }
+            }
+            ffi::UiAction::ClearClosedPages => {
+                self.clear_closed_pages();
+                vec![
+                    UiCommand::Menus(render::menus(self)),
+                    self.status_command(),
+                ]
+            }
+            ffi::UiAction::UndoPredAdd => {
+                let index = target.parse::<usize>().unwrap_or(usize::MAX);
+                self.undo_pred_history(index, true)
+            }
+            ffi::UiAction::UndoPredRemove => {
+                let index = target.parse::<usize>().unwrap_or(usize::MAX);
+                self.undo_pred_history(index, false)
+            }
+            ffi::UiAction::ClearPredHistory => {
+                self.pred_history.clear();
+                vec![
+                    UiCommand::Menus(render::menus(self)),
+                    self.status_command(),
+                ]
+            }
             unknown => vec![UiCommand::NotifyMessage(format!(
                 "unknown action: {unknown:?}"
             ))],
@@ -3351,6 +3408,65 @@ impl AppState {
         } else {
             target.to_string()
         }
+    }
+
+    /// Records a query-string change in the predicate add/remove history,
+    /// mirroring `SetPredicateHistoryAdded/Removed` in Python (unbounded,
+    /// dedupe-move-to-end).
+    pub(crate) fn record_query_diff(&mut self, old_query: &str, new_query: &str) {
+        if old_query == new_query {
+            return;
+        }
+
+        let old = undo::split_predicates(old_query);
+        let new = undo::split_predicates(new_query);
+        let (added, removed) = undo::diff_predicates(&old, &new);
+        self.pred_history.record_added(added);
+        self.pred_history.record_removed(removed);
+    }
+
+    /// Undoes one predicate-history entry on the active file page: the
+    /// predicate is toggled back (added ones removed, removed ones
+    /// re-inserted at their old position) and the page is re-queried, exactly
+    /// like `_UndoSearchPredAdd/Remove` calling `EnterPredicates` in Python.
+    pub(crate) fn undo_pred_history(&mut self, index: usize, was_added: bool) -> Vec<UiCommand> {
+        let entry = if was_added {
+            self.pred_history.take_added(index)
+        } else {
+            self.pred_history.take_removed(index)
+        };
+
+        let Some(entry) = entry else {
+            return vec![UiCommand::NotifyMessage("nothing to undo".to_string())];
+        };
+
+        let page_id = self.page_id_or_active("");
+        if self.find_query(&page_id).is_none() {
+            // No file page to apply to: put the entry back and report.
+            if was_added {
+                self.pred_history.record_added([entry]);
+            } else {
+                self.pred_history.record_removed([entry]);
+            }
+            return vec![UiCommand::NotifyMessage("no page selected".to_string())];
+        };
+
+        let current = self
+            .find_query(&page_id)
+            .map(|page| page.query.clone())
+            .unwrap_or_default();
+        let mut tokens = undo::split_predicates(&current);
+        if undo::apply_predicate_undo(&mut tokens, &entry) {
+            if let Some(page) = self.find_query_mut(&page_id) {
+                page.query = undo::join_predicates(&tokens);
+                page.fixed_hashes = None;
+            }
+        }
+
+        let controller = self.controller.clone();
+        let mut commands = vec![UiCommand::Menus(render::menus(self))];
+        commands.extend(self.replace_query_and_refresh(&controller, &page_id));
+        commands
     }
 
     pub(crate) fn refresh_page_commands(&mut self, page_id: &str) -> Vec<UiCommand> {

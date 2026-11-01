@@ -106,6 +106,70 @@ fn undo_restores_a_closed_page_at_its_old_position() {
 }
 
 #[test]
+fn unclose_page_at_restores_any_entry_by_index() {
+    let (mut state, directory) = test_state();
+
+    let mut notebook = Notebook::new("n2", "group");
+    add_query(&mut notebook, "p2");
+    add_query(&mut notebook, "p3");
+    add_query(&mut notebook, "p4");
+    state.root.add(PageNode::Notebook(notebook));
+
+    for id in ["p4", "p3"] {
+        let node = find_node(&state.root, id).unwrap().clone();
+        state.remove_page(id);
+        state.push_closed_page("n2", 1, node);
+    }
+
+    // LIFO default restores the newest first.
+    assert_eq!(state.unclose_page_at(1).as_deref(), Some("p3"));
+    // The older entry is still available by its own index.
+    assert_eq!(state.unclose_page_at(0).as_deref(), Some("p4"));
+    assert!(state.closed_pages.is_empty());
+
+    let ids = state
+        .find_notebook("n2")
+        .unwrap()
+        .children
+        .iter()
+        .map(|child| child.id())
+        .collect::<Vec<_>>();
+    assert!(ids.contains(&"p3"));
+    assert!(ids.contains(&"p4"));
+
+    // Out-of-range index restores nothing; clear drops the rest.
+    assert!(state.unclose_page_at(0).is_none());
+    state.push_closed_page("n2", 0, find_node(&state.root, "p2").unwrap().clone());
+    state.remove_page("p2");
+    state.clear_closed_pages();
+    assert!(state.closed_pages.is_empty());
+    assert!(state.undo_closed_page().is_none());
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
+fn closed_pages_are_unbounded_like_python() {
+    let (mut state, directory) = test_state();
+
+    for i in 0..60 {
+        let id = format!("extra{i}");
+        state.root.add(PageNode::Query(QueryPage::new(
+            id.clone(),
+            id.clone(),
+            "my files",
+        )));
+        let node = find_node(&state.root, &id).unwrap().clone();
+        state.remove_page(&id);
+        state.push_closed_page("root", 0, node);
+    }
+
+    assert_eq!(state.closed_pages.len(), 60);
+
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn moves_pages_between_and_inside_notebooks() {
     let (mut state, directory) = test_state();
 

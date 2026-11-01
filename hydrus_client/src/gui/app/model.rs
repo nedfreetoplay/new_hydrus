@@ -923,6 +923,9 @@ pub struct AppState {
     pub file_location_repair: super::file_locations::RepairState,
     pub history: PageHistory,
     pub closed_pages: Vec<ClosedPage>,
+    /// In-memory add/remove history of search predicates (Python keeps the
+    /// same two lists on the main window; never persisted in the session).
+    pub pred_history: super::undo::PredicateHistory,
     pub session_name: Option<String>,
     pub(crate) runtime: AsyncRuntime,
     next_id: u64,
@@ -954,6 +957,7 @@ impl AppState {
             file_location_repair: Default::default(),
             history: PageHistory::default(),
             closed_pages: Vec::new(),
+            pred_history: super::undo::PredicateHistory::new(),
             session_name: None,
             runtime,
             next_id: 1,
@@ -1246,37 +1250,59 @@ impl AppState {
     }
 
     /// Remembers a closed page so `undo` can put it back where it was.
+    ///
+    /// Python keeps every closed page object in memory without a limit, so
+    /// there is no cap here either; the list is cleared from the menu and
+    /// never written to the session.
     pub fn push_closed_page(&mut self, parent_id: impl Into<String>, index: usize, node: PageNode) {
         self.closed_pages.push(ClosedPage {
             parent_id: parent_id.into(),
             index,
             node,
         });
-
-        if self.closed_pages.len() > 25 {
-            self.closed_pages.remove(0);
-        }
     }
 
     /// Restores the newest closed page and selects it.
     pub fn undo_closed_page(&mut self) -> Option<String> {
-        while let Some(closed) = self.closed_pages.pop() {
-            let Some(parent) = self.find_notebook_mut(&closed.parent_id) else {
-                continue;
-            };
+        while !self.closed_pages.is_empty() {
+            let id = self.unclose_page_at(self.closed_pages.len() - 1);
 
-            let id = closed.node.id().to_string();
-            let index = closed.index.min(parent.children.len());
-            parent.children.insert(index, closed.node);
-            parent.current = Some(id.clone());
-
-            if self.select_page(&id) {
-                self.record_history(&id);
-                return Some(id);
+            if id.is_some() {
+                return id;
             }
         }
 
         None
+    }
+
+    /// Restores one closed page by menu index and selects it, mirroring
+    /// `_UnclosePage(closed_page_index)` in Python.
+    pub fn unclose_page_at(&mut self, closed_index: usize) -> Option<String> {
+        if closed_index >= self.closed_pages.len() {
+            return None;
+        }
+
+        let closed = self.closed_pages.remove(closed_index);
+        let Some(parent) = self.find_notebook_mut(&closed.parent_id) else {
+            return None;
+        };
+
+        let id = closed.node.id().to_string();
+        let index = super::undo::clamp_insert_index(closed.index, parent.children.len());
+        parent.children.insert(index, closed.node);
+        parent.current = Some(id.clone());
+
+        if self.select_page(&id) {
+            self.record_history(&id);
+            return Some(id);
+        }
+
+        None
+    }
+
+    /// Drops every remembered closed page (`clear all` in Python).
+    pub fn clear_closed_pages(&mut self) {
+        self.closed_pages.clear();
     }
 
     pub fn history_back(&mut self) -> Option<String> {

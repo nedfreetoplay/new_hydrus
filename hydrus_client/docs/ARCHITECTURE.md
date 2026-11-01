@@ -231,6 +231,73 @@ import/export-папок (их шов — отдельная подзадача)
 | Инфраструктура | `support/strings.{hpp,cpp}` (объявления/определения `parse_object`) | 2 | Плумбинг; удаляется вместе с последним швом, который его использует | — |
 | C++-параметры | `QJsonObject` в заголовках | 49 | Следствие строк выше: оставшиеся диалоги принимают `const QJsonObject &state` или типизированную структуру | долг |
 
+### Аудит чистой логики C++ (WS-15.3.1)
+
+Инвентаризация на `92a8cc9` (WS-15.2 закрыт: `parse_object(`/`json_payload(`
+в `gui/qt` — только 2 определения в `support/`). Ниже — чистые вычисления,
+которые по R2 обязаны жить в Rust с unit-тестом: форматирование строк,
+склонения, проценты, размеры, даты, предикаты видимости/доступности, метрики
+колонок, сортировка/группировка списков. Виджетный/файловый/сетевой код и
+прямые обращения к БД исключены.
+
+| # | функция / место | файл:строка | что делает | домен | сложность |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `operation_label + " - paused"` | `auto_resolution_rules.cpp:202` | подпись операции правила с суффиксом паузы | форматирование | S |
+| 2 | `"%1 pair(s) are waiting for review"` | `auto_resolution_rules.cpp:224` | склонение счётчика pending-пар | форматирование | S |
+| 3 | `"new rule"` defaults | `auto_resolution_rules.cpp:237` | значения нового правила по умолчанию | форматирование | S |
+| 4 | `"A num_pixels > B"` pretty | `auto_resolution_rules.cpp:250` | pretty-строка компаратора по умолчанию | форматирование | S |
+| 5 | `preview_pass/fail` widths 116 | `auto_resolution_rule.cpp:215` | ширины колонок preview-таблиц | метрики | S |
+| 6 | `max_pending` enabled | `auto_resolution_rule.cpp:272` | предикат доступности при `fully automatic` | предикаты | S |
+| 7 | review table widths 116 | `auto_resolution_review.cpp:95` | ширины колонок review-таблицы | метрики | S |
+| 8 | `better_side` enabled | `auto_resolution_custom.cpp:150` | доступность выбора стороны по действию | предикаты | S |
+| 9 | `permission_list` enabled | `api_permissions.cpp:112` | доступность списка прав по `permits_everything` | предикаты | S |
+| 10 | kind `setVisible` trio | `auto_resolution_comparators.cpp:168` | видимость панелей one_file/relative/filetype | предикаты | S |
+| 11 | `QString::number(value)` | `auto_resolution_comparators.cpp:100` | число компаратора в текст | форматирование | S |
+| 12 | statusbar media/bandwidth/idle | `typed_seams.cpp:56` | тексты шести секций статус-бара | форматирование | S |
+| 13 | about version rows | `typed_seams.cpp:95` | `software/network/api/db version` числами | форматирование | S |
+| 14 | about counters rows | `typed_seams.cpp:103` | services/locations/shortcuts числами | форматирование | S |
+| 15 | `"file: %1"` hash | `typed_seams.cpp:141` | подпись хэша файла | форматирование | S |
+| 16 | `views`/`viewtime` numbers | `typed_seams.cpp:164` | счётчики статистики просмотров | форматирование | S |
+| 17 | page tree `"page"` fallback | `typed_seams.cpp:480` | пустой заголовок → `"page"` | форматирование | S |
+| 18 | page tree count number | `typed_seams.cpp:482` | счётчик строк дерева страниц | форматирование | S |
+| 19 | gallery query headers | `downloader_page_gallery.cpp:61` | заголовки таблицы query/source/files… | метрики | S |
+| 20 | gallery `widths[]` | `downloader_page_gallery.cpp:75` | ширины `{56,78,30,30,56,64,56}` | метрики | S |
+| 21 | watcher headers | `downloader_page_gallery.cpp:249` | заголовки таблицы watcher'ов | метрики | S |
+| 22 | watcher `widths[]` | `downloader_page_gallery.cpp:262` | ширины `{80,38,38,48,38,46}` | метрики | S |
+| 23 | export manager `widths[]` | `export_folders_manager.cpp:57` | ширины `{132,20,79,106,106,132}` | метрики | S |
+| 24 | import manager widths | `import_folders_manager.cpp:57` | ширины `{200,430,70,140}` | метрики | S |
+| 25 | `edit/delete` enabled | `import_folders_manager.cpp:166` | доступность по наличию выделения | предикаты | S |
+| 26 | `edit/delete` enabled | `export_folders_manager.cpp:175` | доступность по числу выделенных строк | предикаты | S |
+| 27 | file limit clamp | `downloader_page_state.cpp:180` | `qBound`-кламп лимита файлов | метрики | S |
+| 28 | unlimited → limit 0 | `downloader_page_state.cpp:112` | `no limit` гасит значение лимита | предикаты | S |
+| 29 | `file_limit` enabled | `downloader_page_state.cpp:186` | доступность спинбокса по `unlimited` | предикаты | S |
+| 30 | rows `setVisible` by kind | `downloader_page_state.cpp:225` | видимость input/query/url/site/subject/period | предикаты | M |
+| 31 | highlight box visible | `downloader_page_state.cpp:257` | видимость highlight при gallery/watcher | предикаты | S |
+| 32 | `start` vs `check now` | `downloader_page_state.cpp:263` | подпись кнопки по типу страницы | форматирование | S |
+| 33 | `auto_button` text | `downloader_page_state.cpp:268` | подпись auto-кнопки watcher'а | форматирование | S |
+| 34 | `gug_button` text | `downloader_page_state.cpp:327` | подпись GUG-кнопки gallery | форматирование | S |
+| 35 | `status_top/bottom` | `downloader_page_state.cpp:344` | статусы imports/search панелей | форматирование | S |
+| 36 | files/checking cells | `downloader_page_state.cpp:359` | ячейки files/checking status таблицы | форматирование | M |
+| 37 | `imports_status` | `downloader_page_state.cpp:412` | статус панели imports | форматирование | S |
+| 38 | `files_progress` value | `downloader_page_state.cpp:449` | процент gauge file seed cache | метрики | S |
+| 39 | `media_empty_status` | `duplicates_page_media.cpp:435` | empty-state media-панели | форматирование | S |
+| 40 | `no auto-resolution rules yet` | `duplicates_page_media.cpp:469` | empty-state правил (2 места: 469, 506) | форматирование | S |
+| 41 | `different_searches` rows | `duplicates_page_media.cpp:217` | видимость второй строки поиска | предикаты | S |
+| 42 | `search_distance` enabled | `duplicates_page_media.cpp:225` | доступность дистанции по pixel-dupes | предикаты | S |
+| 43 | `sort_ascending` visible | `duplicates_page_media.cpp:231` | скрытие порядка при random-сортировке | предикаты | S |
+| 44 | `period_button` enabled | `import_folder_editor.cpp:455` | доступность периода по `check_regularly` | предикаты | S |
+| 45 | `location/browse` enabled | `import_folder_editor.cpp:318` | доступность move-назначения по режиму | предикаты | S |
+| 46 | `period_button` enabled | `export_folder_editor.cpp:257` | доступность периода по `run_regularly` | предикаты | S |
+| 47 | `delete_from_client` enabled | `export_folder_editor.cpp:416` | блокировка trash при `synchronise` | предикаты | S |
+| 48 | rename/delete guards | `import_options_dialog.cpp:140` | запрет удаления `default:`-контейнеров | предикаты | S |
+| 49 | `import_button/can_import` | `local_import_review.cpp:220` | доступность import/tag по good-файлам | предикаты | M |
+| 50 | `add_tagging` enabled | `import_folder_tagging.cpp:565` | доступность без локального tag-сервиса | предикаты | S |
+| 51 | `no local tag service` tooltip | `import_folder_tagging.cpp:566` | тултип пустого состояния сервисов | форматирование | S |
+| 52 | seed headers + status colors | `seed_cache_dialog.cpp:53` | заголовки seed-таблицы, цвета статусов error/failed/done/success/working | форматирование | M |
+
+Строки выше выборочно сверены с файлами (10 случайных позиций совпали);
+полный перенос — партиями 15.3.2a–d ниже.
+
 Итого: типизированы статус-бар/about/stats, меню/дерево/страницы, media/
 selection/viewer/metadata, downloader/subscriptions/seed cache, duplicates,
 page-команды, весь обратный канал `notify` (services, network, tags,

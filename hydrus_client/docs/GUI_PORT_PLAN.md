@@ -363,10 +363,12 @@ WS-15 выполняется раньше остальных фаз: пока ф
 типизирован, каждая новая панель снова раздувает `bridge.cpp` и добавляет
 JSON-швы.
 
-WS-15 в работе: 15.1 закрыт; 15.2 — типизация идёт (строковый диспетчер удалён,
-`parse_object`/`json_payload` остались в диалогах и обратном канале, см.
-«Остаток 15.2»), 15.2.5 зафиксирован правилом и тестом-стражем; 15.3 —
-перенос чистой логики раскладки — не начат.
+WS-15 в работе: 15.1 закрыт; 15.2 закрыт (прямой и обратный канал типизированы,
+`parse_object`/`json_payload` остались только определениями в `support/`,
+3 `json`-обёртки — разрешённое R1-исключение, см. «Остаток 15.2»);
+15.2.5 зафиксирован правилом и тестом-стражем; 15.3 — аудит закрыт (15.3.1),
+перенос партиями 15.3.2a–d не начат. В таблице ниже WS-15 остаётся `[~]`:
+остался только 15.3.
 
 ---
 
@@ -449,12 +451,19 @@ WS-15 в работе: 15.1 закрыт; 15.2 — типизация идёт (
 Перед правкой `bridge.cpp` трогать `src/gui/qt/bridge.rs`, иначе cxx не пересоберёт
 C++.
 
-### 15.2 Типизированный мост  `[~]` P0
+### 15.2 Типизированный мост  `[x]` P0
 
-Состояние на `81e20d5`: строковый диспетчер удалён, `serde_json` с шва убран,
-но не все швы типизированы. Инвентаризация — `docs/ARCHITECTURE.md`
-(«Остаточные JSON-швы»): 22 диалога-обёртки `json: String`, `PageRow.state`,
-13 `parse_object(` в `bridge_api.cpp`, 57 `json_payload(` в обратном канале.
+WS-15.2 закрыт: `parse_object(` и `json_payload(` в `gui/qt` остались только
+как определения в `support/strings.{hpp,cpp}` (0 вызовов), прямой и обратный
+канал типизированы (см. «Остаток 15.2»). Три оставшиеся `json: String`-обёртки
+(options, import options, local import tagging) — разрешённое R1-исключение:
+см. п. 1 «Остатка 15.2».
+
+Состояние на закрытие (92a8cc9 + WS-15.3.1): строковый диспетчер удалён,
+`serde_json` с шва убран, все швы типизированы. Инвентаризация — `docs/ARCHITECTURE.md`
+(«Остаточные JSON-швы»): 3 `json: String`-обёртки (R1-исключение),
+0 `parse_object(` / 0 `json_payload(` вызовов (остались 2 определения
+в `support/`).
 
 - [x] 15.2.1 `gui/qt/api.rs`: общие структуры (`StatusBar`, `AboutInfo`,
   `ViewingStats`, …), один тип на шов.
@@ -467,8 +476,9 @@ C++.
     (`query_page_media_text`, `downloader_page_media_text`, `busy_text`,
     `idle_text`, `bandwidth_text`) покрыты тестами; шаблон конверсии — в
     `docs/ARCHITECTURE.md` («Шаблон типизированного шва»).
-- [~] 15.2.2 `UiCommand`: 68 `String`-вариантов → типизированные, по экранам,
-  начиная с тех, что правим сейчас.
+- [x] 15.2.2 `UiCommand`: 68 `String`-вариантов → типизированные, по экранам
+  (закрыт: 3 оставшиеся `json`-обёртки — разрешённое R1-исключение, см.
+  «Остаток 15.2» п. 4).
   - 15.2.2a [x] страницы/вкладки/дерево/меню: 4 варианта, parse_object 56→54 (коммит 178bdfd)
   - 15.2.2b [x] media/selection/viewer/metadata: швы этих экранов больше не парсят JSON; тесты 719 (коммит e800d00). Замер «0/0 по всему `gui/qt`» был неточным: на `e800d00` оставалось 51 `parse_object(` и 59 `json_payload(` (диалоги), на `81e20d5` — 13 и 57 вызовов.
   - 15.2.2c [x] downloader/subscription seams: typed UiCommand variants + reverse glue, тесты 719 (коммит 64b8f1a)
@@ -483,18 +493,17 @@ C++.
     tuple-`String` варианты `UiCommand` 65→61; тесты 713 unit + 2 integration,
     1 ignored. `UpdatePage`/шорткаты/история без payload уже типизированы или без
     JSON; `import_paths`/`local_import_open_paths` остаются JSON до своих подзадач.
-- [~] 15.2.3 `notify(action, target, payload)` → `UiEvent` или отдельная функция
-  на команду.
+- [x] 15.2.3 `notify(action, target, payload)` → `UiEvent` или отдельная функция
+  на команду (закрыт: обратный канал типизирован полностью, 0 вызовов).
   - 15.2.3a [x] страницы/вкладки/сессия: notify 191→186 (коммит 93513a1)
    - 15.2.3b [x] все notify переведены на UiAction (было 186 строковых вызовов, стало 0) (коммит 3443b05)
   - 15.2.3c [x] page-команды: 14 структур, 114 полей типизировано, JSON-парсинг в C++ 39→34 (`QJsonObject` 630→574, `QJsonArray` 162→149), 7 обработчиков без `QJsonDocument::fromJson` (коммит d3ee3ff). Осталось 9.
-- [~] 15.2.4 Удалить `parse_object`/`json_payload` из C++ и `serde_json` с шва.
+- [x] 15.2.4 Удалить `parse_object`/`json_payload` из C++ и `serde_json` с шва.
   - 15.2.4a [x] handle_action(UiAction), строковый диспетчер удалён (коммит 623bbd9);
     `serde_json` в `gui/qt/*.rs` не используется.
-  - 15.2.4b [ ] `parse_object(` остаётся 13 вызовов (`bridge_api.cpp`; плюс
-    определение в `support/strings.cpp` и `parse_string` в `typed_seams.cpp`),
-    `json_payload(` — 57 вызовов в 34 файлах (обратный канал `notify`).
-    Удаляются вместе с типизацией соответствующих диалогов (15.2.2/15.2.3).
+  - 15.2.4b [x] `parse_object(` 13→0 вызовов, `json_payload(` 57→0 вызовов;
+    остались только определения в `support/strings.{hpp,cpp}` (плумбинг).
+    Удалены вместе с типизацией диалогов (15.2.2/15.2.3, партии WS-15.2.4b/c).
 - [x] 15.2.5 Правило на будущее: новый экран не добавляет `&str`-payload.
   Зафиксировано в «Правилах фасада Qt» (R1) и в `docs/ARCHITECTURE.md`
   («Остаточные JSON-швы»): в сигнатурах cxx и C++-заголовках нет
@@ -508,7 +517,7 @@ C++.
   новых cxx-функциях с аргументом `json:`. Проверено: временное нарушение
   роняет тест, откат — зелёный.
 
-Остаток 15.2 (для закрытия):
+Остаток 15.2 (закрыт в WS-15.2.4b/c + WS-15.3.1):
 
 1. 17 структур-обёрток с единственным полем `json: String` в `api.rs`
     (options, services, network, account types, API permissions, tag filter,
@@ -540,13 +549,13 @@ C++.
     import/export folders (6), notes, tag dialog, autocomplete (manage tags и
     timestamps закрыты раньше). Остались только определение в
     `support/strings.cpp` и `parse_string` в `typed_seams.cpp` (плумбинг).
-4. 57 `json_payload(` в обратном канале: заменить `notify(action, target, json)`
+4. 57 `json_payload(` в обратном канале → 0 вызовов (остались 2 определения
+   в `support/`): заменить `notify(action, target, json)`
    на `app_<domain>_<verb>(...)` с типизированными аргументами.
-   Закрыто в WS-15.2.4c (партия services + network): 20 вызовов в 5 файлах —
+   Закрыто в WS-15.2.4c (партия services + network, f889e77): 20 вызовов в 5 файлах —
    `network_tables.cpp` (9), `services_server.cpp` (8), `services_dialog.cpp`
    (1), `services_helpers.cpp` (1), `network_dialog.cpp` (1). Осталось 37.
-   Закрыто в WS-15.2.4c (партия tags + duplicates + subscriptions,
-   коммит ниже): 16 вызовов в 9 файлах — `tag_filter.cpp` (3),
+   Закрыто в WS-15.2.4c (партия tags + duplicates + subscriptions, 50efd4): 16 вызовов в 9 файлах — `tag_filter.cpp` (3),
    `tag_relations_dialog.cpp` (2), `duplicates_page_media.cpp` (2),
    `subscriptions_page.cpp` (2), `subscriptions_dialog.cpp` (2),
    `seed_cache_dialog.cpp` (1), `downloader_page_state.cpp` (1),
@@ -597,6 +606,18 @@ C++.
     notify об ошибке). Осталось 0: `json_payload(` в `gui/qt` — только 2
     определения в `support/strings.cpp`/`strings.hpp`; allowlist
     `seam_guard.rs` ужат до этих двух файлов.
+   Итог пункта 4: `json_payload` 57 → 0 вызовов, 4 партии, хеши `f889e77`,
+   `50efd4`, `e2c1571`, `857e2f2`.
+
+   Три оставшиеся `json: String`-обёртки — разрешённое R1-исключение:
+
+   1. options — словарь опций клиента принципиально произвольной формы
+      (десятки разнотипных групп; и в Python это `dict`).
+   2. import options — import options framework: контейнеры хранят только
+      явно заданные типы, набор полей заранее не фиксирован.
+   3. local import tagging — произвольно вложенные `FilenameTaggingOptions`
+      (до шести directory-слотов, regex'ы с namespace'ами на каждый
+      локальный tag service).
 
 ### 15.3 Чистая логика раскладки в Rust  `[ ]` P1
 
@@ -609,7 +630,22 @@ C++.
 - `pretty_delta` — 15656 и 16367, две копии одного форматтера;
 - `qBound(25, scale, 400)` — 665.
 
-- [ ] 15.3.1 Аудит: выписать все C++-функции и лямбды, которые являются чистыми.
+- [x] 15.3.1 Аудит: выписать все C++-функции и лямбды, которые являются чистыми.
+  Закрыто: 52 позиции в `docs/ARCHITECTURE.md` («Аудит чистой логики C++»),
+  разбиты на 4 партии ниже.
+- [ ] 15.3.2 Перенос форматирования: размеры, длительности, даты, склонения,
+  статусы, empty-state.
+  - [ ] 15.3.2a Форматирование статусов и empty-state (таблица № 1–2, 6–8,
+    12–18, 32–37, 39–40, 51–52: `operation_label`, pending-склонения, about,
+    статус-бар, кнопки downloader'а, empty-state).
+  - [ ] 15.3.2b Предикаты доступности/видимости (таблица № 9–10, 25–31, 41–50:
+    `max_pending`, kind-панели, edit/delete, file limit, видимость строк
+    downloader'а, дистанции, import/tagging).
+  - [ ] 15.3.2c Метрики раскладки (таблица № 5, 7, 19–24, 38: ширины колонок
+    gallery/watcher/export/import/review, кламп лимита, gauge-проценты).
+  - [ ] 15.3.2d Сортировка/группировка и сводные ячейки (таблица № 11, 36:
+    числа компараторов, ячейки files/checking; плюс сортировка seed cache и
+    файловых списков по мере переноса).
 - [ ] 15.3.2 Перенос форматирования: размеры, длительности, даты, склонения,
   статусы, empty-state.
 - [ ] 15.3.3 Перенос предикатов `setEnabled`/`setVisible`.

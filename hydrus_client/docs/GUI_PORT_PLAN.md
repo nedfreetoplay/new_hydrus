@@ -516,6 +516,11 @@ C++.
     auto-resolution rules/merge/custom/preview/review) → типизировать по полям.
     Закрыто в WS-15.2.4b (f974c05): timestamps, notifications, repair locations,
     orphan files, database backup (5 структур, parse_object в bridge_api 13→12).
+    Закрыто в WS-15.2.4b (92b4391): tag filter, tag relations, manage tags,
+    export review, local import review (5 структур, parse_object в bridge_api
+    12→11, `QJsonObject &` в заголовках 80→64; осталось 12 обёрток).
+    LocalImportTaggingDialogState оставлена следующему заходу: диалог редактирует
+    произвольно вложенные `FilenameTaggingOptions` через общий редактор опций.
  2. `PageRow.state` → частично закрыто в WS-15.2.4b: добавлен типизированный
     `FolderPageState`/`FolderRow` (summary + rows) в `PageRow.folder`;
     `state` остался только для placeholder-сообщения (не JSON).

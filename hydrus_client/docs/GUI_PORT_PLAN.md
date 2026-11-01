@@ -54,7 +54,12 @@ Definition of Done для задачи.
   одного поля структуры, а не вместо типа.
 
 Инвариант: число JSON-швов не растёт. На каждом экране, который трогаем по
-плану, швы уменьшаются.
+плану, швы уменьшаются. Страж инварианта — `cargo test -p hydrus_client
+seam_guard` (WS-15.2.5): новый `notify(QStringLiteral(`, новый вызов
+`parse_object`/`json_payload` вне allowlist, новое поле `json`/`*_json`/
+`state: String` в `api.rs` или новая cxx-функция с аргументом `json:`
+роняют тест. Инвентаризация остатка — `docs/ARCHITECTURE.md`, раздел
+«Остаточные JSON-швы».
 
 ### R2. Чистая логика раскладки живёт в Rust
 
@@ -345,7 +350,7 @@ C++ делает только `setText`/`setEnabled`/`setVisible`/`resize`/`setC
 | WS-12 | Options framework | `[~]` | P1 | XL | — |
 | WS-13 | UX, уведомления, системная интеграция | `[~]` | P2 | L | WS-01, WS-12 |
 | WS-14 | Финальный parity-аудит | `[ ]` | P0 | M | все |
-| WS-15 | Фасад: разбиение, типизация, раскладка | `[ ]` | P0 | L | — |
+| WS-15 | Фасад: разбиение, типизация, раскладка | `[~]` | P0 | L | — |
 
 Текущее покрытие: базовые сценарии есть, но из ~225 GUI-модулей Python прямой
 аналог имеют единицы. До полной идентичности — все фазы ниже.
@@ -357,6 +362,11 @@ C++ делает только `setText`/`setEnabled`/`setVisible`/`resize`/`setC
 WS-15 выполняется раньше остальных фаз: пока фасад не разобран по файлам и не
 типизирован, каждая новая панель снова раздувает `bridge.cpp` и добавляет
 JSON-швы.
+
+WS-15 в работе: 15.1 закрыт; 15.2 — типизация идёт (строковый диспетчер удалён,
+`parse_object`/`json_payload` остались в диалогах и обратном канале, см.
+«Остаток 15.2»), 15.2.5 зафиксирован правилом и тестом-стражем; 15.3 —
+перенос чистой логики раскладки — не начат.
 
 ---
 
@@ -405,7 +415,7 @@ JSON-швы.
 методы лежат в файле своего экрана.
 
 - [x] 15.1.1 Общие хелперы → `gui/qt/support/*`.
-- [ ] 15.1.2 Страницы и экраны → файлы по карте.
+- [x] 15.1.2 Страницы и экраны → файлы по карте.
   - 15.1.2a [x] canvas, notebook, viewer, autocomplete, metadata_panel → `gui/qt/*.hpp/*.cpp` + `screens.hpp`.
   - 15.1.2b [x] thumbnail_grid (+dnd), query_page (sidebar/results/state) (коммит 1b1f0d8).
   - 15.1.2c [x] downloader_page (layout/gallery/importers/state), duplicates_page (sidebar/media) (коммит 388aaf5).
@@ -439,7 +449,12 @@ JSON-швы.
 Перед правкой `bridge.cpp` трогать `src/gui/qt/bridge.rs`, иначе cxx не пересоберёт
 C++.
 
-### 15.2 Типизированный мост  `[ ]` P0
+### 15.2 Типизированный мост  `[~]` P0
+
+Состояние на `81e20d5`: строковый диспетчер удалён, `serde_json` с шва убран,
+но не все швы типизированы. Инвентаризация — `docs/ARCHITECTURE.md`
+(«Остаточные JSON-швы»): 22 диалога-обёртки `json: String`, `PageRow.state`,
+13 `parse_object(` в `bridge_api.cpp`, 57 `json_payload(` в обратном канале.
 
 - [x] 15.2.1 `gui/qt/api.rs`: общие структуры (`StatusBar`, `AboutInfo`,
   `ViewingStats`, …), один тип на шов.
@@ -452,10 +467,10 @@ C++.
     (`query_page_media_text`, `downloader_page_media_text`, `busy_text`,
     `idle_text`, `bandwidth_text`) покрыты тестами; шаблон конверсии — в
     `docs/ARCHITECTURE.md` («Шаблон типизированного шва»).
-- [ ] 15.2.2 `UiCommand`: 68 `String`-вариантов → типизированные, по экранам,
+- [~] 15.2.2 `UiCommand`: 68 `String`-вариантов → типизированные, по экранам,
   начиная с тех, что правим сейчас.
   - 15.2.2a [x] страницы/вкладки/дерево/меню: 4 варианта, parse_object 56→54 (коммит 178bdfd)
-  - 15.2.2b [x] media/selection/viewer/metadata: parse_object/json_payload 54/61 → 0/0, тесты 719 (коммит e800d00)
+  - 15.2.2b [x] media/selection/viewer/metadata: швы этих экранов больше не парсят JSON; тесты 719 (коммит e800d00). Замер «0/0 по всему `gui/qt`» был неточным: на `e800d00` оставалось 51 `parse_object(` и 59 `json_payload(` (диалоги), на `81e20d5` — 13 и 57 вызовов.
   - 15.2.2c [x] downloader/subscription seams: typed UiCommand variants + reverse glue, тесты 719 (коммит 64b8f1a)
   - 15.2.2d [x] диалоги: сигнатуры без QJsonObject (было 70, стало 54), 27 вариантов типизировано (коммит 92c42c1)
     (`Menus(MenuBar)`, `BuildPages(Pages)`, `PageProgress(PageProgress)`,
@@ -468,14 +483,43 @@ C++.
     tuple-`String` варианты `UiCommand` 65→61; тесты 713 unit + 2 integration,
     1 ignored. `UpdatePage`/шорткаты/история без payload уже типизированы или без
     JSON; `import_paths`/`local_import_open_paths` остаются JSON до своих подзадач.
-- [ ] 15.2.3 `notify(action, target, payload)` → `UiEvent` или отдельная функция
+- [~] 15.2.3 `notify(action, target, payload)` → `UiEvent` или отдельная функция
   на команду.
   - 15.2.3a [x] страницы/вкладки/сессия: notify 191→186 (коммит 93513a1)
    - 15.2.3b [x] все notify переведены на UiAction (было 186 строковых вызовов, стало 0) (коммит 3443b05)
   - 15.2.3c [x] page-команды: 14 структур, 114 полей типизировано, JSON-парсинг в C++ 39→34 (`QJsonObject` 630→574, `QJsonArray` 162→149), 7 обработчиков без `QJsonDocument::fromJson` (коммит d3ee3ff). Типизированы downloader (32 поля), subscriptions page/dialog/editor (32), duplicates (31), seed cache/log (12) и `PageRow` (query/downloader/subscriptions/duplicates); статусы, проценты, склонения и относительное время считает Rust с тестами. Остался один произвольный вложенный dict — `SubscriptionDialogRow.import_options_json` (копирование import options в буфер); `PageRow.state` — только import/export-папки (их шов в отдельной подзадаче).
-- [x] 15.2.4 Удалить `parse_object`/`json_payload` из C++ и `serde_json` с шва.
-  - 15.2.4 [x] handle_action(UiAction), строковый диспетчер удалён (коммит 623bbd9)
-- [ ] 15.2.5 Правило на будущее: новый экран не добавляет `&str`-payload.
+- [~] 15.2.4 Удалить `parse_object`/`json_payload` из C++ и `serde_json` с шва.
+  - 15.2.4a [x] handle_action(UiAction), строковый диспетчер удалён (коммит 623bbd9);
+    `serde_json` в `gui/qt/*.rs` не используется.
+  - 15.2.4b [ ] `parse_object(` остаётся 13 вызовов (`bridge_api.cpp`; плюс
+    определение в `support/strings.cpp` и `parse_string` в `typed_seams.cpp`),
+    `json_payload(` — 57 вызовов в 34 файлах (обратный канал `notify`).
+    Удаляются вместе с типизацией соответствующих диалогов (15.2.2/15.2.3).
+- [x] 15.2.5 Правило на будущее: новый экран не добавляет `&str`-payload.
+  Зафиксировано в «Правилах фасада Qt» (R1) и в `docs/ARCHITECTURE.md`
+  («Остаточные JSON-швы»): в сигнатурах cxx и C++-заголовках нет
+  `String`/`&str` JSON-payload и `QJsonObject`; состояние — структура из
+  `api.rs` с отдельными полями; обратный канал — отдельная типизированная
+  функция. Исключение — один явно названный `*_json`-ресурс для принципиально
+  произвольных данных с комментарием. Страж —
+  `cargo test -p hydrus_client seam_guard` (`gui/qt/seam_guard.rs`): падает на
+  `notify(QStringLiteral(`, на росте `parse_object(`/`json_payload(` сверх
+  allowlist, на новых полях `json`/`*_json`/`state: String` в `api.rs` и на
+  новых cxx-функциях с аргументом `json:`. Проверено: временное нарушение
+  роняет тест, откат — зелёный.
+
+Остаток 15.2 (для закрытия):
+
+1. 22 структуры-обёртки с единственным полем `json: String` в `api.rs`
+   (options, services, network, account types, API permissions, tag filter,
+   tag relations, manage tags, timestamps, notifications, export review,
+   repair locations, orphan files, database backup, local import review/tagging,
+   auto-resolution rules/merge/custom/preview/review) → типизировать по полям.
+2. `PageRow.state` → типизированное состояние import/export folder pages.
+3. 13 вызовов `parse_object(` в `bridge_api.cpp`: import/export folders (6),
+   notes, tag dialog, autocomplete, manage tags, timestamps.
+4. 57 `json_payload(` в обратном канале: заменить `notify(action, target, json)`
+   на `app_<domain>_<verb>(...)` с типизированными аргументами.
 
 ### 15.3 Чистая логика раскладки в Rust  `[ ]` P1
 

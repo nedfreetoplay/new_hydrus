@@ -215,6 +215,46 @@ import/export-папок (их шов — отдельная подзадача)
 это ровно одно поле с суффиксом `_json` и комментарием, почему схема не
 фиксирована.
 
+### Остаточные JSON-швы (WS-15.2.5)
+
+Инвентаризация на `81e20d5` (15.2 ещё не закрыт: строковый диспетчер удалён,
+но JSON-payload в обратном канале и часть forward-швов диалогов остались).
+Счётчики — вхождения в `src/gui/qt/**/*.cpp|hpp`, без тестов.
+
+| Шов | Где | Кол-во | Почему JSON остаётся | Статус |
+| --- | --- | --- | --- | --- |
+| Forward: состояние диалога | `api.rs`: 22 структуры с единственным полем `json: String` (`OptionsDialogState`, `ServicesDialogState`, …) | 22 | Содержимое диалога в Python — фиксированный `JObject`, но шов ещё не разобран по полям | долг 15.2.2/15.2.3 |
+| Forward: стартовое состояние страницы | `PageRow.state: String` | 1 | Только import/export folder pages (у query/downloader/subscriptions/duplicates поля типизированы) | долг, отдельная подзадача |
+| Forward: произвольный dict | `SubscriptionDialogRow.import_options_json` | 1 | Import options — словарь произвольной формы, копируется в буфер как есть; `dict` и в Python | допустимое исключение R1 |
+| Forward: C++-точки входа | `bridge_api.cpp`: 13 `parse_object(...)` (import/export folders 6, notes, tag dialog, autocomplete, manage tags, timestamps) | 13 | Старые JSON-обёртки этих экранов ещё не переведены на `hydrus_show_*` со структурой | долг |
+| Reverse: payload события | `notify(UiAction, target, payload)` + 57 `json_payload(...)` в 34 файлах | 57 | `UiAction` уже enum, но данные события всё ещё сериализуются в строку | долг 15.2.3 |
+| Инфраструктура | `support/strings.{hpp,cpp}` (объявления/определения), `typed_seams.cpp:389` (`parse_string` для `PageRow.state`) | 5 | Плумбинг; удаляется вместе с последним вызовом | — |
+| C++-параметры | `QJsonObject &` в 26 заголовках (`auto_resolution.hpp` 19, `main_window.hpp` 11, `services.hpp` 5, …) | 80 | Следствие строк выше: диалоги принимают `const QJsonObject &state` | долг |
+
+Итого: типизированы статус-бар/about/stats, меню/дерево/страницы, media/
+selection/viewer/metadata, downloader/subscriptions/seed cache, duplicates,
+page-команды и часть диалогов (14 структур / 114 полей). Не типизированы:
+22 диалога-обёртки, import/export folders, notes/tag dialog/autocomplete/
+manage tags/timestamps и весь reverse-payload `notify`.
+
+Правило 15.2.5 (обязательно для новых экранов и фич):
+
+1. В сигнатурах cxx и C++-заголовках нет `String`/`&str` JSON-payload и
+   `QJsonObject`: состояние передаётся структурой из `api.rs` с отдельными
+   полями (`hash`, `status_text`, `files_progress`, `Vec<String>` и т.д.).
+2. Обратный канал — отдельная `extern "Rust"`-функция на событие с
+   типизированными аргументами, а не `notify(action, target, json)`.
+3. Единственное исключение — один JSON-строковый ресурс внутри типизированной
+   структуры для принципиально произвольных данных (пример:
+   `import_options_json`). Поле называется явно (`*_json`), имеет комментарий,
+   почему схема не фиксирована, и не заменяет остальные поля.
+4. Страж: `cargo test -p hydrus_client seam_guard` (`gui/qt/seam_guard.rs`)
+   падает, если в `src/gui/qt` появился `notify(QStringLiteral(`,
+   выросло число `parse_object(`/`json_payload(` сверх явного allowlist,
+   в `api.rs` появилось поле `json`/`*_json`/`state: String` вне allowlist
+   или новая cxx-функция с аргументом `json:`. Перевод шва только уменьшает
+   allowlist.
+
 Вёрстка обязана повторять Python-экран, а не быть «похожей формой»: тот же набор
 и порядок контролов, дословные подписи и заголовки, те же размеры/минимальные
 размеры/отступы/spacing, колонки таблиц и их сортировка, иконки с теми же именами,

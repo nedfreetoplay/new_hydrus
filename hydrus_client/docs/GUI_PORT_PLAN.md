@@ -542,6 +542,9 @@ C++.
     `support/strings.cpp` и `parse_string` в `typed_seams.cpp` (плумбинг).
 4. 57 `json_payload(` в обратном канале: заменить `notify(action, target, json)`
    на `app_<domain>_<verb>(...)` с типизированными аргументами.
+   Закрыто в WS-15.2.4c (партия services + network): 20 вызовов в 5 файлах —
+   `network_tables.cpp` (9), `services_server.cpp` (8), `services_dialog.cpp`
+   (1), `services_helpers.cpp` (1), `network_dialog.cpp` (1). Осталось 37.
 
 ### 15.3 Чистая логика раскладки в Rust  `[ ]` P1
 

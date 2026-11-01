@@ -227,13 +227,13 @@ import/export-папок (их шов — отдельная подзадача)
 | Forward: стартовое состояние страницы | `PageRow.state: String` + `PageRow.folder: FolderPageState` | 1+1 | `state` — только placeholder-сообщение (не JSON); folder-страницы несут типизированный `FolderPageState` | закрыто (WS-15.2.4b) |
 | Forward: произвольный dict | `SubscriptionDialogRow.import_options_json`, `AdminBlobs.options_json`, `AdminBlobs.service_info_json` | 3 | Словари опций/сервера произвольной формы, показываются или копируются как есть; `dict` и в Python | допустимое исключение R1 |
 | Forward: C++-точки входа | `bridge_api.cpp`: 0 `parse_object(...)` (было 11: import/export folders 6, notes, tag dialog, autocomplete) | 0 | Все швы переведены на `hydrus_show_*` со структурой | закрыто (WS-15.2.4b) |
-| Reverse: payload события | `notify(UiAction, target, payload)` + 57 `json_payload(...)` в 34 файлах | 57 | `UiAction` уже enum, но данные события всё ещё сериализуются в строку | долг 15.2.3 |
+| Reverse: payload события | `notify(UiAction, target, payload)` + 37 `json_payload(...)` в 24 файлах | 37 | `UiAction` уже enum, но данные события всё ещё сериализуются в строку | долг 15.2.3 |
 | Инфраструктура | `support/strings.{hpp,cpp}` (объявления/определения `parse_object`) | 2 | Плумбинг; удаляется вместе с последним швом, который его использует | — |
 | C++-параметры | `QJsonObject` в заголовках | 49 | Следствие строк выше: оставшиеся диалоги принимают `const QJsonObject &state` или типизированную структуру | долг |
 
 Итого: типизированы статус-бар/about/stats, меню/дерево/страницы, media/
 selection/viewer/metadata, downloader/subscriptions/seed cache, duplicates,
-page-команды и часть диалогов (15 структур / диалоги timestamps, notifications,
+page-команды, обратный канал services/network (WS-15.2.4c) и часть диалогов (15 структур / диалоги timestamps, notifications,
 repair locations, orphan files, database backup, tag filter, tag relations,
 manage tags, export review, local import review, services, network,
 account types, API permissions, duplicates rules/merge/custom/preview/review).

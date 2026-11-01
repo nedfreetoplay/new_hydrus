@@ -88,6 +88,19 @@ duplicates/subscriptions, меню и данные вьюера. Никакой 
 метрики живут в `gui/app/**` с unit-тестами, C++ только применяет значения;
 R3 — новый файл не больше 600 строк, иначе делится по экрану или слою.
 
+### Как добавить новое UI-действие (WS-15.2.3b)
+
+1. Добавить вариант в `enum UiAction` в `hydrus_client/src/gui/qt/api.rs`
+   (`#[repr(i32)]`, имя — PascalCase от snake_case ключа: `close_page` → `ClosePage`).
+2. Добавить ветку в `AppState::dispatch` (или соответствующий `handle_*`) в
+   `hydrus_client/src/gui/app/mod.rs`, переиспользуя существующее ядро.
+   Преобразование `UiAction` ↔ строка ключа живёт в `ui_action_from_str` /
+   `UiAction::as_str` (они генерируются по тому же списку ключей).
+3. В C++ вызывать `notify(UiAction::X, target, payload)` или
+   `app_action(window, UiAction::X, ...)`; строковых action-литералов в C++
+   не должно оставаться.
+4. Проверить `cargo build/test -p hydrus_client`.
+
 ### Шаблон типизированного шва (WS-15.2.1)
 
 Пилот: `StatusBar` (статус-бар), `AboutInfo` (about), `ViewingStats` +

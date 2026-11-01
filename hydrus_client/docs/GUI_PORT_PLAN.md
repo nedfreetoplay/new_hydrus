@@ -575,6 +575,28 @@ C++.
     `FilenameTaggingEntry`/`DirectoryTaggingRow`/`QuickNamespaceRow` (сборка в
     Rust с тестом round-trip); `options_json` — именованные JSON-блобы
     (R1-исключение, +2 записи в `JSON_ARG_ALLOWLIST`).
+    Закрыто в WS-15.2.4c (партия admin + duplicates, 857e2f2):
+    10 вызовов в 7 файлах — `account_types.cpp` (2), `api_permissions.cpp`
+    (1), `auto_resolution_custom.cpp` (1), `auto_resolution_merge.cpp` (1),
+    `auto_resolution_review.cpp` (2), `orphan_files.cpp` (2),
+    `support/pairs.cpp` (1). Типизированы `app_account_type_save/delete`
+    (пары `(content_type, action)` — параллельные `Vec<i32>`, `-1` = нет
+    права), `app_api_permissions_save/delete` (basic — `Vec<i32>`, tag filter —
+    плоские `slices`/`rules`; заодно исправлен прежний путь: он слал пары
+    `[slice, rule]` массивами, которые `parse_rules` не читал, и непустые
+    правила всегда отклонялись), `app_duplicates_merge_options_save`,
+    `app_duplicates_custom_apply` (обе merge-страницы плоскими полями, сборка
+    `DuplicateContentMergeOptions` — чистая `merge_options_from_parts` с
+    тестом; `none`-сервисы пропускаются, как раньше),
+    `app_duplicates_review_apply` (`indices: Vec<i64>`, `approve`, `all`),
+    `app_duplicates_show_pair` (`hashes: Vec<String>`),
+    `app_orphan_files_delete/move` (`paths: Vec<String>` + `target`).
+    Параметр custom-диалога назван `delete_mode`: `delete` — ключевое слово
+    C++ и ломает все TU через сгенерированный заголовок. Старые строковые
+    ветки `dispatch` оставлены для меню/палитры (пустой payload → прежний
+    notify об ошибке). Осталось 0: `json_payload(` в `gui/qt` — только 2
+    определения в `support/strings.cpp`/`strings.hpp`; allowlist
+    `seam_guard.rs` ужат до этих двух файлов.
 
 ### 15.3 Чистая логика раскладки в Rust  `[ ]` P1
 

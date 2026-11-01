@@ -1532,6 +1532,50 @@ pub fn handle_shortcut_binding_save(
     }
 }
 
+/// Resolve one mouse gesture to an action name for a context (WS-13.13).
+/// Pure lookup over the active set + context chain; empty when unbound.
+pub fn mouse_gesture_action(context: &str, gesture: &str) -> String {
+    with_state_mut(|state| {
+        let sets = shortcut_sets::load_from_options(&state.controller.options());
+        let mouse = shortcut_sets::load_mouse_from_options(&state.controller.options());
+        mouse
+            .resolve(&sets.active, context, gesture)
+            .unwrap_or_default()
+    })
+}
+
+pub fn handle_shortcut_mouse_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    set_name: &str,
+    context: &str,
+    action: &str,
+    gestures: Vec<String>,
+) {
+    let commands = with_state_mut(|state| {
+        shortcut_sets::save_mouse_binding(state, set_name, context, action, &gestures)
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_shortcut_context_open(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    context: &str,
+) {
+    let commands = with_state_mut(|state| {
+        let sets = shortcut_sets::load_from_options(&state.controller.options());
+        let mouse = shortcut_sets::load_mouse_from_options(&state.controller.options());
+        vec![crate::gui::app::UiCommand::ShortcutSetsDialog(
+            shortcut_sets::dialog_state_context(&sets, &mouse, context),
+        )]
+    });
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
 /// Typed reverse seams (WS-15.2.4c): services + network.
 macro_rules! typed_handler {
     ($name:ident ( $( $arg:ident : $ty:ty ),* ) => $path:path) => {

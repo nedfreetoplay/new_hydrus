@@ -5,6 +5,7 @@
 
 #include "support/support.hpp"
 
+#include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFile>
@@ -164,6 +165,83 @@ void hydrus_show_shortcut_sets(HydrusMainWindow &window, const ShortcutSetsDialo
         ++row_index;
     }
     layout->addWidget(bindings);
+
+    auto *context_row = new QHBoxLayout();
+    auto *context_label = new QLabel(QStringLiteral("context:"), &dialog);
+    auto *context_combo = new QComboBox(&dialog);
+    for (const auto &context : state.contexts) {
+        context_combo->addItem(to_qstring(context));
+    }
+    context_combo->setCurrentText(to_qstring(state.active_context));
+    context_row->addWidget(context_label);
+    context_row->addWidget(context_combo, 1);
+    layout->addLayout(context_row);
+
+    auto *mouse_table = new QTableWidget(&dialog);
+    mouse_table->setColumnCount(2);
+    mouse_table->setHorizontalHeaderLabels({QStringLiteral("mouse action"), QStringLiteral("gestures")});
+    mouse_table->horizontalHeader()->setStretchLastSection(true);
+    mouse_table->verticalHeader()->setVisible(false);
+    mouse_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    mouse_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    mouse_table->setRowCount(static_cast<int>(state.mouse_bindings.size()));
+    int mouse_row = 0;
+    for (const auto &binding : state.mouse_bindings) {
+        mouse_table->setItem(mouse_row, 0, new QTableWidgetItem(to_qstring(binding.label)));
+        mouse_table->setItem(mouse_row, 1, new QTableWidgetItem(to_qstring(binding.gesture_text)));
+        ++mouse_row;
+    }
+    layout->addWidget(mouse_table);
+
+    auto *mouse_buttons = new QHBoxLayout();
+    auto *mouse_edit_btn = new QPushButton(QStringLiteral("edit mouse"), &dialog);
+    auto *mouse_clear_btn = new QPushButton(QStringLiteral("clear mouse"), &dialog);
+    mouse_buttons->addWidget(mouse_edit_btn);
+    mouse_buttons->addWidget(mouse_clear_btn);
+    layout->addLayout(mouse_buttons);
+    QObject::connect(
+        context_combo, &QComboBox::currentTextChanged, &dialog, [&](const QString &text) {
+            app_shortcut_context_open(window, rs(text));
+            dialog.accept();
+        });
+    QObject::connect(mouse_edit_btn, &QPushButton::clicked, &dialog, [&]() {
+        const int row = mouse_table->currentRow();
+        if (row < 0 || row >= static_cast<int>(state.mouse_bindings.size())) {
+            return;
+        }
+        const QString action = to_qstring(state.mouse_bindings[row].action);
+        const QString current = to_qstring(state.mouse_bindings[row].gesture_text);
+        bool ok = false;
+        const QString text = QInputDialog::getText(
+            &dialog, QStringLiteral("edit mouse shortcut"),
+            QStringLiteral("Enter comma-separated gestures for '%1' (<button> <press/release/double/drag>):").arg(action),
+            QLineEdit::Normal, current, &ok);
+        if (!ok) {
+            return;
+        }
+        rust::Vec<rust::String> gestures;
+        for (const QString &part : text.split(QStringLiteral(","))) {
+            const QString trimmed = part.trimmed();
+            if (!trimmed.isEmpty()) {
+                gestures.push_back(rs(trimmed));
+            }
+        }
+        app_shortcut_mouse_save(
+            window, rs(selected_set_name(sets, state)),
+            rs(to_qstring(state.active_context)), rs(action), gestures);
+        dialog.accept();
+    });
+    QObject::connect(mouse_clear_btn, &QPushButton::clicked, &dialog, [&]() {
+        const int row = mouse_table->currentRow();
+        if (row < 0 || row >= static_cast<int>(state.mouse_bindings.size())) {
+            return;
+        }
+        app_shortcut_mouse_save(
+            window, rs(selected_set_name(sets, state)),
+            rs(to_qstring(state.active_context)),
+            rs(to_qstring(state.mouse_bindings[row].action)), rust::Vec<rust::String>());
+        dialog.accept();
+    });
 
     auto *bind_buttons = new QHBoxLayout();
     auto *edit_btn = new QPushButton(QStringLiteral("edit"), &dialog);

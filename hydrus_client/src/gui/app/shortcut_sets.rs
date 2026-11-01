@@ -8,7 +8,7 @@ use serde_json::{Map, Value, json};
 
 use crate::client_options::ClientOptions;
 use crate::gui::qt::api::ffi::{
-    ShortcutBindingRow, ShortcutSetRow, ShortcutSetsDialogState,
+    MouseBindingRow, ShortcutBindingRow, ShortcutSetRow, ShortcutSetsDialogState,
 };
 
 /// Options group carrying the sets. Fixed schema per set; the group itself is
@@ -308,9 +308,376 @@ pub fn save_to_options(options: &mut ClientOptions, sets: &ShortcutSets) {
     options.set_group_value(SHORTCUTS_GROUP, ACTIVE_KEY, json!(sets.active));
 }
 
+/// Shortcut contexts, mirroring Python `shortcut_names_sorted` (subset we
+/// implement; the rest fall back to `main_gui`). Each context inherits from
+/// its parent when a lookup misses: `thumbnails`/`media_viewer` -> `media` ->
+/// `main_gui` -> `default set main_gui`.
+pub const CONTEXT_MAIN: &str = "main_gui";
+pub const CONTEXT_MEDIA: &str = "media";
+pub const CONTEXT_THUMBNAILS: &str = "thumbnails";
+pub const CONTEXT_MEDIA_VIEWER: &str = "media_viewer";
+pub const CONTEXT_PREVIEW_MEDIA: &str = "preview_media_window";
+pub const CONTEXT_VIEWER_MEDIA: &str = "media_viewer_media_window";
+
+pub fn all_contexts() -> Vec<String> {
+    vec![
+        CONTEXT_MAIN.to_string(),
+        CONTEXT_MEDIA.to_string(),
+        CONTEXT_THUMBNAILS.to_string(),
+        CONTEXT_MEDIA_VIEWER.to_string(),
+        CONTEXT_PREVIEW_MEDIA.to_string(),
+        CONTEXT_VIEWER_MEDIA.to_string(),
+    ]
+}
+
+fn parent_context(context: &str) -> Option<&'static str> {
+    match context {
+        s if s == CONTEXT_THUMBNAILS => Some(CONTEXT_MEDIA),
+        s if s == CONTEXT_MEDIA_VIEWER => Some(CONTEXT_MEDIA),
+        s if s == CONTEXT_PREVIEW_MEDIA => Some(CONTEXT_VIEWER_MEDIA),
+        s if s == CONTEXT_VIEWER_MEDIA => Some(CONTEXT_MEDIA_VIEWER),
+        s if s == CONTEXT_MEDIA => Some(CONTEXT_MAIN),
+        _ => None,
+    }
+}
+
+/// One mouse gesture: button + press type + modifiers.
+/// Text form: `[ctrl+alt+shift+meta+]button press-type`, e.g.
+/// `ctrl+left press`, `scroll up press`. Buttons: `left`, `right`,
+/// `middle`, `back`, `forward`, `task`, `scroll up`, `scroll down`,
+/// `scroll left`, `scroll right` (Python `shortcut_mouse_string_lookup` +
+/// `shortcut_press_type_str_lookup`: `press`/`release`/`double`/`drag`).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct MouseGesture {
+    pub button: String,
+    pub press_type: String,
+    pub modifiers: Vec<String>,
+}
+
+impl MouseGesture {
+    pub fn to_text(&self) -> String {
+        let mut parts: Vec<String> = self.modifiers.clone();
+        parts.push(self.button.clone());
+        format!("{} {}", parts.join("+"), self.press_type)
+    }
+}
+
+pub fn normalise_mouse_button(button: &str) -> Option<String> {
+    match button.trim().to_lowercase().replace('-', " ").replace('_', " ").as_str() {
+        "left" | "left click" | "primary" | "primary click" => Some("left".to_string()),
+        "right" | "right click" | "secondary" | "secondary click" => Some("right".to_string()),
+        "middle" | "middle click" => Some("middle".to_string()),
+        "back" => Some("back".to_string()),
+        "forward" => Some("forward".to_string()),
+        "task" | "task button" => Some("task".to_string()),
+        "scroll up" | "wheel up" => Some("scroll up".to_string()),
+        "scroll down" | "wheel down" => Some("scroll down".to_string()),
+        "scroll left" => Some("scroll left".to_string()),
+        "scroll right" => Some("scroll right".to_string()),
+        _ => None,
+    }
+}
+
+pub fn normalise_press_type(press: &str) -> Option<String> {
+    match press.trim().to_lowercase().as_str() {
+        "press" | "click" | "single" => Some("press".to_string()),
+        "release" => Some("release".to_string()),
+        "double" | "double click" | "double-click" => Some("double".to_string()),
+        "drag" => Some("drag".to_string()),
+        _ => None,
+    }
+}
+
+fn normalise_mouse_modifier(part: &str) -> Option<String> {
+    match part.trim().to_lowercase().as_str() {
+        "ctrl" | "control" => Some("ctrl".to_string()),
+        "alt" | "option" => Some("alt".to_string()),
+        "shift" => Some("shift".to_string()),
+        "meta" | "command" | "cmd" => Some("meta".to_string()),
+        _ => None,
+    }
+}
+
+/// Parse one gesture text. Returns Python-style error on bad shape.
+pub fn parse_mouse_gesture(text: &str) -> Result<MouseGesture, String> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Err("Empty mouse gesture!".to_string());
+    }
+    let (head, press_raw) = text
+        .rsplit_once(' ')
+        .ok_or_else(|| format!("Bad mouse gesture '{text}'! Use '<button> <press/release/double/drag>'."))
+        .map(|(head, press)| (head.trim(), press.trim()))?;
+    let press_type = normalise_press_type(press_raw)
+        .ok_or_else(|| format!("Bad press type '{press_raw}'! Use press, release, double or drag."))?;
+    // Split head on '+'; the button may itself contain a space (`scroll up`).
+    let parts: Vec<&str> = head.split('+').map(str::trim).filter(|part| !part.is_empty()).collect();
+    if parts.is_empty() {
+        return Err(format!("Bad mouse gesture '{text}'!"));
+    }
+    let mut modifiers: Vec<String> = Vec::new();
+    let mut button_parts: Vec<String> = Vec::new();
+    for part in parts {
+        if let Some(modifier) = normalise_mouse_modifier(part) {
+            if !button_parts.is_empty() {
+                return Err(format!("Bad mouse gesture '{text}'! Modifiers come first."));
+            }
+            if !modifiers.contains(&modifier) {
+                modifiers.push(modifier);
+            }
+        } else {
+            button_parts.push(part.to_string());
+        }
+    }
+    let button = normalise_mouse_button(&button_parts.join("+"))
+        .ok_or_else(|| format!("Bad mouse button '{}'!", button_parts.join("+")))?;
+    modifiers.sort();
+    Ok(MouseGesture { button, press_type, modifiers })
+}
+
+/// Defaults per context, mirroring Python's default mouse shortcuts for the
+/// canvas (viewer/media window) and the thumbnail grid.
+pub fn default_mouse_bindings(context: &str) -> Vec<(String, Vec<String>)> {
+    match context {
+        s if s == CONTEXT_MEDIA_VIEWER || s == CONTEXT_VIEWER_MEDIA || s == CONTEXT_PREVIEW_MEDIA => vec![
+            ("zoom_in".to_string(), vec!["scroll up press".to_string()]),
+            ("zoom_out".to_string(), vec!["scroll down press".to_string()]),
+            ("pan_drag".to_string(), vec!["middle drag".to_string(), "left drag".to_string()]),
+            ("toggle_fullscreen".to_string(), vec!["left double".to_string()]),
+            ("previous_file".to_string(), vec!["back press".to_string()]),
+            ("next_file".to_string(), vec!["forward press".to_string()]),
+            ("show_context_menu".to_string(), vec!["right press".to_string()]),
+        ],
+        s if s == CONTEXT_THUMBNAILS => vec![
+            ("select".to_string(), vec!["left press".to_string()]),
+            ("range_select".to_string(), vec!["shift+left press".to_string()]),
+            ("toggle_select".to_string(), vec!["ctrl+left press".to_string()]),
+            ("open_viewer".to_string(), vec!["left double".to_string()]),
+            ("open_new_page".to_string(), vec!["middle press".to_string()]),
+            ("show_context_menu".to_string(), vec!["right press".to_string()]),
+        ],
+        s if s == CONTEXT_MEDIA => vec![
+            ("open_viewer".to_string(), vec!["left double".to_string()]),
+            ("show_context_menu".to_string(), vec!["right press".to_string()]),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+/// Mouse label for an action key.
+pub fn mouse_action_label(action: &str) -> String {
+    match action {
+        "zoom_in" => "zoom in".to_string(),
+        "zoom_out" => "zoom out".to_string(),
+        "pan_drag" => "pan (drag)".to_string(),
+        "toggle_fullscreen" => "toggle fullscreen".to_string(),
+        "previous_file" => "previous file".to_string(),
+        "next_file" => "next file".to_string(),
+        "select" => "select".to_string(),
+        "range_select" => "range select".to_string(),
+        "toggle_select" => "toggle select".to_string(),
+        "open_viewer" => "open viewer".to_string(),
+        "open_new_page" => "open in new page".to_string(),
+        "show_context_menu" => "context menu".to_string(),
+        other => other.replace('_', " "),
+    }
+}
+
+/// Mouse bindings stored per named set: `set name -> context -> action -> gestures`.
+/// Persisted inside the same `shortcuts` options group under `mouse_sets`
+/// (fixed schema, no R1 exception: `{ set, context, action, gestures }` rows).
+pub const MOUSE_SETS_KEY: &str = "mouse_sets";
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct MouseSets {
+    /// (set name, context, action, gestures)
+    pub rows: Vec<(String, String, String, Vec<String>)>,
+}
+
+impl MouseSets {
+    pub fn gestures_for(&self, set: &str, context: &str, action: &str) -> Vec<String> {
+        // Direct hit, else walk up the context chain, else defaults.
+        let mut current = Some(context.to_string());
+        while let Some(context_name) = current {
+            if let Some(row) = self.rows.iter().find(|(set_name, row_context, row_action, _)| {
+                set_name == set && row_context == &context_name && row_action == action
+            }) {
+                return row.3.clone();
+            }
+            current = parent_context(&context_name).map(str::to_string);
+        }
+        default_mouse_bindings(context)
+            .into_iter()
+            .find(|(key, _)| key == action)
+            .map(|(_, gestures)| gestures)
+            .unwrap_or_default()
+    }
+
+    /// Resolve a live gesture to an action: exact context first, then parents.
+    pub fn resolve(&self, set: &str, context: &str, gesture_text: &str) -> Option<String> {
+        let gesture = parse_mouse_gesture(gesture_text).ok()?.to_text();
+        let mut current = Some(context.to_string());
+        while let Some(context_name) = current {
+            // Stored rows first.
+            for (set_name, row_context, action, gestures) in &self.rows {
+                if set_name == set && row_context == &context_name && gestures.iter().any(|owned| owned == &gesture) {
+                    return Some(action.clone());
+                }
+            }
+            // Then built-in defaults of that exact context.
+            for (action, gestures) in default_mouse_bindings(&context_name) {
+                if gestures.iter().any(|owned| owned == &gesture) {
+                    return Some(action.clone());
+                }
+            }
+            current = parent_context(&context_name).map(str::to_string);
+        }
+        None
+    }
+
+    pub fn conflicts_in(&self, set: &str, context: &str) -> Vec<(String, Vec<String>)> {
+        let mut owners: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+        let mut actions: std::collections::BTreeSet<String> = Default::default();
+        for (row_set, row_context, action, _) in &self.rows {
+            if row_set == set && row_context == context {
+                actions.insert(action.clone());
+            }
+        }
+        for (action, _) in default_mouse_bindings(context) {
+            if !actions.contains(&action) {
+                actions.insert(action);
+            }
+        }
+        for action in &actions {
+            for gesture in self.gestures_for(set, context, action) {
+                owners.entry(gesture).or_default().push(action.clone());
+            }
+        }
+        let mut conflicts: Vec<(String, Vec<String>)> =
+            owners.into_iter().filter(|(_, actions)| actions.len() > 1).collect();
+        conflicts.sort_by(|left, right| left.0.cmp(&right.0));
+        conflicts
+    }
+}
+
+pub fn load_mouse_from_options(options: &ClientOptions) -> MouseSets {
+    let mut sets = MouseSets::default();
+    let Some(value) = options.get_group_value(SHORTCUTS_GROUP, MOUSE_SETS_KEY) else {
+        return sets;
+    };
+    for entry in value.as_array().cloned().unwrap_or_default() {
+        let get = |key: &str| entry.get(key).and_then(Value::as_str).unwrap_or_default().to_string();
+        let set = get("set");
+        let context = get("context");
+        let action = get("action");
+        if set.trim().is_empty() || action.trim().is_empty() {
+            continue;
+        }
+        let gestures: Vec<String> = entry
+            .get("gestures")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default()
+            .iter()
+            .filter_map(Value::as_str)
+            .filter_map(|text| parse_mouse_gesture(text).ok().map(|gesture| gesture.to_text()))
+            .collect();
+        sets.rows.push((set, context, action, gestures));
+    }
+    sets
+}
+
+pub fn save_mouse_to_options(options: &mut ClientOptions, sets: &MouseSets) {
+    let entries: Vec<Value> = sets
+        .rows
+        .iter()
+        .map(|(set, context, action, gestures)| {
+            json!({ "set": set, "context": context, "action": action, "gestures": gestures })
+        })
+        .collect();
+    options.set_group_value(SHORTCUTS_GROUP, MOUSE_SETS_KEY, Value::Array(entries));
+}
+
+/// Save one mouse binding with Python-style conflict veto.
+pub fn save_mouse_binding(
+    state: &mut crate::gui::app::model::AppState,
+    set_name: &str,
+    context: &str,
+    action: &str,
+    gestures: &[String],
+) -> Vec<crate::gui::app::UiCommand> {
+    let mut mouse = load_mouse_from_options(&state.controller.options());
+    let normalised: Vec<String> = gestures
+        .iter()
+        .filter_map(|text| parse_mouse_gesture(text).ok().map(|gesture| gesture.to_text()))
+        .collect();
+    if normalised.len() != gestures.iter().filter(|text| !text.trim().is_empty()).count() {
+        state.message = "Bad mouse gesture! Use '<button> <press/release/double/drag>'.".to_string();
+        return vec![crate::gui::app::UiCommand::NotifyMessage(state.message.clone())];
+    }
+    // Conflict veto within the same set+context (stored rows + defaults).
+    let mut known: std::collections::BTreeMap<String, String> = Default::default();
+    let mut actions: std::collections::BTreeSet<String> = Default::default();
+    for (row_set, row_context, row_action, _) in &mouse.rows {
+        if row_set == set_name && row_context == context && row_action != action {
+            actions.insert(row_action.clone());
+        }
+    }
+    for (default_action, _) in default_mouse_bindings(context) {
+        if default_action != action && !actions.contains(&default_action) {
+            actions.insert(default_action);
+        }
+    }
+    for other in &actions {
+        for gesture in mouse.gestures_for(set_name, context, other) {
+            known.insert(gesture, other.clone());
+        }
+    }
+    for gesture in &normalised {
+        if let Some(other) = known.get(gesture) {
+            let message = format!("The mouse gesture {gesture} is already used by '{other}'. The system only supports one command per gesture in a set for now, please remove one.");
+            state.message = message.clone();
+            return vec![crate::gui::app::UiCommand::NotifyMessage(message)];
+        }
+    }
+    mouse.rows.retain(|(row_set, row_context, row_action, _)| {
+        !(row_set == set_name && row_context == context && row_action == action)
+    });
+    mouse.rows.push((set_name.to_string(), context.to_string(), action.to_string(), normalised));
+    mouse.rows.sort();
+    let mut options = state.controller.options();
+    save_mouse_to_options(&mut options, &mouse);
+    state.controller.replace_options(options);
+    let _ = state.controller.save_options();
+    state.message = format!("updated mouse '{action}' in '{set_name}' ({context})");
+    let sets = load_from_options(&state.controller.options());
+    refreshed_context(&sets, &mouse, context, state.message.clone())
+}
+
+fn refreshed_context(
+    sets: &ShortcutSets,
+    mouse: &MouseSets,
+    context: &str,
+    message: String,
+) -> Vec<crate::gui::app::UiCommand> {
+    vec![
+        crate::gui::app::UiCommand::ApplyShortcuts(dialog_state_context(sets, mouse, context)),
+        crate::gui::app::UiCommand::ShortcutSetsDialog(dialog_state_context(sets, mouse, context)),
+        crate::gui::app::UiCommand::NotifyMessage(message),
+    ]
+}
+
 /// Typed rows for the manage dialog (read-only editor in WS-13.12: sets list
 /// plus bindings of the active set; conflicts listed as text).
 pub fn dialog_state(sets: &ShortcutSets) -> ShortcutSetsDialogState {
+    dialog_state_context(sets, &MouseSets::default(), CONTEXT_MAIN)
+}
+
+pub fn dialog_state_context(
+    sets: &ShortcutSets,
+    mouse: &MouseSets,
+    context: &str,
+) -> ShortcutSetsDialogState {
     let set_rows: Vec<ShortcutSetRow> = sets
         .sets
         .iter()
@@ -342,11 +709,57 @@ pub fn dialog_state(sets: &ShortcutSets) -> ShortcutSetsDialogState {
                 .collect()
         })
         .unwrap_or_default();
+    // Mouse rows: union of stored actions and defaults for this context chain.
+    let mut mouse_actions: std::collections::BTreeSet<String> = Default::default();
+    for (action, _) in default_mouse_bindings(CONTEXT_MAIN) {
+        let _ = action;
+    }
+    let mut chain = Some(context.to_string());
+    let mut chain_contexts: Vec<String> = Vec::new();
+    while let Some(context_name) = chain {
+        chain_contexts.push(context_name.clone());
+        chain = parent_context(&context_name).map(str::to_string);
+    }
+    chain_contexts.push(CONTEXT_MAIN.to_string());
+    for context_name in &chain_contexts {
+        for (action, _) in default_mouse_bindings(context_name) {
+            mouse_actions.insert(action);
+        }
+    }
+    for (row_set, row_context, action, _) in &mouse.rows {
+        if Some(row_set) == active.map(|set| &set.name) && chain_contexts.contains(row_context) {
+            mouse_actions.insert(action.clone());
+        }
+    }
+    let active_name = sets.active.clone();
+    let mouse_bindings: Vec<MouseBindingRow> = mouse_actions
+        .into_iter()
+        .map(|action| {
+            let gestures = mouse.gestures_for(&active_name, context, &action);
+            MouseBindingRow {
+                action: action.clone(),
+                label: mouse_action_label(&action),
+                gesture_text: gestures.join(", "),
+                gestures,
+                context: context.to_string(),
+            }
+        })
+        .collect();
+    let mut mouse_conflicts: Vec<String> = mouse
+        .conflicts_in(&active_name, context)
+        .into_iter()
+        .map(|(gesture, actions)| format!("{gesture}: {}", actions.join(", ")))
+        .collect();
+    let mut all_conflicts = conflicts;
+    all_conflicts.append(&mut mouse_conflicts);
     ShortcutSetsDialogState {
         sets: set_rows,
         bindings,
         active_name: sets.active.clone(),
-        conflicts,
+        conflicts: all_conflicts,
+        mouse_bindings,
+        contexts: all_contexts(),
+        active_context: context.to_string(),
     }
 }
 

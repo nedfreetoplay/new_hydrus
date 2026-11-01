@@ -66,6 +66,14 @@ void app_page_manager_activate(HydrusMainWindow &window, rust::Str page_id) noex
 void app_page_sort(HydrusMainWindow &window, rust::Str page_id, rust::Str sort, bool ascending) noexcept;
 void app_history_step(HydrusMainWindow &window, int step) noexcept;
 void app_shortcut_set_activate(HydrusMainWindow &window, rust::Str name) noexcept;
+rust::String hydrus_mouse_gesture_action(rust::Str context, rust::Str gesture) noexcept;
+void app_shortcut_mouse_save(
+    HydrusMainWindow &window,
+    rust::Str set_name,
+    rust::Str context,
+    rust::Str action,
+    rust::Vec<rust::String> gestures) noexcept;
+void app_shortcut_context_open(HydrusMainWindow &window, rust::Str context) noexcept;
 
 // Typed reverse seams (WS-15.2.4c): services + network. Implemented in Rust.
 void app_service_save(

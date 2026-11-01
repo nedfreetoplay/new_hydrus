@@ -120,4 +120,47 @@ mod shortcut_sets_tests {
         assert!(import_set(&json!({"name": "", "bindings": {}})).is_err());
         assert!(import_set(&json!({"name": "x", "bindings": {"undo": "nope"}})).is_err());
     }
+
+    #[test]
+    fn mouse_gesture_round_trip() {
+        let gesture = parse_mouse_gesture("ctrl+left press").unwrap();
+        assert_eq!(gesture.button, "left");
+        assert_eq!(gesture.press_type, "press");
+        assert_eq!(gesture.to_text(), "ctrl+left press");
+        assert_eq!(parse_mouse_gesture("Scroll Up Press").unwrap().button, "scroll up");
+        assert_eq!(parse_mouse_gesture("left double").unwrap().press_type, "double");
+        assert!(parse_mouse_gesture("left").is_err());
+        assert!(parse_mouse_gesture("left squeeze").is_err());
+        assert!(parse_mouse_gesture("banana press").is_err());
+    }
+
+    #[test]
+    fn mouse_defaults_resolve_and_inherit() {
+        let mouse = MouseSets::default();
+        assert_eq!(mouse.resolve("default", "thumbnails", "left press").as_deref(), Some("select"));
+        assert_eq!(mouse.resolve("default", "thumbnails", "left double").as_deref(), Some("open_viewer"));
+        // `media` parent supplies open_viewer to thumbnails too; main_gui has no mouse rows.
+        assert_eq!(mouse.resolve("default", "media", "right press").as_deref(), Some("show_context_menu"));
+        assert!(mouse.resolve("default", "main_gui", "left press").is_none());
+        assert_eq!(
+            mouse.resolve("default", "media_viewer_media_window", "scroll up press").as_deref(),
+            Some("zoom_in")
+        );
+        // Viewer inherits via media_viewer -> media chain.
+        assert_eq!(
+            mouse.resolve("default", "media_viewer_media_window", "right press").as_deref(),
+            Some("show_context_menu")
+        );
+    }
+
+    #[test]
+    fn mouse_contexts_list_and_dialog_rows() {
+        assert!(all_contexts().contains(&"thumbnails".to_string()));
+        let state = dialog_state_context(&default_sets(), &MouseSets::default(), "thumbnails");
+        assert_eq!(state.active_context, "thumbnails");
+        assert!(!state.mouse_bindings.is_empty());
+        assert!(state.mouse_bindings.iter().any(|row| row.action == "open_viewer"
+            && row.gesture_text.contains("left double")));
+        assert!(state.contexts.contains(&"media_viewer".to_string()));
+    }
 }

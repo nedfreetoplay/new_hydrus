@@ -1,9 +1,5 @@
-#include "thumbnail_grid.hpp"
-
-// WS-15.1.2b: base thumbnail-grid widget moved verbatim from bridge.cpp (move-only split).
-
-#include "bridge.hpp"
-#include "support/support.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
+#include "support/support.hpp">
 
 #include <QColor>
 #include <QFont>
@@ -11,9 +7,12 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
 #include <QSignalBlocker>
+
+#include "bridge_api.hpp"
 
 HydrusThumbnailGrid::HydrusThumbnailGrid(HydrusMainWindow *main_window, HydrusQueryPage *query_page)
     : QListWidget(query_page), main(main_window), page(query_page) {
@@ -202,4 +201,78 @@ QStringList HydrusThumbnailGrid::selected_hashes() const {
     }
 
     return hashes;
+}
+
+// WS-13.13: mouse gestures are configurable; Rust resolves the gesture to an
+// action over the active set + `thumbnails -> media -> main_gui` chain.
+static QString grid_gesture_for_button(
+    Qt::MouseButton button, const QString &press_type, Qt::KeyboardModifiers modifiers) {
+    QString name;
+    switch (button) {
+    case Qt::LeftButton: name = QStringLiteral("left"); break;
+    case Qt::RightButton: name = QStringLiteral("right"); break;
+    case Qt::MiddleButton: name = QStringLiteral("middle"); break;
+    case Qt::BackButton: name = QStringLiteral("back"); break;
+    case Qt::ForwardButton: name = QStringLiteral("forward"); break;
+    case Qt::TaskButton: name = QStringLiteral("task"); break;
+    default: name = QStringLiteral("left"); break;
+    }
+    QStringList parts;
+    if (modifiers & Qt::ControlModifier) {
+        parts << QStringLiteral("ctrl");
+    }
+    if (modifiers & Qt::AltModifier) {
+        parts << QStringLiteral("alt");
+    }
+    if (modifiers & Qt::ShiftModifier) {
+        parts << QStringLiteral("shift");
+    }
+    if (modifiers & Qt::MetaModifier) {
+        parts << QStringLiteral("meta");
+    }
+    parts << name;
+    return parts.join(QStringLiteral("+")) + QStringLiteral(" ") + press_type;
+}
+
+static QString grid_resolve(const QString &gesture) {
+    const QByteArray context_bytes = QByteArrayLiteral("thumbnails");
+    const QByteArray gesture_bytes = gesture.toUtf8();
+    return to_qstring(hydrus_mouse_gesture_action(
+        rust::Str(context_bytes.constData(), context_bytes.size()),
+        rust::Str(gesture_bytes.constData(), gesture_bytes.size())));
+}
+
+void HydrusThumbnailGrid::mousePressEvent(QMouseEvent *event) {
+    const QString action =
+        grid_resolve(grid_gesture_for_button(event->button(), QStringLiteral("press"), event->modifiers()));
+    if (action == QStringLiteral("open_new_page")) {
+        if (!page_id_value.isEmpty()) {
+            const QByteArray page_bytes = page_id_value.toUtf8();
+            app_action(
+                *main, UiAction::DuplicatePage,
+                rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str("", 0));
+        }
+        event->accept();
+        return;
+    }
+    if (action == QStringLiteral("show_context_menu")) {
+        // Let contextMenuEvent open the menu; swallow the press so selection
+        // does not change first (matches Hydrus right-click behaviour).
+        event->ignore();
+        return;
+    }
+    // select / range_select / toggle_select (and unbound buttons): Qt's
+    // ExtendedSelection already implements exactly these modifier semantics.
+    QListWidget::mousePressEvent(event);
+}
+
+void HydrusThumbnailGrid::mouseDoubleClickEvent(QMouseEvent *event) {
+    const QString action = grid_resolve(
+        grid_gesture_for_button(event->button(), QStringLiteral("double"), event->modifiers()));
+    if (!action.isEmpty() && action != QStringLiteral("open_viewer")) {
+        // Bound to something else: do not open the viewer.
+        event->ignore();
+        return;
+    }
+    QListWidget::mouseDoubleClickEvent(event);
 }

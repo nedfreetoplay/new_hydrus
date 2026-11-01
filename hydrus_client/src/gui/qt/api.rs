@@ -1781,15 +1781,30 @@ pub(crate) mod ffi {
         count: i64,
     }
 
-    /// Manage-shortcuts dialog contents (WS-13.12). The editor is read-only:
-    /// sets list, active-set bindings and conflict lines, all formatted in
-    /// Rust; C++ only assigns widgets.
+    /// One mouse binding of a shortcut set (WS-13.13): action key plus the
+    /// gesture texts (`[modifiers+]button press-type`, e.g. `ctrl+left press`).
+    /// `gesture_text` is pre-joined in Rust; C++ only assigns widgets.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct MouseBindingRow {
+        action: String,
+        label: String,
+        gestures: Vec<String>,
+        gesture_text: String,
+        context: String,
+    }
+
+    /// Manage-shortcuts dialog contents (WS-13.12/13.13). `bindings` are the
+    /// keyboard rows of the selected context, `mouse_bindings` the mouse rows;
+    /// `contexts` lists all contexts, `active_context` is the selected one.
     #[derive(Clone, Debug, PartialEq, Default)]
     struct ShortcutSetsDialogState {
         sets: Vec<ShortcutSetRow>,
         bindings: Vec<ShortcutBindingRow>,
         active_name: String,
         conflicts: Vec<String>,
+        mouse_bindings: Vec<MouseBindingRow>,
+        contexts: Vec<String>,
+        active_context: String,
     }
 
     /// Media viewer contents (WS-15.2.2b).
@@ -2126,6 +2141,16 @@ pub(crate) mod ffi {
         );
         fn app_shortcut_set_import(window: Pin<&mut HydrusMainWindow>, text: &str);
         fn hydrus_shortcut_set_export(name: &str) -> String;
+        /// Typed reverse seams (WS-13.13): mouse gestures + context switching.
+        fn hydrus_mouse_gesture_action(context: &str, gesture: &str) -> String;
+        fn app_shortcut_mouse_save(
+            window: Pin<&mut HydrusMainWindow>,
+            set_name: &str,
+            context: &str,
+            action: &str,
+            gestures: Vec<String>,
+        );
+        fn app_shortcut_context_open(window: Pin<&mut HydrusMainWindow>, context: &str);
         /// Typed reverse seams (WS-15.2.4c): services + network.
         fn app_service_save(
             window: Pin<&mut HydrusMainWindow>,
@@ -2750,6 +2775,24 @@ fn app_shortcut_set_import(mut window: Pin<&mut ffi::HydrusMainWindow>, text: &s
 
 fn hydrus_shortcut_set_export(name: &str) -> String {
     crate::gui::app::shortcut_set_export_text(name)
+}
+
+fn hydrus_mouse_gesture_action(context: &str, gesture: &str) -> String {
+    crate::gui::app::mouse_gesture_action(context, gesture)
+}
+
+fn app_shortcut_mouse_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    set_name: &str,
+    context: &str,
+    action: &str,
+    gestures: Vec<String>,
+) {
+    crate::gui::app::handle_shortcut_mouse_save(window.as_mut(), set_name, context, action, gestures);
+}
+
+fn app_shortcut_context_open(mut window: Pin<&mut ffi::HydrusMainWindow>, context: &str) {
+    crate::gui::app::handle_shortcut_context_open(window.as_mut(), context);
 }
 
 fn app_service_save(

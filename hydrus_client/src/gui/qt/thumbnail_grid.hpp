@@ -13,6 +13,7 @@ class QContextMenuEvent;
 class QDragEnterEvent;
 class QDragMoveEvent;
 class QDropEvent;
+class QMouseEvent;
 class QWheelEvent;
 class HydrusDuplicatesPage;
 class HydrusMainWindow;
@@ -40,6 +41,8 @@ public:
 protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
     void startDrag(Qt::DropActions supported_actions) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;

@@ -468,6 +468,7 @@ C++.
     JSON; `import_paths`/`local_import_open_paths` остаются JSON до своих подзадач.
 - [ ] 15.2.3 `notify(action, target, payload)` → `UiEvent` или отдельная функция
   на команду.
+  - 15.2.3a [x] страницы/вкладки/сессия: notify 191→186 (коммит 93513a1)
 - [ ] 15.2.4 Удалить `parse_object`/`json_payload` из C++ и `serde_json` с шва.
 - [ ] 15.2.5 Правило на будущее: новый экран не добавляет `&str`-payload.
 

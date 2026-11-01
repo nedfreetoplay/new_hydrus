@@ -137,8 +137,10 @@ HydrusImportOptionsDialog::HydrusImportOptionsDialog(
             description->setText(QStringLiteral("favourite container \"%1\"").arg(name));
         }
 
-        rename_button->setEnabled(!selected_key.startsWith(QStringLiteral("default:")));
-        delete_button->setEnabled(!selected_key.startsWith(QStringLiteral("default:")));
+        const QByteArray sel = selected_key.toUtf8();
+        const rust::Str sel_str(sel.constData(), sel.size());
+        rename_button->setEnabled(hydrus_avail_favourite_editable(sel_str));
+        delete_button->setEnabled(hydrus_avail_favourite_editable(sel_str));
 
         fill_editor(container, defaults.value(QStringLiteral("global")).toObject());
     });

@@ -16,6 +16,7 @@ use crate::gui::qt::panels;
 
 pub mod api_permissions;
 pub mod auto_resolution;
+pub mod availability;
 pub mod backup;
 pub mod commands;
 pub mod download;

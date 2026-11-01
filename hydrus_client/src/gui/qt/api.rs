@@ -1531,6 +1531,7 @@ pub(crate) mod ffi {
         search_subdirectories: bool,
         delete_after_success: bool,
         can_import: bool,
+        good_count: i64,
         import_label: String,
         paths: Vec<LocalImportPathRow>,
     }
@@ -2500,6 +2501,29 @@ pub(crate) mod ffi {
         /// the literal.
         fn hydrus_no_local_tag_service_tooltip() -> String;
         fn hydrus_no_local_tag_service_label() -> String;
+        /// Thin typed getters for availability/visibility predicates
+        /// (WS-15.3.2b, R2): C++ passes widget state, Rust decides.
+        fn hydrus_avail_max_pending(operation: &str) -> bool;
+        fn hydrus_avail_better_side(action: &str) -> bool;
+        fn hydrus_avail_same_tab(action: &str) -> bool;
+        fn hydrus_avail_permission_list(permits_everything: bool) -> bool;
+        fn hydrus_avail_comparator_panel(kind: &str) -> i32;
+        fn hydrus_avail_manager_edit(selected: i64) -> bool;
+        fn hydrus_avail_manager_delete(selected: i64) -> bool;
+        fn hydrus_avail_file_limit_value(unlimited: bool, value: i64) -> i64;
+        fn hydrus_avail_file_limit(unlimited: bool) -> bool;
+        fn hydrus_avail_downloader_row(kind: &str, row: &str) -> bool;
+        fn hydrus_avail_downloader_start_enabled(running: bool) -> bool;
+        fn hydrus_avail_downloader_highlight_subject(page_url_empty: bool) -> bool;
+        fn hydrus_avail_second_search(dupe_search_type: &str) -> bool;
+        fn hydrus_avail_search_distance(pixel_dupes: &str) -> bool;
+        fn hydrus_avail_sort_ascending_visible(sort_type: &str) -> bool;
+        fn hydrus_avail_checked(checked: bool) -> bool;
+        fn hydrus_avail_move_destination(action: &str) -> bool;
+        fn hydrus_avail_export_delete(export_type: &str) -> bool;
+        fn hydrus_avail_favourite_editable(key: &str) -> bool;
+        fn hydrus_avail_good_count(good_count: i64) -> bool;
+        fn hydrus_avail_tagging_services(count: i64) -> bool;
     }
 }
 
@@ -3301,6 +3325,93 @@ fn hydrus_no_local_tag_service_tooltip() -> String {
 
 fn hydrus_no_local_tag_service_label() -> String {
     crate::gui::app::status_texts::no_local_tag_service_label()
+}
+
+use crate::gui::app::availability as avail;
+
+fn hydrus_avail_max_pending(operation: &str) -> bool {
+    avail::max_pending_enabled(operation)
+}
+fn hydrus_avail_better_side(action: &str) -> bool {
+    avail::custom_better_side_enabled(action)
+}
+fn hydrus_avail_same_tab(action: &str) -> bool {
+    avail::custom_same_tab_enabled(action)
+}
+fn hydrus_avail_permission_list(permits_everything: bool) -> bool {
+    avail::permission_list_enabled(permits_everything)
+}
+fn hydrus_avail_comparator_panel(kind: &str) -> i32 {
+    if avail::comparator_one_file_visible(kind) {
+        0
+    } else if avail::comparator_relative_visible(kind) {
+        1
+    } else if avail::comparator_filetype_visible(kind) {
+        2
+    } else {
+        -1
+    }
+}
+fn hydrus_avail_manager_edit(selected: i64) -> bool {
+    avail::manager_edit_enabled(selected)
+}
+fn hydrus_avail_manager_delete(selected: i64) -> bool {
+    avail::manager_delete_enabled(selected)
+}
+fn hydrus_avail_file_limit_value(unlimited: bool, value: i64) -> i64 {
+    avail::file_limit_value(unlimited, value)
+}
+fn hydrus_avail_file_limit(unlimited: bool) -> bool {
+    avail::file_limit_enabled(unlimited)
+}
+fn hydrus_avail_downloader_row(kind: &str, row: &str) -> bool {
+    match row {
+        "input" => avail::downloader_input_row_visible(kind),
+        "query" => avail::downloader_query_row_visible(kind),
+        "url" => avail::downloader_url_row_visible(kind),
+        "site" => avail::downloader_site_row_visible(kind),
+        "subject" => avail::downloader_subject_row_visible(kind),
+        "period" => avail::downloader_period_row_visible(kind),
+        "file_limit" => avail::downloader_file_limit_row_visible(kind),
+        "gug" => avail::downloader_gug_button_visible(kind),
+        "highlight" => avail::downloader_highlight_box_visible(kind),
+        "start" => avail::downloader_start_button_visible(kind),
+        "auto" => avail::downloader_auto_button_visible(kind),
+        _ => false,
+    }
+}
+fn hydrus_avail_downloader_start_enabled(running: bool) -> bool {
+    avail::downloader_start_button_enabled(running)
+}
+fn hydrus_avail_downloader_highlight_subject(page_url_empty: bool) -> bool {
+    avail::downloader_highlight_subject_visible(page_url_empty)
+}
+fn hydrus_avail_second_search(dupe_search_type: &str) -> bool {
+    avail::duplicates_second_search_visible(dupe_search_type)
+}
+fn hydrus_avail_search_distance(pixel_dupes: &str) -> bool {
+    avail::duplicates_search_distance_enabled(pixel_dupes)
+}
+fn hydrus_avail_sort_ascending_visible(sort_type: &str) -> bool {
+    avail::duplicates_sort_ascending_visible(sort_type)
+}
+fn hydrus_avail_checked(checked: bool) -> bool {
+    avail::period_button_enabled(checked)
+}
+fn hydrus_avail_move_destination(action: &str) -> bool {
+    avail::move_destination_enabled(action)
+}
+fn hydrus_avail_export_delete(export_type: &str) -> bool {
+    avail::export_delete_from_client_enabled(export_type)
+}
+fn hydrus_avail_favourite_editable(key: &str) -> bool {
+    avail::favourite_container_editable(key)
+}
+fn hydrus_avail_good_count(good_count: i64) -> bool {
+    avail::local_import_can_import(good_count)
+}
+fn hydrus_avail_tagging_services(count: i64) -> bool {
+    avail::tagging_add_enabled(count)
 }
 
 fn action_from_str(action: &str) -> ffi::UiAction {

@@ -561,8 +561,8 @@ void build_import_folder_tagging_section(
 
     refresh_tagging();
 
-    if (service_keys.isEmpty()) {
-        add_tagging->setEnabled(false);
+    add_tagging->setEnabled(hydrus_avail_tagging_services(static_cast<int64_t>(service_keys.size())));
+    if (!hydrus_avail_tagging_services(static_cast<int64_t>(service_keys.size()))) {
         add_tagging->setToolTip(to_qstring(hydrus_no_local_tag_service_tooltip()));
     }
 }

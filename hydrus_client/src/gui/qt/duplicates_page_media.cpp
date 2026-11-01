@@ -212,7 +212,9 @@ void HydrusDuplicatesPage::notify_search_context() {
 }
 
 void HydrusDuplicatesPage::update_search_controls() {
-    const bool different_searches = dupe_search_type->currentData().toString() == QStringLiteral("different_searches");
+    const QByteArray st = dupe_search_type->currentData().toString().toUtf8();
+    const rust::Str st_str(st.constData(), st.size());
+    const bool different_searches = hydrus_avail_second_search(st_str);
 
     search_row_2_label->setVisible(different_searches);
     search_query_2->setVisible(different_searches);
@@ -222,13 +224,15 @@ void HydrusDuplicatesPage::update_search_controls() {
         search_query_2->parentWidget()->setVisible(different_searches);
     }
 
-    search_distance->setEnabled(pixel_dupes->currentData().toString() != QStringLiteral("required"));
+    const QByteArray pd = pixel_dupes->currentData().toString().toUtf8();
+    search_distance->setEnabled(hydrus_avail_search_distance(rust::Str(pd.constData(), pd.size())));
 
     const QString sort = sort_type->currentData().toString();
-    const bool random = sort == QStringLiteral("random");
+    const QByteArray sort_bytes = sort.toUtf8();
+    const bool random = !hydrus_avail_sort_ascending_visible(rust::Str(sort_bytes.constData(), sort_bytes.size()));
     const bool current_asc = sort_ascending->currentData().toBool();
 
-    sort_ascending->setVisible(!random);
+    sort_ascending->setVisible(hydrus_avail_sort_ascending_visible(rust::Str(sort_bytes.constData(), sort_bytes.size())));
 
     if (random) {
         return;

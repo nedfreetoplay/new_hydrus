@@ -109,7 +109,7 @@ void show_api_permission_editor(HydrusMainWindow *main, QWidget *parent, const s
     layout->addWidget(tabs, 1);
 
     auto update_enabled = [permits_everything, permission_list]() {
-        permission_list->setEnabled(!permits_everything->isChecked());
+        permission_list->setEnabled(hydrus_avail_permission_list(permits_everything->isChecked()));
     };
     QObject::connect(permits_everything, &QCheckBox::clicked, &dialog, [update_enabled](bool) { update_enabled(); });
     update_enabled();

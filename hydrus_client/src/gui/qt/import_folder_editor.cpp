@@ -314,7 +314,8 @@ void HydrusMainWindow::show_import_folder(const ImportFolderEditorState &state) 
     // Instead, connect each combo individually.
     auto make_sync = [](QComboBox *combo, QLineEdit *location, QPushButton *browse) {
         auto sync = [combo, location, browse]() {
-            const bool move = combo->currentData().toString() == QStringLiteral("move");
+            const QByteArray act = combo->currentData().toString().toUtf8();
+            const bool move = hydrus_avail_move_destination(rust::Str(act.constData(), act.size()));
             location->setEnabled(move);
             browse->setEnabled(move);
         };
@@ -452,9 +453,9 @@ void HydrusMainWindow::show_import_folder(const ImportFolderEditorState &state) 
     });
 
     connect(check_regularly, &QCheckBox::toggled, &dialog, [check_regularly, period_button]() {
-        period_button->setEnabled(check_regularly->isChecked());
+        period_button->setEnabled(hydrus_avail_checked(check_regularly->isChecked()));
     });
-    period_button->setEnabled(check_regularly->isChecked());
+    period_button->setEnabled(hydrus_avail_checked(check_regularly->isChecked()));
 
     connect(path, &QLineEdit::textChanged, &dialog, [this, &dialog, path, &folder_path]() {});
     // browse

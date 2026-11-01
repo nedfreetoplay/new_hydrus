@@ -171,9 +171,9 @@ void HydrusExportFoldersDialog::set_state(const FolderPageState &state) {
 }
 
 void HydrusExportFoldersDialog::refresh_buttons() {
-    const int selected = table->selectionModel()->selectedRows().size();
-    edit_button->setEnabled(selected == 1);
-    delete_button->setEnabled(selected >= 1);
+    const int64_t selected = table->selectionModel()->selectedRows().size();
+    edit_button->setEnabled(hydrus_avail_manager_edit(selected));
+    delete_button->setEnabled(hydrus_avail_manager_delete(selected));
 }
 
 void HydrusExportFoldersDialog::with_selected(UiAction action) {

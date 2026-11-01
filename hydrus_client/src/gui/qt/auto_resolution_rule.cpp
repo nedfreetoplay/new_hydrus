@@ -269,10 +269,14 @@ HydrusAutoResolutionRuleDialog::HydrusAutoResolutionRuleDialog(
     QObject::connect(save, &QPushButton::clicked, this, [this]() { this->save(); });
     QObject::connect(cancel, &QPushButton::clicked, this, &QDialog::close);
     QObject::connect(operation, &QComboBox::currentIndexChanged, this, [this](int) {
-        max_pending->setEnabled(operation->currentData().toString() != QLatin1String("fully automatic"));
+        const QByteArray op = operation->currentData().toString().toUtf8();
+        max_pending->setEnabled(hydrus_avail_max_pending(rust::Str(op.constData(), op.size())));
     });
 
-    max_pending->setEnabled(operation->currentData().toString() != QLatin1String("fully automatic"));
+    {
+        const QByteArray op = operation->currentData().toString().toUtf8();
+        max_pending->setEnabled(hydrus_avail_max_pending(rust::Str(op.constData(), op.size())));
+    }
     refresh_comparators();
 
     if (qEnvironmentVariableIsSet("HYDRUS_QT_DUPLICATES_RULE_PREVIEW")) {

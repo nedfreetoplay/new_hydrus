@@ -432,7 +432,8 @@ fn dialog_state_for(
         summary,
         search_subdirectories: review.search_subdirectories,
         delete_after_success: review.delete_after_success,
-        can_import: counts.good > 0,
+        can_import: crate::gui::app::availability::local_import_can_import(good),
+        good_count: good,
         import_label: if counts.good > 0 {
             format!("import now ({good})")
         } else {

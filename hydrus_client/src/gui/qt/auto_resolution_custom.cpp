@@ -145,15 +145,17 @@ HydrusDuplicateCustomActionDialog::HydrusDuplicateCustomActionDialog(
 
     auto update_controls = [this]() {
         const QString kind = action->currentData().toString();
-        const bool better_action = kind == QStringLiteral("better");
+        const QByteArray kind_bytes = kind.toUtf8();
+        const rust::Str kind_str(kind_bytes.constData(), kind_bytes.size());
+        const bool better_action = hydrus_avail_better_side(kind_str);
 
         better_side->setEnabled(better_action);
         tabs->setTabEnabled(0, better_action);
-        tabs->setTabEnabled(1, kind == QStringLiteral("same"));
+        tabs->setTabEnabled(1, hydrus_avail_same_tab(kind_str));
 
         if (better_action) {
             tabs->setCurrentIndex(0);
-        } else if (kind == QStringLiteral("same")) {
+        } else if (hydrus_avail_same_tab(kind_str)) {
             tabs->setCurrentIndex(1);
         }
     };

@@ -165,9 +165,11 @@ QJsonObject edit_condition_dialog(QWidget *parent, const QJsonObject &initial, c
 
     auto update_kind = [kind, one_file, relative, filetype]() {
         const QString current = kind->currentData().toString();
-        one_file->setVisible(current == QLatin1String("one_file"));
-        relative->setVisible(current == QLatin1String("relative"));
-        filetype->setVisible(current == QLatin1String("filetype"));
+        const QByteArray cur = current.toUtf8();
+        const int32_t panel = hydrus_avail_comparator_panel(rust::Str(cur.constData(), cur.size()));
+        one_file->setVisible(panel == 0);
+        relative->setVisible(panel == 1);
+        filetype->setVisible(panel == 2);
     };
     QObject::connect(kind, &QComboBox::currentIndexChanged, &dialog, [update_kind](int) { update_kind(); });
 

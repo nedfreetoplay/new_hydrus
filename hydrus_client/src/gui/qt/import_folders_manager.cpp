@@ -162,9 +162,9 @@ void HydrusImportFoldersDialog::set_state(const FolderPageState &state) {
 }
 
 void HydrusImportFoldersDialog::refresh_buttons() {
-    const bool selected = table->currentRow() >= 0;
-    edit_button->setEnabled(selected);
-    delete_button->setEnabled(selected);
+    const int64_t selected = table->currentRow() >= 0 ? 1 : 0;
+    edit_button->setEnabled(hydrus_avail_manager_edit(selected));
+    delete_button->setEnabled(hydrus_avail_manager_delete(selected));
 }
 
 void HydrusImportFoldersDialog::with_selected(UiAction action) {

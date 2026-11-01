@@ -58,9 +58,7 @@ struct DirectoryTaggingRow;
 struct QuickNamespaceRow;
 struct FilenameTaggingEntry;
 
-// Typed reverse seam helper (WS-15.2.4c): flattens the tagging editor's
-// `filename_tagging` object into typed rows. Implemented in
-// local_import_tagging.cpp; shared with import_folder_editor.cpp.
+// Flattens the tagging editor's `filename_tagging` object (WS-15.2.4c).
 rust::Vec<FilenameTaggingEntry> filename_tagging_entries(const QJsonObject &tagging);
 
 std::unique_ptr<QApplication> new_application();
@@ -195,8 +193,7 @@ void app_action(
 
 void app_tick(HydrusMainWindow &window) noexcept;
 
-// Typed reverse seams (WS-15.2.2a): tab drag & drop and manage-pages close
-// actions. Implemented in Rust, same core as the notify actions.
+// Reverse seams (WS-15.2.2a): tab drag & drop, manage-pages close. In Rust.
 void app_move_page(
     HydrusMainWindow &window,
     rust::Str source,
@@ -205,9 +202,7 @@ void app_move_page(
 
 void app_close_pages(HydrusMainWindow &window, rust::Vec<rust::String> ids) noexcept;
 
-// Typed reverse seams (WS-15.2.2b): thumbnail grid selection, focus, viewer
-// open and page-to-page drag. Implemented in Rust, same cores as the notify
-// actions.
+// Reverse seams (WS-15.2.2b): selection, focus, viewer, page-to-page drag.
 void app_set_selection(
     HydrusMainWindow &window,
     rust::Str page_id,
@@ -222,9 +217,7 @@ void app_add_hashes(
     rust::Str page_id,
     rust::Vec<rust::String> hashes) noexcept;
 
-// Typed reverse seams (WS-15.2.2b): metadata panel tag/rating/notes actions.
-// Implemented in Rust, same cores as tag_add/tag_remove, rating_set and
-// notes_manage.
+// Reverse seams (WS-15.2.2b): tag/rating/notes actions. In Rust.
 void app_tag_edit(
     HydrusMainWindow &window,
     rust::Str hash,
@@ -414,8 +407,7 @@ void app_subscription_edit_save(
     rust::Str filter,
     int64_t period,
     bool paused) noexcept;
-// `container_json` holds the arbitrary nested import options dict (same R1
-// exception as `SubscriptionDialogRow.import_options_json`).
+// `container_json`: arbitrary nested import options dict (R1 exception).
 void app_subscription_import_options_save(
     HydrusMainWindow &window,
     rust::Str name,
@@ -476,9 +468,7 @@ void app_duplicates_rule_preview(
     rust::Str action,
     bool delete_a,
     bool delete_b) noexcept;
-// Typed reverse seams (WS-15.2.4c, партия 4): admin dialogs and the last
-// duplicate dialogs. C++ calls these directly instead of the old
-// `notify` + JSON reverse payload.
+// Reverse seams (WS-15.2.4c, партия 4): admin + duplicate dialogs.
 void app_account_type_save(
     HydrusMainWindow &window,
     rust::Str key,
@@ -551,8 +541,7 @@ void app_orphan_files_move(
     HydrusMainWindow &window,
     rust::Vec<rust::String> paths,
     rust::Str target) noexcept;
-// Typed reverse seams (WS-15.2.4c): export/import folders, local import,
-// options, notes. C++ calls these directly instead of `notify(..., json)`.
+// Reverse seams (WS-15.2.4c): export/import folders, local import, options.
 void app_export_folder_run(
     HydrusMainWindow &window,
     rust::Str page_id,
@@ -613,13 +602,11 @@ void app_local_import_tagging_save(
     HydrusMainWindow &window,
     rust::Vec<FilenameTaggingEntry> tagging,
     bool import_after_save) noexcept;
-// `options_json` holds the whole options dialog tree (R1 exception: the set
-// of option keys is open-ended, like the Python options dict).
+// `options_json`: whole options tree (R1 exception: open-ended dict).
 void app_options_apply(
     HydrusMainWindow &window,
     rust::Str options_json) noexcept;
-// `options_json` holds the whole import options tree or one specific
-// container (R1 exception: arbitrary nested import-options dicts).
+// `options_json`: import options tree or one container (R1 exception).
 void app_import_options_save(
     HydrusMainWindow &window,
     UiAction action,
@@ -632,19 +619,9 @@ void app_notes_save(
     rust::Vec<rust::String> names,
     rust::Vec<rust::String> texts) noexcept;
 
-// Implemented in Rust: the Python VetoException text for an invalid export
-// filename phrase, or an empty string when the phrase parses.
-rust::String hydrus_validate_export_phrase(rust::Str phrase) noexcept;
+// Implemented in Rust (WS-15.3.2b): scalar getters and
+// availability/visibility predicates live in avail.hpp.
+#include "avail.hpp"
 
-// Implemented in Rust: resolves the vendored static/ asset directory.
-rust::String hydrus_static_dir() noexcept;
-
-// Implemented in Rust (WS-15.3.2a): canonical empty-state strings; C++ only
-// applies them, never duplicates the literals.
-rust::String hydrus_no_local_tag_service_tooltip() noexcept;
-rust::String hydrus_no_local_tag_service_label() noexcept;
-
-// Implemented in Rust: maps an action string to UiAction (data-driven seams).
-UiAction action_from_str(rust::Str action) noexcept;
 
 

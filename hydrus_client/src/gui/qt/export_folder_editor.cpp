@@ -254,11 +254,11 @@ void HydrusMainWindow::show_export_folder(const ExportFolderEditorState &state) 
 
     connect(run_regularly, &QCheckBox::toggled, &dialog, [run_regularly, period_button,
                                                           show_working_popup]() {
-        period_button->setEnabled(run_regularly->isChecked());
-        show_working_popup->setEnabled(run_regularly->isChecked());
+        period_button->setEnabled(hydrus_avail_checked(run_regularly->isChecked()));
+        show_working_popup->setEnabled(hydrus_avail_checked(run_regularly->isChecked()));
     });
-    period_button->setEnabled(run_regularly->isChecked());
-    show_working_popup->setEnabled(run_regularly->isChecked());
+    period_button->setEnabled(hydrus_avail_checked(run_regularly->isChecked()));
+    show_working_popup->setEnabled(hydrus_avail_checked(run_regularly->isChecked()));
 
     // query to export
     QVBoxLayout *query_box_layout = nullptr;
@@ -410,10 +410,11 @@ void HydrusMainWindow::show_export_folder(const ExportFolderEditorState &state) 
 
     // type of export switches the trash option off, like Python.
     auto update_type = [export_type, delete_from_client]() {
+        const QByteArray et = export_type->currentData().toString().toUtf8();
         const bool synchronise =
-            export_type->currentData().toString() == QStringLiteral("synchronise");
+            !hydrus_avail_export_delete(rust::Str(et.constData(), et.size()));
 
-        delete_from_client->setEnabled(!synchronise);
+        delete_from_client->setEnabled(hydrus_avail_export_delete(rust::Str(et.constData(), et.size())));
 
         if (synchronise) {
             delete_from_client->setChecked(false);

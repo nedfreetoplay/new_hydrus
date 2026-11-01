@@ -177,13 +177,13 @@ void HydrusDownloaderPage::fill_sites(const rust::Vec<GallerySite> &value) {
 
 void HydrusDownloaderPage::apply_file_limit(int value, bool unlimited) {
     const int clamped = qMax(1, value);
-    file_limit_value = unlimited ? 0 : clamped;
+    file_limit_value = static_cast<int>(hydrus_avail_file_limit_value(unlimited, clamped));
     no_limit_value = unlimited;
 
     if (file_limit != nullptr) {
         const QSignalBlocker blocker(file_limit);
         file_limit->setValue(clamped);
-        file_limit->setEnabled(!unlimited);
+        file_limit->setEnabled(hydrus_avail_file_limit(unlimited));
     }
 
     if (no_limit != nullptr) {
@@ -194,7 +194,7 @@ void HydrusDownloaderPage::apply_file_limit(int value, bool unlimited) {
     if (highlight_file_limit != nullptr) {
         const QSignalBlocker blocker(highlight_file_limit);
         highlight_file_limit->setValue(clamped);
-        highlight_file_limit->setEnabled(!unlimited);
+        highlight_file_limit->setEnabled(hydrus_avail_file_limit(unlimited));
     }
 
     if (highlight_no_limit != nullptr) {
@@ -208,8 +208,11 @@ void HydrusDownloaderPage::update_state(const DownloaderPageState &state) {
 
     const bool gallery = kind == QStringLiteral("gallery");
     const bool watcher = kind == QStringLiteral("watcher");
+    (void)gallery;
     const bool urls = kind == QStringLiteral("urls");
+    (void)urls;
     const bool simple = kind == QStringLiteral("simple");
+    (void)simple;
 
     const bool running = state.running;
     const bool paused = state.paused;
@@ -221,50 +224,64 @@ void HydrusDownloaderPage::update_state(const DownloaderPageState &state) {
 
     fill_sites(state.sites);
 
+    const QByteArray kind_bytes = kind.toUtf8();
+    const rust::Str kind_str(kind_bytes.constData(), kind_bytes.size());
+    const QByteArray q_input("input", 5);
+    const QByteArray q_query("query", 5);
+    const QByteArray q_url("url", 3);
+    const QByteArray q_site("site", 4);
+    const QByteArray q_subject("subject", 7);
+    const QByteArray q_period("period", 6);
+    const QByteArray q_file_limit("file_limit", 10);
+    const QByteArray q_gug("gug", 3);
+    const QByteArray q_highlight("highlight", 9);
+    const QByteArray q_start("start", 5);
+    const QByteArray q_auto("auto", 4);
+
     if (input_row != nullptr) {
-        input_row->setVisible(urls || simple);
+        input_row->setVisible(hydrus_avail_downloader_row(kind_str, rust::Str(q_input.constData(), q_input.size())));
     }
 
     if (query_row != nullptr) {
-        query_row->setVisible(gallery);
+        query_row->setVisible(hydrus_avail_downloader_row(kind_str, rust::Str(q_query.constData(), q_query.size())));
     }
 
     if (url_row != nullptr) {
-        url_row->setVisible(watcher);
+        url_row->setVisible(hydrus_avail_downloader_row(kind_str, rust::Str(q_url.constData(), q_url.size())));
     }
 
     if (site_row != nullptr) {
-        site_row->setVisible(watcher || simple);
+        site_row->setVisible(hydrus_avail_downloader_row(kind_str, rust::Str(q_site.constData(), q_site.size())));
     }
 
     if (subject_row != nullptr) {
-        subject_row->setVisible(watcher);
+        subject_row->setVisible(hydrus_avail_downloader_row(kind_str, rust::Str(q_subject.constData(), q_subject.size())));
     }
 
     if (period_row != nullptr) {
-        period_row->setVisible(watcher);
+        period_row->setVisible(hydrus_avail_downloader_row(kind_str, rust::Str(q_period.constData(), q_period.size())));
     }
 
     if (file_limit_row != nullptr) {
-        file_limit_row->setVisible(gallery);
+        file_limit_row->setVisible(hydrus_avail_downloader_row(kind_str, rust::Str(q_file_limit.constData(), q_file_limit.size())));
     }
 
     if (gug_button != nullptr) {
-        gug_button->setVisible(gallery);
+        gug_button->setVisible(hydrus_avail_downloader_row(kind_str, rust::Str(q_gug.constData(), q_gug.size())));
     }
 
     if (highlight_box != nullptr) {
-        highlight_box->setVisible(gallery || watcher);
+        highlight_box->setVisible(hydrus_avail_downloader_row(kind_str, rust::Str(q_highlight.constData(), q_highlight.size())));
     }
 
     if (start_button != nullptr) {
-        start_button->setVisible(!gallery);
-        start_button->setEnabled(!running);
+        start_button->setVisible(hydrus_avail_downloader_row(kind_str, rust::Str(q_start.constData(), q_start.size())));
+        start_button->setEnabled(hydrus_avail_downloader_start_enabled(running));
         start_button->setText(to_qstring(state.start_button_text));
     }
 
     if (auto_button != nullptr) {
-        auto_button->setVisible(watcher);
+        auto_button->setVisible(hydrus_avail_downloader_row(kind_str, rust::Str(q_auto.constData(), q_auto.size())));
         auto_button->setText(to_qstring(state.auto_button_text));
     }
 
@@ -330,7 +347,7 @@ void HydrusDownloaderPage::update_state(const DownloaderPageState &state) {
     }
 
     if (highlight_subject != nullptr) {
-        highlight_subject->setVisible(!page_url.isEmpty());
+        highlight_subject->setVisible(hydrus_avail_downloader_highlight_subject(page_url.isEmpty()));
         highlight_subject->setText(to_qstring(state.highlight_subject_text));
     }
 

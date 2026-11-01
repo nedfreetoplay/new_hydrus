@@ -216,7 +216,7 @@ void HydrusLocalImportReviewDialog::set_state(const LocalImportReviewDialogState
         }
     }
 
-    const bool can_import = state.can_import;
+    const bool can_import = hydrus_avail_good_count(state.good_count);
     import_button->setEnabled(can_import);
     tag_button->setEnabled(can_import);
     import_button->setText(to_qstring(state.import_label));

@@ -1075,28 +1075,6 @@ pub fn notification_summary(count: usize) -> String {
     format!("{count} message(s)")
 }
 
-pub fn notifications_json(state: &AppState) -> String {
-    let entries: Vec<Value> = state
-        .notifications
-        .entries()
-        .iter()
-        .rev()
-        .map(|notification| {
-            json!({
-                "time": hydrus_core::hydrus_time::timestamp_to_pretty_time(
-                    Some(notification.timestamp as f64),
-                    false,
-                    true,
-                ),
-                "level": notification.level,
-                "text": notification.text,
-            })
-        })
-        .collect();
-
-    json!({"count": state.notifications.len(), "entries": entries}).to_string()
-}
-
 /// Manage-pages dialog tree as flat preorder rows (WS-15.2.2a).
 /// `count` is the per-kind item count the old JSON seam carried; `active`
 /// marks the selected page (rendered bold).

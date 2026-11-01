@@ -26,7 +26,7 @@
 // WS-15.1.5: HydrusSubscriptionsDialog moved verbatim from bridge.cpp (move-only split).
 
 HydrusSubscriptionsDialog::HydrusSubscriptionsDialog(
-    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    HydrusMainWindow *main_window, const SubscriptionsDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("manage subscriptions"));
     setObjectName(QStringLiteral("manage_subscriptions_dialog"));
@@ -271,18 +271,13 @@ HydrusSubscriptionsDialog::HydrusSubscriptionsDialog(
             return;
         }
 
-        const QJsonArray subscriptions = data.value(QStringLiteral("subscriptions")).toArray();
+        const auto options = import_options.find(names.first());
 
-        for (const QJsonValue &value : subscriptions) {
-            const QJsonObject subscription = value.toObject();
-
-            if (subscription.value(QStringLiteral("name")).toString() == names.first()) {
-                const QJsonDocument document(
-                    subscription.value(QStringLiteral("import_options")).toObject());
-                QApplication::clipboard()->setText(
-                    QString::fromUtf8(document.toJson(QJsonDocument::Compact)));
-                break;
-            }
+        if (options != import_options.end()) {
+            const QJsonDocument document =
+                QJsonDocument::fromJson(options->second.toUtf8());
+            QApplication::clipboard()->setText(
+                QString::fromUtf8(document.toJson(QJsonDocument::Compact)));
         }
     });
     connect(paste_button, &QToolButton::clicked, this, [this, paste_button]() {
@@ -317,9 +312,15 @@ HydrusSubscriptionsDialog::HydrusSubscriptionsDialog(
     set_state(state);
 }
 
-void HydrusSubscriptionsDialog::set_state(const QJsonObject &state) {
-    data = state;
-    warning->setVisible(state.value(QStringLiteral("subs_paused")).toBool());
+void HydrusSubscriptionsDialog::set_state(const SubscriptionsDialogState &state) {
+    sites.clear();
+    import_options.clear();
+
+    for (const GallerySite &parser : state.sites) {
+        sites.emplace_back(to_qstring(parser.id), to_qstring(parser.title));
+    }
+
+    warning->setVisible(state.subs_paused);
 
     QString selected_name;
 
@@ -327,41 +328,43 @@ void HydrusSubscriptionsDialog::set_state(const QJsonObject &state) {
         selected_name =
             table->item(table->currentRow(), 0)->data(Qt::UserRole).toString();
     }
-    const QJsonArray subscriptions = state.value(QStringLiteral("subscriptions")).toArray();
+    const rust::Vec<SubscriptionDialogRow> &subscriptions = state.rows;
 
     table->setSortingEnabled(false);
-    table->setRowCount(subscriptions.size());
+    table->setRowCount(static_cast<int>(subscriptions.size()));
 
-    for (int index = 0; index < subscriptions.size(); ++index) {
-        const QJsonObject subscription = subscriptions.at(index).toObject();
-        const QString name = subscription.value(QStringLiteral("name")).toString();
+    for (size_t index = 0; index < subscriptions.size(); ++index) {
+        const SubscriptionDialogRow &subscription = subscriptions[index];
+        const int row = static_cast<int>(index);
+        const QString name = to_qstring(subscription.name);
         const QStringList cells = {
             name,
-            subscription.value(QStringLiteral("source")).toString(),
-            subscription.value(QStringLiteral("pretty_status")).toString(),
-            subscription.value(QStringLiteral("last_new_file_time")).toString(),
-            subscription.value(QStringLiteral("last_checked")).toString(),
-            subscription.value(QStringLiteral("error")).toString(),
-            subscription.value(QStringLiteral("items")).toString(),
-            subscription.value(QStringLiteral("paused_display")).toString(),
-            subscription.value(QStringLiteral("custom_import_options")).toString(),
+            to_qstring(subscription.source),
+            to_qstring(subscription.pretty_status),
+            to_qstring(subscription.last_new_file_time),
+            to_qstring(subscription.last_checked),
+            to_qstring(subscription.error),
+            to_qstring(subscription.items),
+            to_qstring(subscription.paused_display),
+            to_qstring(subscription.custom_import_options),
         };
 
         for (int column = 0; column < cells.size(); ++column) {
-            auto *item = table->item(index, column);
+            auto *item = table->item(row, column);
 
             if (item == nullptr) {
                 item = new QTableWidgetItem();
-                table->setItem(index, column, item);
+                table->setItem(row, column, item);
             }
 
             item->setText(cells[column]);
             item->setToolTip(cells[column]);
         }
 
-        auto *name_item = table->item(index, 0);
+        auto *name_item = table->item(row, 0);
         name_item->setData(Qt::UserRole, name);
-        name_item->setToolTip(subscription.value(QStringLiteral("url")).toString());
+        name_item->setToolTip(to_qstring(subscription.url));
+        import_options[name] = to_qstring(subscription.import_options_json);
     }
 
     table->setSortingEnabled(true);
@@ -453,10 +456,8 @@ void HydrusSubscriptionsDialog::add_subscription() {
 
     site->addItem(QStringLiteral("auto detect"), QString());
 
-    for (const QJsonValue &value : data.value(QStringLiteral("sites")).toArray()) {
-        const QJsonObject parser = value.toObject();
-        site->addItem(parser.value(QStringLiteral("title")).toString(),
-                      parser.value(QStringLiteral("id")).toString());
+    for (const auto &parser : sites) {
+        site->addItem(parser.second, parser.first);
     }
 
     url->setPlaceholderText(QStringLiteral("https://example.com/search?q={query}"));

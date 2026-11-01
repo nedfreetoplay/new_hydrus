@@ -5,11 +5,13 @@
 //! and gallery seeds from `DownloaderPage.gallery_seeds`. Both stay in the GUI
 //! session, so the logs survive a restart.
 
-use serde_json::{Value, json};
+use serde_json::Value;
+
+use crate::gui::qt::api::ffi::{SeedCacheState, SeedFilter, SeedRow};
 
 use crate::gui::app::model::{DownloadItemStatus, DownloaderKind, DownloaderPage, PageNode};
 use crate::gui::app::worker::AsyncJob;
-use crate::gui::app::{AppState, UiCommand, render};
+use crate::gui::app::{render, AppState, UiCommand};
 
 fn find_page<'a>(state: &'a AppState, page_id: &str) -> Option<&'a DownloaderPage> {
     fn visit<'a>(
@@ -34,16 +36,7 @@ fn find_page<'a>(state: &'a AppState, page_id: &str) -> Option<&'a DownloaderPag
     visit(&state.root, page_id)
 }
 
-fn counts(seeds: &[(&str, &str)]) -> Value {
-    let total = seeds.len();
-    let pending = seeds
-        .iter()
-        .filter(|(status, _)| *status == "pending")
-        .count();
-    let working = seeds
-        .iter()
-        .filter(|(status, _)| *status == "working")
-        .count();
+fn seed_counts(seeds: &[(&str, &str)]) -> (usize, usize, usize) {
     let done = seeds
         .iter()
         .filter(|(status, _)| *status == "done" || *status == "success")
@@ -52,120 +45,112 @@ fn counts(seeds: &[(&str, &str)]) -> Value {
         .iter()
         .filter(|(status, _)| *status == "error" || *status == "failed")
         .count();
+    let waiting = seeds
+        .iter()
+        .filter(|(status, _)| *status == "pending" || *status == "working")
+        .count();
 
-    json!({
-        "total": total,
-        "pending": pending,
-        "working": working,
-        "done": done,
-        "failed": failed,
-    })
+    (done, failed, waiting)
 }
 
-pub fn file_seed_cache_json(state: &AppState, page_id: &str) -> String {
+fn seed_filters(entries: &[(&str, &str)]) -> Vec<SeedFilter> {
+    entries
+        .iter()
+        .map(|(key, label)| SeedFilter {
+            key: key.to_string(),
+            label: label.to_string(),
+        })
+        .collect()
+}
+
+/// Typed file seed cache contents (WS-15.2.3c).
+pub fn file_seed_cache_state(state: &AppState, page_id: &str) -> SeedCacheState {
     let Some(page) = find_page(state, page_id) else {
-        return json!({"error": "page is missing"}).to_string();
+        return SeedCacheState::default();
     };
 
-    let seeds: Vec<Value> = page
+    let seeds: Vec<SeedRow> = page
         .queue
         .iter()
-        .map(|item| {
-            json!({
-                "url": item.url,
-                "status": item.status.as_str(),
-                "note": item.note,
-                "created": item.created,
-                "modified": item.modified,
-            })
+        .map(|item| SeedRow {
+            status: item.status.as_str().to_string(),
+            url: item.url.clone(),
+            note: item.note.clone(),
+            created: item.created,
+            modified: item.modified,
         })
         .collect();
-
     let statuses: Vec<(&str, &str)> = page
         .queue
         .iter()
         .map(|item| (item.status.as_str(), item.url.as_str()))
         .collect();
-    let counts = counts(&statuses);
+    let (done, failed, waiting) = seed_counts(&statuses);
 
-    let subtitle = format!(
-        "{} file seed(s): {} done, {} failed, {} waiting",
-        counts["total"].as_u64().unwrap_or(0),
-        counts["done"].as_u64().unwrap_or(0),
-        counts["failed"].as_u64().unwrap_or(0),
-        counts["pending"].as_u64().unwrap_or(0) + counts["working"].as_u64().unwrap_or(0),
-    );
-
-    json!({
-        "kind": "file",
-        "page": page.id,
-        "title": page.title,
-        "subtitle": subtitle,
-        "running": page.running,
-        "counts": counts,
-        "status_filters": [
-            {"key": "all", "label": "all"},
-            {"key": "pending", "label": "pending"},
-            {"key": "working", "label": "working"},
-            {"key": "done", "label": "done"},
-            {"key": "error", "label": "failed"},
-        ],
-        "seeds": seeds,
-    })
-    .to_string()
+    SeedCacheState {
+        page: page.id.clone(),
+        subtitle: format!(
+            "{} file seed(s): {} done, {} failed, {} waiting",
+            page.queue.len(),
+            done,
+            failed,
+            waiting,
+        ),
+        failed: failed as i64,
+        status_filters: seed_filters(&[
+            ("all", "all"),
+            ("pending", "pending"),
+            ("working", "working"),
+            ("done", "done"),
+            ("error", "failed"),
+        ]),
+        seeds,
+    }
 }
 
-pub fn gallery_seed_log_json(state: &AppState, page_id: &str) -> String {
+/// Typed gallery seed log contents (WS-15.2.3c).
+pub fn gallery_seed_log_state(state: &AppState, page_id: &str) -> SeedCacheState {
     let Some(page) = find_page(state, page_id) else {
-        return json!({"error": "page is missing"}).to_string();
+        return SeedCacheState::default();
     };
 
-    let seeds: Vec<Value> = page
+    let seeds: Vec<SeedRow> = page
         .gallery_seeds
         .iter()
-        .map(|seed| {
-            json!({
-                "url": seed.url,
-                "status": seed.status,
-                "note": seed.note,
-                "created": seed.created,
-                "modified": seed.modified,
-            })
+        .map(|seed| SeedRow {
+            status: seed.status.clone(),
+            url: seed.url.clone(),
+            note: seed.note.clone(),
+            created: seed.created,
+            modified: seed.modified,
         })
         .collect();
-
     let statuses: Vec<(&str, &str)> = page
         .gallery_seeds
         .iter()
         .map(|seed| (seed.status.as_str(), seed.url.as_str()))
         .collect();
-    let counts = counts(&statuses);
+    let (done, failed, waiting) = seed_counts(&statuses);
 
-    let subtitle = format!(
-        "{} gallery seed(s): {} succeeded, {} failed, {} pending",
-        counts["total"].as_u64().unwrap_or(0),
-        counts["done"].as_u64().unwrap_or(0),
-        counts["failed"].as_u64().unwrap_or(0),
-        counts["pending"].as_u64().unwrap_or(0) + counts["working"].as_u64().unwrap_or(0),
-    );
-
-    json!({
-        "kind": "gallery",
-        "page": page.id,
-        "title": page.title,
-        "subtitle": subtitle,
-        "running": page.running,
-        "counts": counts,
-        "status_filters": [
-            {"key": "all", "label": "all"},
-            {"key": "pending", "label": "pending"},
-            {"key": "working", "label": "working"},
-            {"key": "success", "label": "succeeded"},
-            {"key": "failed", "label": "failed"},
-        ],
-        "seeds": seeds,
-    })
-    .to_string()
+    SeedCacheState {
+        page: page.id.clone(),
+        subtitle: format!(
+            "{} gallery seed(s): {} succeeded, {} failed, {} pending",
+            page.gallery_seeds.len(),
+            done,
+            failed,
+            waiting,
+        ),
+        failed: failed as i64,
+        status_filters: seed_filters(&[
+            ("all", "all"),
+            ("pending", "pending"),
+            ("working", "working"),
+            ("success", "succeeded"),
+            ("failed", "failed"),
+        ]),
+        seeds,
+    }
 }
 
 pub fn open_file_seed_cache(state: &AppState, page_id: &str) -> Vec<UiCommand> {
@@ -175,11 +160,9 @@ pub fn open_file_seed_cache(state: &AppState, page_id: &str) -> Vec<UiCommand> {
         )];
     }
 
-    vec![UiCommand::FileSeedCacheDialog(
-        crate::gui::qt::api::ffi::FileSeedCacheState {
-            json: file_seed_cache_json(state, page_id),
-        },
-    )]
+    vec![UiCommand::FileSeedCacheDialog(file_seed_cache_state(
+        state, page_id,
+    ))]
 }
 
 pub fn open_gallery_seed_log(state: &AppState, page_id: &str) -> Vec<UiCommand> {
@@ -195,11 +178,9 @@ pub fn open_gallery_seed_log(state: &AppState, page_id: &str) -> Vec<UiCommand> 
         )];
     }
 
-    vec![UiCommand::GallerySeedLogDialog(
-        crate::gui::qt::api::ffi::GallerySeedLogState {
-            json: gallery_seed_log_json(state, page_id),
-        },
-    )]
+    vec![UiCommand::GallerySeedLogDialog(gallery_seed_log_state(
+        state, page_id,
+    ))]
 }
 
 fn selected_urls(value: &Value) -> Vec<String> {
@@ -320,19 +301,15 @@ pub fn file_seed_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     }
 
     let mut commands = vec![
-        UiCommand::FileSeedCacheDialog(crate::gui::qt::api::ffi::FileSeedCacheState {
-            json: file_seed_cache_json(state, &page_id),
-        }),
+        UiCommand::FileSeedCacheDialog(file_seed_cache_state(state, &page_id)),
         UiCommand::NotifyMessage(message),
     ];
 
     if let Some(page) = find_page(state, &page_id) {
-        commands.push(UiCommand::UpdateDownloader(
-            crate::gui::qt::api::ffi::DownloaderPageState {
-                page_id: page_id.clone(),
-                json: render::downloader_json(&state.controller, page),
-            },
-        ));
+        commands.push(UiCommand::UpdateDownloader(render::downloader_page_state(
+            &state.controller,
+            page,
+        )));
     }
 
     commands
@@ -459,19 +436,15 @@ pub fn gallery_seed_action(state: &mut AppState, payload: &str) -> Vec<UiCommand
     }
 
     let mut commands = vec![
-        UiCommand::GallerySeedLogDialog(crate::gui::qt::api::ffi::GallerySeedLogState {
-            json: gallery_seed_log_json(state, &page_id),
-        }),
+        UiCommand::GallerySeedLogDialog(gallery_seed_log_state(state, &page_id)),
         UiCommand::NotifyMessage(message),
     ];
 
     if let Some(page) = find_page(state, &page_id) {
-        commands.push(UiCommand::UpdateDownloader(
-            crate::gui::qt::api::ffi::DownloaderPageState {
-                page_id: page_id.clone(),
-                json: render::downloader_json(&state.controller, page),
-            },
-        ));
+        commands.push(UiCommand::UpdateDownloader(render::downloader_page_state(
+            &state.controller,
+            page,
+        )));
     }
 
     commands

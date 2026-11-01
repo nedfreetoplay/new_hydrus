@@ -22,7 +22,7 @@
 #include <QVBoxLayout>
 
 HydrusSeedCacheDialog::HydrusSeedCacheDialog(
-    HydrusMainWindow *main_window, const QString &json, bool gallery_mode, QWidget *parent)
+    HydrusMainWindow *main_window, const SeedCacheState &state, bool gallery_mode, QWidget *parent)
     : QDialog(parent), main(main_window), gallery(gallery_mode) {
     setWindowTitle(gallery ? QStringLiteral("gallery seed log") : QStringLiteral("file seed cache"));
     setObjectName(gallery ? QStringLiteral("hydrus_gallery_seed_log")
@@ -106,8 +106,8 @@ HydrusSeedCacheDialog::HydrusSeedCacheDialog(
         QStringList urls = selected_urls();
 
         if (urls.isEmpty()) {
-            for (const QJsonValue &value : data.value(QStringLiteral("seeds")).toArray()) {
-                urls << value.toObject().value(QStringLiteral("url")).toString();
+            for (const SeedRowData &row : rows) {
+                urls << row.url;
             }
         }
 
@@ -115,23 +115,35 @@ HydrusSeedCacheDialog::HydrusSeedCacheDialog(
     });
     connect(close_button, &QPushButton::clicked, this, &QDialog::close);
 
-    set_state(json);
+    set_state(state);
 }
 
-void HydrusSeedCacheDialog::set_state(const QString &json) {
-    const QJsonObject state = QJsonDocument::fromJson(json.toUtf8()).object();
-    data = state;
+void HydrusSeedCacheDialog::set_state(const SeedCacheState &state) {
+    page_id = to_qstring(state.page);
+    subtitle_text = to_qstring(state.subtitle);
+    failed_count = static_cast<int>(state.failed);
+    statuses.clear();
+    rows.clear();
+
+    for (const SeedFilter &entry : state.status_filters) {
+        statuses.append({to_qstring(entry.key), to_qstring(entry.label)});
+    }
+
+    for (const SeedRow &seed : state.seeds) {
+        rows.append({to_qstring(seed.status),
+                     to_qstring(seed.url),
+                     to_qstring(seed.note),
+                     seed.created,
+                     seed.modified});
+    }
 
     const QString current = filter->currentData().toString();
-    const QJsonArray statuses = state.value(QStringLiteral("status_filters")).toArray();
 
     QSignalBlocker blocker(filter);
     filter->clear();
 
-    for (const QJsonValue &value : statuses) {
-        const QJsonObject entry = value.toObject();
-        filter->addItem(entry.value(QStringLiteral("label")).toString(),
-                        entry.value(QStringLiteral("key")).toString());
+    for (const auto &entry : statuses) {
+        filter->addItem(entry.second, entry.first);
     }
 
     const int index = filter->findData(current);
@@ -166,47 +178,38 @@ void HydrusSeedCacheDialog::rebuild() {
     table->setSortingEnabled(false);
     table->setRowCount(0);
 
-    const QJsonArray seeds = data.value(QStringLiteral("seeds")).toArray();
-
-    for (const QJsonValue &value : seeds) {
-        const QJsonObject seed = value.toObject();
-        const QString status = seed.value(QStringLiteral("status")).toString();
-        const QString url = seed.value(QStringLiteral("url")).toString();
-        const QString note = seed.value(QStringLiteral("note")).toString();
-
-        if (status_filter != QStringLiteral("all") && status != status_filter) {
+    for (const SeedRowData &seed : rows) {
+        if (status_filter != QStringLiteral("all") && seed.status != status_filter) {
             continue;
         }
 
         if (!needle.isEmpty()
-            && !url.contains(needle, Qt::CaseInsensitive)
-            && !note.contains(needle, Qt::CaseInsensitive)) {
+            && !seed.url.contains(needle, Qt::CaseInsensitive)
+            && !seed.note.contains(needle, Qt::CaseInsensitive)) {
             continue;
         }
 
         const int row = table->rowCount();
         table->insertRow(row);
 
-        auto *status_item = new QTableWidgetItem(status);
+        auto *status_item = new QTableWidgetItem(seed.status);
 
-        if (status == QStringLiteral("error") || status == QStringLiteral("failed")) {
+        if (seed.status == QStringLiteral("error") || seed.status == QStringLiteral("failed")) {
             status_item->setForeground(QColor(220, 110, 110));
-        } else if (status == QStringLiteral("done") || status == QStringLiteral("success")) {
+        } else if (seed.status == QStringLiteral("done") || seed.status == QStringLiteral("success")) {
             status_item->setForeground(QColor(120, 190, 120));
-        } else if (status == QStringLiteral("working")) {
+        } else if (seed.status == QStringLiteral("working")) {
             status_item->setForeground(QColor(220, 200, 120));
         }
 
         table->setItem(row, 0, status_item);
 
-        auto *url_item = new QTableWidgetItem(url);
-        url_item->setData(Qt::UserRole, url);
-        url_item->setToolTip(url);
+        auto *url_item = new QTableWidgetItem(seed.url);
+        url_item->setData(Qt::UserRole, seed.url);
+        url_item->setToolTip(seed.url);
         table->setItem(row, 1, url_item);
 
-        auto timestamp = [](const QJsonValue &value) {
-            const qint64 seconds = value.toVariant().toLongLong();
-
+        auto timestamp = [](qint64 seconds) {
             if (seconds <= 0) {
                 return QString();
             }
@@ -214,16 +217,15 @@ void HydrusSeedCacheDialog::rebuild() {
             return QDateTime::fromSecsSinceEpoch(seconds).toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
         };
 
-        table->setItem(row, 2, new QTableWidgetItem(timestamp(seed.value(QStringLiteral("created")))));
-        table->setItem(row, 3, new QTableWidgetItem(timestamp(seed.value(QStringLiteral("modified")))));
-        table->setItem(row, 4, new QTableWidgetItem(note));
+        table->setItem(row, 2, new QTableWidgetItem(timestamp(seed.created)));
+        table->setItem(row, 3, new QTableWidgetItem(timestamp(seed.modified)));
+        table->setItem(row, 4, new QTableWidgetItem(seed.note));
     }
 
     table->setSortingEnabled(true);
-    subtitle->setText(data.value(QStringLiteral("subtitle")).toString());
+    subtitle->setText(subtitle_text);
 
-    const QJsonObject counts = data.value(QStringLiteral("counts")).toObject();
-    const int failed = counts.value(QStringLiteral("failed")).toInt();
+    const int failed = failed_count;
     retry_button->setText(failed > 0 ? QStringLiteral("retry failed (%1)").arg(failed)
                                      : QStringLiteral("retry failed"));
     retry_button->setEnabled(failed > 0 || !selected_urls().isEmpty());
@@ -231,7 +233,7 @@ void HydrusSeedCacheDialog::rebuild() {
 
 void HydrusSeedCacheDialog::send_action(const QString &action) {
     QJsonObject payload;
-    payload.insert(QStringLiteral("page"), data.value(QStringLiteral("page")));
+    payload.insert(QStringLiteral("page"), page_id);
     payload.insert(QStringLiteral("action"), action);
 
     QJsonArray urls;

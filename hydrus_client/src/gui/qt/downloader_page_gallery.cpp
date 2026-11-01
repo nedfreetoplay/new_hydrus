@@ -376,7 +376,7 @@ void HydrusDownloaderPage::build_watcher_panel(QVBoxLayout *main_layout) {
     }
 }
 
-void HydrusDownloaderPage::build_highlight_panel(QVBoxLayout *sidebar_layout, const QJsonObject &state) {
+void HydrusDownloaderPage::build_highlight_panel(QVBoxLayout *sidebar_layout, const DownloaderPageState &state) {
     const bool gallery = kind == QStringLiteral("gallery");
     const bool watcher = kind == QStringLiteral("watcher");
     if (gallery || watcher) {
@@ -473,10 +473,7 @@ void HydrusDownloaderPage::build_highlight_panel(QVBoxLayout *sidebar_layout, co
             apply_file_limit(highlight_file_limit->value(), checked);
         });
 
-        highlight_import_options = new QPushButton(
-            QStringLiteral("import options (%1)")
-                .arg(state.value(QStringLiteral("import_options_summary")).toString()),
-            highlight_content);
+        highlight_import_options = new QPushButton(to_qstring(state.import_options_text), highlight_content);
         highlight_import_options->setMinimumHeight(22);
         highlight_layout->addWidget(highlight_import_options);
 

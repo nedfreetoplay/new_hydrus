@@ -59,6 +59,73 @@ fn query_state_carries_count_loading_and_thumbnail_options() {
 }
 
 #[test]
+fn downloader_status_text_matches_the_old_cpp_formatting() {
+    let now = 1_000_000;
+    assert_eq!(relative_added_text(0, now, "now"), "now");
+    assert_eq!(relative_added_text(now - 30, now, "now"), "just now");
+    assert_eq!(relative_added_text(now - 120, now, ""), "2 minutes ago");
+    assert_eq!(relative_added_text(now - 7_200, now, ""), "2 hours ago");
+    assert_eq!(relative_added_text(now - 172_800, now, ""), "2 days ago");
+
+    assert_eq!(
+        downloader_status_lines(true, false, 0, 0, 0, 0),
+        ("waiting for new watchers".to_string(), String::new())
+    );
+    assert_eq!(
+        downloader_status_lines(true, true, 3, 5, 2, 1),
+        (
+            "1 watchers - 3/5".to_string(),
+            "2 successful, 1 failed".to_string()
+        )
+    );
+    assert_eq!(
+        downloader_status_lines(false, false, 0, 0, 4, 2),
+        ("waiting for new queries".to_string(), String::new())
+    );
+    assert_eq!(
+        downloader_status_lines(false, true, 0, 0, 0, 3),
+        (
+            "1 query - 0/0".to_string(),
+            "0 successful, 3 failed".to_string()
+        )
+    );
+
+    assert_eq!(downloader_imports_status(0, 0, 0), "");
+    assert_eq!(downloader_imports_status(4, 0, 2), "4 successful");
+    assert_eq!(downloader_imports_status(4, 2, 6), "4 successful, 2 failed");
+    assert_eq!(downloader_files_status(0, 0), "");
+    assert_eq!(downloader_files_status(3, 5), "3/5");
+    assert_eq!(downloader_search_status(0, 0, 0), "");
+    assert_eq!(downloader_search_status(2, 1, 5), "2 successful, 2 pending");
+    assert_eq!(progress_percent(0, 0), 0);
+    assert_eq!(progress_percent(3, 5), 60);
+}
+
+#[test]
+fn duplicates_status_line_carries_position_only_with_pairs() {
+    assert_eq!(duplicates_status_line("prepared", 0, 0), "prepared");
+    assert_eq!(duplicates_status_line("prepared", 5, 0), "prepared  -  1/5");
+    assert_eq!(duplicates_status_line("prepared", 5, 4), "prepared  -  5/5");
+}
+
+#[test]
+fn subscription_page_row_formats_times_and_status() {
+    let mut entry = crate::gui::app::model::SubscriptionEntry::new("sub", "https://example.com");
+    entry.period = 300;
+    entry.status = "ready".to_string();
+    entry.paused = true;
+
+    let row = super::subscription_page_row(&entry);
+
+    assert_eq!(row.period_text, "300 s");
+    assert_eq!(row.last_check_text, "never");
+    assert!(row.next_text.starts_with("in "));
+    assert_eq!(row.status_text, "paused - ready");
+    assert_eq!(row.imported_text, "0");
+    assert_eq!(row.failed_text, "0");
+}
+
+#[test]
 fn maintenance_json_lists_queued_jobs() {
     let directory = std::env::temp_dir().join(format!(
         "hydrus_gui_maintenance_{}_{}",
@@ -171,10 +238,7 @@ fn status_text_helpers_cover_query_downloader_and_busy() {
         "d2",
         crate::gui::app::model::DownloaderKind::Gallery,
     );
-    assert_eq!(
-        downloader_page_media_text(&gallery),
-        "no highlighted query"
-    );
+    assert_eq!(downloader_page_media_text(&gallery), "no highlighted query");
 
     let idle_import = ImportQueueState {
         running: false,
@@ -258,7 +322,12 @@ fn menus_flat_rows_keep_order_and_predicates() {
     let undo = entry(&menus, UiAction::Undo);
     assert!(!undo.enabled);
 
-    for action in [UiAction::HistoryBack, UiAction::HistoryForward, UiAction::UndoSearch, UiAction::RedoSearch] {
+    for action in [
+        UiAction::HistoryBack,
+        UiAction::HistoryForward,
+        UiAction::UndoSearch,
+        UiAction::RedoSearch,
+    ] {
         assert!(!entry(&menus, action).enabled, "{action:?} starts disabled");
     }
 
@@ -297,7 +366,9 @@ fn pages_flat_rows_keep_notebook_tree() {
 
     let mut nested = Notebook::new("nb1", "nested");
     nested.current = Some("p2".to_string());
-    nested.children.push(PageNode::Query(QueryPage::new("p2", "files", "my files")));
+    nested
+        .children
+        .push(PageNode::Query(QueryPage::new("p2", "files", "my files")));
     nested
         .children
         .push(PageNode::Downloader(DownloaderPage::new(
@@ -335,11 +406,11 @@ fn pages_flat_rows_keep_notebook_tree() {
     assert_eq!(pages.rows[3].kind, PageKind::Downloader);
     assert_eq!(pages.rows[3].depth, 1);
 
-    // The per-screen blob stays JSON inside one field; the envelope is typed.
-    let query: serde_json::Value = serde_json::from_str(&pages.rows[0].state).unwrap();
-    assert_eq!(query["count"], 2);
-    let gallery: serde_json::Value = serde_json::from_str(&pages.rows[3].state).unwrap();
-    assert_eq!(gallery["page_id"], "d1");
+    // Typed page state replaces the old per-screen JSON blob (WS-15.2.3c).
+    assert_eq!(pages.rows[0].query.page_id, "p1");
+    assert_eq!(pages.rows[0].query.media.len(), 2);
+    assert_eq!(pages.rows[3].downloader.page_id, "d1");
+    assert_eq!(pages.rows[3].downloader.kind, "gallery");
 
     let _ = std::fs::remove_dir_all(directory);
 }
@@ -537,7 +608,10 @@ fn typed_metadata_state_is_empty_for_unknown_hash() {
 
     let metadata = metadata_state(controller, &[9; 32]);
 
-    assert_eq!(metadata.hash, "0909090909090909090909090909090909090909090909090909090909090909");
+    assert_eq!(
+        metadata.hash,
+        "0909090909090909090909090909090909090909090909090909090909090909"
+    );
     assert!(metadata.tag_services.is_empty());
     assert!(metadata.ratings.is_empty());
     assert!(metadata.notes.is_empty());

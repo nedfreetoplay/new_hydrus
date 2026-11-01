@@ -109,18 +109,15 @@ void HydrusDownloaderPage::start() {
     main->notify(action, id, json_payload(payload));
 }
 
-void HydrusDownloaderPage::fill_sites(const QJsonArray &value) {
-    sites = value;
-
+void HydrusDownloaderPage::fill_sites(const rust::Vec<GallerySite> &value) {
     if (site == nullptr) {
         return;
     }
 
-    bool same = site->count() == value.size() + 1;
+    bool same = site->count() == static_cast<int>(value.size()) + 1;
 
-    for (int index = 0; same && index < value.size(); ++index) {
-        same = site->itemText(index + 1)
-               == value.at(index).toObject().value(QStringLiteral("title")).toString();
+    for (size_t index = 0; same && index < value.size(); ++index) {
+        same = site->itemText(static_cast<int>(index) + 1) == to_qstring(value[index].title);
     }
 
     if (same) {
@@ -132,14 +129,11 @@ void HydrusDownloaderPage::fill_sites(const QJsonArray &value) {
     site->clear();
     site->addItem(QStringLiteral("no downloader set"), QString());
 
-    for (const QJsonValue &entry : value) {
-        const QJsonObject parser = entry.toObject();
-        site->addItem(
-            parser.value(QStringLiteral("title")).toString(),
-            parser.value(QStringLiteral("id")).toString());
+    for (const GallerySite &parser : value) {
+        site->addItem(to_qstring(parser.title), to_qstring(parser.id));
         site->setItemData(
             site->count() - 1,
-            parser.value(QStringLiteral("template")).toString(),
+            to_qstring(parser.template_text),
             Qt::UserRole + 1);
     }
 
@@ -175,28 +169,23 @@ void HydrusDownloaderPage::apply_file_limit(int value, bool unlimited) {
     }
 }
 
-void HydrusDownloaderPage::update_state(const QJsonObject &state) {
-    kind = state.value(QStringLiteral("kind")).toString();
+void HydrusDownloaderPage::update_state(const DownloaderPageState &state) {
+    kind = to_qstring(state.kind);
 
     const bool gallery = kind == QStringLiteral("gallery");
     const bool watcher = kind == QStringLiteral("watcher");
     const bool urls = kind == QStringLiteral("urls");
     const bool simple = kind == QStringLiteral("simple");
 
-    const bool running = state.value(QStringLiteral("running")).toBool();
-    const bool paused = state.value(QStringLiteral("paused")).toBool();
-    const bool auto_watch = state.value(QStringLiteral("auto_watch")).toBool();
-    const int imported = state.value(QStringLiteral("imported")).toInt();
-    const int failed = state.value(QStringLiteral("failed")).toInt();
-    const int queue_count = state.value(QStringLiteral("queue_count")).toInt();
-    const int queue_done = state.value(QStringLiteral("queue_done")).toInt();
-    const int seed_total = state.value(QStringLiteral("gallery_seed_count")).toInt();
-    const int seed_done = state.value(QStringLiteral("gallery_seed_done")).toInt();
-    const int seed_success = state.value(QStringLiteral("gallery_seed_success")).toInt();
-    const int seed_failed = state.value(QStringLiteral("gallery_seed_failed")).toInt();
-    const QString status = state.value(QStringLiteral("status")).toString();
+    const bool running = state.running;
+    const bool paused = state.paused;
+    const bool auto_watch = state.auto_watch;
+    const QString status = to_qstring(state.status);
+    const QString page_url = to_qstring(state.url);
+    const QString page_query = to_qstring(state.query);
+    const bool has_query = !page_query.isEmpty() || !page_url.isEmpty();
 
-    fill_sites(state.value(QStringLiteral("sites")).toArray());
+    fill_sites(state.sites);
 
     if (input_row != nullptr) {
         input_row->setVisible(urls || simple);
@@ -248,7 +237,7 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (input != nullptr && !input->hasFocus()) {
-        const QString value = state.value(QStringLiteral("input")).toString();
+        const QString value = to_qstring(state.input);
 
         if (input->toPlainText() != value) {
             input->setPlainText(value);
@@ -256,47 +245,41 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (query != nullptr && !query->hasFocus()) {
-        update_line_edit(query, state.value(QStringLiteral("query")).toString());
+        update_line_edit(query, page_query);
     }
 
     if (url != nullptr) {
         if (gallery) {
             if (url->text().isEmpty()) {
-                const QString stored = state.value(QStringLiteral("url")).toString();
-
-                if (!stored.isEmpty()) {
-                    url->setText(stored);
+                if (!page_url.isEmpty()) {
+                    url->setText(page_url);
                 } else if (site != nullptr && site->currentIndex() > 0) {
                     url->setText(
                         site->itemData(site->currentIndex(), Qt::UserRole + 1).toString());
                 }
             }
         } else if (!url->hasFocus()) {
-            update_line_edit(url, state.value(QStringLiteral("url")).toString());
+            update_line_edit(url, page_url);
         }
     }
 
     if (subject != nullptr && !subject->hasFocus()) {
-        update_line_edit(subject, state.value(QStringLiteral("subject")).toString());
+        update_line_edit(subject, to_qstring(state.subject));
     }
 
     if (period != nullptr && !period->hasFocus()) {
-        period->setValue(state.value(QStringLiteral("check_period")).toInt(3600));
+        period->setValue(static_cast<int>(state.check_period));
     }
 
     if (site != nullptr) {
-        if (!gallery) {
-            const int site_index =
-                site->findData(state.value(QStringLiteral("site")).toString());
+        const int site_index = site->findData(to_qstring(state.site));
 
+        if (!gallery) {
             if (site_index >= 0 && !site->hasFocus()) {
                 const QSignalBlocker blocker(site);
                 site->setCurrentIndex(site_index);
             }
         } else if (!site_loaded) {
-            const int site_index =
-                site->findData(state.value(QStringLiteral("site")).toString());
-
             if (site_index >= 0) {
                 const QSignalBlocker blocker(site);
                 site->setCurrentIndex(site_index);
@@ -313,107 +296,37 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (highlight_query != nullptr) {
-        highlight_query->setText(
-            watcher ? state.value(QStringLiteral("url")).toString()
-                    : state.value(QStringLiteral("query")).toString());
+        highlight_query->setText(watcher ? page_url : page_query);
     }
 
     if (highlight_subject != nullptr) {
-        const QString subject_text = state.value(QStringLiteral("subject")).toString();
-        highlight_subject->setVisible(!state.value(QStringLiteral("url")).toString().isEmpty());
+        const QString subject_text = to_qstring(state.subject);
+        highlight_subject->setVisible(!page_url.isEmpty());
         highlight_subject->setText(
             subject_text.isEmpty() ? QStringLiteral("no subject") : subject_text);
     }
 
     if (status_top != nullptr) {
-        if (watcher) {
-            const QString page_url = state.value(QStringLiteral("url")).toString();
-
-            if (page_url.isEmpty()) {
-                status_top->setText(QStringLiteral("waiting for new watchers"));
-                status_bottom->setText(QString());
-            } else {
-                status_top->setText(
-                    QStringLiteral("1 watchers - %1/%2").arg(queue_done).arg(queue_count));
-
-                QString bottom;
-
-                if (imported > 0 || failed > 0) {
-                    bottom = QStringLiteral("%1 successful").arg(imported);
-
-                    if (failed > 0) {
-                        bottom += QStringLiteral(", %1 failed").arg(failed);
-                    }
-                }
-
-                status_bottom->setText(bottom);
-            }
-        } else {
-            const bool has_query = !state.value(QStringLiteral("query")).toString().isEmpty()
-                                   || !state.value(QStringLiteral("url")).toString().isEmpty();
-            status_top->setText(
-                has_query ? QStringLiteral("1 query - %1/%2").arg(queue_done).arg(queue_count)
-                          : QStringLiteral("waiting for new queries"));
-            QString bottom;
-
-            if (has_query) {
-                bottom = QStringLiteral("%1 successful").arg(imported);
-
-                if (failed > 0) {
-                    bottom += QStringLiteral(", %1 failed").arg(failed);
-                }
-            }
-
-            status_bottom->setText(bottom);
-        }
+        status_top->setText(to_qstring(state.status_top));
+        status_bottom->setText(to_qstring(state.status_bottom));
     }
 
     if (watcher_table != nullptr) {
-        const QString page_url = state.value(QStringLiteral("url")).toString();
         watcher_table->setRowCount(page_url.isEmpty() ? 0 : 1);
 
         if (!page_url.isEmpty()) {
-            QString subject_text = state.value(QStringLiteral("subject")).toString();
+            QString subject_text = to_qstring(state.subject);
 
             if (subject_text.isEmpty()) {
                 subject_text = QStringLiteral("* unknown");
             }
 
-            const QString files_status =
-                queue_count > 0
-                    ? QStringLiteral("%1/%2").arg(queue_done).arg(queue_count)
-                    : QString();
-            const QString checking_status =
-                paused ? QStringLiteral("paused")
-                       : (running ? QStringLiteral("checking") : QString());
-            QString added;
-
-            const qint64 last_check =
-                static_cast<qint64>(state.value(QStringLiteral("last_check")).toDouble());
-
-            if (last_check > 0) {
-                const qint64 delta = qMax<qint64>(
-                    0, QDateTime::currentSecsSinceEpoch() - last_check);
-
-                if (delta < 60) {
-                    added = QStringLiteral("just now");
-                } else if (delta < 3600) {
-                    added = QStringLiteral("%1 minutes ago").arg(delta / 60);
-                } else if (delta < 86400) {
-                    added = QStringLiteral("%1 hours ago").arg(delta / 3600);
-                } else {
-                    added = QStringLiteral("%1 days ago").arg(delta / 86400);
-                }
-            } else {
-                added = QStringLiteral("now");
-            }
-
             const QStringList cells = {subject_text,
-                                       files_status,
-                                       checking_status,
+                                       to_qstring(state.files_status),
+                                       to_qstring(state.checking_status),
                                        status,
-                                       QString::number(queue_count),
-                                       added};
+                                       to_qstring(state.queue_count_text),
+                                       to_qstring(state.watcher_added_text)};
 
             for (int column = 0; column < cells.size(); ++column) {
                 auto *item = watcher_table->item(0, column);
@@ -430,8 +343,6 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (queue != nullptr) {
-        const bool has_query = !state.value(QStringLiteral("query")).toString().isEmpty()
-                               || !state.value(QStringLiteral("url")).toString().isEmpty();
         queue->setRowCount(has_query ? 1 : 0);
 
         if (has_query) {
@@ -441,44 +352,14 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
                 source = site->currentText();
             }
 
-            QString added;
-
-            const qint64 last_check =
-                static_cast<qint64>(state.value(QStringLiteral("last_check")).toDouble());
-
-            if (last_check > 0) {
-                const qint64 delta = qMax<qint64>(
-                    0, QDateTime::currentSecsSinceEpoch() - last_check);
-
-                if (delta < 60) {
-                    added = QStringLiteral("just now");
-                } else if (delta < 3600) {
-                    added = QStringLiteral("%1 minutes ago").arg(delta / 60);
-                } else if (delta < 86400) {
-                    added = QStringLiteral("%1 hours ago").arg(delta / 3600);
-                } else {
-                    added = QStringLiteral("%1 days ago").arg(delta / 86400);
-                }
-            }
-
-            const QString files_status =
-                queue_count > 0
-                    ? QStringLiteral("%1/%2").arg(queue_done).arg(queue_count)
-                    : QString();
-            const QString search_state_text = running
-                                                  ? (paused ? QStringLiteral("paused")
-                                                            : QStringLiteral("working"))
-                                                  : QStringLiteral("ready");
-            const QString query_text = state.value(QStringLiteral("query")).toString().isEmpty()
-                                           ? state.value(QStringLiteral("url")).toString()
-                                           : state.value(QStringLiteral("query")).toString();
+            const QString query_text = page_query.isEmpty() ? page_url : page_query;
             const QStringList cells = {query_text,
                                        source,
-                                       files_status,
-                                       search_state_text,
+                                       to_qstring(state.files_status),
+                                       to_qstring(state.search_state_text),
                                        status,
-                                       QString::number(queue_count),
-                                       added};
+                                       to_qstring(state.queue_count_text),
+                                       to_qstring(state.queue_added_text)};
 
             for (int column = 0; column < cells.size(); ++column) {
                 auto *item = queue->item(0, column);
@@ -495,32 +376,22 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (imports_status != nullptr) {
-        imports_status->setText(
-            (imported == 0 && failed == 0 && queue_count == 0)
-                ? QString()
-                : (failed == 0
-                       ? QStringLiteral("%1 successful").arg(imported)
-                       : QStringLiteral("%1 successful, %2 failed")
-                             .arg(imported)
-                             .arg(failed)));
+        imports_status->setText(to_qstring(state.imports_status));
     }
 
     if (file_seed_status != nullptr) {
-        file_seed_status->setText(
-            queue_count > 0 ? QStringLiteral("%1/%2").arg(queue_done).arg(queue_count)
-                            : QString());
+        file_seed_status->setText(to_qstring(state.file_seed_status));
     }
 
     if (simple_jobs != nullptr) {
-        const QJsonArray pending_jobs = state.value(QStringLiteral("pending_jobs")).toArray();
         const QString formula_name = simple_formula != nullptr
                                          ? simple_formula->currentText()
                                          : QStringLiteral("formula");
 
         simple_jobs->clear();
 
-        for (const QJsonValue &value : pending_jobs) {
-            const QString job_url = value.toString();
+        for (const rust::String &value : state.pending_jobs) {
+            const QString job_url = to_qstring(value);
 
             if (!job_url.isEmpty()) {
                 auto *item = new QListWidgetItem(
@@ -531,7 +402,7 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (simple_formula != nullptr && !simple_formula->hasFocus()) {
-        const QString formula_name = state.value(QStringLiteral("formula_name")).toString();
+        const QString formula_name = to_qstring(state.formula_name);
         const int formula_index = simple_formula->findText(formula_name);
 
         if (formula_index >= 0) {
@@ -541,8 +412,7 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (file_progress != nullptr) {
-        file_progress->setValue(
-            queue_count > 0 ? queue_done * 100 / queue_count : 0);
+        file_progress->setValue(state.files_progress);
     }
 
     if (files_pause != nullptr) {
@@ -551,32 +421,15 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (search_status != nullptr) {
-        if (seed_total == 0) {
-            search_status->setText(QString());
-        } else {
-            const int pending = qMax(0, seed_total - seed_success - seed_failed);
-            search_status->setText(
-                QStringLiteral("%1 successful, %2 pending")
-                    .arg(seed_success)
-                    .arg(pending));
-        }
+        search_status->setText(to_qstring(state.search_status));
     }
 
     if (search_seed_status != nullptr) {
-        if (seed_total == 0) {
-            search_seed_status->setText(QString());
-        } else {
-            const int pending = qMax(0, seed_total - seed_success - seed_failed);
-            search_seed_status->setText(
-                QStringLiteral("%1 successful, %2 pending")
-                    .arg(seed_success)
-                    .arg(pending));
-        }
+        search_seed_status->setText(to_qstring(state.search_seed_status));
     }
 
     if (search_progress != nullptr) {
-        search_progress->setValue(
-            seed_total > 0 ? seed_done * 100 / seed_total : 0);
+        search_progress->setValue(state.search_progress);
     }
 
     if (search_pause != nullptr) {
@@ -585,14 +438,10 @@ void HydrusDownloaderPage::update_state(const QJsonObject &state) {
     }
 
     if (import_options_button != nullptr) {
-        import_options_button->setText(
-            QStringLiteral("import options (%1)")
-                .arg(state.value(QStringLiteral("import_options_summary")).toString()));
+        import_options_button->setText(to_qstring(state.import_options_text));
     }
 
     if (highlight_import_options != nullptr) {
-        highlight_import_options->setText(
-            QStringLiteral("import options (%1)")
-                .arg(state.value(QStringLiteral("import_options_summary")).toString()));
+        highlight_import_options->setText(to_qstring(state.import_options_text));
     }
 }

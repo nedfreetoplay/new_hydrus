@@ -2,11 +2,11 @@
 
 // WS-15.1.2c: HydrusDuplicatesPage moved verbatim from bridge.hpp/bridge.cpp (move-only split).
 
-#include <QJsonObject>
 #include <QString>
 #include <QWidget>
 
 class QComboBox;
+class QJsonObject;
 class QLineEdit;
 class QListWidget;
 class QLabel;
@@ -20,16 +20,20 @@ class QHBoxLayout;
 class QPoint;
 class HydrusCanvas;
 class HydrusMainWindow;
+struct DuplicatesPageState;
 enum class UiAction : std::int32_t;
 class HydrusThumbnailGrid;
 
 // Side-by-side duplicate pair filter.
 class HydrusDuplicatesPage : public QWidget {
 public:
-    HydrusDuplicatesPage(HydrusMainWindow *main, const QString &page_id, const QJsonObject &state);
+    HydrusDuplicatesPage(HydrusMainWindow *main, const QString &page_id, const DuplicatesPageState &state);
 
     const QString &page_id() const;
-    void update_state(const QJsonObject &state);
+    void update_state(const DuplicatesPageState &state);
+    void update_auto_resolution_rules(const DuplicatesPageState &state);
+    // The auto-resolution rules dialog (WS-15.2.2d seam) still reports its
+    // saved rules as JSON; refresh the page table from that payload.
     void update_auto_resolution_rules(const QJsonObject &state);
 
 private:
@@ -46,7 +50,7 @@ private:
         QWidget *sidebar,
         QVBoxLayout *sidebar_layout,
         QHBoxLayout *outer,
-        const QJsonObject &state);
+        const DuplicatesPageState &state);
 
     HydrusMainWindow *main = nullptr;
     QString id;

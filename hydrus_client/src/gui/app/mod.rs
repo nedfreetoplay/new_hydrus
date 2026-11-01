@@ -2784,22 +2784,20 @@ impl AppState {
             return self.downloader_update(page_id);
         }
 
-        if let Some(page) = self.find_duplicates_mut(page_id) {
-            let value = render::duplicates_json(&controller, page);
+        if let Some(page) = self.find_duplicates(page_id) {
             return vec![
-                UiCommand::UpdateDuplicates(page_id.to_string(), value),
+                UiCommand::UpdateDuplicates(render::duplicates_page_state(
+                    &self.controller,
+                    page,
+                    &self.auto_rules,
+                )),
                 self.status_command(),
             ];
         }
 
         if self.find_subscriptions(page_id).is_some() {
             return vec![
-                UiCommand::UpdateSubscriptions(
-                    crate::gui::qt::api::ffi::SubscriptionsPageState {
-                        page_id: page_id.to_string(),
-                        json: render::subscriptions_json(self, page_id),
-                    },
-                ),
+                UiCommand::UpdateSubscriptions(render::subscriptions_page_state(self, page_id)),
                 self.status_command(),
             ];
         }
@@ -2822,12 +2820,10 @@ impl AppState {
     pub(crate) fn downloader_update(&self, page_id: &str) -> Vec<UiCommand> {
         match self.find_downloader(page_id) {
             Some(page) => vec![
-                UiCommand::UpdateDownloader(
-                    crate::gui::qt::api::ffi::DownloaderPageState {
-                        page_id: page_id.to_string(),
-                        json: render::downloader_json(&self.controller, page),
-                    },
-                ),
+                UiCommand::UpdateDownloader(render::downloader_page_state(
+                    &self.controller,
+                    page,
+                )),
                 self.status_command(),
             ],
             None => vec![],

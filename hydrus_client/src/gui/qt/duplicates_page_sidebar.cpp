@@ -40,7 +40,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
-HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const QString &page_id, const QJsonObject &state)
+HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const QString &page_id, const DuplicatesPageState &state)
     : QWidget(), main(main_window), id(page_id) {
     // Python's duplicates page is a sidebar (preparation | filtering |
     // auto-resolution) next to the media area.

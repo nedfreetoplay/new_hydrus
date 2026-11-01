@@ -243,8 +243,8 @@ void hydrus_show_subscription_editor(HydrusMainWindow &window, const Subscriptio
     window.show_subscription_editor(state);
 }
 
-void hydrus_update_duplicates(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
-    window.update_duplicates(to_qstring(page_id), parse_object(json));
+void hydrus_update_duplicates(HydrusMainWindow &window, const DuplicatesPageState &state) {
+    window.update_duplicates(state);
 }
 
 void hydrus_update_import_folders(HydrusMainWindow &window, rust::Str page_id, rust::Str json) {
@@ -287,11 +287,11 @@ void hydrus_show_import_options(HydrusMainWindow &window, const ImportOptionsDia
     window.show_import_options(state);
 }
 
-void hydrus_show_file_seed_cache(HydrusMainWindow &window, const FileSeedCacheState &state) {
+void hydrus_show_file_seed_cache(HydrusMainWindow &window, const SeedCacheState &state) {
     window.show_file_seed_cache(state);
 }
 
-void hydrus_show_gallery_seed_log(HydrusMainWindow &window, const GallerySeedLogState &state) {
+void hydrus_show_gallery_seed_log(HydrusMainWindow &window, const SeedCacheState &state) {
     window.show_gallery_seed_log(state);
 }
 

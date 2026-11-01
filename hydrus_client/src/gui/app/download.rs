@@ -5,13 +5,13 @@
 //! module only builds jobs and folds progress events back into the page state.
 
 use hydrus_core::hydrus_time;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::gui::app::model::{
     DownloadItem, DownloadItemStatus, DownloaderKind, PageNode, QueryPage, SubscriptionEntry,
 };
-use crate::gui::app::worker::{AsyncEvent, AsyncJob, gallery_url};
-use crate::gui::app::{AppState, UiCommand, render};
+use crate::gui::app::worker::{gallery_url, AsyncEvent, AsyncJob};
+use crate::gui::app::{render, AppState, UiCommand};
 
 pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiCommand> {
     let value: Value = serde_json::from_str(payload).unwrap_or_else(|_| json!({}));
@@ -448,9 +448,7 @@ pub(crate) fn open_hashes_page(
 /// Open the Python `network -> subscriptions...` manager dialog.
 pub fn manage_subscriptions(state: &AppState) -> Vec<UiCommand> {
     vec![UiCommand::SubscriptionsDialog(
-        crate::gui::qt::api::ffi::SubscriptionsDialogState {
-            json: render::subscriptions_json(state, ""),
-        },
+        render::subscriptions_dialog_state(state),
     )]
 }
 
@@ -540,11 +538,7 @@ pub fn delete_subscription(state: &mut AppState, page_id: &str, name: &str) -> V
     subscriptions_commands(state, page_id)
 }
 
-pub fn duplicate_subscription(
-    state: &mut AppState,
-    page_id: &str,
-    name: &str,
-) -> Vec<UiCommand> {
+pub fn duplicate_subscription(state: &mut AppState, page_id: &str, name: &str) -> Vec<UiCommand> {
     let Some(entry) = state
         .subscriptions
         .iter()
@@ -651,26 +645,20 @@ pub fn edit_subscription_dialog(state: &AppState, page_id: &str, name: &str) -> 
         )];
     };
 
-    let sites: Vec<Value> = crate::parsing::gallery::GALLERY_PARSERS
-        .iter()
-        .map(|parser| json!({"id": parser.id.as_str(), "title": parser.title}))
-        .collect();
+    let sites = crate::gui::app::render::gallery_sites();
 
     vec![UiCommand::SubscriptionEditor(
         crate::gui::qt::api::ffi::SubscriptionEditorState {
-            json: json!({
-                "page_id": page_id,
-                "original": entry.name,
-                "name": entry.name,
-                "url": entry.url,
-                "query": entry.query,
-                "site": entry.site,
-                "filter": entry.filter,
-                "period": entry.period,
-                "paused": entry.paused,
-                "sites": sites,
-            })
-            .to_string(),
+            page_id: page_id.to_string(),
+            original: entry.name.clone(),
+            name: entry.name.clone(),
+            url: entry.url.clone(),
+            query: entry.query.clone(),
+            site: entry.site.clone(),
+            filter: entry.filter.clone(),
+            period: entry.period,
+            paused: entry.paused,
+            sites,
         },
     )]
 }
@@ -1227,12 +1215,10 @@ fn downloader_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
         return vec![];
     };
 
-    vec![UiCommand::UpdateDownloader(
-        crate::gui::qt::api::ffi::DownloaderPageState {
-            page_id: page_id.to_string(),
-            json: render::downloader_json(&state.controller, page),
-        },
-    )]
+    vec![UiCommand::UpdateDownloader(render::downloader_page_state(
+        &state.controller,
+        page,
+    ))]
 }
 
 fn update_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
@@ -1246,18 +1232,13 @@ fn subscriptions_commands(state: &AppState, _page_id: &str) -> Vec<UiCommand> {
 
     for id in subscriptions_page_ids(&state.root) {
         commands.push(UiCommand::UpdateSubscriptions(
-            crate::gui::qt::api::ffi::SubscriptionsPageState {
-                page_id: id.clone(),
-                json: render::subscriptions_json(state, &id),
-            },
+            render::subscriptions_page_state(state, &id),
         ));
     }
 
     // No-op in Qt when the manager dialog is closed.
     commands.push(UiCommand::UpdateSubscriptionsDialog(
-        crate::gui::qt::api::ffi::SubscriptionsDialogState {
-            json: render::subscriptions_json(state, ""),
-        },
+        render::subscriptions_dialog_state(state),
     ));
     commands.push(UiCommand::Status(render::status(state)));
     commands

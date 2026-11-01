@@ -9,15 +9,15 @@
 
 use crate::gui::qt::api::ffi::{
     AboutInfo, AccountTypesDialogState, ApiPermissionsDialogState, DatabaseBackupDialogState,
-    DownloaderPageState, DuplicatesMergeOptionsDialogState, DuplicatesRulesDialogState,
-    DuplicatesRulePreviewState, DuplicateCustomActionDialogState, DuplicateReviewDialogState,
-    ExportReviewDialogState, FileSeedCacheState, GallerySeedLogState, ImportOptionsDialogState,
-    LocalImportReviewDialogState, LocalImportTaggingDialogState, ManageTagsDialogState,
+    DownloaderPageState, DuplicateCustomActionDialogState, DuplicateReviewDialogState,
+    DuplicatesMergeOptionsDialogState, DuplicatesPageState, DuplicatesRulePreviewState,
+    DuplicatesRulesDialogState, ExportReviewDialogState, ImportOptionsDialogState,
+    LocalImportReviewDialogState, LocalImportTaggingDialogState, ManageTagsDialogState, MenuBar,
     NetworkDialogState, NotificationsDialogState, OptionsDialogState, OrphanFilesDialogState,
-    RepairFileLocationsDialogState, ServicesDialogState, TagFilterDialogState, TagRelationsDialogState,
-    TimestampsDialogState, MenuBar, PageProgress, PageTree, Pages, QueryPageState, SelectionState,
-    StatusBar, UiAction, SubscriptionsDialogState, SubscriptionsPageState, SubscriptionEditorState,
-    ViewerState, ViewingStats,
+    PageProgress, PageTree, Pages, QueryPageState, RepairFileLocationsDialogState, SeedCacheState,
+    SelectionState, ServicesDialogState, StatusBar, SubscriptionEditorState,
+    SubscriptionsDialogState, SubscriptionsPageState, TagFilterDialogState,
+    TagRelationsDialogState, TimestampsDialogState, UiAction, ViewerState, ViewingStats,
 };
 
 #[derive(Debug, Clone)]
@@ -39,7 +39,7 @@ pub enum UiCommand {
     SubscriptionsDialog(SubscriptionsDialogState),
     UpdateSubscriptionsDialog(SubscriptionsDialogState),
     SubscriptionEditor(SubscriptionEditorState),
-    UpdateDuplicates(String, String),
+    UpdateDuplicates(DuplicatesPageState),
     UpdateImportFolders(String, String),
     ImportFoldersDialog(String),
     UpdateImportFoldersDialog(String),
@@ -86,8 +86,8 @@ pub enum UiCommand {
     ViewingStatsDialog(ViewingStats),
     AboutDialog(AboutInfo),
     ExportDownloader(String),
-    FileSeedCacheDialog(FileSeedCacheState),
-    GallerySeedLogDialog(GallerySeedLogState),
+    FileSeedCacheDialog(SeedCacheState),
+    GallerySeedLogDialog(SeedCacheState),
     ImportDownloader(String),
     PickFiles,
     PromptUrl,

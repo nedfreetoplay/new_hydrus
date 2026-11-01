@@ -21,9 +21,9 @@ use crate::gui::app::model::{
     DupePairSort, DupeSearchType, DuplicatePairView, DuplicateSearchContext, DuplicatesPage,
     PixelDupesPreference,
 };
-use crate::gui::app::{AppState, UiCommand, query, render};
+use crate::gui::app::{query, render, AppState, UiCommand};
 use crate::gui::qt::api::ffi;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 const MIN_BATCH_SIZE: i64 = 5;
 const MAX_BATCH_SIZE: i64 = 1024;
@@ -63,7 +63,12 @@ pub fn refresh_for(
     load_queue(controller, page, rules, review)
 }
 
-pub fn action(state: &mut AppState, page_id: &str, action: ffi::UiAction, payload: &str) -> Vec<UiCommand> {
+pub fn action(
+    state: &mut AppState,
+    page_id: &str,
+    action: ffi::UiAction,
+    payload: &str,
+) -> Vec<UiCommand> {
     let controller = state.controller.clone();
     let rules = state.auto_rules.clone();
     let mut review = std::mem::take(&mut state.duplicate_review);
@@ -224,7 +229,9 @@ pub fn action(state: &mut AppState, page_id: &str, action: ffi::UiAction, payloa
             let json = custom_action_dialog_json(&controller, page);
             state.duplicate_review = review;
 
-            return vec![UiCommand::DuplicateCustomActionDialog(crate::gui::qt::api::ffi::DuplicateCustomActionDialogState { json: json })];
+            return vec![UiCommand::DuplicateCustomActionDialog(
+                crate::gui::qt::api::ffi::DuplicateCustomActionDialogState { json: json },
+            )];
         }
         ffi::UiAction::DuplicatesCustom => {
             let Some(pair) = page.current().cloned() else {
@@ -1656,7 +1663,11 @@ pub fn split_into_batches<T: Clone>(items: &[T], batch_size: usize) -> Vec<Vec<T
     if items.is_empty() {
         return Vec::new();
     }
-    let size = if batch_size == 0 { items.len() } else { batch_size };
+    let size = if batch_size == 0 {
+        items.len()
+    } else {
+        batch_size
+    };
     items.chunks(size).map(|chunk| chunk.to_vec()).collect()
 }
 
@@ -1710,7 +1721,10 @@ pub fn preparation_tab_name(searched: i64, total: i64, hide_when_caught_up: bool
     if !show_percentage {
         return "preparation".to_string();
     }
-    format!("preparation ({} done)", preparation_progress_percent(searched, total))
+    format!(
+        "preparation ({} done)",
+        preparation_progress_percent(searched, total)
+    )
 }
 
 /// Whether a completed batch may be auto-committed without confirmation.
@@ -1739,25 +1753,12 @@ fn duplicates_commands(state: &AppState, page_id: &str) -> Vec<UiCommand> {
         return vec![];
     };
 
-    let mut duplicates_value: serde_json::Value =
-        serde_json::from_str(&render::duplicates_json(&state.controller, page)).unwrap_or_default();
-    duplicates_value["auto_rules"] = serde_json::json!(
-        state
-            .auto_rules
-            .iter()
-            .map(|rule| serde_json::json!({
-                "name": rule.name,
-                "paused": rule.paused,
-                "search_summary": rule.search_summary(),
-            }))
-            .collect::<Vec<_>>()
-    );
-
     vec![
-        UiCommand::UpdateDuplicates(
-            page_id.to_string(),
-            duplicates_value.to_string(),
-        ),
+        UiCommand::UpdateDuplicates(render::duplicates_page_state(
+            &state.controller,
+            page,
+            &state.auto_rules,
+        )),
         UiCommand::Status(render::status(state)),
     ]
 }
@@ -1894,11 +1895,10 @@ mod tests {
         assert_eq!(page.pairs.len(), 5);
         assert!(page.status.contains("batch of 5"), "{}", page.status);
 
-        let value: serde_json::Value =
-            serde_json::from_str(&render::duplicates_json(&controller, &page)).unwrap();
-        assert_eq!(value["batch_size"], 5);
-        assert_eq!(value["total"], 5);
-        assert_eq!(value["searched"], 6);
+        let state = render::duplicates_page_state(&controller, &page, &[]);
+        assert_eq!(state.batch_size, 5);
+        assert_eq!(state.total, 5);
+        assert_eq!(state.searched, 6);
 
         // Deciding a pair removes it, so the next preparation shows the rest.
         let pair = page.pairs[0].clone();
@@ -1968,11 +1968,9 @@ mod tests {
 
         assert_eq!((applied, queued), (1, 0));
         assert!(review.pending.is_empty());
-        assert!(
-            duplicates::get_candidate_pairs(controller.db().db(), None)
-                .unwrap()
-                .is_empty()
-        );
+        assert!(duplicates::get_candidate_pairs(controller.db().db(), None)
+            .unwrap()
+            .is_empty());
         assert!(page.pairs.is_empty());
 
         // The worse file moved to trash; the better one stayed in my files.
@@ -2198,16 +2196,12 @@ mod tests {
             files_timestamps::get_file_timestamp(db, keep_id, TimestampType::ModifiedFile).unwrap(),
             Some(1_000)
         );
-        assert!(
-            ratings::get_rating(db, favourites, keep_id)
-                .unwrap()
-                .is_some()
-        );
-        assert!(
-            ratings::get_rating(db, favourites, discard_id)
-                .unwrap()
-                .is_none()
-        );
+        assert!(ratings::get_rating(db, favourites, keep_id)
+            .unwrap()
+            .is_some());
+        assert!(ratings::get_rating(db, favourites, discard_id)
+            .unwrap()
+            .is_none());
         assert!(!files_storage::is_inbox(db, keep_id).unwrap());
         assert!(!files_storage::is_inbox(db, discard_id).unwrap());
 
@@ -2314,7 +2308,12 @@ mod tests {
         let mut state = action_state(&directory);
         let controller = state.controller.clone();
         add_sized_pair(&controller, 101, 1_000, 2_000, 1);
-        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesRefresh, "");
+        action(
+            &mut state,
+            "dup-actions",
+            ffi::UiAction::DuplicatesRefresh,
+            "",
+        );
 
         let page = state.find_duplicates("dup-actions").unwrap();
         let value: Value =
@@ -2353,7 +2352,12 @@ mod tests {
         let mut state = action_state(&directory);
         let controller = state.controller.clone();
         let (_, _, first_id, second_id) = add_sized_pair(&controller, 61, 1_000, 4_000, 2);
-        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesRefresh, "");
+        action(
+            &mut state,
+            "dup-actions",
+            ffi::UiAction::DuplicatesRefresh,
+            "",
+        );
         let pair = state
             .find_duplicates("dup-actions")
             .unwrap()
@@ -2361,10 +2365,15 @@ mod tests {
             .cloned()
             .unwrap();
 
-        let commands = action(&mut state, "dup-actions", ffi::UiAction::DuplicatesKeepAKeep, "");
+        let commands = action(
+            &mut state,
+            "dup-actions",
+            ffi::UiAction::DuplicatesKeepAKeep,
+            "",
+        );
         assert!(matches!(
             commands.first(),
-            Some(UiCommand::UpdateDuplicates(_, _))
+            Some(UiCommand::UpdateDuplicates(_))
         ));
 
         let db = controller.db().db();
@@ -2399,8 +2408,18 @@ mod tests {
 
         // A second pair can be marked as related alternates without deleting.
         let (_, _, third_id, fourth_id) = add_sized_pair(&controller, 63, 1_000, 2_000, 1);
-        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesRefresh, "");
-        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesAlternates, "");
+        action(
+            &mut state,
+            "dup-actions",
+            ffi::UiAction::DuplicatesRefresh,
+            "",
+        );
+        action(
+            &mut state,
+            "dup-actions",
+            ffi::UiAction::DuplicatesAlternates,
+            "",
+        );
 
         assert_eq!(
             duplicates::get_alternate_group_ids_for_hash(db, third_id)
@@ -2429,7 +2448,12 @@ mod tests {
         let mut state = action_state(&directory);
         let controller = state.controller.clone();
         let (_, _, _, _) = add_sized_pair(&controller, 71, 1_000, 4_000, 2);
-        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesRefresh, "");
+        action(
+            &mut state,
+            "dup-actions",
+            ffi::UiAction::DuplicatesRefresh,
+            "",
+        );
 
         let pair = state
             .find_duplicates("dup-actions")
@@ -2455,7 +2479,12 @@ mod tests {
         })
         .to_string();
 
-        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesCustom, &payload);
+        action(
+            &mut state,
+            "dup-actions",
+            ffi::UiAction::DuplicatesCustom,
+            &payload,
+        );
 
         let db = controller.db().db();
         let my_files = query::local_file_service_id(&controller, "my files").unwrap();
@@ -2482,7 +2511,12 @@ mod tests {
         let controller = state.controller.clone();
         let (first_hash, _second_hash, first_id, second_id) =
             add_sized_pair(&controller, 81, 1_000, 2_000, 2);
-        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesRefresh, "");
+        action(
+            &mut state,
+            "dup-actions",
+            ffi::UiAction::DuplicatesRefresh,
+            "",
+        );
         let pair = state
             .find_duplicates("dup-actions")
             .unwrap()
@@ -2502,10 +2536,12 @@ mod tests {
             r#"{"kind":"clear_false_positives","target":"both"}"#,
         );
 
-        assert!(
-            !duplicates::is_false_positive(db, first_id.min(second_id), first_id.max(second_id))
-                .unwrap()
-        );
+        assert!(!duplicates::is_false_positive(
+            db,
+            first_id.min(second_id),
+            first_id.max(second_id)
+        )
+        .unwrap());
 
         action(
             &mut state,
@@ -2554,11 +2590,9 @@ mod tests {
             r#"{"kind":"remove_potentials","target":"both"}"#,
         );
 
-        assert!(
-            duplicates::get_candidate_pairs(db, None)
-                .unwrap()
-                .is_empty()
-        );
+        assert!(duplicates::get_candidate_pairs(db, None)
+            .unwrap()
+            .is_empty());
 
         let _ = std::fs::remove_dir_all(directory);
     }
@@ -2569,7 +2603,12 @@ mod tests {
         let mut state = action_state(&directory);
         let controller = state.controller.clone();
         let (_, _, first_id, second_id) = add_sized_pair(&controller, 91, 1_000, 2_000, 1);
-        action(&mut state, "dup-actions", ffi::UiAction::DuplicatesRefresh, "");
+        action(
+            &mut state,
+            "dup-actions",
+            ffi::UiAction::DuplicatesRefresh,
+            "",
+        );
         let db = controller.db().db();
 
         duplicates::set_duplicate_group(db, 10, first_id, &[first_id, second_id]).unwrap();
@@ -2585,11 +2624,9 @@ mod tests {
             r#"{"kind":"dissolve_duplicate_group","target":"both"}"#,
         );
 
-        assert!(
-            duplicates::get_duplicate_group_members(db, 10)
-                .unwrap()
-                .is_empty()
-        );
+        assert!(duplicates::get_duplicate_group_members(db, 10)
+            .unwrap()
+            .is_empty());
 
         let _ = std::fs::remove_dir_all(directory);
     }
@@ -2622,9 +2659,18 @@ mod tests {
 
     #[test]
     fn duplicates_media_count_status_strings() {
-        assert_eq!(duplicates_media_count_status(0), "no potential duplicate pairs");
-        assert_eq!(duplicates_media_count_status(1), "1 potential duplicate pair");
-        assert_eq!(duplicates_media_count_status(3), "3 potential duplicate pairs");
+        assert_eq!(
+            duplicates_media_count_status(0),
+            "no potential duplicate pairs"
+        );
+        assert_eq!(
+            duplicates_media_count_status(1),
+            "1 potential duplicate pair"
+        );
+        assert_eq!(
+            duplicates_media_count_status(3),
+            "3 potential duplicate pairs"
+        );
     }
 
     #[test]
@@ -2766,5 +2812,4 @@ mod tests {
             assert!(result.is_ok(), "dispatch panicked for {action:?}");
         }
     }
-
 }

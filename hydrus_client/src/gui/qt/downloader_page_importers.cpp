@@ -441,12 +441,9 @@ void HydrusDownloaderPage::build_simple_panels(QVBoxLayout *main_layout) {
     }
 }
 
-void HydrusDownloaderPage::build_import_options(QVBoxLayout *main_layout, const QJsonObject &state) {
+void HydrusDownloaderPage::build_import_options(QVBoxLayout *main_layout, const DownloaderPageState &state) {
     const bool urls = kind == QStringLiteral("urls");
-    import_options_button = new QPushButton(
-        QStringLiteral("import options (%1)")
-            .arg(state.value(QStringLiteral("import_options_summary")).toString()),
-        main_content);
+    import_options_button = new QPushButton(to_qstring(state.import_options_text), main_content);
     import_options_button->setMinimumHeight(22);
     main_layout->addWidget(import_options_button);
 

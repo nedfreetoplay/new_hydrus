@@ -19,7 +19,7 @@
 
 // WS-15.1.5: HydrusSubscriptionsPage + editor moved verbatim from bridge.cpp (move-only split).
 
-HydrusSubscriptionsPage::HydrusSubscriptionsPage(HydrusMainWindow *main_window, const QString &page_id, const QJsonObject &state)
+HydrusSubscriptionsPage::HydrusSubscriptionsPage(HydrusMainWindow *main_window, const QString &page_id, const SubscriptionsPageState &state)
     : QWidget(), main(main_window), id(page_id) {
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(6, 6, 6, 6);
@@ -115,9 +115,8 @@ void HydrusSubscriptionsPage::add_subscription() {
 
     site->addItem(QStringLiteral("auto detect"), QString());
 
-    for (const QJsonValue &value : sites) {
-        const QJsonObject parser = value.toObject();
-        site->addItem(parser.value(QStringLiteral("title")).toString(), parser.value(QStringLiteral("id")).toString());
+    for (const auto &parser : sites) {
+        site->addItem(parser.second, parser.first);
     }
 
     url->setPlaceholderText(QStringLiteral("https://example.com/search?q={query}"));
@@ -150,49 +149,47 @@ void HydrusSubscriptionsPage::add_subscription() {
     main->notify(UiAction::SubscriptionAdd, id, json_payload(payload));
 }
 
-void HydrusSubscriptionsPage::update_state(const QJsonObject &state) {
-    sites = state.value(QStringLiteral("sites")).toArray();
-    const QJsonArray subscriptions = state.value(QStringLiteral("subscriptions")).toArray();
+void HydrusSubscriptionsPage::update_state(const SubscriptionsPageState &state) {
+    const rust::Vec<SubscriptionPageRow> &subscriptions = state.rows;
 
-    status->setText(QStringLiteral("%1 subscriptions").arg(subscriptions.size()));
-    table->setRowCount(subscriptions.size());
+    sites.clear();
 
-    for (int index = 0; index < subscriptions.size(); ++index) {
-        const QJsonObject subscription = subscriptions.at(index).toObject();
-        const QString name = subscription.value(QStringLiteral("name")).toString();
+    for (const GallerySite &parser : state.sites) {
+        sites.emplace_back(to_qstring(parser.id), to_qstring(parser.title));
+    }
+
+    status->setText(QStringLiteral("%1 subscriptions").arg(static_cast<int>(subscriptions.size())));
+    table->setRowCount(static_cast<int>(subscriptions.size()));
+
+    for (size_t index = 0; index < subscriptions.size(); ++index) {
+        const SubscriptionPageRow &subscription = subscriptions[index];
+        const int row = static_cast<int>(index);
+        const QString name = to_qstring(subscription.name);
 
         for (int column = 0; column < table->columnCount(); ++column) {
-            if (table->item(index, column) == nullptr) {
-                table->setItem(index, column, new QTableWidgetItem());
+            if (table->item(row, column) == nullptr) {
+                table->setItem(row, column, new QTableWidgetItem());
             }
         }
 
-        auto *name_item = table->item(index, 0);
+        auto *name_item = table->item(row, 0);
         name_item->setText(name);
         name_item->setData(Qt::UserRole, name);
-        name_item->setToolTip(subscription.value(QStringLiteral("url")).toString());
+        name_item->setToolTip(to_qstring(subscription.url));
 
-        table->item(index, 1)->setText(QStringLiteral("%1 s").arg(subscription.value(QStringLiteral("period")).toInt()));
-        table->item(index, 2)->setText(subscription.value(QStringLiteral("last_check")).toInt() > 0
-            ? QDateTime::fromSecsSinceEpoch(subscription.value(QStringLiteral("last_check")).toInt()).toString(QStringLiteral("yyyy-MM-dd hh:mm"))
-            : QStringLiteral("never"));
-        table->item(index, 3)->setText(subscription.value(QStringLiteral("running")).toBool()
-            ? QStringLiteral("now")
-            : QStringLiteral("in %1 s").arg(subscription.value(QStringLiteral("due_in")).toInt()));
-        table->item(index, 4)->setText(QString::number(subscription.value(QStringLiteral("imported")).toInt()));
-        table->item(index, 5)->setText(QString::number(subscription.value(QStringLiteral("failed")).toInt()));
-        table->item(index, 6)->setText(subscription.value(QStringLiteral("status")).toString());
-
-        if (subscription.value(QStringLiteral("paused")).toBool()) {
-            table->item(index, 6)->setText(QStringLiteral("paused - ") + table->item(index, 6)->text());
-        }
+        table->item(row, 1)->setText(to_qstring(subscription.period_text));
+        table->item(row, 2)->setText(to_qstring(subscription.last_check_text));
+        table->item(row, 3)->setText(to_qstring(subscription.next_text));
+        table->item(row, 4)->setText(to_qstring(subscription.imported_text));
+        table->item(row, 5)->setText(to_qstring(subscription.failed_text));
+        table->item(row, 6)->setText(to_qstring(subscription.status_text));
     }
 
     table->resizeRowsToContents();
 }
 
 HydrusSubscriptionEditorDialog::HydrusSubscriptionEditorDialog(
-    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    HydrusMainWindow *main_window, const SubscriptionEditorState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("subscription editor"));
     setObjectName(QStringLiteral("hydrus_subscription_editor"));
@@ -240,28 +237,25 @@ HydrusSubscriptionEditorDialog::HydrusSubscriptionEditorDialog(
     set_state(state);
 }
 
-void HydrusSubscriptionEditorDialog::set_state(const QJsonObject &state) {
-    data = state;
-    page_id = state.value(QStringLiteral("page_id")).toString();
+void HydrusSubscriptionEditorDialog::set_state(const SubscriptionEditorState &state) {
+    original = to_qstring(state.original);
+    page_id = to_qstring(state.page_id);
 
-    name->setText(state.value(QStringLiteral("name")).toString());
-    url->setText(state.value(QStringLiteral("url")).toString());
-    query->setText(state.value(QStringLiteral("query")).toString());
-    filter->setText(state.value(QStringLiteral("filter")).toString());
-    period->setValue(state.value(QStringLiteral("period")).toInt(86400));
-    paused->setChecked(state.value(QStringLiteral("paused")).toBool());
+    name->setText(to_qstring(state.name));
+    url->setText(to_qstring(state.url));
+    query->setText(to_qstring(state.query));
+    filter->setText(to_qstring(state.filter));
+    period->setValue(static_cast<int>(state.period));
+    paused->setChecked(state.paused);
 
     site->clear();
     site->addItem(QStringLiteral("auto detect"), QString());
 
-    for (const QJsonValue &value : state.value(QStringLiteral("sites")).toArray()) {
-        const QJsonObject parser = value.toObject();
-        site->addItem(
-            parser.value(QStringLiteral("title")).toString(),
-            parser.value(QStringLiteral("id")).toString());
+    for (const GallerySite &parser : state.sites) {
+        site->addItem(to_qstring(parser.title), to_qstring(parser.id));
     }
 
-    const int index = site->findData(state.value(QStringLiteral("site")).toString());
+    const int index = site->findData(to_qstring(state.site));
 
     if (index >= 0) {
         site->setCurrentIndex(index);
@@ -270,7 +264,7 @@ void HydrusSubscriptionEditorDialog::set_state(const QJsonObject &state) {
 
 void HydrusSubscriptionEditorDialog::save() {
     QJsonObject payload;
-    payload.insert(QStringLiteral("original"), data.value(QStringLiteral("original")));
+    payload.insert(QStringLiteral("original"), original);
     payload.insert(QStringLiteral("name"), name->text().trimmed());
     payload.insert(QStringLiteral("url"), url->text().trimmed());
     payload.insert(QStringLiteral("query"), query->text());

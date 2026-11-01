@@ -2,8 +2,8 @@
 
 // WS-15.1.2c: HydrusDownloaderPage moved verbatim from bridge.hpp/bridge.cpp (move-only split).
 
-#include <QJsonArray>
-#include <QJsonObject>
+#include "rust/cxx.h"
+
 #include <QString>
 #include <QWidget>
 
@@ -22,19 +22,21 @@ class QTableWidget;
 class QToolButton;
 class QVBoxLayout;
 class HydrusMainWindow;
+struct DownloaderPageState;
+struct GallerySite;
 enum class UiAction : std::int32_t;
 
 // URL/gallery/watcher/simple downloader page.
 class HydrusDownloaderPage : public QWidget {
 public:
-    HydrusDownloaderPage(HydrusMainWindow *main, const QString &page_id, const QJsonObject &state);
+    HydrusDownloaderPage(HydrusMainWindow *main, const QString &page_id, const DownloaderPageState &state);
 
     const QString &page_id() const;
-    void update_state(const QJsonObject &state);
+    void update_state(const DownloaderPageState &state);
 
 private:
     void start();
-    void fill_sites(const QJsonArray &sites);
+    void fill_sites(const rust::Vec<GallerySite> &sites);
     void apply_file_limit(int value, bool no_limit);
 
     // WS-15.1.2c: constructor body split by responsibility so each .cpp stays
@@ -60,14 +62,13 @@ private:
     void build_watcher_panel(QVBoxLayout *main_layout);
     void build_urls_panels(QVBoxLayout *main_layout);
     void build_simple_panels(QVBoxLayout *main_layout);
-    void build_highlight_panel(QVBoxLayout *sidebar_layout, const QJsonObject &state);
-    void build_import_options(QVBoxLayout *main_layout, const QJsonObject &state);
+    void build_highlight_panel(QVBoxLayout *sidebar_layout, const DownloaderPageState &state);
+    void build_import_options(QVBoxLayout *main_layout, const DownloaderPageState &state);
     void build_footer(QVBoxLayout *sidebar_layout);
 
     HydrusMainWindow *main = nullptr;
     QString id;
     QString kind;
-    QJsonArray sites;
     int file_limit_value = 2000;
     bool no_limit_value = false;
     bool site_loaded = false;

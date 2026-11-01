@@ -51,8 +51,8 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::SubscriptionEditor(state) => {
             ffi::hydrus_show_subscription_editor(window.as_mut(), &state);
         }
-        UiCommand::UpdateDuplicates(page_id, json) => {
-            ffi::hydrus_update_duplicates(window.as_mut(), &page_id, &json);
+        UiCommand::UpdateDuplicates(state) => {
+            ffi::hydrus_update_duplicates(window.as_mut(), &state);
         }
         UiCommand::UpdateImportFolders(page_id, json) => {
             ffi::hydrus_update_import_folders(window.as_mut(), &page_id, &json);
@@ -206,7 +206,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdateAccountTypes(state) => {
             ffi::hydrus_update_account_types(window.as_mut(), &state)
         }
-        UiCommand::OrphanFilesDialog(state) => ffi::hydrus_show_orphan_files(window.as_mut(), &state),
+        UiCommand::OrphanFilesDialog(state) => {
+            ffi::hydrus_show_orphan_files(window.as_mut(), &state)
+        }
         UiCommand::UpdateOrphanFiles(state) => {
             ffi::hydrus_update_orphan_files(window.as_mut(), &state)
         }

@@ -186,7 +186,6 @@ QJsonObject parse_string(const rust::String &text);
 // WS-15.2.2b: converts the query page-tree blob to the typed QueryPageState
 // consumed by HydrusQueryPage. Field reads mirror the old QJsonObject seam
 // one to one; the blob itself stays one JSON field (R1 exception).
-QueryPageState to_query_state(const QJsonObject &state);
 } // namespace
 
 // WS-15.2.2a: main-menu bar as flat rows. Depth 0 rows are top-level menus;
@@ -332,22 +331,22 @@ void HydrusMainWindow::populate_notebook(
                 nested);
             populate_notebook(nested, state, cursor, depth + 1, to_qstring(row.current));
         } else if (row.kind == PageKind::Query) {
-            auto *page = new HydrusQueryPage(this, page_id, to_query_state(parse_string(row.state)));
+            auto *page = new HydrusQueryPage(this, page_id, row.query);
             this->pages.insert(page_id, page);
             notebook->add_page_widget(
                 page_id, title.isEmpty() ? QStringLiteral("files") : title, page);
         } else if (row.kind == PageKind::Downloader) {
-            auto *page = new HydrusDownloaderPage(this, page_id, parse_string(row.state));
+            auto *page = new HydrusDownloaderPage(this, page_id, row.downloader);
             downloaders.insert(page_id, page);
             notebook->add_page_widget(
                 page_id, title.isEmpty() ? QStringLiteral("download") : title, page);
         } else if (row.kind == PageKind::Subscriptions) {
-            auto *page = new HydrusSubscriptionsPage(this, page_id, parse_string(row.state));
+            auto *page = new HydrusSubscriptionsPage(this, page_id, row.subscriptions);
             subscriptions.insert(page_id, page);
             notebook->add_page_widget(
                 page_id, title.isEmpty() ? QStringLiteral("subscriptions") : title, page);
         } else if (row.kind == PageKind::Duplicates) {
-            auto *page = new HydrusDuplicatesPage(this, page_id, parse_string(row.state));
+            auto *page = new HydrusDuplicatesPage(this, page_id, row.duplicates);
             duplicates.insert(page_id, page);
             notebook->add_page_widget(
                 page_id, title.isEmpty() ? QStringLiteral("duplicates") : title, page);
@@ -362,8 +361,7 @@ void HydrusMainWindow::populate_notebook(
             notebook->add_page_widget(
                 page_id, title.isEmpty() ? QStringLiteral("export folders") : title, page);
         } else {
-            const QString message =
-                parse_string(row.state).value(QStringLiteral("message")).toString();
+            const QString message = to_qstring(row.state);
             auto *placeholder = new QWidget(notebook);
             auto *layout = new QVBoxLayout(placeholder);
             auto *label = new QLabel(
@@ -390,61 +388,6 @@ namespace {
 
 QJsonObject parse_string(const rust::String &text) {
     return parse_object(rust::Str(text.data(), text.size()));
-}
-
-QueryPageState to_query_state(const QJsonObject &state) {
-    QueryPageState out;
-
-    const auto assign = [](rust::String &field, const QJsonValue &text) {
-        const QByteArray bytes = text.toString().toUtf8();
-        field = rust::String(bytes.constData());
-    };
-
-    assign(out.page_id, state.value(QStringLiteral("page_id")));
-    assign(out.query, state.value(QStringLiteral("query")));
-    assign(out.location, state.value(QStringLiteral("location")));
-    assign(out.tag_service, state.value(QStringLiteral("tag_service")));
-    assign(out.sort, state.value(QStringLiteral("sort")));
-    out.sort_ascending = state.value(QStringLiteral("sort_ascending")).toBool(true);
-    assign(out.focused, state.value(QStringLiteral("focused")));
-    out.loading = state.value(QStringLiteral("loading")).toBool(false);
-
-    for (const QJsonValue &value : state.value(QStringLiteral("tag_services")).toArray()) {
-        const QByteArray bytes = value.toString().toUtf8();
-        out.tag_services.push_back(rust::String(bytes.constData()));
-    }
-
-    for (const QJsonValue &value : state.value(QStringLiteral("predicates")).toArray()) {
-        const QByteArray bytes = value.toString().toUtf8();
-        out.predicates.push_back(rust::String(bytes.constData()));
-    }
-
-    for (const QJsonValue &value : state.value(QStringLiteral("tags")).toArray()) {
-        const QByteArray bytes = value.toString().toUtf8();
-        out.tags.push_back(rust::String(bytes.constData()));
-    }
-
-    const QJsonObject thumbnails = state.value(QStringLiteral("thumbnails")).toObject();
-    out.thumb_scale_percent = static_cast<int32_t>(thumbnails.value(QStringLiteral("scale_percent")).toInt(100));
-    out.thumb_masonry = thumbnails.value(QStringLiteral("masonry")).toBool(false);
-    out.thumb_horizontal = thumbnails.value(QStringLiteral("horizontal")).toBool(false);
-
-    for (const QJsonValue &value : state.value(QStringLiteral("media")).toArray()) {
-        const QJsonObject object = value.toObject();
-        MediaItem item;
-        assign(item.hash, object.value(QStringLiteral("hash")));
-        assign(item.thumb, object.value(QStringLiteral("thumb")));
-        assign(item.file, object.value(QStringLiteral("file")));
-        assign(item.url, object.value(QStringLiteral("url")));
-        item.inbox = object.value(QStringLiteral("inbox")).toBool(false);
-        item.duplicate = object.value(QStringLiteral("duplicate")).toBool(false);
-        const QJsonValue rating = object.value(QStringLiteral("rating"));
-        item.has_rating = object.contains(QStringLiteral("rating")) && !rating.isNull();
-        item.rating = rating.toDouble(0.0);
-        out.media.push_back(item);
-    }
-
-    return out;
 }
 
 QString page_kind_name(PageKind kind) {
@@ -564,27 +507,19 @@ void HydrusPageManager::build(const PageTree &page_tree) {
 }
 
 // --- WS-15.2.2c downloader/subscription glue ------------------------------
-void HydrusMainWindow::update_downloader(const DownloaderPageState &typed) {
-    const QString page_id = to_qstring(typed.page_id);
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
-
-    if (HydrusDownloaderPage *page = downloaders.value(page_id, nullptr)) {
+void HydrusMainWindow::update_downloader(const DownloaderPageState &state) {
+    if (HydrusDownloaderPage *page = downloaders.value(to_qstring(state.page_id), nullptr)) {
         page->update_state(state);
     }
 }
 
-void HydrusMainWindow::update_subscriptions(const SubscriptionsPageState &typed) {
-    const QString page_id = to_qstring(typed.page_id);
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
-
-    if (HydrusSubscriptionsPage *page = subscriptions.value(page_id, nullptr)) {
+void HydrusMainWindow::update_subscriptions(const SubscriptionsPageState &state) {
+    if (HydrusSubscriptionsPage *page = subscriptions.value(to_qstring(state.page_id), nullptr)) {
         page->update_state(state);
     }
 }
 
-void HydrusMainWindow::show_subscriptions_dialog(const SubscriptionsDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
-
+void HydrusMainWindow::show_subscriptions_dialog(const SubscriptionsDialogState &state) {
     if (subscriptions_dialog == nullptr) {
         subscriptions_dialog = new HydrusSubscriptionsDialog(this, state, this);
         connect(subscriptions_dialog, &QObject::destroyed, this, [this]() {
@@ -599,17 +534,13 @@ void HydrusMainWindow::show_subscriptions_dialog(const SubscriptionsDialogState 
     subscriptions_dialog->activateWindow();
 }
 
-void HydrusMainWindow::update_subscriptions_dialog(const SubscriptionsDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
-
+void HydrusMainWindow::update_subscriptions_dialog(const SubscriptionsDialogState &state) {
     if (subscriptions_dialog != nullptr) {
         subscriptions_dialog->set_state(state);
     }
 }
 
-void HydrusMainWindow::show_subscription_editor(const SubscriptionEditorState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
-
+void HydrusMainWindow::show_subscription_editor(const SubscriptionEditorState &state) {
     if (subscription_editor_dialog != nullptr) {
         subscription_editor_dialog->close();
     }
@@ -623,14 +554,13 @@ void HydrusMainWindow::show_subscription_editor(const SubscriptionEditorState &t
     subscription_editor_dialog->activateWindow();
 }
 
-void HydrusMainWindow::show_file_seed_cache(const FileSeedCacheState &typed) {
-    const QString json = to_qstring(typed.json);
+void HydrusMainWindow::show_file_seed_cache(const SeedCacheState &state) {
 
     if (file_seed_cache_dialog == nullptr) {
-        file_seed_cache_dialog = new HydrusSeedCacheDialog(this, json, false, this);
+        file_seed_cache_dialog = new HydrusSeedCacheDialog(this, state, false, this);
         connect(file_seed_cache_dialog, &QObject::destroyed, this, [this]() { file_seed_cache_dialog = nullptr; });
     } else {
-        file_seed_cache_dialog->set_state(json);
+        file_seed_cache_dialog->set_state(state);
         file_seed_cache_dialog->raise();
         file_seed_cache_dialog->activateWindow();
     }
@@ -638,14 +568,13 @@ void HydrusMainWindow::show_file_seed_cache(const FileSeedCacheState &typed) {
     file_seed_cache_dialog->show();
 }
 
-void HydrusMainWindow::show_gallery_seed_log(const GallerySeedLogState &typed) {
-    const QString json = to_qstring(typed.json);
+void HydrusMainWindow::show_gallery_seed_log(const SeedCacheState &state) {
 
     if (gallery_seed_log_dialog == nullptr) {
-        gallery_seed_log_dialog = new HydrusSeedCacheDialog(this, json, true, this);
+        gallery_seed_log_dialog = new HydrusSeedCacheDialog(this, state, true, this);
         connect(gallery_seed_log_dialog, &QObject::destroyed, this, [this]() { gallery_seed_log_dialog = nullptr; });
     } else {
-        gallery_seed_log_dialog->set_state(json);
+        gallery_seed_log_dialog->set_state(state);
         gallery_seed_log_dialog->raise();
         gallery_seed_log_dialog->activateWindow();
     }

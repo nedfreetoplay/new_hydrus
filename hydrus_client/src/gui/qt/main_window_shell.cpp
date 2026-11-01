@@ -210,8 +210,8 @@ HydrusQueryPage *HydrusMainWindow::find_page(const QString &page_id) const {
 
 
 
-void HydrusMainWindow::update_duplicates(const QString &page_id, const QJsonObject &state) {
-    if (HydrusDuplicatesPage *page = duplicates.value(page_id, nullptr)) {
+void HydrusMainWindow::update_duplicates(const DuplicatesPageState &state) {
+    if (HydrusDuplicatesPage *page = duplicates.value(to_qstring(state.page_id), nullptr)) {
         page->update_state(state);
     }
 }

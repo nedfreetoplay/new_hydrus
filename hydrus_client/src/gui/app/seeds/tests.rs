@@ -3,7 +3,6 @@ use std::path::Path;
 use super::*;
 use crate::gui::app::model::DownloadItem;
 use crate::gui::app::model::{DownloaderKind, PageNode};
-use serde_json::Value;
 
 fn test_state(directory: &Path, kind: DownloaderKind) -> (AppState, DownloaderPage) {
     let _ = crate::client_options::register_serialisable_type();
@@ -34,7 +33,7 @@ fn with_queue(state: &mut AppState) {
 }
 
 #[test]
-fn file_seed_cache_json_counts_statuses() {
+fn file_seed_cache_state_counts_statuses() {
     let directory = std::env::temp_dir().join(format!(
         "hydrus_seed_cache_json_{}_{}",
         std::process::id(),
@@ -43,14 +42,12 @@ fn file_seed_cache_json_counts_statuses() {
     let (mut state, _) = test_state(&directory, DownloaderKind::Urls);
     with_queue(&mut state);
 
-    let value: Value = serde_json::from_str(&file_seed_cache_json(&state, "p1")).unwrap();
+    let cache = file_seed_cache_state(&state, "p1");
 
-    assert_eq!(value["kind"], "file");
-    assert_eq!(value["seeds"].as_array().unwrap().len(), 3);
-    assert_eq!(value["counts"]["done"], 1);
-    assert_eq!(value["counts"]["failed"], 1);
-    assert_eq!(value["counts"]["pending"], 1);
-    assert!(value["subtitle"].as_str().unwrap().contains("3 file seed"));
+    assert_eq!(cache.seeds.len(), 3);
+    assert_eq!(cache.failed, 1);
+    assert!(cache.subtitle.contains("3 file seed"));
+    assert!(cache.subtitle.contains("1 done, 1 failed, 1 waiting"));
 
     drop(state);
     let _ = std::fs::remove_dir_all(directory);
@@ -79,26 +76,24 @@ fn file_seed_cache_remove_and_clear_finished() {
         Some(UiCommand::FileSeedCacheDialog(_))
     ));
     assert_eq!(state.find_downloader("p1").unwrap().queue.len(), 2);
-    assert!(
-        state
-            .find_downloader("p1")
-            .unwrap()
-            .queue
-            .iter()
-            .all(|item| item.url != "https://example.com/b.jpg")
-    );
+    assert!(state
+        .find_downloader("p1")
+        .unwrap()
+        .queue
+        .iter()
+        .all(|item| item.url != "https://example.com/b.jpg"));
 
     let commands = file_seed_action(
         &mut state,
         &serde_json::json!({"page": "p1", "action": "clear_finished"}).to_string(),
     );
-    let updated: Value = match commands.first() {
-        Some(UiCommand::FileSeedCacheDialog(state)) => serde_json::from_str(&state.json).unwrap(),
+    let updated = match commands.first() {
+        Some(UiCommand::FileSeedCacheDialog(state)) => state,
         other => panic!("expected the updated dialog, got {other:?}"),
     };
 
-    assert_eq!(updated["seeds"].as_array().unwrap().len(), 1);
-    assert_eq!(updated["seeds"][0]["status"], "pending");
+    assert_eq!(updated.seeds.len(), 1);
+    assert_eq!(updated.seeds[0].status, "pending");
 
     drop(state);
     let _ = std::fs::remove_dir_all(directory);
@@ -131,12 +126,11 @@ fn gallery_seed_log_deduplicates_by_url() {
         "success"
     );
 
-    let value: Value = serde_json::from_str(&gallery_seed_log_json(&state, "p1")).unwrap();
+    let log = gallery_seed_log_state(&state, "p1");
 
-    assert_eq!(value["kind"], "gallery");
-    assert_eq!(value["counts"]["done"], 1);
-    assert_eq!(value["counts"]["failed"], 1);
-    assert_eq!(value["seeds"][0]["url"], "https://example.com/post/1");
+    assert_eq!(log.failed, 1);
+    assert_eq!(log.seeds[0].url, "https://example.com/post/1");
+    assert!(log.subtitle.contains("1 succeeded"));
 
     let commands = gallery_seed_action(
         &mut state,
@@ -146,13 +140,11 @@ fn gallery_seed_log_deduplicates_by_url() {
         commands.first(),
         Some(UiCommand::GallerySeedLogDialog(_))
     ));
-    assert!(
-        state
-            .find_downloader("p1")
-            .unwrap()
-            .gallery_seeds
-            .is_empty()
-    );
+    assert!(state
+        .find_downloader("p1")
+        .unwrap()
+        .gallery_seeds
+        .is_empty());
 
     drop(state);
     let _ = std::fs::remove_dir_all(directory);

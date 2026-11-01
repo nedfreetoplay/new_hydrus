@@ -46,7 +46,7 @@ void HydrusDuplicatesPage::build_media_panel(
     QWidget *sidebar,
     QVBoxLayout *sidebar_layout,
     QHBoxLayout *outer,
-    const QJsonObject &state) {
+    const DuplicatesPageState &state) {
     auto *right = new QWidget(page_splitter);
     auto *layout = new QVBoxLayout(right);
     layout->setContentsMargins(6, 6, 6, 6);
@@ -325,92 +325,78 @@ void HydrusDuplicatesPage::act(UiAction action) {
     main->notify(action, id);
 }
 
-void HydrusDuplicatesPage::update_state(const QJsonObject &state) {
-    const int index = state.value(QStringLiteral("index")).toInt();
-    const int total = state.value(QStringLiteral("total")).toInt();
-    const QString page_status = state.value(QStringLiteral("status")).toString();
-
-    status->setText(total == 0
-        ? page_status
-        : QStringLiteral("%1  -  %2/%3").arg(page_status).arg(index).arg(total));
+void HydrusDuplicatesPage::update_state(const DuplicatesPageState &state) {
+    status->setText(to_qstring(state.status_line));
 
     {
         const QSignalBlocker blocker(batch);
-        batch->setValue(state.value(QStringLiteral("batch_size")).toInt(100));
+        batch->setValue(static_cast<int>(state.batch_size));
     }
 
-    const QJsonObject search = state.value(QStringLiteral("search")).toObject();
+    const DuplicateSearchState &search = state.search;
+    auto set_combo_data = [](QComboBox *combo, const QString &value) {
+        const int index = combo->findData(value);
 
-    if (!search.isEmpty()) {
-        auto set_combo_data = [](QComboBox *combo, const QString &value) {
-            const int index = combo->findData(value);
+        if (index >= 0) {
+            const QSignalBlocker blocker(combo);
+            combo->setCurrentIndex(index);
+        }
+    };
 
-            if (index >= 0) {
-                const QSignalBlocker blocker(combo);
-                combo->setCurrentIndex(index);
-            }
-        };
+    const QSignalBlocker query_1_blocker(search_query_1);
+    const QSignalBlocker query_2_blocker(search_query_2);
+    const QSignalBlocker distance_blocker(search_distance);
 
-        const QSignalBlocker query_1_blocker(search_query_1);
-        const QSignalBlocker query_2_blocker(search_query_2);
-        const QSignalBlocker distance_blocker(search_distance);
+    const QString query_1 = to_qstring(search.query_1);
+    const QString query_2 = to_qstring(search.query_2);
+    search_query_1->setText(query_1.isEmpty() ? QStringLiteral("system:everything")
+                                              : query_1);
+    search_query_2->setText(query_2.isEmpty() ? QStringLiteral("system:everything")
+                                              : query_2);
+    search_distance->setValue(static_cast<int>(search.max_distance));
+    set_combo_data(dupe_search_type, to_qstring(search.dupe_search_type));
+    set_combo_data(pixel_dupes, to_qstring(search.pixel_dupes));
 
-        const QString query_1 = search.value(QStringLiteral("query_1")).toString();
-        const QString query_2 = search.value(QStringLiteral("query_2")).toString();
-        search_query_1->setText(query_1.isEmpty() ? QStringLiteral("system:everything")
-                                                  : query_1);
-        search_query_2->setText(query_2.isEmpty() ? QStringLiteral("system:everything")
-                                                  : query_2);
-        search_distance->setValue(search.value(QStringLiteral("max_distance")).toInt(4));
-        set_combo_data(dupe_search_type, search.value(QStringLiteral("dupe_search_type")).toString());
-        set_combo_data(pixel_dupes, search.value(QStringLiteral("pixel_dupes")).toString());
+    {
+        const QSignalBlocker sort_type_blocker(sort_type);
+        const QSignalBlocker sort_asc_blocker(sort_ascending);
 
-        {
-            const QSignalBlocker sort_type_blocker(sort_type);
-            const QSignalBlocker sort_asc_blocker(sort_ascending);
+        set_combo_data(sort_type, to_qstring(search.sort_type));
+        const int sort_index = sort_ascending->findData(search.sort_ascending);
 
-            set_combo_data(sort_type, search.value(QStringLiteral("sort_type")).toString());
-            const int sort_index = sort_ascending->findData(search.value(QStringLiteral("sort_ascending")).toBool());
+        if (sort_index >= 0) {
+            sort_ascending->setCurrentIndex(sort_index);
+        }
+    }
 
-            if (sort_index >= 0) {
-                sort_ascending->setCurrentIndex(sort_index);
-            }
+    {
+        const QSignalBlocker location_1_blocker(search_location_1);
+        const QSignalBlocker location_2_blocker(search_location_2);
+        const QString location_1 = to_qstring(search.location_1);
+        const QString location_2 = to_qstring(search.location_2);
+
+        if (!location_1.isEmpty()) {
+            search_location_1->setCurrentText(location_1);
         }
 
-        {
-            const QSignalBlocker location_1_blocker(search_location_1);
-            const QSignalBlocker location_2_blocker(search_location_2);
-            const QString location_1 = search.value(QStringLiteral("location_1")).toString();
-            const QString location_2 = search.value(QStringLiteral("location_2")).toString();
-
-            if (!location_1.isEmpty()) {
-                search_location_1->setCurrentText(location_1);
-            }
-
-            if (!location_2.isEmpty()) {
-                search_location_2->setCurrentText(location_2);
-            }
+        if (!location_2.isEmpty()) {
+            search_location_2->setCurrentText(location_2);
         }
+    }
 
-        const int matched = search.value(QStringLiteral("matched")).toInt();
-        const int searched = state.value(QStringLiteral("searched")).toInt();
-
-        if (searched == 0) {
-            search_summary->setText(
-                QStringLiteral("no potential pairs in this file domain!"));
-        } else {
-            search_summary->setText(QStringLiteral("%1 of %2 pairs match  -  %3")
-                .arg(matched)
-                .arg(searched)
-                .arg(search.value(QStringLiteral("summary")).toString()));
-        }
+    if (state.searched == 0) {
+        search_summary->setText(
+            QStringLiteral("no potential pairs in this file domain!"));
+    } else {
+        search_summary->setText(QStringLiteral("%1 of %2 pairs match  -  %3")
+            .arg(search.matched)
+            .arg(state.searched)
+            .arg(to_qstring(search.summary)));
     }
 
     update_search_controls();
 
-    const QJsonValue pair_value = state.value(QStringLiteral("pair"));
-
-    if (!pair_value.isObject()) {
+    if (!state.has_pair) {
         distance->setText(QString());
 
         for (QPushButton *button : {same, not_duplicates, skip, delete_both}) {
@@ -421,21 +407,18 @@ void HydrusDuplicatesPage::update_state(const QJsonObject &state) {
             button->setEnabled(true);
         }
 
-        const QJsonObject pair = pair_value.toObject();
-        distance->setText(QStringLiteral("distance %1").arg(pair.value(QStringLiteral("distance")).toInt()));
+        distance->setText(QStringLiteral("distance %1").arg(state.pair.distance));
     }
 
-    const QJsonArray media = state.value(QStringLiteral("media")).toArray();
-
     if (grid != nullptr) {
-        grid->set_media(media);
+        grid->set_media(state.media);
     }
 
     if (media_status != nullptr) {
-        if (media.isEmpty()) {
-            media_status->setText(state.value(QStringLiteral("media_empty_status")).toString());
+        if (state.media.empty()) {
+            media_status->setText(to_qstring(state.media_empty_status));
         } else {
-            media_status->setText(state.value(QStringLiteral("media_count_status")).toString());
+            media_status->setText(to_qstring(state.media_count_status));
         }
     }
 
@@ -463,18 +446,52 @@ void HydrusDuplicatesPage::update_auto_resolution_rules(const QJsonObject &state
         }
 
         auto_rules_table->item(index, 0)->setText(rule.value(QStringLiteral("name")).toString());
-
-        QString progress = rule.value(QStringLiteral("search_summary")).toString();
-        auto_rules_table->item(index, 1)->setText(progress);
-
-        QString status = rule.value(QStringLiteral("paused")).toBool()
-                             ? QStringLiteral("paused")
-                             : QStringLiteral("running");
-        auto_rules_table->item(index, 2)->setText(status);
+        auto_rules_table->item(index, 1)->setText(
+            rule.value(QStringLiteral("search_summary")).toString());
+        auto_rules_table->item(index, 2)->setText(
+            rule.value(QStringLiteral("paused")).toBool() ? QStringLiteral("paused")
+                                                          : QStringLiteral("running"));
     }
 
     if (auto_rules_status != nullptr) {
         if (rules.isEmpty()) {
+            auto_rules_status->setText(QStringLiteral("no auto-resolution rules yet"));
+            auto_rules_status->setVisible(true);
+        } else {
+            auto_rules_status->setVisible(false);
+        }
+    }
+
+    auto_rules_table->resizeRowsToContents();
+}
+
+void HydrusDuplicatesPage::update_auto_resolution_rules(const DuplicatesPageState &state) {
+    if (auto_rules_table == nullptr) {
+        return;
+    }
+
+    const rust::Vec<DuplicateRuleRow> &rules = state.auto_rules;
+    auto_rules_table->setRowCount(static_cast<int>(rules.size()));
+
+    for (size_t index = 0; index < rules.size(); ++index) {
+        const DuplicateRuleRow &rule = rules[index];
+
+        for (int column = 0; column < 3; ++column) {
+            if (auto_rules_table->item(static_cast<int>(index), column) == nullptr) {
+                auto_rules_table->setItem(
+                    static_cast<int>(index), column, new QTableWidgetItem());
+            }
+        }
+
+        auto_rules_table->item(static_cast<int>(index), 0)->setText(to_qstring(rule.name));
+        auto_rules_table->item(static_cast<int>(index), 1)->setText(
+            to_qstring(rule.search_summary));
+        auto_rules_table->item(static_cast<int>(index), 2)->setText(
+            rule.paused ? QStringLiteral("paused") : QStringLiteral("running"));
+    }
+
+    if (auto_rules_status != nullptr) {
+        if (rules.empty()) {
             auto_rules_status->setText(QStringLiteral("no auto-resolution rules yet"));
             auto_rules_status->setVisible(true);
         } else {

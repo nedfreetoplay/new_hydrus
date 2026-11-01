@@ -160,9 +160,9 @@ QFrame *HydrusDownloaderPage::make_status_box(
         return box;
 }
 
-HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const QString &page_id, const QJsonObject &state)
+HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const QString &page_id, const DownloaderPageState &state)
     : QWidget(), main(main_window), id(page_id) {
-    kind = state.value(QStringLiteral("kind")).toString();
+    kind = to_qstring(state.kind);
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
@@ -345,7 +345,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
     build_highlight_panel(sidebar_layout, state);
     build_footer(sidebar_layout);
 
-    fill_sites(state.value(QStringLiteral("sites")).toArray());
+    fill_sites(state.sites);
 
     // Make the scroll area aware of the real content minimum; otherwise Qt
     // squeezes the selection tags box below the viewport instead of scrolling.

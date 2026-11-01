@@ -1,18 +1,20 @@
 //! JSON rendering of application state for the Qt layer.
 
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use hydrus_core::hydrus_constants::ServiceType;
 
 use super::model::{
-    AppState, DownloaderKind, DownloaderPage, DuplicatesPage, ImportQueueState, PageNode,
-    QueryPage,
+    AppState, DownloaderKind, DownloaderPage, DuplicatesPage, ImportQueueState, PageNode, QueryPage,
 };
 use super::query;
 use crate::gui::qt::api::ffi::{
-    AboutInfo, MenuBar, MenuEntry, MetadataState, NoteState, PageKind, PageProgress,
-    PageRow, PageTree, PageTreeRow, Pages, QueryPageState, RatingKind, RatingState, SelectionState,
-    StatusBar, TagServiceState, TagSource, UiAction, ViewerState, ViewingStatRow, ViewingStats,
+    AboutInfo, DownloaderPageState, DuplicatePairState, DuplicateRuleRow, DuplicateSearchState,
+    DuplicatesPageState, GallerySite, MediaItem, MenuBar, MenuEntry, MetadataState, NoteState,
+    PageKind, PageProgress, PageRow, PageTree, PageTreeRow, Pages, QueryPageState, RatingKind,
+    RatingState, SelectionState, StatusBar, SubscriptionDialogRow, SubscriptionPageRow,
+    SubscriptionsDialogState, SubscriptionsPageState, TagServiceState, TagSource, UiAction,
+    ViewerState, ViewingStatRow, ViewingStats,
 };
 
 fn menu_title(entries: &mut Vec<MenuEntry>, title: &str) {
@@ -306,7 +308,16 @@ pub fn menus(state: &AppState) -> MenuBar {
     menu_submenu(&mut entries, 1, "recent searches");
     recent_search_entries(state, &mut entries, 2);
     menu_separator(&mut entries, 1);
-    menu_action(&mut entries, 1, "new page of pages", "new_notebook", "", "", "", true);
+    menu_action(
+        &mut entries,
+        1,
+        "new page of pages",
+        "new_notebook",
+        "",
+        "",
+        "",
+        true,
+    );
     menu_action(
         &mut entries,
         1,
@@ -318,10 +329,37 @@ pub fn menus(state: &AppState) -> MenuBar {
         true,
     );
     menu_separator(&mut entries, 1);
-    menu_action(&mut entries, 1, "manage pages...", "page_manager", "", "", "", true);
-    menu_action(&mut entries, 1, "duplicate page", "duplicate_page", "", "", "", true);
+    menu_action(
+        &mut entries,
+        1,
+        "manage pages...",
+        "page_manager",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        1,
+        "duplicate page",
+        "duplicate_page",
+        "",
+        "",
+        "",
+        true,
+    );
     menu_separator(&mut entries, 1);
-    menu_action(&mut entries, 1, "close page", "close_page", "", "", "", true);
+    menu_action(
+        &mut entries,
+        1,
+        "close page",
+        "close_page",
+        "",
+        "",
+        "",
+        true,
+    );
     menu_action(
         &mut entries,
         1,
@@ -372,9 +410,36 @@ pub fn menus(state: &AppState) -> MenuBar {
     );
     menu_separator(&mut entries, 1);
     menu_submenu(&mut entries, 1, "maintenance");
-    menu_action(&mut entries, 2, "check database", "db_check", "", "", "", true);
-    menu_action(&mut entries, 2, "analyze database", "db_analyze", "", "", "", true);
-    menu_action(&mut entries, 2, "vacuum database", "db_vacuum", "", "", "", true);
+    menu_action(
+        &mut entries,
+        2,
+        "check database",
+        "db_check",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        2,
+        "analyze database",
+        "db_analyze",
+        "",
+        "",
+        "",
+        true,
+    );
+    menu_action(
+        &mut entries,
+        2,
+        "vacuum database",
+        "db_vacuum",
+        "",
+        "",
+        "",
+        true,
+    );
     menu_action(
         &mut entries,
         2,
@@ -459,7 +524,16 @@ pub fn menus(state: &AppState) -> MenuBar {
         true,
     );
     menu_separator(&mut entries, 2);
-    menu_action(&mut entries, 2, "how boned am I?", "db_stats", "", "", "", true);
+    menu_action(
+        &mut entries,
+        2,
+        "how boned am I?",
+        "db_stats",
+        "",
+        "",
+        "",
+        true,
+    );
 
     menu_title(&mut entries, "&network");
     menu_action(
@@ -623,7 +697,16 @@ pub fn menus(state: &AppState) -> MenuBar {
 
     if has_pending_services {
         menu_title(&mut entries, "&pending");
-        menu_action(&mut entries, 1, "pending uploads", "pending", "", "", "", false);
+        menu_action(
+            &mut entries,
+            1,
+            "pending uploads",
+            "pending",
+            "",
+            "",
+            "",
+            false,
+        );
     }
 
     menu_title(&mut entries, "&help");
@@ -665,10 +748,7 @@ pub fn menus(state: &AppState) -> MenuBar {
     MenuBar { entries }
 }
 
-fn service_menu_entries(
-    services: &crate::services::ServicesManager,
-    entries: &mut Vec<MenuEntry>,
-) {
+fn service_menu_entries(services: &crate::services::ServicesManager, entries: &mut Vec<MenuEntry>) {
     for service in services.get_services(None) {
         menu_action(
             entries,
@@ -682,10 +762,8 @@ fn service_menu_entries(
         );
     }
 
-    let tag_filter_services = services.get_services(Some(&[
-        ServiceType::TagRepository,
-        ServiceType::LocalTag,
-    ]));
+    let tag_filter_services =
+        services.get_services(Some(&[ServiceType::TagRepository, ServiceType::LocalTag]));
 
     if !tag_filter_services.is_empty() {
         menu_separator(entries, 1);
@@ -727,13 +805,17 @@ fn service_menu_entries(
     );
 }
 
-
-fn import_folder_menu_entries(
-    state: &AppState,
-    entries: &mut Vec<MenuEntry>,
-    depth: i32,
-) {
-    menu_action(entries, depth, "check all", "import_folder_check_all", "", "", "", true);
+fn import_folder_menu_entries(state: &AppState, entries: &mut Vec<MenuEntry>, depth: i32) {
+    menu_action(
+        entries,
+        depth,
+        "check all",
+        "import_folder_check_all",
+        "",
+        "",
+        "",
+        true,
+    );
     menu_separator(entries, depth);
 
     for folder in &state.import_folders {
@@ -754,11 +836,7 @@ fn import_folder_menu_entries(
     }
 }
 
-fn export_folder_menu_entries(
-    state: &AppState,
-    entries: &mut Vec<MenuEntry>,
-    depth: i32,
-) {
+fn export_folder_menu_entries(state: &AppState, entries: &mut Vec<MenuEntry>, depth: i32) {
     menu_action(
         entries,
         depth,
@@ -897,7 +975,16 @@ fn session_menu_entries(state: &AppState, entries: &mut Vec<MenuEntry>, depth: i
     menu_submenu(entries, depth, "load");
     for session in &sessions {
         let label = format!("{} ({} pages)", session.name, session.pages);
-        menu_action(entries, depth + 1, &label, "session_load", &session.name, "", "", true);
+        menu_action(
+            entries,
+            depth + 1,
+            &label,
+            "session_load",
+            &session.name,
+            "",
+            "",
+            true,
+        );
     }
     if empty {
         menu_disabled(entries, depth + 1, "no saved sessions");
@@ -1000,12 +1087,7 @@ fn manager_rows(
     }
 }
 
-fn manager_item_rows(
-    state: &AppState,
-    node: &PageNode,
-    depth: i32,
-    rows: &mut Vec<PageTreeRow>,
-) {
+fn manager_item_rows(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageTreeRow>) {
     let active = state.active.as_deref() == Some(node.id());
     match node {
         PageNode::Notebook(notebook) => {
@@ -1079,9 +1161,10 @@ fn manager_item_rows(
 }
 
 /// Notebook contents for `build_pages` as flat preorder rows (WS-15.2.2a).
-/// The envelope (id/title/kind/current/depth) is typed; `state` keeps the
-/// per-screen JSON blob inside one field (R1 exception) until each screen
-/// converts its own seam in later WS-15.2.2 subtasks.
+/// The envelope (id/title/kind/current/depth) is typed. Query, downloader,
+/// subscriptions and duplicates pages carry their typed initial state
+/// (WS-15.2.3c); `state` remains only for the import/export folder screens
+/// and the placeholder message.
 pub fn pages(state: &AppState) -> Pages {
     let mut rows = Vec::new();
     pages_rows(state, &state.root, 0, &mut rows);
@@ -1110,12 +1193,11 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             kind: PageKind::Query,
             current: String::new(),
             depth,
-            state: serde_json::to_string(&query_state(
-                &state.controller,
-                page,
-                Some(&state.import_queue),
-            ))
-            .unwrap_or_else(|_| "{}".to_string()),
+            query: query_page_state(&state.controller, page),
+            downloader: DownloaderPageState::default(),
+            subscriptions: SubscriptionsPageState::default(),
+            duplicates: DuplicatesPageState::default(),
+            state: String::new(),
         }),
         PageNode::Notebook(notebook) => {
             rows.push(PageRow {
@@ -1124,6 +1206,10 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
                 kind: PageKind::Notebook,
                 current: notebook.current.clone().unwrap_or_default(),
                 depth,
+                query: QueryPageState::default(),
+                downloader: DownloaderPageState::default(),
+                subscriptions: SubscriptionsPageState::default(),
+                duplicates: DuplicatesPageState::default(),
                 state: String::new(),
             });
             pages_rows(state, notebook, depth + 1, rows);
@@ -1134,7 +1220,11 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             kind: PageKind::Downloader,
             current: String::new(),
             depth,
-            state: downloader_json(&state.controller, page),
+            downloader: downloader_page_state(&state.controller, page),
+            query: QueryPageState::default(),
+            subscriptions: SubscriptionsPageState::default(),
+            duplicates: DuplicatesPageState::default(),
+            state: String::new(),
         }),
         PageNode::Subscriptions(page) => rows.push(PageRow {
             id: page.id.clone(),
@@ -1142,7 +1232,11 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             kind: PageKind::Subscriptions,
             current: String::new(),
             depth,
-            state: subscriptions_json(state, &page.id),
+            subscriptions: subscriptions_page_state(state, &page.id),
+            query: QueryPageState::default(),
+            downloader: DownloaderPageState::default(),
+            duplicates: DuplicatesPageState::default(),
+            state: String::new(),
         }),
         PageNode::Duplicates(page) => rows.push(PageRow {
             id: page.id.clone(),
@@ -1150,7 +1244,11 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             kind: PageKind::Duplicates,
             current: String::new(),
             depth,
-            state: duplicates_json(&state.controller, page),
+            duplicates: duplicates_page_state(&state.controller, page, &state.auto_rules),
+            query: QueryPageState::default(),
+            downloader: DownloaderPageState::default(),
+            subscriptions: SubscriptionsPageState::default(),
+            state: String::new(),
         }),
         PageNode::ImportFolders(page) => rows.push(PageRow {
             id: page.id.clone(),
@@ -1158,6 +1256,10 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             kind: PageKind::ImportFolders,
             current: String::new(),
             depth,
+            query: QueryPageState::default(),
+            downloader: DownloaderPageState::default(),
+            subscriptions: SubscriptionsPageState::default(),
+            duplicates: DuplicatesPageState::default(),
             state: super::import_folders::rules_json(state, &page.id),
         }),
         PageNode::ExportFolders(page) => rows.push(PageRow {
@@ -1166,6 +1268,10 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             kind: PageKind::ExportFolders,
             current: String::new(),
             depth,
+            query: QueryPageState::default(),
+            downloader: DownloaderPageState::default(),
+            subscriptions: SubscriptionsPageState::default(),
+            duplicates: DuplicatesPageState::default(),
             state: super::export::folders_json(state, &page.id),
         }),
         PageNode::Placeholder(page) => rows.push(PageRow {
@@ -1174,8 +1280,11 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             kind: PageKind::Placeholder,
             current: String::new(),
             depth,
-            state: serde_json::to_string(&serde_json::json!({"message": page.message}))
-                .unwrap_or_else(|_| "{}".to_string()),
+            query: QueryPageState::default(),
+            downloader: DownloaderPageState::default(),
+            subscriptions: SubscriptionsPageState::default(),
+            duplicates: DuplicatesPageState::default(),
+            state: page.message.clone(),
         }),
     }
 }
@@ -1264,7 +1373,9 @@ pub fn query_progress(
         loading: page.loading,
         importing_done: running.map(|queue| queue.done as i64).unwrap_or(0),
         importing_total: running.map(|queue| queue.total as i64).unwrap_or(0),
-        importing_message: running.map(|queue| queue.message.clone()).unwrap_or_default(),
+        importing_message: running
+            .map(|queue| queue.message.clone())
+            .unwrap_or_default(),
         count: page.hashes.len() as i64,
     }
 }
@@ -1473,7 +1584,9 @@ pub fn viewing_stats(controller: &crate::controller::Controller, hash: &[u8]) ->
         rows.push(ViewingStatRow {
             canvas: name.to_string(),
             last_viewed: hydrus_core::hydrus_time::timestamp_to_pretty_time(
-                stats.last_viewed_timestamp_ms.map(|value| value as f64 / 1000.0),
+                stats
+                    .last_viewed_timestamp_ms
+                    .map(|value| value as f64 / 1000.0),
                 false,
                 true,
             ),
@@ -1531,7 +1644,9 @@ pub fn query_page_state(
             .collect(),
         media: query::media_items(controller, page),
         loading: page.loading,
-        thumb_scale_percent: options.get_integer("thumbnail_scale_percent").clamp(25, 400) as i32,
+        thumb_scale_percent: options
+            .get_integer("thumbnail_scale_percent")
+            .clamp(25, 400) as i32,
         thumb_masonry: options.get_boolean("thumbnail_layout_masonry"),
         thumb_horizontal: options.get_boolean("thumbnail_scroll_horizontal"),
     }
@@ -1696,10 +1811,132 @@ pub fn viewer_state(
     }
 }
 
-pub fn downloader_json(
+/// Built-in gallery parser rows shared by the downloader screen, the
+/// subscriptions page and the editor dialogs (WS-15.2.3c).
+pub fn gallery_sites() -> Vec<GallerySite> {
+    crate::parsing::gallery::GALLERY_PARSERS
+        .iter()
+        .map(|parser| GallerySite {
+            id: parser.id.as_str().to_string(),
+            title: parser.title.to_string(),
+            template_text: parser.search_template.to_string(),
+        })
+        .collect()
+}
+
+/// Relative "added" text of a downloader table row, mirroring the old C++
+/// copy: `just now`, `N minutes ago`, `N hours ago`, `N days ago`. A zero or
+/// negative timestamp yields `fallback`.
+pub fn relative_added_text(last_check: i64, now: i64, fallback: &str) -> String {
+    if last_check <= 0 {
+        return fallback.to_string();
+    }
+
+    let delta = (now - last_check).max(0);
+
+    if delta < 60 {
+        "just now".to_string()
+    } else if delta < 3600 {
+        format!("{} minutes ago", delta / 60)
+    } else if delta < 86_400 {
+        format!("{} hours ago", delta / 3600)
+    } else {
+        format!("{} days ago", delta / 86_400)
+    }
+}
+
+/// The two status labels above a downloader table.
+pub fn downloader_status_lines(
+    watcher: bool,
+    has_source: bool,
+    queue_done: i64,
+    queue_count: i64,
+    imported: i64,
+    failed: i64,
+) -> (String, String) {
+    if watcher {
+        if !has_source {
+            return ("waiting for new watchers".to_string(), String::new());
+        }
+
+        let mut bottom = if imported > 0 || failed > 0 {
+            format!("{imported} successful")
+        } else {
+            String::new()
+        };
+
+        if !bottom.is_empty() && failed > 0 {
+            bottom.push_str(&format!(", {failed} failed"));
+        }
+
+        return (format!("1 watchers - {queue_done}/{queue_count}"), bottom);
+    }
+
+    let top = if has_source {
+        format!("1 query - {queue_done}/{queue_count}")
+    } else {
+        "waiting for new queries".to_string()
+    };
+    let mut bottom = if has_source {
+        format!("{imported} successful")
+    } else {
+        String::new()
+    };
+
+    if !bottom.is_empty() && failed > 0 {
+        bottom.push_str(&format!(", {failed} failed"));
+    }
+
+    (top, bottom)
+}
+
+/// Import footer of a downloader page.
+pub fn downloader_imports_status(imported: i64, failed: i64, queue_count: i64) -> String {
+    if imported == 0 && failed == 0 && queue_count == 0 {
+        String::new()
+    } else if failed == 0 {
+        format!("{imported} successful")
+    } else {
+        format!("{imported} successful, {failed} failed")
+    }
+}
+
+/// `done/count` text used by both downloader tables.
+pub fn downloader_files_status(queue_done: i64, queue_count: i64) -> String {
+    if queue_count > 0 {
+        format!("{queue_done}/{queue_count}")
+    } else {
+        String::new()
+    }
+}
+
+/// Gallery seed summary of a downloader page.
+pub fn downloader_search_status(success: i64, failed: i64, total: i64) -> String {
+    if total == 0 {
+        return String::new();
+    }
+
+    let pending = (total - success - failed).max(0);
+
+    format!("{success} successful, {pending} pending")
+}
+
+/// Integer progress percentage: `done * 100 / total`, zero for an empty set.
+pub fn progress_percent(done: i64, total: i64) -> i32 {
+    if total > 0 {
+        (done * 100 / total) as i32
+    } else {
+        0
+    }
+}
+
+/// Typed downloader page contents for `UiCommand::UpdateDownloader`
+/// (WS-15.2.3c). Status lines, relative times and percentages are computed
+/// here; C++ only assigns the values.
+pub fn downloader_page_state(
     controller: &crate::controller::Controller,
     page: &DownloaderPage,
-) -> String {
+) -> DownloaderPageState {
     let formula_name = if page.formula.trim().is_empty() {
         controller
             .options()
@@ -1708,21 +1945,7 @@ pub fn downloader_json(
         page.formula.clone()
     };
 
-    let queue: Vec<Value> = page
-        .queue
-        .iter()
-        .rev()
-        .take(400)
-        .rev()
-        .map(|item| {
-            json!({
-                "url": item.url,
-                "domain": crate::networking::download_pools::domain_of(&item.url),
-                "status": item.status.as_str(),
-                "note": item.note,
-            })
-        })
-        .collect();
+    let queue_count = page.queue.len() as i64;
     let queue_done = page
         .queue
         .iter()
@@ -1733,257 +1956,340 @@ pub fn downloader_json(
                     | crate::gui::app::model::DownloadItemStatus::Error
             )
         })
-        .count();
-    let gallery_total = page.gallery_seeds.len();
-    let gallery_done = page
-        .gallery_seeds
-        .iter()
-        .filter(|seed| seed.status == "success" || seed.status == "failed")
-        .count();
+        .count() as i64;
+    let gallery_total = page.gallery_seeds.len() as i64;
     let gallery_success = page
         .gallery_seeds
         .iter()
         .filter(|seed| seed.status == "success")
-        .count();
+        .count() as i64;
     let gallery_failed = page
         .gallery_seeds
         .iter()
         .filter(|seed| seed.status == "failed")
-        .count();
+        .count() as i64;
+    let watcher = page.kind == DownloaderKind::Watcher;
+    let has_source = watcher || !page.query.is_empty() || !page.url.is_empty();
+    let imported = page.imported as i64;
+    let failed = page.failed as i64;
+    let import_options_summary = super::download::import_options_summary(
+        &page.import_options,
+        super::download::downloader_caller(page.kind),
+    );
+    let (status_top, status_bottom) = downloader_status_lines(
+        watcher,
+        has_source,
+        queue_done,
+        queue_count,
+        imported,
+        failed,
+    );
+    let now = hydrus_core::hydrus_time::get_now();
 
-    json!({
-        "page_id": page.id,
-        "kind": page.kind,
-        "title": page.title,
-        "input": page.input,
-        "url": page.url,
-        "query": page.query,
-        "site": page.site,
-        "import_options_summary": super::download::import_options_summary(
-            &page.import_options,
-            super::download::downloader_caller(page.kind),
+    DownloaderPageState {
+        page_id: page.id.clone(),
+        kind: page.kind.as_str().to_string(),
+        input: page.input.clone(),
+        url: page.url.clone(),
+        query: page.query.clone(),
+        site: page.site.clone(),
+        subject: page.subject.clone(),
+        formula_name,
+        import_options_summary: import_options_summary.clone(),
+        import_options_text: format!("import options ({import_options_summary})"),
+        status: page.status.clone(),
+        status_top,
+        status_bottom,
+        imports_status: downloader_imports_status(imported, failed, queue_count),
+        file_seed_status: downloader_files_status(queue_done, queue_count),
+        search_status: downloader_search_status(gallery_success, gallery_failed, gallery_total),
+        search_seed_status: downloader_search_status(
+            gallery_success,
+            gallery_failed,
+            gallery_total,
         ),
-        "sites": crate::parsing::gallery::GALLERY_PARSERS
-            .iter()
-            .map(|parser| {
-                json!({
-                    "id": parser.id.as_str(),
-                    "title": parser.title,
-                    "template": parser.search_template,
-                })
-            })
-            .collect::<Vec<_>>(),
-        "filter": page.filter,
-        "subject": page.subject,
-        "paused": page.paused,
-        "running": page.running,
-        "auto_watch": page.auto_watch,
-        "check_period": page.check_period,
-        "status": page.status,
-        "imported": page.imported,
-        "failed": page.failed,
-        "result_count": page.results.len(),
-        "file_limit": page.file_limit,
-        "last_check": page.last_check,
-        "formula_name": formula_name,
-        "pending_jobs": if page.kind == DownloaderKind::Simple {
-            page.queue
-                .iter()
-                .map(|item| item.url.clone())
-                .collect::<Vec<_>>()
+        files_status: downloader_files_status(queue_done, queue_count),
+        checking_status: if watcher {
+            if page.paused {
+                "paused".to_string()
+            } else if page.running {
+                "checking".to_string()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        },
+        search_state_text: if page.running {
+            if page.paused {
+                "paused".to_string()
+            } else {
+                "working".to_string()
+            }
+        } else {
+            "ready".to_string()
+        },
+        queue_count_text: queue_count.to_string(),
+        watcher_added_text: relative_added_text(page.last_check, now, "now"),
+        queue_added_text: relative_added_text(page.last_check, now, ""),
+        files_progress: progress_percent(queue_done, queue_count),
+        search_progress: progress_percent(gallery_success + gallery_failed, gallery_total),
+        running: page.running,
+        paused: page.paused,
+        auto_watch: page.auto_watch,
+        check_period: page.check_period,
+        queue_count,
+        pending_jobs: if page.kind == DownloaderKind::Simple {
+            page.queue.iter().map(|item| item.url.clone()).collect()
         } else {
             Vec::new()
         },
-        "queue_count": page.queue.len(),
-        "queue_done": queue_done,
-        "gallery_seed_count": gallery_total,
-        "gallery_seed_done": gallery_done,
-        "gallery_seed_success": gallery_success,
-        "gallery_seed_failed": gallery_failed,
-        "queue": queue,
-        "log": page.log.iter().rev().take(200).cloned().collect::<Vec<_>>().into_iter().rev().collect::<Vec<_>>().join("\n"),
-    })
-    .to_string()
+        sites: gallery_sites(),
+    }
 }
 
-pub fn subscriptions_json(state: &AppState, page_id: &str) -> String {
+pub fn subscriptions_page_state(state: &AppState, page_id: &str) -> SubscriptionsPageState {
+    SubscriptionsPageState {
+        page_id: page_id.to_string(),
+        sites: gallery_sites(),
+        rows: state
+            .subscriptions
+            .iter()
+            .map(subscription_page_row)
+            .collect(),
+    }
+}
+
+fn subscription_page_row(subscription: &super::model::SubscriptionEntry) -> SubscriptionPageRow {
     let now = hydrus_core::hydrus_time::get_now();
-    let page = state.find_subscriptions(page_id);
+    let next = subscription.last_check + subscription.period.max(60);
 
-    // Python's HydrusTime.TimestampToPrettyTimeDelta shape, without the
-    // shared ISO preference: "n/a", "just now", "5 minutes ago", "in 2 hours".
-    let pretty_delta = |timestamp: i64| -> String {
-        if timestamp <= 0 {
-            return "n/a".to_string();
-        }
-
-        let delta = (now - timestamp).abs();
-        let past = timestamp <= now;
-        let text = if delta < 60 {
-            "just now".to_string()
-        } else if delta < 3600 {
-            let value = delta / 60.max(1);
-            format!("{value} minute{}", if value == 1 { "" } else { "s" })
-        } else if delta < 86_400 {
-            let value = delta / 3600;
-            format!("{value} hour{}", if value == 1 { "" } else { "s" })
+    SubscriptionPageRow {
+        name: subscription.name.clone(),
+        url: subscription.url.clone(),
+        period_text: format!("{} s", subscription.period),
+        last_check_text: if subscription.last_check > 0 {
+            chrono::DateTime::from_timestamp(subscription.last_check, 0)
+                .map(|stamp| {
+                    stamp
+                        .with_timezone(&chrono::Local)
+                        .format("%Y-%m-%d %H:%M")
+                        .to_string()
+                })
+                .unwrap_or_default()
         } else {
-            let value = delta / 86_400;
-            format!("{value} day{}", if value == 1 { "" } else { "s" })
-        };
-
-        if text == "just now" {
-            text
-        } else if past {
-            format!("{text} ago")
+            "never".to_string()
+        },
+        next_text: if subscription.running {
+            "now".to_string()
         } else {
-            format!("in {text}")
-        }
+            format!("in {} s", (next - now).max(0))
+        },
+        imported_text: subscription.imported.to_string(),
+        failed_text: subscription.failed.to_string(),
+        status_text: if subscription.paused {
+            format!("paused - {}", subscription.status)
+        } else {
+            subscription.status.clone()
+        },
+    }
+}
+
+/// Python's `HydrusTime.TimestampToPrettyTimeDelta` shape, without the shared
+/// ISO preference: "n/a", "just now", "5 minutes ago", "in 2 hours".
+fn subscription_pretty_delta(timestamp: i64, now: i64) -> String {
+    if timestamp <= 0 {
+        return "n/a".to_string();
+    }
+
+    let delta = (now - timestamp).abs();
+    let past = timestamp <= now;
+    let text = if delta < 60 {
+        "just now".to_string()
+    } else if delta < 3600 {
+        let value = delta / 60.max(1);
+        format!("{value} minute{}", if value == 1 { "" } else { "s" })
+    } else if delta < 86_400 {
+        let value = delta / 3600;
+        format!("{value} hour{}", if value == 1 { "" } else { "s" })
+    } else {
+        let value = delta / 86_400;
+        format!("{value} day{}", if value == 1 { "" } else { "s" })
     };
 
-    let subscriptions: Vec<Value> = state
-        .subscriptions
-        .iter()
-        .map(|subscription| {
-            let next = subscription.last_check + subscription.period.max(60);
-            let source = crate::parsing::gallery::GALLERY_PARSERS
-                .iter()
-                .find(|parser| parser.id.as_str() == subscription.site)
-                .map(|parser| parser.title.to_string())
-                .unwrap_or_else(|| {
-                    if subscription.site.trim().is_empty() {
-                        "no downloader set!".to_string()
-                    } else {
-                        subscription.site.clone()
-                    }
-                });
-            let pretty_status = if subscription.url.trim().is_empty() {
-                "no queries".to_string()
-            } else {
-                "1 working".to_string()
-            };
-            let processed = subscription.imported + subscription.failed;
-            let items = if processed == 0 {
-                String::new()
-            } else if subscription.failed > 0 {
-                format!("{processed} - {}F", subscription.failed)
-            } else {
-                processed.to_string()
-            };
-            let last_new_file_time = if subscription.imported > 0 && subscription.last_check > 0 {
-                pretty_delta(subscription.last_check)
-            } else {
-                "n/a".to_string()
-            };
-
-            json!({
-                "name": subscription.name,
-                "url": subscription.url,
-                "query": subscription.query,
-                "site": subscription.site,
-                "filter": subscription.filter,
-                "period": subscription.period,
-                "paused": subscription.paused,
-                "running": subscription.running,
-                "last_check": subscription.last_check,
-                "next_check": next,
-                "due_in": (next - now).max(0),
-                "imported": subscription.imported,
-                "failed": subscription.failed,
-                "status": subscription.status,
-                "result_count": subscription.results.len(),
-                "import_options_summary": super::download::import_options_summary(
-                    &subscription.import_options,
-                    "subscription",
-                ),
-                "custom_import_options": if subscription.import_options.is_empty() {
-                    String::new()
-                } else {
-                    super::download::import_options_summary(
-                        &subscription.import_options,
-                        "subscription",
-                    )
-                },
-                "import_options": serde_json::to_value(&subscription.import_options)
-                    .unwrap_or(Value::Null),
-                // Columns of EditSubscriptionsPanel.
-                "source": source,
-                "pretty_status": pretty_status,
-                "last_new_file_time": last_new_file_time,
-                "last_checked": pretty_delta(subscription.last_check),
-                "error": "",
-                "items": items,
-                "paused_display": if subscription.paused { "yes" } else { "" },
-            })
-        })
-        .collect();
-
-    json!({
-        "page_id": page_id,
-        "title": page.map(|page| page.title.as_str()).unwrap_or("manage subscriptions"),
-        "status": page.map(|page| page.status.as_str()).unwrap_or(""),
-        "subs_paused": state.controller.options().get_boolean("pause_subs_sync"),
-        "sites": crate::parsing::gallery::GALLERY_PARSERS
-            .iter()
-            .map(|parser| {
-                json!({
-                    "id": parser.id.as_str(),
-                    "title": parser.title,
-                    "template": parser.search_template,
-                })
-            })
-            .collect::<Vec<_>>(),
-        "subscriptions": subscriptions,
-    })
-    .to_string()
+    if text == "just now" {
+        text
+    } else if past {
+        format!("{text} ago")
+    } else {
+        format!("in {text}")
+    }
 }
 
-pub fn duplicates_json(
+/// Typed manage-subscriptions dialog contents (WS-15.2.3c).
+pub fn subscriptions_dialog_state(state: &AppState) -> SubscriptionsDialogState {
+    let now = hydrus_core::hydrus_time::get_now();
+
+    SubscriptionsDialogState {
+        subs_paused: state.controller.options().get_boolean("pause_subs_sync"),
+        sites: gallery_sites(),
+        rows: state
+            .subscriptions
+            .iter()
+            .map(|subscription| {
+                let source = crate::parsing::gallery::GALLERY_PARSERS
+                    .iter()
+                    .find(|parser| parser.id.as_str() == subscription.site)
+                    .map(|parser| parser.title.to_string())
+                    .unwrap_or_else(|| {
+                        if subscription.site.trim().is_empty() {
+                            "no downloader set!".to_string()
+                        } else {
+                            subscription.site.clone()
+                        }
+                    });
+                let pretty_status = if subscription.url.trim().is_empty() {
+                    "no queries".to_string()
+                } else {
+                    "1 working".to_string()
+                };
+                let processed = subscription.imported + subscription.failed;
+                let items = if processed == 0 {
+                    String::new()
+                } else if subscription.failed > 0 {
+                    format!("{processed} - {}F", subscription.failed)
+                } else {
+                    processed.to_string()
+                };
+                let last_new_file_time = if subscription.imported > 0 && subscription.last_check > 0
+                {
+                    subscription_pretty_delta(subscription.last_check, now)
+                } else {
+                    "n/a".to_string()
+                };
+
+                SubscriptionDialogRow {
+                    name: subscription.name.clone(),
+                    url: subscription.url.clone(),
+                    source,
+                    pretty_status,
+                    last_new_file_time,
+                    last_checked: subscription_pretty_delta(subscription.last_check, now),
+                    error: String::new(),
+                    items,
+                    paused_display: if subscription.paused {
+                        "yes".to_string()
+                    } else {
+                        String::new()
+                    },
+                    custom_import_options: if subscription.import_options.is_empty() {
+                        String::new()
+                    } else {
+                        super::download::import_options_summary(
+                            &subscription.import_options,
+                            "subscription",
+                        )
+                    },
+                    import_options_json: serde_json::to_string(&subscription.import_options)
+                        .unwrap_or_default(),
+                }
+            })
+            .collect(),
+    }
+}
+
+/// Duplicates header text: the plain page status, or `status  -  index/total`.
+pub fn duplicates_status_line(status: &str, total: usize, index: usize) -> String {
+    if total == 0 {
+        status.to_string()
+    } else {
+        format!("{}  -  {}/{}", status, index + 1, total)
+    }
+}
+
+pub fn duplicates_page_state(
     controller: &crate::controller::Controller,
     page: &DuplicatesPage,
-) -> String {
-    let pair = page.current().map(|pair| {
-        json!({
-            "distance": pair.distance,
-            "a": duplicate_media_json(controller, &pair.a),
-            "b": duplicate_media_json(controller, &pair.b),
-        })
-    });
+    rules: &[super::auto_resolution::AutoResolutionRule],
+) -> DuplicatesPageState {
+    let pair = page.current();
+    let context = &page.search_context;
+    let status_line = duplicates_status_line(&page.status, page.pairs.len(), page.index);
 
-    json!({
-        "page_id": page.id,
-        "title": page.title,
-        "status": page.status,
-        "index": if page.pairs.is_empty() { 0 } else { page.index + 1 },
-        "total": page.pairs.len(),
-        "searched": page.searched,
-        "matched": page.matched,
-        "search": {
-            "query_1": page.search_context.query_1,
-            "location_1": page.search_context.location_1,
-            "query_2": page.search_context.query_2,
-            "location_2": page.search_context.location_2,
-            "dupe_search_type": page.search_context.dupe_search_type,
-            "pixel_dupes": page.search_context.pixel_dupes,
-            "max_distance": page.search_context.max_distance,
-            "sort_type": page.search_context.sort_type,
-            "sort_ascending": page.search_context.sort_ascending,
-            "summary": page.search_context.summary(),
-            "matched": page.matched,
+    DuplicatesPageState {
+        page_id: page.id.clone(),
+        title: page.title.clone(),
+        status: page.status.clone(),
+        status_line,
+        index: if page.pairs.is_empty() {
+            0
+        } else {
+            (page.index + 1) as i64
         },
-        "batch_size": controller
+        total: page.pairs.len() as i64,
+        searched: page.searched,
+        batch_size: controller
             .options()
             .get_integer("duplicate_filter_max_batch_size")
             .clamp(5, 1024),
-        "pair": pair,
-        "media": crate::gui::app::duplicates::pair_thumbnail_hashes(page)
+        search: DuplicateSearchState {
+            query_1: context.query_1.clone(),
+            location_1: context.location_1.clone(),
+            query_2: context.query_2.clone(),
+            location_2: context.location_2.clone(),
+            dupe_search_type: context.dupe_search_type.clone(),
+            pixel_dupes: context.pixel_dupes.clone(),
+            max_distance: context.max_distance,
+            sort_type: context.sort_type.clone(),
+            sort_ascending: context.sort_ascending,
+            matched: page.matched,
+            summary: context.summary(),
+        },
+        has_pair: pair.is_some(),
+        pair: pair
+            .map(|pair| DuplicatePairState {
+                distance: pair.distance,
+                a: duplicate_media_item(controller, &pair.a),
+                b: duplicate_media_item(controller, &pair.b),
+            })
+            .unwrap_or_default(),
+        media: crate::gui::app::duplicates::pair_thumbnail_hashes(page)
             .iter()
-            .map(|hash| duplicate_media_json(controller, hash))
-            .collect::<Vec<_>>(),
-        "media_empty_status": crate::gui::app::duplicates::duplicates_media_empty_status(),
-        "media_count_status": crate::gui::app::duplicates::duplicates_media_count_status(page.pairs.len()),
-    })
-    .to_string()
+            .map(|hash| duplicate_media_item(controller, hash))
+            .collect(),
+        media_empty_status: crate::gui::app::duplicates::duplicates_media_empty_status()
+            .to_string(),
+        media_count_status: crate::gui::app::duplicates::duplicates_media_count_status(
+            page.pairs.len(),
+        ),
+        auto_rules: rules
+            .iter()
+            .map(|rule| DuplicateRuleRow {
+                name: rule.name.clone(),
+                search_summary: rule.search_summary(),
+                paused: rule.paused,
+            })
+            .collect(),
+    }
+}
+
+fn duplicate_media_item(controller: &crate::controller::Controller, hash: &[u8]) -> MediaItem {
+    MediaItem {
+        hash: query::hex(hash),
+        thumb: query::thumbnail_path(controller, hash)
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
+        file: String::new(),
+        url: String::new(),
+        inbox: query::hash_id_for(controller, hash)
+            .and_then(|hash_id| {
+                crate::db::files_inbox::is_inbox(controller.db().db(), hash_id).ok()
+            })
+            .unwrap_or(false),
+        duplicate: false,
+        has_rating: false,
+        rating: 0.0,
+    }
 }
 
 pub(crate) fn duplicate_media_json(

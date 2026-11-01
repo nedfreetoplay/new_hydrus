@@ -1,12 +1,11 @@
 use std::path::Path;
 
 use hydrus_core::hydrus_constants::Mime;
-use serde_json::Value;
 
 use super::*;
 use crate::gui::app::model::{DownloaderPage, PageNode, SubscriptionEntry, SubscriptionsPage};
-use crate::importing::ImportOptionsContainer;
 use crate::importing::options::FileFilteringImportOptions;
+use crate::importing::ImportOptionsContainer;
 
 fn test_state(directory: &Path) -> AppState {
     let _ = crate::client_options::register_serialisable_type();
@@ -51,13 +50,11 @@ fn gallery_and_simple_pages_use_post_urls_options() {
     let filter = effective.file_filtering_or_default();
 
     assert_eq!(filter.allowed_mimes, vec![Mime::Png]);
-    assert!(
-        import_options_summary(
-            &state.find_downloader("p1").unwrap().import_options,
-            "post_urls"
-        )
-        .contains("filetypes")
-    );
+    assert!(import_options_summary(
+        &state.find_downloader("p1").unwrap().import_options,
+        "post_urls"
+    )
+    .contains("filetypes"));
 
     drop(state);
     let _ = std::fs::remove_dir_all(directory);
@@ -93,11 +90,9 @@ fn saving_downloader_options_updates_the_page() {
             .allowed_mimes,
         vec![Mime::Png]
     );
-    assert!(
-        commands
-            .iter()
-            .any(|command| matches!(command, UiCommand::UpdateDownloader(state) if state.page_id == "p1"))
-    );
+    assert!(commands.iter().any(
+        |command| matches!(command, UiCommand::UpdateDownloader(state) if state.page_id == "p1")
+    ));
 
     drop(state);
     let _ = std::fs::remove_dir_all(directory);
@@ -119,13 +114,8 @@ fn subscription_options_round_trip_and_render() {
     entry.import_options = specific_png_options();
     state.subscriptions.push(entry);
 
-    let value: Value = serde_json::from_str(&render::subscriptions_json(&state, "")).unwrap();
-    assert!(
-        value["subscriptions"][0]["import_options_summary"]
-            .as_str()
-            .unwrap()
-            .contains("filetypes")
-    );
+    let dialog = render::subscriptions_dialog_state(&state);
+    assert!(dialog.rows[0].custom_import_options.contains("filetypes"));
 
     let payload = serde_json::json!({
         "target": "sub",
@@ -135,11 +125,9 @@ fn subscription_options_round_trip_and_render() {
     let commands = save_subscription_import_options(&mut state, &payload);
 
     assert!(!state.subscriptions[0].import_options.is_empty());
-    assert!(
-        commands
-            .iter()
-            .any(|command| matches!(command, UiCommand::UpdateSubscriptions(_)))
-    );
+    assert!(commands
+        .iter()
+        .any(|command| matches!(command, UiCommand::UpdateSubscriptions(_))));
 
     drop(state);
     let _ = std::fs::remove_dir_all(directory);
@@ -162,13 +150,13 @@ fn subscription_editor_updates_the_selected_entry() {
 
     let commands = edit_subscription_dialog(&state, "s1", "old");
     let dialog = match commands.first() {
-        Some(UiCommand::SubscriptionEditor(state)) => serde_json::from_str::<Value>(&state.json).unwrap(),
+        Some(UiCommand::SubscriptionEditor(state)) => state,
         other => panic!("expected the subscription editor, got {other:?}"),
     };
 
-    assert_eq!(dialog["original"], "old");
-    assert_eq!(dialog["query"], "blue eyes");
-    assert!(dialog["sites"].as_array().unwrap().len() > 1);
+    assert_eq!(dialog.original, "old");
+    assert_eq!(dialog.query, "blue eyes");
+    assert!(dialog.sites.len() > 1);
 
     let payload = serde_json::json!({
         "original": "old",
@@ -194,11 +182,9 @@ fn subscription_editor_updates_the_selected_entry() {
     assert_eq!(entry.filter, ".png");
     assert_eq!(entry.period, 7200);
     assert!(entry.paused);
-    assert!(
-        commands
-            .iter()
-            .any(|command| matches!(command, UiCommand::UpdateSubscriptions(_)))
-    );
+    assert!(commands
+        .iter()
+        .any(|command| matches!(command, UiCommand::UpdateSubscriptions(_))));
 
     drop(state);
     let _ = std::fs::remove_dir_all(directory);
@@ -281,7 +267,8 @@ fn simple_jobs_set_reorders_and_removes_pending_jobs() {
     ];
     state.root.add(PageNode::Downloader(page));
 
-    let reordered = r#"{"urls":["https://example.com/c","https://example.com/a"],"remove_missing":false}"#;
+    let reordered =
+        r#"{"urls":["https://example.com/c","https://example.com/a"],"remove_missing":false}"#;
     let _ = jobs_set(&mut state, "p1", reordered);
 
     let page = state.find_downloader("p1").unwrap();

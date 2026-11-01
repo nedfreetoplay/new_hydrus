@@ -75,6 +75,15 @@ pub enum DownloaderKind {
 }
 
 impl DownloaderKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Urls => "urls",
+            Self::Gallery => "gallery",
+            Self::Watcher => "watcher",
+            Self::Simple => "simple",
+        }
+    }
+
     pub fn title(self) -> &'static str {
         match self {
             Self::Urls => "url import",

@@ -345,7 +345,8 @@ void HydrusApiPermissionsDialog::delete_selected() {
                  entry.value(QStringLiteral("access_key")).toString());
 }
 
-void HydrusMainWindow::show_api_permissions(const QJsonObject &state) {
+void HydrusMainWindow::show_api_permissions(const ApiPermissionsDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (api_permissions_dialog == nullptr) {
         api_permissions_dialog = new HydrusApiPermissionsDialog(this, state, this);
         connect(api_permissions_dialog, &QObject::destroyed, this, [this]() { api_permissions_dialog = nullptr; });
@@ -357,7 +358,8 @@ void HydrusMainWindow::show_api_permissions(const QJsonObject &state) {
     }
 }
 
-void HydrusMainWindow::update_api_permissions(const QJsonObject &state) {
+void HydrusMainWindow::update_api_permissions(const ApiPermissionsDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (api_permissions_dialog != nullptr) {
         api_permissions_dialog->set_state(state);
     }

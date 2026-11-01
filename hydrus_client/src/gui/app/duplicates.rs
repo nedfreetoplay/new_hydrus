@@ -224,7 +224,7 @@ pub fn action(state: &mut AppState, page_id: &str, action: ffi::UiAction, payloa
             let json = custom_action_dialog_json(&controller, page);
             state.duplicate_review = review;
 
-            return vec![UiCommand::DuplicateCustomActionDialog(json)];
+            return vec![UiCommand::DuplicateCustomActionDialog(crate::gui::qt::api::ffi::DuplicateCustomActionDialogState { json: json })];
         }
         ffi::UiAction::DuplicatesCustom => {
             let Some(pair) = page.current().cloned() else {

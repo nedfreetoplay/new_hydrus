@@ -214,7 +214,8 @@ void HydrusOptionsDialog::apply() {
     accept();
 }
 
-void HydrusMainWindow::show_options(const QJsonObject &state) {
+void HydrusMainWindow::show_options(const OptionsDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     HydrusOptionsDialog dialog(this, state, this);
     dialog.exec();
 }

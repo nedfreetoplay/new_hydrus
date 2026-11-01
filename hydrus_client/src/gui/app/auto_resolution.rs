@@ -1319,7 +1319,7 @@ pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         format!("{matched} of {total} pairs match; {failed} do not; matches {projected}")
     };
 
-    vec![UiCommand::DuplicatesRulePreview(
+    vec![UiCommand::DuplicatesRulePreview(crate::gui::qt::api::ffi::DuplicatesRulePreviewState { json: 
         json!({
             "rule": rule.name,
             "total": total,
@@ -1333,7 +1333,7 @@ pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
             "search": rule.search_summary(),
         })
         .to_string(),
-    )]
+     })]
 }
 
 pub fn review_json(state: &AppState) -> String {
@@ -1407,7 +1407,7 @@ pub fn review_json(state: &AppState) -> String {
 }
 
 pub fn review_open(state: &AppState) -> Vec<UiCommand> {
-    vec![UiCommand::DuplicateReviewDialog(review_json(state))]
+    vec![UiCommand::DuplicateReviewDialog(crate::gui::qt::api::ffi::DuplicateReviewDialogState { json: review_json(state) })]
 }
 
 /// Opens the selected auto-resolution pairs in a new file page. Python offers
@@ -1521,7 +1521,7 @@ pub fn review_apply(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     state.refresh_all();
 
     let mut commands = state.refresh_commands();
-    commands.push(UiCommand::UpdateDuplicateReview(review_json(state)));
+    commands.push(UiCommand::UpdateDuplicateReview(crate::gui::qt::api::ffi::DuplicateReviewDialogState { json: review_json(state) }));
     commands.push(UiCommand::NotifyMessage(state.message.clone()));
 
     commands
@@ -1568,7 +1568,7 @@ fn refresh(state: &mut AppState) -> Vec<UiCommand> {
     state.refresh_all();
 
     let mut commands = state.refresh_commands();
-    commands.push(UiCommand::DuplicatesRulesDialog(dialog_json(state)));
+    commands.push(UiCommand::DuplicatesRulesDialog(crate::gui::qt::api::ffi::DuplicatesRulesDialogState { json: dialog_json(state) }));
     commands.push(UiCommand::BuildPages(render::pages(state)));
     commands.push(UiCommand::Status(render::status(state)));
 
@@ -1578,7 +1578,7 @@ fn refresh(state: &mut AppState) -> Vec<UiCommand> {
 fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::NotifyMessage(message.into()),
-        UiCommand::DuplicatesRulesDialog(dialog_json(state)),
+        UiCommand::DuplicatesRulesDialog(crate::gui::qt::api::ffi::DuplicatesRulesDialogState { json: dialog_json(state) }),
     ]
 }
 

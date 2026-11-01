@@ -64,7 +64,8 @@ void HydrusNotificationsDialog::rebuild(const QJsonArray &entries) {
     }
 }
 
-void HydrusMainWindow::show_notifications(const QJsonObject &state) {
+void HydrusMainWindow::show_notifications(const NotificationsDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     HydrusNotificationsDialog dialog(this, state, this);
     dialog.exec();
 }

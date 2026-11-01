@@ -34,7 +34,7 @@ pub fn dialog_json(state: &AppState) -> String {
 }
 
 pub fn open(state: &AppState) -> Vec<UiCommand> {
-    vec![UiCommand::DatabaseBackupDialog(dialog_json(state))]
+    vec![UiCommand::DatabaseBackupDialog(crate::gui::qt::api::ffi::DatabaseBackupDialogState { json: dialog_json(state) })]
 }
 
 pub fn set_path(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -158,7 +158,7 @@ fn human_bytes(bytes: u64) -> String {
 
 fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
-        UiCommand::UpdateDatabaseBackup(dialog_json(state)),
+        UiCommand::UpdateDatabaseBackup(crate::gui::qt::api::ffi::DatabaseBackupDialogState { json: dialog_json(state) }),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
@@ -168,7 +168,7 @@ fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
 fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::NotifyMessage(message.into()),
-        UiCommand::UpdateDatabaseBackup(dialog_json(state)),
+        UiCommand::UpdateDatabaseBackup(crate::gui::qt::api::ffi::DatabaseBackupDialogState { json: dialog_json(state) }),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
     ]

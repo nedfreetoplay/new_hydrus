@@ -188,7 +188,8 @@ void HydrusOrphanFilesDialog::move_selected(bool all) {
     main->notify(UiAction::OrphanFilesMove, QString(), json_payload(payload));
 }
 
-void HydrusMainWindow::show_orphan_files(const QJsonObject &state) {
+void HydrusMainWindow::show_orphan_files(const OrphanFilesDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (orphan_files_dialog == nullptr) {
         orphan_files_dialog = new HydrusOrphanFilesDialog(this, state, this);
         connect(orphan_files_dialog, &QObject::destroyed, this, [this]() { orphan_files_dialog = nullptr; });
@@ -200,7 +201,8 @@ void HydrusMainWindow::show_orphan_files(const QJsonObject &state) {
     }
 }
 
-void HydrusMainWindow::update_orphan_files(const QJsonObject &state) {
+void HydrusMainWindow::update_orphan_files(const OrphanFilesDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (orphan_files_dialog != nullptr) {
         orphan_files_dialog->set_state(state);
     }

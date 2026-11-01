@@ -216,7 +216,8 @@ void HydrusTagRelationsDialog::remove_selected() {
     main->notify(UiAction::TagRelationsRemove, QString(), json_payload(payload));
 }
 
-void HydrusMainWindow::show_tag_relations(const QJsonObject &state) {
+void HydrusMainWindow::show_tag_relations(const TagRelationsDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (tag_relations_dialog == nullptr) {
         tag_relations_dialog = new HydrusTagRelationsDialog(this, state, this);
         connect(tag_relations_dialog, &QObject::destroyed, this, [this]() {

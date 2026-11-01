@@ -13,7 +13,8 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-void HydrusMainWindow::show_export_review(const QJsonObject &state) {
+void HydrusMainWindow::show_export_review(const ExportReviewDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     const QString name = state.value(QStringLiteral("name")).toString();
     const QJsonArray files = state.value(QStringLiteral("files")).toArray();
 

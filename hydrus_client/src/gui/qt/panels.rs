@@ -72,44 +72,44 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::UpdateExportFoldersDialog(json) => {
             ffi::hydrus_update_export_folders_dialog(window.as_mut(), &json);
         }
-        UiCommand::DuplicatesRulesDialog(json) => {
-            ffi::hydrus_show_duplicates_rules(window.as_mut(), &json);
+        UiCommand::DuplicatesRulesDialog(state) => {
+            ffi::hydrus_show_duplicates_rules(window.as_mut(), &state);
         }
-        UiCommand::DuplicatesMergeOptionsDialog(json) => {
-            ffi::hydrus_show_duplicate_merge_options(window.as_mut(), &json);
+        UiCommand::DuplicatesMergeOptionsDialog(state) => {
+            ffi::hydrus_show_duplicate_merge_options(window.as_mut(), &state);
         }
         UiCommand::ImportOptionsDialog(state) => {
             ffi::hydrus_show_import_options(window.as_mut(), &state);
         }
-        UiCommand::DuplicateCustomActionDialog(json) => {
-            ffi::hydrus_show_duplicate_custom_action(window.as_mut(), &json);
+        UiCommand::DuplicateCustomActionDialog(state) => {
+            ffi::hydrus_show_duplicate_custom_action(window.as_mut(), &state);
         }
-        UiCommand::DuplicatesRulePreview(json) => {
-            ffi::hydrus_update_auto_resolution_preview(window.as_mut(), &json);
+        UiCommand::DuplicatesRulePreview(state) => {
+            ffi::hydrus_update_auto_resolution_preview(window.as_mut(), &state);
         }
-        UiCommand::DuplicateReviewDialog(json) => {
-            ffi::hydrus_show_duplicate_review(window.as_mut(), &json);
+        UiCommand::DuplicateReviewDialog(state) => {
+            ffi::hydrus_show_duplicate_review(window.as_mut(), &state);
         }
-        UiCommand::UpdateDuplicateReview(json) => {
-            ffi::hydrus_update_duplicate_review(window.as_mut(), &json);
+        UiCommand::UpdateDuplicateReview(state) => {
+            ffi::hydrus_update_duplicate_review(window.as_mut(), &state);
         }
-        UiCommand::TagRelationsDialog(json) => {
-            ffi::hydrus_show_tag_relations(window.as_mut(), &json);
+        UiCommand::TagRelationsDialog(state) => {
+            ffi::hydrus_show_tag_relations(window.as_mut(), &state);
         }
         UiCommand::ImportFolderDialog(json) => {
             ffi::hydrus_show_import_folder(window.as_mut(), &json);
         }
-        UiCommand::LocalImportReviewDialog(json) => {
-            ffi::hydrus_show_local_import_review(window.as_mut(), &json);
+        UiCommand::LocalImportReviewDialog(state) => {
+            ffi::hydrus_show_local_import_review(window.as_mut(), &state);
         }
-        UiCommand::LocalImportTaggingDialog(json) => {
-            ffi::hydrus_show_local_import_tagging(window.as_mut(), &json);
+        UiCommand::LocalImportTaggingDialog(state) => {
+            ffi::hydrus_show_local_import_tagging(window.as_mut(), &state);
         }
         UiCommand::CloseLocalImportReview => {
             ffi::hydrus_close_local_import_review(window.as_mut());
         }
-        UiCommand::RepairFileLocationsDialog(json) => {
-            ffi::hydrus_show_repair_file_locations(window.as_mut(), &json);
+        UiCommand::RepairFileLocationsDialog(state) => {
+            ffi::hydrus_show_repair_file_locations(window.as_mut(), &state);
         }
         UiCommand::CloseRepairFileLocations => {
             ffi::hydrus_close_repair_file_locations(window.as_mut());
@@ -117,8 +117,8 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::ExportFolderDialog(json) => {
             ffi::hydrus_show_export_folder(window.as_mut(), &json);
         }
-        UiCommand::ExportReviewDialog(json) => {
-            ffi::hydrus_show_export_review(window.as_mut(), &json);
+        UiCommand::ExportReviewDialog(state) => {
+            ffi::hydrus_show_export_review(window.as_mut(), &state);
         }
         UiCommand::NotesDialog(json) => ffi::hydrus_show_notes(window.as_mut(), &json),
         UiCommand::SetSelection(selection) => {
@@ -153,8 +153,8 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::PromptOr { page_id, initial } => {
             ffi::hydrus_show_or_dialog(window.as_mut(), &page_id, &initial);
         }
-        UiCommand::NotificationsDialog(json) => {
-            ffi::hydrus_show_notifications(window.as_mut(), &json);
+        UiCommand::NotificationsDialog(state) => {
+            ffi::hydrus_show_notifications(window.as_mut(), &state);
         }
         UiCommand::ViewingStatsDialog(state) => {
             ffi::hydrus_show_viewing_stats(window.as_mut(), &state);
@@ -184,39 +184,39 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
             ffi::hydrus_close_viewer(window.as_mut(), &viewer_id);
         }
         UiCommand::TagDialog(json) => ffi::hydrus_show_tag_dialog(window.as_mut(), &json),
-        UiCommand::ManageTagsDialog(json) => {
-            ffi::hydrus_show_manage_tags(window.as_mut(), &json);
+        UiCommand::ManageTagsDialog(state) => {
+            ffi::hydrus_show_manage_tags(window.as_mut(), &state);
         }
-        UiCommand::TimestampsDialog(json) => {
-            ffi::hydrus_show_timestamps(window.as_mut(), &json);
+        UiCommand::TimestampsDialog(state) => {
+            ffi::hydrus_show_timestamps(window.as_mut(), &state);
         }
-        UiCommand::OptionsDialog(json) => ffi::hydrus_show_options(window.as_mut(), &json),
-        UiCommand::ServicesDialog(json) => ffi::hydrus_show_services(window.as_mut(), &json),
-        UiCommand::UpdateServices(json) => ffi::hydrus_update_services(window.as_mut(), &json),
-        UiCommand::TagFilterDialog(json) => ffi::hydrus_show_tag_filter(window.as_mut(), &json),
-        UiCommand::ApiPermissionsDialog(json) => {
-            ffi::hydrus_show_api_permissions(window.as_mut(), &json)
+        UiCommand::OptionsDialog(state) => ffi::hydrus_show_options(window.as_mut(), &state),
+        UiCommand::ServicesDialog(state) => ffi::hydrus_show_services(window.as_mut(), &state),
+        UiCommand::UpdateServices(state) => ffi::hydrus_update_services(window.as_mut(), &state),
+        UiCommand::TagFilterDialog(state) => ffi::hydrus_show_tag_filter(window.as_mut(), &state),
+        UiCommand::ApiPermissionsDialog(state) => {
+            ffi::hydrus_show_api_permissions(window.as_mut(), &state)
         }
-        UiCommand::UpdateApiPermissions(json) => {
-            ffi::hydrus_update_api_permissions(window.as_mut(), &json)
+        UiCommand::UpdateApiPermissions(state) => {
+            ffi::hydrus_update_api_permissions(window.as_mut(), &state)
         }
-        UiCommand::AccountTypesDialog(json) => {
-            ffi::hydrus_show_account_types(window.as_mut(), &json)
+        UiCommand::AccountTypesDialog(state) => {
+            ffi::hydrus_show_account_types(window.as_mut(), &state)
         }
-        UiCommand::UpdateAccountTypes(json) => {
-            ffi::hydrus_update_account_types(window.as_mut(), &json)
+        UiCommand::UpdateAccountTypes(state) => {
+            ffi::hydrus_update_account_types(window.as_mut(), &state)
         }
-        UiCommand::OrphanFilesDialog(json) => ffi::hydrus_show_orphan_files(window.as_mut(), &json),
-        UiCommand::UpdateOrphanFiles(json) => {
-            ffi::hydrus_update_orphan_files(window.as_mut(), &json)
+        UiCommand::OrphanFilesDialog(state) => ffi::hydrus_show_orphan_files(window.as_mut(), &state),
+        UiCommand::UpdateOrphanFiles(state) => {
+            ffi::hydrus_update_orphan_files(window.as_mut(), &state)
         }
-        UiCommand::DatabaseBackupDialog(json) => {
-            ffi::hydrus_show_database_backup(window.as_mut(), &json)
+        UiCommand::DatabaseBackupDialog(state) => {
+            ffi::hydrus_show_database_backup(window.as_mut(), &state)
         }
-        UiCommand::UpdateDatabaseBackup(json) => {
-            ffi::hydrus_update_database_backup(window.as_mut(), &json)
+        UiCommand::UpdateDatabaseBackup(state) => {
+            ffi::hydrus_update_database_backup(window.as_mut(), &state)
         }
-        UiCommand::NetworkDialog(json) => ffi::hydrus_show_network(window.as_mut(), &json),
+        UiCommand::NetworkDialog(state) => ffi::hydrus_show_network(window.as_mut(), &state),
         UiCommand::NotifyMessage(message) => {
             ffi::hydrus_notify_message(window.as_mut(), &message);
         }

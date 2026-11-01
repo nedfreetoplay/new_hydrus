@@ -185,7 +185,8 @@ void HydrusLocalImportTaggingDialog::set_state(const QJsonObject &state) {
     rebuild();
 }
 
-void HydrusMainWindow::show_local_import_tagging(const QJsonObject &state) {
+void HydrusMainWindow::show_local_import_tagging(const LocalImportTaggingDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (local_import_tagging_dialog == nullptr) {
         local_import_tagging_dialog = new HydrusLocalImportTaggingDialog(this, state, this);
         connect(local_import_tagging_dialog, &QObject::destroyed, this, [this]() {

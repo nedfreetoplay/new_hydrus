@@ -245,7 +245,8 @@ void HydrusLocalImportReviewDialog::set_state(const QJsonObject &state) {
         : QStringLiteral("import now"));
 }
 
-void HydrusMainWindow::show_local_import_review(const QJsonObject &state) {
+void HydrusMainWindow::show_local_import_review(const LocalImportReviewDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (local_import_review_dialog == nullptr) {
         local_import_review_dialog = new HydrusLocalImportReviewDialog(this, state, this);
         connect(local_import_review_dialog, &QObject::destroyed, this, [this]() {

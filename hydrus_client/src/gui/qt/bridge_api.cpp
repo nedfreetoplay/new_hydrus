@@ -72,13 +72,13 @@ void hydrus_confirm_action(
     }
 }
 
-void hydrus_show_manage_tags(HydrusMainWindow &window, rust::Str json) {
-    HydrusManageTagsDialog dialog(&window, parse_object(json), &window);
+void hydrus_show_manage_tags(HydrusMainWindow &window, const ManageTagsDialogState &state) {
+    HydrusManageTagsDialog dialog(&window, parse_object(rust::Str(state.json.data(), state.json.size())), &window);
     dialog.exec();
 }
 
-void hydrus_show_timestamps(HydrusMainWindow &window, rust::Str json) {
-    HydrusTimestampsDialog dialog(&window, parse_object(json), &window);
+void hydrus_show_timestamps(HydrusMainWindow &window, const TimestampsDialogState &state) {
+    HydrusTimestampsDialog dialog(&window, parse_object(rust::Str(state.json.data(), state.json.size())), &window);
     dialog.exec();
 }
 
@@ -271,16 +271,16 @@ void hydrus_update_export_folders_dialog(HydrusMainWindow &window, rust::Str jso
     window.update_export_folders_dialog(parse_object(json));
 }
 
-void hydrus_show_duplicates_rules(HydrusMainWindow &window, rust::Str json) {
-    window.show_duplicates_rules(parse_object(json));
+void hydrus_show_duplicates_rules(HydrusMainWindow &window, const DuplicatesRulesDialogState &state) {
+    window.show_duplicates_rules(state);
 }
 
-void hydrus_show_duplicate_merge_options(HydrusMainWindow &window, rust::Str json) {
-    window.show_duplicate_merge_options(parse_object(json));
+void hydrus_show_duplicate_merge_options(HydrusMainWindow &window, const DuplicatesMergeOptionsDialogState &state) {
+    window.show_duplicate_merge_options(state);
 }
 
-void hydrus_show_duplicate_custom_action(HydrusMainWindow &window, rust::Str json) {
-    window.show_duplicate_custom_action(parse_object(json));
+void hydrus_show_duplicate_custom_action(HydrusMainWindow &window, const DuplicateCustomActionDialogState &state) {
+    window.show_duplicate_custom_action(state);
 }
 
 void hydrus_show_import_options(HydrusMainWindow &window, const ImportOptionsDialogState &state) {
@@ -295,40 +295,40 @@ void hydrus_show_gallery_seed_log(HydrusMainWindow &window, const GallerySeedLog
     window.show_gallery_seed_log(state);
 }
 
-void hydrus_update_auto_resolution_preview(HydrusMainWindow &window, rust::Str json) {
-    window.update_auto_resolution_preview(parse_object(json));
+void hydrus_update_auto_resolution_preview(HydrusMainWindow &window, const DuplicatesRulePreviewState &state) {
+    window.update_auto_resolution_preview(state);
 }
 
-void hydrus_show_duplicate_review(HydrusMainWindow &window, rust::Str json) {
-    window.show_duplicate_review(parse_object(json));
+void hydrus_show_duplicate_review(HydrusMainWindow &window, const DuplicateReviewDialogState &state) {
+    window.show_duplicate_review(state);
 }
 
-void hydrus_update_duplicate_review(HydrusMainWindow &window, rust::Str json) {
-    window.update_duplicate_review(parse_object(json));
+void hydrus_update_duplicate_review(HydrusMainWindow &window, const DuplicateReviewDialogState &state) {
+    window.update_duplicate_review(state);
 }
 
-void hydrus_show_tag_relations(HydrusMainWindow &window, rust::Str json) {
-    window.show_tag_relations(parse_object(json));
+void hydrus_show_tag_relations(HydrusMainWindow &window, const TagRelationsDialogState &state) {
+    window.show_tag_relations(state);
 }
 
 void hydrus_show_import_folder(HydrusMainWindow &window, rust::Str json) {
     window.show_import_folder(parse_object(json));
 }
 
-void hydrus_show_local_import_review(HydrusMainWindow &window, rust::Str json) {
-    window.show_local_import_review(parse_object(json));
+void hydrus_show_local_import_review(HydrusMainWindow &window, const LocalImportReviewDialogState &state) {
+    window.show_local_import_review(state);
 }
 
-void hydrus_show_local_import_tagging(HydrusMainWindow &window, rust::Str json) {
-    window.show_local_import_tagging(parse_object(json));
+void hydrus_show_local_import_tagging(HydrusMainWindow &window, const LocalImportTaggingDialogState &state) {
+    window.show_local_import_tagging(state);
 }
 
 void hydrus_close_local_import_review(HydrusMainWindow &window) {
     window.close_local_import_review();
 }
 
-void hydrus_show_repair_file_locations(HydrusMainWindow &window, rust::Str json) {
-    window.show_repair_file_locations(parse_object(json));
+void hydrus_show_repair_file_locations(HydrusMainWindow &window, const RepairFileLocationsDialogState &state) {
+    window.show_repair_file_locations(state);
 }
 
 void hydrus_close_repair_file_locations(HydrusMainWindow &window) {
@@ -339,8 +339,8 @@ void hydrus_show_export_folder(HydrusMainWindow &window, rust::Str json) {
     window.show_export_folder(parse_object(json));
 }
 
-void hydrus_show_export_review(HydrusMainWindow &window, rust::Str json) {
-    window.show_export_review(parse_object(json));
+void hydrus_show_export_review(HydrusMainWindow &window, const ExportReviewDialogState &state) {
+    window.show_export_review(state);
 }
 
 void hydrus_show_notes(HydrusMainWindow &window, rust::Str json) {
@@ -395,8 +395,8 @@ void hydrus_show_tag_dialog(HydrusMainWindow &window, rust::Str json) {
     window.show_tag_dialog(parse_object(json));
 }
 
-void hydrus_show_notifications(HydrusMainWindow &window, rust::Str json) {
-    window.show_notifications(parse_object(json));
+void hydrus_show_notifications(HydrusMainWindow &window, const NotificationsDialogState &state) {
+    window.show_notifications(state);
 }
 
 void hydrus_show_viewing_stats(HydrusMainWindow &window, const ViewingStats &state) {
@@ -431,60 +431,60 @@ void hydrus_import_downloader(HydrusMainWindow &window, rust::Str target) {
     }
 }
 
-void hydrus_show_options(HydrusMainWindow &window, rust::Str json) {
-    window.show_options(parse_object(json));
+void hydrus_show_options(HydrusMainWindow &window, const OptionsDialogState &state) {
+    window.show_options(state);
 }
 
-void hydrus_show_services(HydrusMainWindow &window, rust::Str json) {
-    window.show_services(parse_object(json));
+void hydrus_show_services(HydrusMainWindow &window, const ServicesDialogState &state) {
+    window.show_services(state);
 }
 
-void hydrus_update_services(HydrusMainWindow &window, rust::Str json) {
-    window.update_services(parse_object(json));
+void hydrus_update_services(HydrusMainWindow &window, const ServicesDialogState &state) {
+    window.update_services(state);
 }
 
-void hydrus_show_tag_filter(HydrusMainWindow &window, rust::Str json) {
-    window.show_tag_filter(parse_object(json));
+void hydrus_show_tag_filter(HydrusMainWindow &window, const TagFilterDialogState &state) {
+    window.show_tag_filter(state);
 }
 
-void hydrus_show_api_permissions(HydrusMainWindow &window, rust::Str json) {
-    window.show_api_permissions(parse_object(json));
+void hydrus_show_api_permissions(HydrusMainWindow &window, const ApiPermissionsDialogState &state) {
+    window.show_api_permissions(state);
 }
 
-void hydrus_update_api_permissions(HydrusMainWindow &window, rust::Str json) {
-    window.update_api_permissions(parse_object(json));
+void hydrus_update_api_permissions(HydrusMainWindow &window, const ApiPermissionsDialogState &state) {
+    window.update_api_permissions(state);
 }
 
-void hydrus_show_account_types(HydrusMainWindow &window, rust::Str json) {
-    window.show_account_types(parse_object(json));
+void hydrus_show_account_types(HydrusMainWindow &window, const AccountTypesDialogState &state) {
+    window.show_account_types(state);
 }
 
-void hydrus_update_account_types(HydrusMainWindow &window, rust::Str json) {
-    window.update_account_types(parse_object(json));
+void hydrus_update_account_types(HydrusMainWindow &window, const AccountTypesDialogState &state) {
+    window.update_account_types(state);
 }
 
-void hydrus_show_orphan_files(HydrusMainWindow &window, rust::Str json) {
-    window.show_orphan_files(parse_object(json));
+void hydrus_show_orphan_files(HydrusMainWindow &window, const OrphanFilesDialogState &state) {
+    window.show_orphan_files(state);
 }
 
-void hydrus_update_orphan_files(HydrusMainWindow &window, rust::Str json) {
-    window.update_orphan_files(parse_object(json));
+void hydrus_update_orphan_files(HydrusMainWindow &window, const OrphanFilesDialogState &state) {
+    window.update_orphan_files(state);
 }
 
-void hydrus_show_database_backup(HydrusMainWindow &window, rust::Str json) {
-    window.show_database_backup(parse_object(json));
+void hydrus_show_database_backup(HydrusMainWindow &window, const DatabaseBackupDialogState &state) {
+    window.show_database_backup(state);
 }
 
-void hydrus_update_database_backup(HydrusMainWindow &window, rust::Str json) {
-    window.update_database_backup(parse_object(json));
+void hydrus_update_database_backup(HydrusMainWindow &window, const DatabaseBackupDialogState &state) {
+    window.update_database_backup(state);
 }
 
-void hydrus_show_network(HydrusMainWindow &window, rust::Str json) {
-    window.show_network(parse_object(json));
+void hydrus_show_network(HydrusMainWindow &window, const NetworkDialogState &state) {
+    window.show_network(state);
 }
 
-void hydrus_update_network(HydrusMainWindow &window, rust::Str json) {
-    window.update_network(parse_object(json));
+void hydrus_update_network(HydrusMainWindow &window, const NetworkDialogState &state) {
+    window.update_network(state);
 }
 
 void hydrus_start_tick(HydrusMainWindow &window) {

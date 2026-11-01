@@ -880,7 +880,7 @@ pub fn open_account_types(state: &mut AppState, _payload: &str) -> Vec<UiCommand
             state.admin.status = format!("{} account type(s)", state.admin.account_types.len());
             service_commands(state, state.admin.status.clone())
                 .into_iter()
-                .chain([UiCommand::AccountTypesDialog(account_types_json(state))])
+                .chain([UiCommand::AccountTypesDialog(crate::gui::qt::api::ffi::AccountTypesDialogState { json: account_types_json(state) })])
                 .collect()
         }
         Err(error) => service_commands(state, format!("server error: {error}")),
@@ -980,7 +980,7 @@ pub fn save_account_type(state: &mut AppState, payload: &str) -> Vec<UiCommand> 
             refresh_account_types(state);
             service_commands(state, state.admin.status.clone())
                 .into_iter()
-                .chain([UiCommand::UpdateAccountTypes(account_types_json(state))])
+                .chain([UiCommand::UpdateAccountTypes(crate::gui::qt::api::ffi::AccountTypesDialogState { json: account_types_json(state) })])
                 .collect()
         }
         Err(error) => service_commands(state, format!("server error: {error}")),
@@ -1041,7 +1041,7 @@ pub fn delete_account_type(state: &mut AppState, payload: &str) -> Vec<UiCommand
             refresh_account_types(state);
             service_commands(state, state.admin.status.clone())
                 .into_iter()
-                .chain([UiCommand::UpdateAccountTypes(account_types_json(state))])
+                .chain([UiCommand::UpdateAccountTypes(crate::gui::qt::api::ffi::AccountTypesDialogState { json: account_types_json(state) })])
                 .collect()
         }
         Err(error) => service_commands(state, format!("server error: {error}")),
@@ -1152,7 +1152,7 @@ fn refresh_admin(state: &mut AppState) {
 
 fn service_commands(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
-        UiCommand::UpdateServices(services_json(state)),
+        UiCommand::UpdateServices(crate::gui::qt::api::ffi::ServicesDialogState { json: services_json(state) }),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
@@ -1424,7 +1424,7 @@ mod tests {
         let commands = admin_connect(&mut state, &connect);
         assert!(matches!(
             commands.first(),
-            Some(UiCommand::UpdateServices(_))
+            Some(UiCommand::UpdateServices(crate::gui::qt::api::ffi::ServicesDialogState { json: _ }))
         ));
         assert_eq!(state.admin.services.len(), 1, "{}", state.admin.status);
         assert_eq!(state.admin.services[0].name, "server admin");

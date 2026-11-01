@@ -112,7 +112,7 @@ pub fn open(state: &AppState, payload: &str) -> Vec<UiCommand> {
         "note": note,
     });
 
-    vec![UiCommand::TagFilterDialog(value.to_string())]
+    vec![UiCommand::TagFilterDialog(crate::gui::qt::api::ffi::TagFilterDialogState { json: value.to_string() })]
 }
 
 pub fn save(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -583,10 +583,10 @@ mod tests {
 
         let opened = open(&state, &key);
         let json = match opened.first() {
-            Some(UiCommand::TagFilterDialog(json)) => json,
+            Some(UiCommand::TagFilterDialog(state)) => state.json.clone(),
             other => panic!("unexpected command: {other:?}"),
         };
-        let value: Value = serde_json::from_str(json).unwrap();
+        let value: Value = serde_json::from_str(&json).unwrap();
 
         assert_eq!(value["rules"].as_array().unwrap().len(), 3);
         assert_eq!(value["note"], "");

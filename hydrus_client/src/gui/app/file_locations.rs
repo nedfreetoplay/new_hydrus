@@ -78,7 +78,7 @@ pub fn open(state: &mut AppState) -> Vec<UiCommand> {
         error: String::new(),
     };
 
-    vec![UiCommand::RepairFileLocationsDialog(dialog_json(state))]
+    vec![UiCommand::RepairFileLocationsDialog(crate::gui::qt::api::ffi::RepairFileLocationsDialogState { json: dialog_json(state) })]
 }
 
 pub fn set_locations(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -122,7 +122,7 @@ pub fn set_locations(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     state.file_location_repair.error.clear();
     state.file_location_repair.message = format!("updated {changed} location(s)");
 
-    vec![UiCommand::RepairFileLocationsDialog(dialog_json(state))]
+    vec![UiCommand::RepairFileLocationsDialog(crate::gui::qt::api::ffi::RepairFileLocationsDialogState { json: dialog_json(state) })]
 }
 
 /// `_AddLocation`: try a folder root and its `client_files`/`thumbnails`
@@ -194,7 +194,7 @@ pub fn probe(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     state.file_location_repair.error.clear();
     state.file_location_repair.message = format!("found {found} subfolder(s) under {path}");
 
-    vec![UiCommand::RepairFileLocationsDialog(dialog_json(state))]
+    vec![UiCommand::RepairFileLocationsDialog(crate::gui::qt::api::ffi::RepairFileLocationsDialogState { json: dialog_json(state) })]
 }
 
 pub fn apply(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -304,7 +304,7 @@ pub fn apply(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 fn repair_error(state: &mut AppState, message: impl Into<String>) -> Vec<UiCommand> {
     state.file_location_repair.error = message.into();
 
-    vec![UiCommand::RepairFileLocationsDialog(dialog_json(state))]
+    vec![UiCommand::RepairFileLocationsDialog(crate::gui::qt::api::ffi::RepairFileLocationsDialogState { json: dialog_json(state) })]
 }
 
 pub fn dialog_json(state: &AppState) -> String {

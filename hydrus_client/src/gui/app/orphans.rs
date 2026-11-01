@@ -198,7 +198,7 @@ fn orphans_json(orphans: &[OrphanFile]) -> String {
 }
 
 pub fn open(state: &AppState) -> Vec<UiCommand> {
-    vec![UiCommand::OrphanFilesDialog(dialog_json(state))]
+    vec![UiCommand::OrphanFilesDialog(crate::gui::qt::api::ffi::OrphanFilesDialogState { json: dialog_json(state) })]
 }
 
 pub fn delete(state: &AppState, payload: &str) -> Vec<UiCommand> {
@@ -403,7 +403,7 @@ fn parse_paths(payload: &str) -> Result<Vec<PathBuf>, String> {
 
 fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
-        UiCommand::UpdateOrphanFiles(dialog_json(state)),
+        UiCommand::UpdateOrphanFiles(crate::gui::qt::api::ffi::OrphanFilesDialogState { json: dialog_json(state) }),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
@@ -413,7 +413,7 @@ fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
 fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::NotifyMessage(message.into()),
-        UiCommand::UpdateOrphanFiles(dialog_json(state)),
+        UiCommand::UpdateOrphanFiles(crate::gui::qt::api::ffi::OrphanFilesDialogState { json: dialog_json(state) }),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
     ]

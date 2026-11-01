@@ -175,7 +175,7 @@ fn tagging_save_keeps_only_configured_rules() {
 
     assert!(matches!(
         commands.first(),
-        Some(crate::gui::app::UiCommand::LocalImportReviewDialog(_))
+        Some(crate::gui::app::UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: _ }))
     ));
     assert_eq!(app.local_import_review.filename_tagging.len(), 1);
     let rules = app

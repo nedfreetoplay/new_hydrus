@@ -15,7 +15,8 @@
 #include <QTabWidget>
 #include <QVBoxLayout>
 
-void HydrusMainWindow::show_tag_filter(const QJsonObject &state) {
+void HydrusMainWindow::show_tag_filter(const TagFilterDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     const QString service_key = state.value(QStringLiteral("service_key")).toString();
     const QString name = state.value(QStringLiteral("name")).toString();
     const bool can_purge = state.value(QStringLiteral("can_purge")).toBool(false);

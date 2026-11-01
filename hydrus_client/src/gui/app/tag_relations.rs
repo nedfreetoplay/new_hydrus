@@ -87,7 +87,7 @@ pub fn dialog_json(state: &AppState, tab: &str) -> String {
 }
 
 pub fn show(state: &AppState, tab: &str) -> Vec<UiCommand> {
-    vec![UiCommand::TagRelationsDialog(dialog_json(state, tab))]
+    vec![UiCommand::TagRelationsDialog(crate::gui::qt::api::ffi::TagRelationsDialogState { json: dialog_json(state, tab) })]
 }
 
 pub fn action(state: &mut AppState, payload: &str, add: bool) -> Vec<UiCommand> {
@@ -164,10 +164,10 @@ pub fn action(state: &mut AppState, payload: &str, add: bool) -> Vec<UiCommand> 
         }
     }
 
-    commands.push(UiCommand::TagRelationsDialog(dialog_json(
+    commands.push(UiCommand::TagRelationsDialog(crate::gui::qt::api::ffi::TagRelationsDialogState { json: dialog_json(
         state,
         relation_name(relation),
-    )));
+    ) }));
     commands.push(UiCommand::Status(render::status(state)));
     commands
 }

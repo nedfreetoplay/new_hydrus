@@ -398,7 +398,7 @@ fn preview_reports_matches_without_touching_the_database() {
     let json = commands
         .iter()
         .find_map(|command| match command {
-            UiCommand::DuplicatesRulePreview(json) => Some(json.clone()),
+            UiCommand::DuplicatesRulePreview(state) => Some(state.json.clone()),
             _ => None,
         })
         .expect("preview");

@@ -315,7 +315,8 @@ void HydrusAccountTypesDialog::delete_selected() {
     main->notify(UiAction::AccountTypeDelete, QString(), json_payload(payload));
 }
 
-void HydrusMainWindow::show_account_types(const QJsonObject &state) {
+void HydrusMainWindow::show_account_types(const AccountTypesDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (account_types_dialog == nullptr) {
         account_types_dialog = new HydrusAccountTypesDialog(this, state, this);
         connect(account_types_dialog, &QObject::destroyed, this, [this]() { account_types_dialog = nullptr; });
@@ -327,7 +328,8 @@ void HydrusMainWindow::show_account_types(const QJsonObject &state) {
     }
 }
 
-void HydrusMainWindow::update_account_types(const QJsonObject &state) {
+void HydrusMainWindow::update_account_types(const AccountTypesDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (account_types_dialog != nullptr) {
         account_types_dialog->set_state(state);
     }

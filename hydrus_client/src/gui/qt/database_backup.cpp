@@ -91,7 +91,8 @@ void HydrusDatabaseBackupDialog::choose_path() {
     }
 }
 
-void HydrusMainWindow::show_database_backup(const QJsonObject &state) {
+void HydrusMainWindow::show_database_backup(const DatabaseBackupDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (database_backup_dialog == nullptr) {
         database_backup_dialog = new HydrusDatabaseBackupDialog(this, state, this);
         connect(database_backup_dialog, &QObject::destroyed, this, [this]() { database_backup_dialog = nullptr; });
@@ -103,7 +104,8 @@ void HydrusMainWindow::show_database_backup(const QJsonObject &state) {
     }
 }
 
-void HydrusMainWindow::update_database_backup(const QJsonObject &state) {
+void HydrusMainWindow::update_database_backup(const DatabaseBackupDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (database_backup_dialog != nullptr) {
         database_backup_dialog->set_state(state);
     }

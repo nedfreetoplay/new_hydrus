@@ -453,7 +453,7 @@ fn tag_services(state: &AppState) -> Vec<Value> {
 pub fn open(state: &mut AppState) -> Vec<UiCommand> {
     state.local_import_review.reset();
 
-    vec![UiCommand::LocalImportReviewDialog(dialog_json(state))]
+    vec![UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: dialog_json(state) })]
 }
 
 pub fn open_paths(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -472,7 +472,7 @@ pub fn add_paths(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 
     state.local_import_review.add_paths(&paths);
 
-    vec![UiCommand::LocalImportReviewDialog(dialog_json(state))]
+    vec![UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: dialog_json(state) })]
 }
 
 pub fn remove_paths(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -487,7 +487,7 @@ pub fn remove_paths(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     let removed = state.local_import_review.remove_paths(&paths);
 
     vec![
-        UiCommand::LocalImportReviewDialog(dialog_json(state)),
+        UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: dialog_json(state) }),
         UiCommand::NotifyMessage(format!("removed {removed} path(s)")),
     ]
 }
@@ -499,7 +499,7 @@ pub fn set_search_subdirectories(state: &mut AppState, payload: &str) -> Vec<UiC
         .and_then(Value::as_bool)
         .unwrap_or_else(|| payload.trim().eq_ignore_ascii_case("true"));
 
-    vec![UiCommand::LocalImportReviewDialog(dialog_json(state))]
+    vec![UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: dialog_json(state) })]
 }
 
 pub fn set_delete_after_success(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -509,7 +509,7 @@ pub fn set_delete_after_success(state: &mut AppState, payload: &str) -> Vec<UiCo
         .and_then(Value::as_bool)
         .unwrap_or_else(|| payload.trim().eq_ignore_ascii_case("true"));
 
-    vec![UiCommand::LocalImportReviewDialog(dialog_json(state))]
+    vec![UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: dialog_json(state) })]
 }
 
 pub fn tagging_open(state: &mut AppState) -> Vec<UiCommand> {
@@ -519,9 +519,9 @@ pub fn tagging_open(state: &mut AppState) -> Vec<UiCommand> {
         )];
     }
 
-    vec![UiCommand::LocalImportTaggingDialog(tagging_json(
+    vec![UiCommand::LocalImportTaggingDialog(crate::gui::qt::api::ffi::LocalImportTaggingDialogState { json: tagging_json(
         state, true,
-    ))]
+    ) })]
 }
 
 fn tagging_json(state: &AppState, import_after_save: bool) -> String {
@@ -568,7 +568,7 @@ pub fn tagging_save(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     if import_after_save {
         import_now(state)
     } else {
-        vec![UiCommand::LocalImportReviewDialog(dialog_json(state))]
+        vec![UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: dialog_json(state) })]
     }
 }
 

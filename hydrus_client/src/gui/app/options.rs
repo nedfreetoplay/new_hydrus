@@ -1181,7 +1181,7 @@ pub fn network_action(state: &mut AppState, action: ffi::UiAction, payload: &str
 
 fn network_commands(state: &AppState) -> Vec<UiCommand> {
     vec![
-        UiCommand::NetworkDialog(network_json(state)),
+        UiCommand::NetworkDialog(crate::gui::qt::api::ffi::NetworkDialogState { json: network_json(state) }),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(state.message.clone()),

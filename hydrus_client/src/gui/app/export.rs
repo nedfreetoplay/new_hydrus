@@ -1392,7 +1392,7 @@ pub fn review(state: &AppState, payload: &str) -> Vec<UiCommand> {
         }));
     }
 
-    vec![UiCommand::ExportReviewDialog(
+    vec![UiCommand::ExportReviewDialog(crate::gui::qt::api::ffi::ExportReviewDialogState { json: 
         serde_json::json!({
             "name": folder.name,
             "destination": folder.path.display().to_string(),
@@ -1400,7 +1400,7 @@ pub fn review(state: &AppState, payload: &str) -> Vec<UiCommand> {
             "files": entries,
         })
         .to_string(),
-    )]
+     })]
 }
 
 pub fn folder_json(folder: &ExportFolderEntry) -> serde_json::Value {

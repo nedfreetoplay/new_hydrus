@@ -61,7 +61,7 @@ pub fn permissions_json(state: &AppState) -> String {
 }
 
 pub fn open(state: &AppState) -> Vec<UiCommand> {
-    vec![UiCommand::ApiPermissionsDialog(permissions_json(state))]
+    vec![UiCommand::ApiPermissionsDialog(crate::gui::qt::api::ffi::ApiPermissionsDialogState { json: permissions_json(state) })]
 }
 
 pub fn save(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -214,7 +214,7 @@ pub fn delete(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 
 fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
-        UiCommand::UpdateApiPermissions(permissions_json(state)),
+        UiCommand::UpdateApiPermissions(crate::gui::qt::api::ffi::ApiPermissionsDialogState { json: permissions_json(state) }),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
@@ -224,7 +224,7 @@ fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
 fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     let mut commands = vec![UiCommand::NotifyMessage(message.into())];
     commands.extend([
-        UiCommand::UpdateApiPermissions(permissions_json(state)),
+        UiCommand::UpdateApiPermissions(crate::gui::qt::api::ffi::ApiPermissionsDialogState { json: permissions_json(state) }),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
     ]);
@@ -305,10 +305,10 @@ mod tests {
 
         let opened = open(&state);
         let json = match opened.first() {
-            Some(UiCommand::ApiPermissionsDialog(json)) => json,
+            Some(UiCommand::ApiPermissionsDialog(state)) => state.json.clone(),
             other => panic!("unexpected command: {other:?}"),
         };
-        let value: Value = serde_json::from_str(json).unwrap();
+        let value: Value = serde_json::from_str(&json).unwrap();
         assert_eq!(value["permissions"][0]["name"], "reader");
 
         delete(&mut state, &key);

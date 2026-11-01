@@ -786,6 +786,132 @@ pub(crate) mod ffi {
         json: String,
     }
 
+    /// Options dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct OptionsDialogState {
+        json: String,
+    }
+
+    /// Services dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct ServicesDialogState {
+        json: String,
+    }
+
+    /// Network dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct NetworkDialogState {
+        json: String,
+    }
+
+    /// Account types dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct AccountTypesDialogState {
+        json: String,
+    }
+
+    /// API permissions dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct ApiPermissionsDialogState {
+        json: String,
+    }
+
+    /// Tag filter dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct TagFilterDialogState {
+        json: String,
+    }
+
+    /// Tag relations dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct TagRelationsDialogState {
+        json: String,
+    }
+
+    /// Manage tags dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct ManageTagsDialogState {
+        json: String,
+    }
+
+    /// Timestamps dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct TimestampsDialogState {
+        json: String,
+    }
+
+    /// Notifications dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct NotificationsDialogState {
+        json: String,
+    }
+
+    /// Export review dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct ExportReviewDialogState {
+        json: String,
+    }
+
+    /// Repair file locations dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct RepairFileLocationsDialogState {
+        json: String,
+    }
+
+    /// Orphan files dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct OrphanFilesDialogState {
+        json: String,
+    }
+
+    /// Database backup dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct DatabaseBackupDialogState {
+        json: String,
+    }
+
+    /// Local import review dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct LocalImportReviewDialogState {
+        json: String,
+    }
+
+    /// Local import tagging dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct LocalImportTaggingDialogState {
+        json: String,
+    }
+
+    /// Auto-resolution rules dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct DuplicatesRulesDialogState {
+        json: String,
+    }
+
+    /// Auto-resolution merge options dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct DuplicatesMergeOptionsDialogState {
+        json: String,
+    }
+
+    /// Auto-resolution custom action dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct DuplicateCustomActionDialogState {
+        json: String,
+    }
+
+    /// Auto-resolution rule preview contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct DuplicatesRulePreviewState {
+        json: String,
+    }
+
+    /// Auto-resolution review dialog contents (WS-15.2.2d).
+    #[derive(Clone, Debug, PartialEq)]
+    struct DuplicateReviewDialogState {
+        json: String,
+    }
+
     /// Media viewer contents (WS-15.2.2b).
     ///
     /// Only fields the C++ side reads. The old JSON seam also carried `tags`,
@@ -862,22 +988,22 @@ pub(crate) mod ffi {
         );
         fn hydrus_show_export_folders_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_update_export_folders_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_duplicates_rules(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_duplicate_merge_options(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_duplicates_rules(window: Pin<&mut HydrusMainWindow>, state: &DuplicatesRulesDialogState);
+        fn hydrus_show_duplicate_merge_options(window: Pin<&mut HydrusMainWindow>, state: &DuplicatesMergeOptionsDialogState);
         fn hydrus_show_import_options(window: Pin<&mut HydrusMainWindow>, state: &ImportOptionsDialogState);
-        fn hydrus_show_duplicate_custom_action(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_update_auto_resolution_preview(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_duplicate_review(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_update_duplicate_review(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_tag_relations(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_duplicate_custom_action(window: Pin<&mut HydrusMainWindow>, state: &DuplicateCustomActionDialogState);
+        fn hydrus_update_auto_resolution_preview(window: Pin<&mut HydrusMainWindow>, state: &DuplicatesRulePreviewState);
+        fn hydrus_show_duplicate_review(window: Pin<&mut HydrusMainWindow>, state: &DuplicateReviewDialogState);
+        fn hydrus_update_duplicate_review(window: Pin<&mut HydrusMainWindow>, state: &DuplicateReviewDialogState);
+        fn hydrus_show_tag_relations(window: Pin<&mut HydrusMainWindow>, state: &TagRelationsDialogState);
         fn hydrus_show_import_folder(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_local_import_review(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_local_import_tagging(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_local_import_review(window: Pin<&mut HydrusMainWindow>, state: &LocalImportReviewDialogState);
+        fn hydrus_show_local_import_tagging(window: Pin<&mut HydrusMainWindow>, state: &LocalImportTaggingDialogState);
         fn hydrus_close_local_import_review(window: Pin<&mut HydrusMainWindow>);
-        fn hydrus_show_repair_file_locations(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_repair_file_locations(window: Pin<&mut HydrusMainWindow>, state: &RepairFileLocationsDialogState);
         fn hydrus_close_repair_file_locations(window: Pin<&mut HydrusMainWindow>);
         fn hydrus_show_export_folder(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_export_review(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_export_review(window: Pin<&mut HydrusMainWindow>, state: &ExportReviewDialogState);
         fn hydrus_show_notes(window: Pin<&mut HydrusMainWindow>, json: &str);
         fn hydrus_set_selection(window: Pin<&mut HydrusMainWindow>, selection: &SelectionState);
         fn hydrus_show_page_chooser(window: Pin<&mut HydrusMainWindow>, notebook_id: &str);
@@ -904,29 +1030,29 @@ pub(crate) mod ffi {
         fn hydrus_update_viewer(window: Pin<&mut HydrusMainWindow>, state: &ViewerState);
         fn hydrus_close_viewer(window: Pin<&mut HydrusMainWindow>, viewer_id: &str);
         fn hydrus_show_tag_dialog(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_notifications(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_notifications(window: Pin<&mut HydrusMainWindow>, state: &NotificationsDialogState);
         fn hydrus_show_viewing_stats(window: Pin<&mut HydrusMainWindow>, state: &ViewingStats);
         fn hydrus_show_about(window: Pin<&mut HydrusMainWindow>, state: &AboutInfo);
         fn hydrus_export_downloader(window: Pin<&mut HydrusMainWindow>, page_id: &str);
         fn hydrus_show_file_seed_cache(window: Pin<&mut HydrusMainWindow>, state: &FileSeedCacheState);
         fn hydrus_show_gallery_seed_log(window: Pin<&mut HydrusMainWindow>, state: &GallerySeedLogState);
         fn hydrus_import_downloader(window: Pin<&mut HydrusMainWindow>, target: &str);
-        fn hydrus_show_manage_tags(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_timestamps(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_options(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_services(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_update_services(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_tag_filter(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_api_permissions(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_update_api_permissions(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_account_types(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_update_account_types(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_orphan_files(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_update_orphan_files(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_database_backup(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_update_database_backup(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_show_network(window: Pin<&mut HydrusMainWindow>, json: &str);
-        fn hydrus_update_network(window: Pin<&mut HydrusMainWindow>, json: &str);
+        fn hydrus_show_manage_tags(window: Pin<&mut HydrusMainWindow>, state: &ManageTagsDialogState);
+        fn hydrus_show_timestamps(window: Pin<&mut HydrusMainWindow>, state: &TimestampsDialogState);
+        fn hydrus_show_options(window: Pin<&mut HydrusMainWindow>, state: &OptionsDialogState);
+        fn hydrus_show_services(window: Pin<&mut HydrusMainWindow>, state: &ServicesDialogState);
+        fn hydrus_update_services(window: Pin<&mut HydrusMainWindow>, state: &ServicesDialogState);
+        fn hydrus_show_tag_filter(window: Pin<&mut HydrusMainWindow>, state: &TagFilterDialogState);
+        fn hydrus_show_api_permissions(window: Pin<&mut HydrusMainWindow>, state: &ApiPermissionsDialogState);
+        fn hydrus_update_api_permissions(window: Pin<&mut HydrusMainWindow>, state: &ApiPermissionsDialogState);
+        fn hydrus_show_account_types(window: Pin<&mut HydrusMainWindow>, state: &AccountTypesDialogState);
+        fn hydrus_update_account_types(window: Pin<&mut HydrusMainWindow>, state: &AccountTypesDialogState);
+        fn hydrus_show_orphan_files(window: Pin<&mut HydrusMainWindow>, state: &OrphanFilesDialogState);
+        fn hydrus_update_orphan_files(window: Pin<&mut HydrusMainWindow>, state: &OrphanFilesDialogState);
+        fn hydrus_show_database_backup(window: Pin<&mut HydrusMainWindow>, state: &DatabaseBackupDialogState);
+        fn hydrus_update_database_backup(window: Pin<&mut HydrusMainWindow>, state: &DatabaseBackupDialogState);
+        fn hydrus_show_network(window: Pin<&mut HydrusMainWindow>, state: &NetworkDialogState);
+        fn hydrus_update_network(window: Pin<&mut HydrusMainWindow>, state: &NetworkDialogState);
         fn hydrus_start_tick(window: Pin<&mut HydrusMainWindow>);
         fn hydrus_defer_action(
             window: Pin<&mut HydrusMainWindow>,

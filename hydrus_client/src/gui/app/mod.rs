@@ -1941,9 +1941,9 @@ impl AppState {
                 commands.push(self.status_command());
                 commands
             }
-            ffi::UiAction::Notifications => vec![UiCommand::NotificationsDialog(render::notifications_json(
+            ffi::UiAction::Notifications => vec![UiCommand::NotificationsDialog(crate::gui::qt::api::ffi::NotificationsDialogState { json: render::notifications_json(
                 self,
-            ))],
+            ) })],
             ffi::UiAction::NotificationsClear => {
                 self.notifications.clear();
                 vec![
@@ -2458,12 +2458,12 @@ impl AppState {
             ffi::UiAction::SubscriptionOpenResults => {
                 download::open_subscription_results(self, target, payload)
             }
-            ffi::UiAction::DuplicatesRules => vec![UiCommand::DuplicatesRulesDialog(
+            ffi::UiAction::DuplicatesRules => vec![UiCommand::DuplicatesRulesDialog(crate::gui::qt::api::ffi::DuplicatesRulesDialogState { json: 
                 auto_resolution::dialog_json(self),
-            )],
-            ffi::UiAction::DuplicatesMergeOptionsDialog => vec![UiCommand::DuplicatesMergeOptionsDialog(
+             })],
+            ffi::UiAction::DuplicatesMergeOptionsDialog => vec![UiCommand::DuplicatesMergeOptionsDialog(crate::gui::qt::api::ffi::DuplicatesMergeOptionsDialogState { json: 
                 duplicates::merge_options_json(self),
-            )],
+             })],
             ffi::UiAction::DuplicatesRuleAdd | ffi::UiAction::DuplicatesRuleSave => {
                 auto_resolution::save_rule(self, payload)
             }
@@ -2486,18 +2486,18 @@ impl AppState {
                 };
                 self.refresh_all();
                 let mut commands = self.refresh_commands();
-                commands.push(UiCommand::DuplicatesRulesDialog(
+                commands.push(UiCommand::DuplicatesRulesDialog(crate::gui::qt::api::ffi::DuplicatesRulesDialogState { json: 
                     auto_resolution::dialog_json(self),
-                ));
+                 }));
                 commands.push(UiCommand::Status(render::status(self)));
                 commands
             }
             ffi::UiAction::DuplicatesAlternates | ffi::UiAction::DuplicatesBatchSize | ffi::UiAction::DuplicatesCustom | ffi::UiAction::DuplicatesCustomAction | ffi::UiAction::DuplicatesDeleteBoth | ffi::UiAction::DuplicatesFalse | ffi::UiAction::DuplicatesGroupAction | ffi::UiAction::DuplicatesKeepA | ffi::UiAction::DuplicatesKeepAKeep | ffi::UiAction::DuplicatesKeepB | ffi::UiAction::DuplicatesKeepBKeep | ffi::UiAction::DuplicatesNextBatch | ffi::UiAction::DuplicatesRefresh | ffi::UiAction::DuplicatesSame | ffi::UiAction::DuplicatesSearchContext | ffi::UiAction::DuplicatesSkip => {
                 duplicates::action(self, target, action, payload)
             }
-            ffi::UiAction::Options => vec![UiCommand::OptionsDialog(options::options_json(self))],
+            ffi::UiAction::Options => vec![UiCommand::OptionsDialog(crate::gui::qt::api::ffi::OptionsDialogState { json: options::options_json(self) })],
             ffi::UiAction::OptionsApply => options::apply_options(self, payload),
-            ffi::UiAction::ManageServices => vec![UiCommand::ServicesDialog(services::services_json(self))],
+            ffi::UiAction::ManageServices => vec![UiCommand::ServicesDialog(crate::gui::qt::api::ffi::ServicesDialogState { json: services::services_json(self) })],
             ffi::UiAction::ApiPermissions => api_permissions::open(self),
             ffi::UiAction::ApiPermissionsSave => api_permissions::save(self, payload),
             ffi::UiAction::ApiPermissionsDelete => api_permissions::delete(self, payload),
@@ -2515,7 +2515,7 @@ impl AppState {
             ffi::UiAction::AccountTypeSave => services::save_account_type(self, payload),
             ffi::UiAction::AccountTypeDelete => services::delete_account_type(self, payload),
             ffi::UiAction::ServiceAdd | ffi::UiAction::ServiceRename => services::save_service(self, payload),
-            ffi::UiAction::OptionsNetwork => vec![UiCommand::NetworkDialog(options::network_json(self))],
+            ffi::UiAction::OptionsNetwork => vec![UiCommand::NetworkDialog(crate::gui::qt::api::ffi::NetworkDialogState { json: options::network_json(self) })],
             ffi::UiAction::NetworkHeaderAdd
             | ffi::UiAction::NetworkHeaderRemove
             | ffi::UiAction::NetworkPause
@@ -3448,9 +3448,9 @@ impl AppState {
                 return vec![UiCommand::NotifyMessage("no file selected".to_string())];
             };
 
-            return vec![UiCommand::ManageTagsDialog(
+            return vec![UiCommand::ManageTagsDialog(crate::gui::qt::api::ffi::ManageTagsDialogState { json: 
                 metadata::manage_tags_json(&controller, &hashes).to_string(),
-            )];
+             })];
         }
 
         let Some(hash) = query::unhex(hash_hex) else {
@@ -3613,7 +3613,7 @@ impl AppState {
         })
         .to_string();
 
-        vec![UiCommand::TimestampsDialog(json)]
+        vec![UiCommand::TimestampsDialog(crate::gui::qt::api::ffi::TimestampsDialogState { json: json })]
     }
 
     fn save_timestamps(&mut self, payload: &str) -> Vec<UiCommand> {

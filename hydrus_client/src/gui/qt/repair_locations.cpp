@@ -183,7 +183,8 @@ void HydrusRepairFileLocationsDialog::set_state(const QJsonObject &state) {
     }
 }
 
-void HydrusMainWindow::show_repair_file_locations(const QJsonObject &state) {
+void HydrusMainWindow::show_repair_file_locations(const RepairFileLocationsDialogState &typed) {
+    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (repair_file_locations_dialog == nullptr) {
         repair_file_locations_dialog = new HydrusRepairFileLocationsDialog(this, state, this);
         connect(repair_file_locations_dialog, &QObject::destroyed, this, [this]() {

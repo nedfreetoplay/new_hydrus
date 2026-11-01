@@ -1013,6 +1013,79 @@ fn move_file(source: &Path, directory: &Path) -> std::io::Result<PathBuf> {
     }
 }
 
+/// Typed reverse seam (WS-15.2.4c). C++ passes the editor fields directly;
+/// the payload rebuilds the exact JSON the string dispatcher used, so both
+/// paths share `save_action`. Keys the core ignores today (`paused`,
+/// `show_working_popup`, publish flags) are still sent so the JSON stays
+/// identical; wiring them into `ImportFolderEntry` is a separate task.
+///
+/// R2: `save_payload` is pure and covered in `tests` below.
+#[allow(clippy::too_many_arguments)]
+pub fn save_payload(
+    original: &str,
+    name: &str,
+    path: &str,
+    period: i64,
+    check_regularly: bool,
+    search_subdirectories: bool,
+    paused: bool,
+    check_now: bool,
+    last_modified_skip: i64,
+    show_working_popup: bool,
+    publish_to_popup_button: bool,
+    publish_to_page: bool,
+    action: &str,
+    action_path: &str,
+    tagging: &serde_json::Value,
+) -> String {
+    serde_json::json!({
+        "original": original,
+        "name": name,
+        "path": path,
+        "period": period,
+        "check_regularly": check_regularly,
+        "search_subdirectories": search_subdirectories,
+        "paused": paused,
+        "check_now": check_now,
+        "last_modified_skip": last_modified_skip,
+        "show_working_popup": show_working_popup,
+        "publish_files_to_popup_button": publish_to_popup_button,
+        "publish_files_to_page": publish_to_page,
+        "action": action,
+        "action_path": action_path,
+        "filename_tagging": tagging,
+    })
+    .to_string()
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn save_typed(
+    state: &mut AppState,
+    original: &str,
+    name: &str,
+    path: &str,
+    period: i64,
+    check_regularly: bool,
+    search_subdirectories: bool,
+    paused: bool,
+    check_now: bool,
+    last_modified_skip: i64,
+    show_working_popup: bool,
+    publish_to_popup_button: bool,
+    publish_to_page: bool,
+    action: &str,
+    action_path: &str,
+    tagging: Vec<crate::gui::qt::api::ffi::FilenameTaggingEntry>,
+) -> Vec<UiCommand> {
+    let tagging = super::local_import::tagging_entries_json(&tagging);
+    let payload = save_payload(
+        original, name, path, period, check_regularly, search_subdirectories, paused,
+        check_now, last_modified_skip, show_working_popup, publish_to_popup_button,
+        publish_to_page, action, action_path, &tagging,
+    );
+    save_action(state, &payload)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

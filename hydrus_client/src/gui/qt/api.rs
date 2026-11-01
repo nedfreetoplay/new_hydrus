@@ -1709,6 +1709,38 @@ pub(crate) mod ffi {
         actioned: Vec<ReviewPairRow>,
     }
 
+    /// One directory slot of a filename tagging rule (WS-15.2.4c).
+    /// `slot` is one of 0, 1, 2, -3, -2, -1. C++ builds these from the
+    /// tagging editor without parsing JSON. `tag_namespace` (not `namespace`:
+    /// a C++ keyword) holds the directory namespace.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct DirectoryTaggingRow {
+        slot: i32,
+        enabled: bool,
+        tag_namespace: String,
+    }
+
+    /// One quick-namespace regex of a filename tagging rule (WS-15.2.4c).
+    /// `tag_namespace` avoids the C++ keyword `namespace`.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct QuickNamespaceRow {
+        tag_namespace: String,
+        regex: String,
+    }
+
+    /// One service-keyed filename tagging rule (WS-15.2.4c). Fixed fields
+    /// of `FilenameTaggingOptions`; the map key travels in `service_key`.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct FilenameTaggingEntry {
+        service_key: String,
+        tags_for_all: Vec<String>,
+        add_filename: bool,
+        filename_namespace: String,
+        directories: Vec<DirectoryTaggingRow>,
+        quick_namespaces: Vec<QuickNamespaceRow>,
+        regexes: Vec<String>,
+    }
+
     /// Media viewer contents (WS-15.2.2b).
     ///
     /// Only fields the C++ side reads. The old JSON seam also carried `tags`,
@@ -2273,6 +2305,102 @@ pub(crate) mod ffi {
             delete_a: bool,
             delete_b: bool,
         );
+        #[allow(clippy::too_many_arguments)]
+        fn app_export_folder_run(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            name: &str,
+            hashes: Vec<String>,
+        );
+        #[allow(clippy::too_many_arguments)]
+        fn app_export_folder_save(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            original: &str,
+            name: &str,
+            path: &str,
+            query: &str,
+            phrase: &str,
+            export_type: &str,
+            sidecar_format: &str,
+            overwrite_next: bool,
+            overwrite_always: bool,
+            delete_from_client: bool,
+            export_symlinks: bool,
+            run_regularly: bool,
+            show_working_popup: bool,
+            run_now_flag: bool,
+            period: i64,
+        );
+        fn app_export_folder_test_examples(
+            window: Pin<&mut HydrusMainWindow>,
+            query: &str,
+        );
+        #[allow(clippy::too_many_arguments)]
+        fn app_import_folder_save(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            original: &str,
+            name: &str,
+            path: &str,
+            period: i64,
+            check_regularly: bool,
+            search_subdirectories: bool,
+            paused: bool,
+            check_now: bool,
+            last_modified_skip: i64,
+            show_working_popup: bool,
+            publish_to_popup_button: bool,
+            publish_to_page: bool,
+            action: &str,
+            action_path: &str,
+            tagging: Vec<FilenameTaggingEntry>,
+        );
+        fn app_local_import_add_paths(
+            window: Pin<&mut HydrusMainWindow>,
+            paths: Vec<String>,
+        );
+        fn app_local_import_remove_paths(
+            window: Pin<&mut HydrusMainWindow>,
+            paths: Vec<String>,
+        );
+        fn app_local_import_search_subdirectories(
+            window: Pin<&mut HydrusMainWindow>,
+            value: bool,
+        );
+        fn app_local_import_delete_after_success(
+            window: Pin<&mut HydrusMainWindow>,
+            value: bool,
+        );
+        fn app_local_import_tagging_save(
+            window: Pin<&mut HydrusMainWindow>,
+            tagging: Vec<FilenameTaggingEntry>,
+            import_after_save: bool,
+        );
+        /// `options_json` carries the whole options dialog tree
+        /// (`booleans`/`integers`/`strings`/`noneable_*`): the set of option
+        /// keys is open-ended like the Python options dict, so it stays one
+        /// named JSON blob (R1 exception).
+        fn app_options_apply(window: Pin<&mut HydrusMainWindow>, options_json: &str);
+        /// `options_json` carries the whole import options manager tree
+        /// (`defaults`/`favourites` or one specific `container`): the set of
+        /// option types is open-ended like the Python dict, so it stays one
+        /// named JSON blob (R1 exception). `action` selects the save target:
+        /// `ImportOptionsSave` for the manager, otherwise the specific
+        /// downloader/subscription save action.
+        fn app_import_options_save(
+            window: Pin<&mut HydrusMainWindow>,
+            action: UiAction,
+            target: &str,
+            caller: &str,
+            options_json: &str,
+        );
+        fn app_notes_save(
+            window: Pin<&mut HydrusMainWindow>,
+            hash: &str,
+            names: Vec<String>,
+            texts: Vec<String>,
+        );
         fn hydrus_validate_export_phrase(phrase: &str) -> String;
         fn hydrus_static_dir() -> String;
     }
@@ -2792,6 +2920,144 @@ fn app_duplicates_rule_preview(
         window.as_mut(), name, paused, operation_mode, max_pending_pairs, search_query,
         search_mode, max_distance, selectors, action, delete_a, delete_b,
     );
+}
+
+/// Typed reverse seams (WS-15.2.4c): export/import folders, local import,
+/// options, notes. Each shim forwards to a `handle_*` function that
+/// rebuilds the same payload the string dispatcher used, so behaviour is
+/// unchanged; direct UI sources no longer serialise JSON in C++.
+#[allow(clippy::too_many_arguments)]
+fn app_export_folder_run(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    name: &str,
+    hashes: Vec<String>,
+) {
+    crate::gui::app::handle_export_folder_run(window.as_mut(), page_id, name, &hashes);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn app_export_folder_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    original: &str,
+    name: &str,
+    path: &str,
+    query: &str,
+    phrase: &str,
+    export_type: &str,
+    sidecar_format: &str,
+    overwrite_next: bool,
+    overwrite_always: bool,
+    delete_from_client: bool,
+    export_symlinks: bool,
+    run_regularly: bool,
+    show_working_popup: bool,
+    run_now_flag: bool,
+    period: i64,
+) {
+    crate::gui::app::handle_export_folder_save(
+        window.as_mut(), page_id, original, name, path, query, phrase, export_type,
+        sidecar_format, overwrite_next, overwrite_always, delete_from_client,
+        export_symlinks, run_regularly, show_working_popup, run_now_flag, period,
+    );
+}
+
+fn app_export_folder_test_examples(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    query: &str,
+) {
+    crate::gui::app::handle_export_folder_test_examples(window.as_mut(), query);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn app_import_folder_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    original: &str,
+    name: &str,
+    path: &str,
+    period: i64,
+    check_regularly: bool,
+    search_subdirectories: bool,
+    paused: bool,
+    check_now: bool,
+    last_modified_skip: i64,
+    show_working_popup: bool,
+    publish_to_popup_button: bool,
+    publish_to_page: bool,
+    action: &str,
+    action_path: &str,
+    tagging: Vec<ffi::FilenameTaggingEntry>,
+) {
+    crate::gui::app::handle_import_folder_save(
+        window.as_mut(), page_id, original, name, path, period, check_regularly,
+        search_subdirectories, paused, check_now, last_modified_skip, show_working_popup,
+        publish_to_popup_button, publish_to_page, action, action_path, tagging,
+    );
+}
+
+fn app_local_import_add_paths(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    paths: Vec<String>,
+) {
+    crate::gui::app::handle_local_import_add_paths(window.as_mut(), &paths);
+}
+
+fn app_local_import_remove_paths(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    paths: Vec<String>,
+) {
+    crate::gui::app::handle_local_import_remove_paths(window.as_mut(), &paths);
+}
+
+fn app_local_import_search_subdirectories(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    value: bool,
+) {
+    crate::gui::app::handle_local_import_search_subdirectories(window.as_mut(), value);
+}
+
+fn app_local_import_delete_after_success(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    value: bool,
+) {
+    crate::gui::app::handle_local_import_delete_after_success(window.as_mut(), value);
+}
+
+fn app_local_import_tagging_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    tagging: Vec<ffi::FilenameTaggingEntry>,
+    import_after_save: bool,
+) {
+    crate::gui::app::handle_local_import_tagging_save(
+        window.as_mut(), tagging, import_after_save,
+    );
+}
+
+fn app_options_apply(mut window: Pin<&mut ffi::HydrusMainWindow>, options_json: &str) {
+    crate::gui::app::handle_options_apply(window.as_mut(), options_json);
+}
+
+fn app_import_options_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    action: ffi::UiAction,
+    target: &str,
+    caller: &str,
+    options_json: &str,
+) {
+    crate::gui::app::handle_import_options_save(
+        window.as_mut(), action, target, caller, options_json,
+    );
+}
+
+fn app_notes_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    hash: &str,
+    names: Vec<String>,
+    texts: Vec<String>,
+) {
+    crate::gui::app::handle_notes_save(window.as_mut(), hash, &names, &texts);
 }
 
 /// Returns the Python `VetoException` text for an invalid export filename

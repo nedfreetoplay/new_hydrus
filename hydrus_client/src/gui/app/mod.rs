@@ -1759,6 +1759,208 @@ pub fn handle_duplicates_rule_preview(
     }
 }
 
+/// Typed reverse seams (WS-15.2.4c): export/import folders, local import,
+/// options, notes. Thin wrappers over the domain `*_typed` cores; the old
+/// string `dispatch` branches stay for menu/palette sources.
+#[allow(clippy::too_many_arguments)]
+pub fn handle_export_folder_run(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    name: &str,
+    hashes: &[String],
+) {
+    let _ = page_id;
+    let commands =
+        with_state_mut(|state| crate::gui::app::export::run_typed(state, name, hashes));
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn handle_export_folder_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    original: &str,
+    name: &str,
+    path: &str,
+    query: &str,
+    phrase: &str,
+    export_type: &str,
+    sidecar_format: &str,
+    overwrite_next: bool,
+    overwrite_always: bool,
+    delete_from_client: bool,
+    export_symlinks: bool,
+    run_regularly: bool,
+    show_working_popup: bool,
+    run_now_flag: bool,
+    period: i64,
+) {
+    let _ = page_id;
+    let commands = with_state_mut(|state| {
+        crate::gui::app::export::save_typed(
+            state, original, name, path, query, phrase, export_type, sidecar_format,
+            overwrite_next, overwrite_always, delete_from_client, export_symlinks,
+            run_regularly, show_working_popup, run_now_flag, period,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_export_folder_test_examples(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    query: &str,
+) {
+    let commands =
+        with_state_mut(|state| crate::gui::app::export::test_examples_typed(state, query));
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn handle_import_folder_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    original: &str,
+    name: &str,
+    path: &str,
+    period: i64,
+    check_regularly: bool,
+    search_subdirectories: bool,
+    paused: bool,
+    check_now: bool,
+    last_modified_skip: i64,
+    show_working_popup: bool,
+    publish_to_popup_button: bool,
+    publish_to_page: bool,
+    action: &str,
+    action_path: &str,
+    tagging: Vec<ffi::FilenameTaggingEntry>,
+) {
+    let _ = page_id;
+    let commands = with_state_mut(|state| {
+        crate::gui::app::import_folders::save_typed(
+            state, original, name, path, period, check_regularly, search_subdirectories,
+            paused, check_now, last_modified_skip, show_working_popup,
+            publish_to_popup_button, publish_to_page, action, action_path, tagging,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_local_import_add_paths(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    paths: &[String],
+) {
+    let commands =
+        with_state_mut(|state| crate::gui::app::local_import::add_paths_typed(state, paths));
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_local_import_remove_paths(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    paths: &[String],
+) {
+    let commands =
+        with_state_mut(|state| crate::gui::app::local_import::remove_paths_typed(state, paths));
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_local_import_search_subdirectories(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    value: bool,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::local_import::set_search_subdirectories_typed(state, value)
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_local_import_delete_after_success(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    value: bool,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::local_import::set_delete_after_success_typed(state, value)
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_local_import_tagging_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    tagging: Vec<ffi::FilenameTaggingEntry>,
+    import_after_save: bool,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::local_import::tagging_save_typed(state, tagging, import_after_save)
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_options_apply(mut window: Pin<&mut ffi::HydrusMainWindow>, options_json: &str) {
+    let commands =
+        with_state_mut(|state| crate::gui::app::options::apply_options(state, options_json));
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_import_options_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    action: ffi::UiAction,
+    target: &str,
+    caller: &str,
+    options_json: &str,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::import_options::save_typed(state, action, target, caller, options_json)
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_notes_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    hash: &str,
+    names: &[String],
+    texts: &[String],
+) {
+    let commands =
+        with_state_mut(|state| crate::gui::app::metadata::notes_save_typed(state, hash, names, texts));
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
 pub fn handle_network_save(
     mut window: Pin<&mut ffi::HydrusMainWindow>,
     api_enabled: bool,

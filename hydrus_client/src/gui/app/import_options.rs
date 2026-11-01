@@ -236,6 +236,50 @@ pub fn save_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     ]
 }
 
+/// Typed reverse seam (WS-15.2.4c). `options_json` is the whole manager tree
+/// (`defaults`/`favourites`) for `ImportOptionsSave`, or one specific
+/// `container` otherwise; both are arbitrary nested import-options dicts
+/// (R1 exception, like `SubscriptionDialogRow.import_options_json`). `action`
+/// selects the save target so the C++ specific-mode branch no longer needs
+/// `action_from_str`.
+///
+/// R2: `specific_payload` is pure and covered in `tests` below.
+pub fn specific_payload(target: &str, caller: &str, container: &Value) -> String {
+    json!({
+        "target": target,
+        "caller": caller,
+        "container": container,
+    })
+    .to_string()
+}
+
+pub fn save_typed(
+    state: &mut AppState,
+    action: crate::gui::qt::api::ffi::UiAction,
+    target: &str,
+    caller: &str,
+    options_json: &str,
+) -> Vec<UiCommand> {
+    use crate::gui::qt::api::ffi::UiAction;
+
+    if action == UiAction::ImportOptionsSave {
+        return save_action(state, options_json);
+    }
+
+    let container: Value = serde_json::from_str(options_json).unwrap_or(Value::Null);
+    let payload = specific_payload(target, caller, &container);
+
+    match action {
+        UiAction::DownloaderImportOptionsSave => super::download::save_import_options(state, &payload),
+        UiAction::SubscriptionImportOptionsSave => {
+            super::download::save_subscription_import_options(state, &payload)
+        }
+        _ => vec![UiCommand::NotifyMessage(
+            "unknown import options target".to_string(),
+        )],
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

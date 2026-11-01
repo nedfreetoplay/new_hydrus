@@ -514,22 +514,30 @@ void HydrusMainWindow::show_export_folder(const ExportFolderEditorState &state) 
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("original"), original);
-    payload.insert(QStringLiteral("name"), name->text().trimmed());
-    payload.insert(QStringLiteral("path"), path->text().trimmed());
-    payload.insert(QStringLiteral("query"), query->text().trimmed());
-    payload.insert(QStringLiteral("phrase"), phrase->text().trimmed());
-    payload.insert(QStringLiteral("export_type"), export_type->currentData().toString());
-    payload.insert(QStringLiteral("sidecar_format"), sidecar_format);
-    payload.insert(QStringLiteral("overwrite_sidecars"), overwrite_next->isChecked());
-    payload.insert(QStringLiteral("always_overwrite_sidecars"), overwrite_always->isChecked());
-    payload.insert(QStringLiteral("delete_from_client"), delete_from_client->isChecked());
-    payload.insert(QStringLiteral("export_symlinks"), export_symlinks->isChecked());
-    payload.insert(QStringLiteral("run_regularly"), run_regularly->isChecked());
-    payload.insert(QStringLiteral("show_working_popup"), show_working_popup->isChecked());
-    payload.insert(QStringLiteral("run_now"), run_on_ok->isChecked());
-    payload.insert(QStringLiteral("period"), period_value);
-
-    notify(UiAction::ExportFolderSave, active_page, json_payload(payload));
+    const QByteArray active_bytes = active_page.toUtf8();
+    const QByteArray original_bytes = original.toUtf8();
+    const QByteArray folder_name_bytes = name->text().trimmed().toUtf8();
+    const QByteArray folder_path_bytes = path->text().trimmed().toUtf8();
+    const QByteArray query_bytes = query->text().trimmed().toUtf8();
+    const QByteArray phrase_save_bytes = phrase->text().trimmed().toUtf8();
+    const QByteArray export_type_bytes = export_type->currentData().toString().toUtf8();
+    const QByteArray sidecar_bytes = sidecar_format.toUtf8();
+    app_export_folder_save(
+        *this,
+        rust::Str(active_bytes.constData(), static_cast<size_t>(active_bytes.size())),
+        rust::Str(original_bytes.constData(), static_cast<size_t>(original_bytes.size())),
+        rust::Str(folder_name_bytes.constData(), static_cast<size_t>(folder_name_bytes.size())),
+        rust::Str(folder_path_bytes.constData(), static_cast<size_t>(folder_path_bytes.size())),
+        rust::Str(query_bytes.constData(), static_cast<size_t>(query_bytes.size())),
+        rust::Str(phrase_save_bytes.constData(), static_cast<size_t>(phrase_save_bytes.size())),
+        rust::Str(export_type_bytes.constData(), static_cast<size_t>(export_type_bytes.size())),
+        rust::Str(sidecar_bytes.constData(), static_cast<size_t>(sidecar_bytes.size())),
+        overwrite_next->isChecked(),
+        overwrite_always->isChecked(),
+        delete_from_client->isChecked(),
+        export_symlinks->isChecked(),
+        run_regularly->isChecked(),
+        show_working_popup->isChecked(),
+        run_on_ok->isChecked(),
+        static_cast<int64_t>(period_value));
 }

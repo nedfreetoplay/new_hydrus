@@ -14,6 +14,63 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 
+// Typed reverse seam helper (WS-15.2.4c): flattens the tagging editor's
+// `filename_tagging` object into typed rows. Declared in bridge_api.hpp;
+// shared with import_folder_editor.cpp.
+namespace {
+rust::String rust_string(const QString &text) {
+    const QByteArray bytes = text.toUtf8();
+    return rust::String(bytes.constData(), static_cast<size_t>(bytes.size()));
+}
+}  // namespace
+
+rust::Vec<FilenameTaggingEntry> filename_tagging_entries(const QJsonObject &tagging) {
+    rust::Vec<FilenameTaggingEntry> entries;
+
+    for (auto iterator = tagging.constBegin(); iterator != tagging.constEnd(); ++iterator) {
+        const QJsonObject options = iterator.value().toObject();
+        FilenameTaggingEntry entry;
+        entry.service_key = rust_string(iterator.key());
+
+        for (const QJsonValue &tag_value : options.value(QStringLiteral("tags_for_all")).toArray()) {
+            entry.tags_for_all.push_back(rust_string(tag_value.toString()));
+        }
+
+        entry.add_filename = options.value(QStringLiteral("add_filename")).toBool(false);
+        entry.filename_namespace =
+            rust_string(options.value(QStringLiteral("filename_namespace")).toString());
+
+        const QJsonObject directories = options.value(QStringLiteral("directories")).toObject();
+
+        for (auto directory = directories.constBegin(); directory != directories.constEnd();
+             ++directory) {
+            DirectoryTaggingRow row;
+            row.slot = directory.key().toInt();
+            const QJsonObject rule = directory.value().toObject();
+            row.enabled = rule.value(QStringLiteral("enabled")).toBool(false);
+            row.tag_namespace = rust_string(rule.value(QStringLiteral("namespace")).toString());
+            entry.directories.push_back(row);
+        }
+
+        for (const QJsonValue &rule_value :
+             options.value(QStringLiteral("quick_namespaces")).toArray()) {
+            const QJsonObject rule = rule_value.toObject();
+            QuickNamespaceRow row;
+            row.tag_namespace = rust_string(rule.value(QStringLiteral("namespace")).toString());
+            row.regex = rust_string(rule.value(QStringLiteral("regex")).toString());
+            entry.quick_namespaces.push_back(row);
+        }
+
+        for (const QJsonValue &regex_value : options.value(QStringLiteral("regexes")).toArray()) {
+            entry.regexes.push_back(rust_string(regex_value.toString()));
+        }
+
+        entries.push_back(entry);
+    }
+
+    return entries;
+}
+
 HydrusLocalImportTaggingDialog::HydrusLocalImportTaggingDialog(
     HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
@@ -157,10 +214,7 @@ void HydrusLocalImportTaggingDialog::edit_rules(
 }
 
 void HydrusLocalImportTaggingDialog::save() {
-    QJsonObject payload;
-    payload.insert(QStringLiteral("filename_tagging"), filename_tagging);
-    payload.insert(QStringLiteral("import_after_save"), import_after_save);
-    main->notify(UiAction::LocalImportTaggingSave, QString(), json_payload(payload));
+    app_local_import_tagging_save(*main, filename_tagging_entries(filename_tagging), import_after_save);
     close();
 }
 

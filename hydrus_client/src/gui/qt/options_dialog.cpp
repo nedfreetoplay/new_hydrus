@@ -203,14 +203,17 @@ void HydrusOptionsDialog::apply() {
         }
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("booleans"), booleans);
-    payload.insert(QStringLiteral("integers"), integers);
-    payload.insert(QStringLiteral("strings"), strings);
-    payload.insert(QStringLiteral("noneable_strings"), noneable_strings);
-    payload.insert(QStringLiteral("noneable_integers"), noneable_integers);
+    QJsonObject tree;
+    tree.insert(QStringLiteral("booleans"), booleans);
+    tree.insert(QStringLiteral("integers"), integers);
+    tree.insert(QStringLiteral("strings"), strings);
+    tree.insert(QStringLiteral("noneable_strings"), noneable_strings);
+    tree.insert(QStringLiteral("noneable_integers"), noneable_integers);
 
-    main->notify(UiAction::OptionsApply, QString(), json_payload(payload));
+    const QByteArray tree_bytes = QJsonDocument(tree).toJson(QJsonDocument::Compact);
+    app_options_apply(
+        *main,
+        rust::Str(tree_bytes.constData(), static_cast<size_t>(tree_bytes.size())));
     accept();
 }
 

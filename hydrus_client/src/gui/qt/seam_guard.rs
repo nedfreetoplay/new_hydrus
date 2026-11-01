@@ -31,15 +31,6 @@ const JSON_PAYLOAD_ALLOWLIST: &[(&str, usize)] = &[
     ("src/gui/qt/auto_resolution_custom.cpp", 1),
     ("src/gui/qt/auto_resolution_merge.cpp", 1),
     ("src/gui/qt/auto_resolution_review.cpp", 2),
-    ("src/gui/qt/export_folder_editor.cpp", 1),
-    ("src/gui/qt/export_folder_sidecar.cpp", 1),
-    ("src/gui/qt/export_review.cpp", 1),
-    ("src/gui/qt/import_folder_editor.cpp", 1),
-    ("src/gui/qt/import_options_dialog.cpp", 2),
-    ("src/gui/qt/local_import_review.cpp", 1),
-    ("src/gui/qt/local_import_tagging.cpp", 1),
-    ("src/gui/qt/notes_dialog.cpp", 1),
-    ("src/gui/qt/options_dialog.cpp", 1),
     ("src/gui/qt/orphan_files.cpp", 2),
     ("src/gui/qt/repair_locations.cpp", 1),
 ];
@@ -67,6 +58,13 @@ const JSON_ARG_ALLOWLIST: &[&str] = &[
     // WS-15.2.4c: the arbitrary nested import options dict pasted from the
     // clipboard (same R1 exception as `SubscriptionDialogRow.import_options_json`).
     "app_subscription_import_options_save",
+    // WS-15.2.4c: the whole options dialog tree (`booleans`/`integers`/
+    // `strings`/`noneable_*`); the set of option keys is open-ended, like the
+    // Python options dict (R1 exception).
+    "app_options_apply",
+    // WS-15.2.4c: the whole import options tree or one specific container;
+    // arbitrary nested import-options dicts (R1 exception).
+    "app_import_options_save",
 ];
 
 fn read(path: &Path) -> String {

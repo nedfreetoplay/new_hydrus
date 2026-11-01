@@ -579,6 +579,92 @@ pub fn tagging_save(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     }
 }
 
+/// Typed reverse seams (WS-15.2.4c). C++ passes paths/flags/tagging rows
+/// directly; the payload builders rebuild the exact JSON the string
+/// dispatcher used, so both paths share the same cores.
+///
+/// R2: `paths_payload`, `tagging_entries_json` and `removed_message` are
+/// pure and covered in `tests` below.
+pub fn paths_payload(paths: &[String]) -> String {
+    serde_json::json!({"paths": paths}).to_string()
+}
+
+/// R2: how many paths a typed remove call dropped.
+pub fn removed_message(removed: usize) -> String {
+    format!("removed {removed} path(s)")
+}
+
+pub fn tagging_entries_json(
+    entries: &[crate::gui::qt::api::ffi::FilenameTaggingEntry],
+) -> serde_json::Value {
+    let mut tagging = serde_json::Map::new();
+
+    for entry in entries {
+        let mut directories = serde_json::Map::new();
+
+        for directory in &entry.directories {
+            directories.insert(
+                directory.slot.to_string(),
+                serde_json::json!({
+                    "enabled": directory.enabled,
+                    "namespace": directory.tag_namespace,
+                }),
+            );
+        }
+
+        let quick_namespaces: Vec<serde_json::Value> = entry
+            .quick_namespaces
+            .iter()
+            .map(|rule| {
+                serde_json::json!({"namespace": rule.tag_namespace, "regex": rule.regex})
+            })
+            .collect();
+
+        tagging.insert(
+            entry.service_key.clone(),
+            serde_json::json!({
+                "tags_for_all": entry.tags_for_all,
+                "add_filename": entry.add_filename,
+                "filename_namespace": entry.filename_namespace,
+                "directories": directories,
+                "quick_namespaces": quick_namespaces,
+                "regexes": entry.regexes,
+            }),
+        );
+    }
+
+    serde_json::Value::Object(tagging)
+}
+
+pub fn add_paths_typed(state: &mut AppState, paths: &[String]) -> Vec<UiCommand> {
+    add_paths(state, &paths_payload(paths))
+}
+
+pub fn remove_paths_typed(state: &mut AppState, paths: &[String]) -> Vec<UiCommand> {
+    remove_paths(state, &paths_payload(paths))
+}
+
+pub fn set_search_subdirectories_typed(state: &mut AppState, value: bool) -> Vec<UiCommand> {
+    set_search_subdirectories(state, &serde_json::json!({"value": value}).to_string())
+}
+
+pub fn set_delete_after_success_typed(state: &mut AppState, value: bool) -> Vec<UiCommand> {
+    set_delete_after_success(state, &serde_json::json!({"value": value}).to_string())
+}
+
+pub fn tagging_save_typed(
+    state: &mut AppState,
+    entries: Vec<crate::gui::qt::api::ffi::FilenameTaggingEntry>,
+    import_after_save: bool,
+) -> Vec<UiCommand> {
+    let payload = serde_json::json!({
+        "filename_tagging": tagging_entries_json(&entries),
+        "import_after_save": import_after_save,
+    })
+    .to_string();
+    tagging_save(state, &payload)
+}
+
 pub fn import_now(state: &mut AppState) -> Vec<UiCommand> {
     let good_paths = state.local_import_review.good_paths();
 

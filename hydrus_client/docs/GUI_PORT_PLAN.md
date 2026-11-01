@@ -487,7 +487,7 @@ C++.
   на команду.
   - 15.2.3a [x] страницы/вкладки/сессия: notify 191→186 (коммит 93513a1)
    - 15.2.3b [x] все notify переведены на UiAction (было 186 строковых вызовов, стало 0) (коммит 3443b05)
-  - 15.2.3c [x] page-команды: 14 структур, 114 полей типизировано, JSON-парсинг в C++ 39→34 (`QJsonObject` 630→574, `QJsonArray` 162→149), 7 обработчиков без `QJsonDocument::fromJson` (коммит d3ee3ff). Типизированы downloader (32 поля), subscriptions page/dialog/editor (32), duplicates (31), seed cache/log (12) и `PageRow` (query/downloader/subscriptions/duplicates); статусы, проценты, склонения и относительное время считает Rust с тестами. Остался один произвольный вложенный dict — `SubscriptionDialogRow.import_options_json` (копирование import options в буфер); `PageRow.state` — только import/export-папки (их шов в отдельной подзадаче).
+  - 15.2.3c [x] page-команды: 14 структур, 114 полей типизировано, JSON-парсинг в C++ 39→34 (`QJsonObject` 630→574, `QJsonArray` 162→149), 7 обработчиков без `QJsonDocument::fromJson` (коммит d3ee3ff). Осталось 9.
 - [~] 15.2.4 Удалить `parse_object`/`json_payload` из C++ и `serde_json` с шва.
   - 15.2.4a [x] handle_action(UiAction), строковый диспетчер удалён (коммит 623bbd9);
     `serde_json` в `gui/qt/*.rs` не используется.
@@ -558,7 +558,23 @@ C++.
    `app_duplicates_rule_preview/save`; селектор правила едет плоскими
    `RuleComparatorRow` (unflatten в Rust с тестами), контейнер import options
    подписки — один `container_json` (R1-исключение, как
-   `import_options_json`). Остался 21.
+   `import_options_json`). Осталось 9.
+
+    Закрыто в WS-15.2.4c (партия export/import/options/notes, коммит ниже):
+    12 вызовов в 9 файлах — `export_review.cpp` (1),
+    `export_folder_editor.cpp` (1), `export_folder_sidecar.cpp` (1),
+    `import_folder_editor.cpp` (1), `local_import_review.cpp` (1),
+    `import_options_dialog.cpp` (2), `local_import_tagging.cpp` (1),
+    `notes_dialog.cpp` (1), `options_dialog.cpp` (1). Типизированы
+    `app_export_folder_run/save/test_examples`, `app_import_folder_save`,
+    `app_local_import_add/remove_paths`,
+    `app_local_import_search_subdirectories/delete_after_success`,
+    `app_local_import_tagging_save`, `app_import_options_save` (один шов на
+    manager и specific-режим; цель выбирается по `UiAction`),
+    `app_options_apply`, `app_notes_save`. Filename tagging едет плоскими
+    `FilenameTaggingEntry`/`DirectoryTaggingRow`/`QuickNamespaceRow` (сборка в
+    Rust с тестом round-trip); `options_json` — именованные JSON-блобы
+    (R1-исключение, +2 записи в `JSON_ARG_ALLOWLIST`).
 
 ### 15.3 Чистая логика раскладки в Rust  `[ ]` P1
 

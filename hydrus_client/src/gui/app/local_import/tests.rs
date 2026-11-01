@@ -250,3 +250,45 @@ fn opening_resets_the_review() {
     drop(app);
     let _ = std::fs::remove_dir_all(directory);
 }
+
+#[test]
+fn typed_tagging_entries_round_trip_through_json() {
+    use crate::gui::qt::api::ffi::{
+        DirectoryTaggingRow, FilenameTaggingEntry, QuickNamespaceRow,
+    };
+
+    let entries = vec![FilenameTaggingEntry {
+        service_key: "abc".to_string(),
+        tags_for_all: vec!["series:x".to_string()],
+        add_filename: true,
+        filename_namespace: "filename".to_string(),
+        directories: vec![DirectoryTaggingRow {
+            slot: -1,
+            enabled: true,
+            tag_namespace: "dir".to_string(),
+        }],
+        quick_namespaces: vec![QuickNamespaceRow {
+            tag_namespace: "page".to_string(),
+            regex: "(\\d+)".to_string(),
+        }],
+        regexes: vec!["(.+)".to_string()],
+    }];
+
+    let json = tagging_entries_json(&entries);
+    let tagging: std::collections::BTreeMap<String, FilenameTaggingOptions> =
+        serde_json::from_value(json).unwrap();
+    let options = &tagging["abc"];
+
+    assert_eq!(options.tags_for_all, vec!["series:x".to_string()]);
+    assert!(options.add_filename);
+    assert!(options.directories[&-1].enabled);
+    assert_eq!(options.directories[&-1].namespace, "dir");
+    assert_eq!(options.quick_namespaces[0].namespace, "page");
+    assert_eq!(options.regexes, vec!["(.+)".to_string()]);
+
+    assert_eq!(
+        paths_payload(&["/a".to_string(), String::new()]),
+        r#"{"paths":["/a",""]}"#
+    );
+    assert_eq!(removed_message(3), "removed 3 path(s)");
+}

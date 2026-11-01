@@ -357,17 +357,19 @@ void HydrusImportOptionsDialog::delete_favourite() {
 void HydrusImportOptionsDialog::save() {
     if (specific_mode) {
         const QJsonObject specific = data.value(QStringLiteral("specific")).toObject();
-        QJsonObject payload;
-        payload.insert(QStringLiteral("target"), specific.value(QStringLiteral("target")));
-        payload.insert(QStringLiteral("caller"), specific.value(QStringLiteral("caller")));
-        payload.insert(QStringLiteral("container"), read_editor());
 
         const QString action_text = specific.value(QStringLiteral("action")).toString();
         const QByteArray action_bytes = action_text.toUtf8();
-        main->notify(
-            action_from_str(rust::Str(action_bytes.constData(), action_bytes.size())),
-            QString(),
-            json_payload(payload));
+        const QByteArray target_bytes = specific.value(QStringLiteral("target")).toString().toUtf8();
+        const QByteArray caller_bytes = specific.value(QStringLiteral("caller")).toString().toUtf8();
+        const QByteArray container_bytes =
+            QJsonDocument(read_editor()).toJson(QJsonDocument::Compact);
+        app_import_options_save(
+            *main,
+            action_from_str(rust::Str(action_bytes.constData(), static_cast<size_t>(action_bytes.size()))),
+            rust::Str(target_bytes.constData(), static_cast<size_t>(target_bytes.size())),
+            rust::Str(caller_bytes.constData(), static_cast<size_t>(caller_bytes.size())),
+            rust::Str(container_bytes.constData(), static_cast<size_t>(container_bytes.size())));
 
         close();
         return;
@@ -375,11 +377,16 @@ void HydrusImportOptionsDialog::save() {
 
     store_current();
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("defaults"), data.value(QStringLiteral("defaults")));
-    payload.insert(QStringLiteral("favourites"), data.value(QStringLiteral("favourites")));
-
-    main->notify(UiAction::ImportOptionsSave, QString(), json_payload(payload));
+    QJsonObject tree;
+    tree.insert(QStringLiteral("defaults"), data.value(QStringLiteral("defaults")));
+    tree.insert(QStringLiteral("favourites"), data.value(QStringLiteral("favourites")));
+    const QByteArray tree_bytes = QJsonDocument(tree).toJson(QJsonDocument::Compact);
+    app_import_options_save(
+        *main,
+        UiAction::ImportOptionsSave,
+        rust::Str("", 0),
+        rust::Str("", 0),
+        rust::Str(tree_bytes.constData(), static_cast<size_t>(tree_bytes.size())));
 
     close();
 }

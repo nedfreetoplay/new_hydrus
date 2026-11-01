@@ -27,7 +27,6 @@ public:
 
 private:
     void rebuild();
-    void send(UiAction action, const QJsonObject &payload = QJsonObject());
     QStringList selected_paths() const;
 
     HydrusMainWindow *main = nullptr;

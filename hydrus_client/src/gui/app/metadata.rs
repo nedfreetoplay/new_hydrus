@@ -757,6 +757,35 @@ pub fn notes_action(state: &mut AppState, payload: &str, save: bool) -> Vec<UiCo
     save_notes(state, &hash, &values)
 }
 
+/// Typed reverse seam (WS-15.2.4c). C++ passes the editor rows directly;
+/// `notes_payload` rebuilds the exact JSON the string dispatcher used.
+///
+/// R2: `notes_payload` is pure and covered in `tests` below.
+pub fn notes_payload(hash: &str, names: &[String], texts: &[String]) -> serde_json::Value {
+    let mut values = Vec::new();
+
+    for (index, name) in names.iter().enumerate() {
+        let text = texts.get(index).map(String::as_str).unwrap_or_default();
+
+        if name.trim().is_empty() && text.trim().is_empty() {
+            continue;
+        }
+
+        values.push(serde_json::json!({"name": name.trim(), "text": text}));
+    }
+
+    serde_json::json!({"hash": hash, "notes": values})
+}
+
+pub fn notes_save_typed(
+    state: &mut AppState,
+    hash: &str,
+    names: &[String],
+    texts: &[String],
+) -> Vec<UiCommand> {
+    notes_action(state, &notes_payload(hash, names, texts).to_string(), true)
+}
+
 /// Typed core behind `"notes_manage"` and `app_manage_notes` (WS-15.2.2b).
 pub fn manage_notes_typed(state: &mut AppState, hash_hex: &str) -> Vec<UiCommand> {
     let Some(hash) = query::unhex(hash_hex) else {

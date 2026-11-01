@@ -75,7 +75,8 @@ void HydrusMainWindow::show_notes(const NotesDialogState &state) {
         return;
     }
 
-    QJsonArray values;
+    rust::Vec<rust::String> names;
+    rust::Vec<rust::String> texts;
 
     for (int row = 0; row < table->rowCount(); ++row) {
         const QString name = table->item(row, 0) == nullptr
@@ -89,15 +90,16 @@ void HydrusMainWindow::show_notes(const NotesDialogState &state) {
             continue;
         }
 
-        QJsonObject note;
-        note.insert(QStringLiteral("name"), name);
-        note.insert(QStringLiteral("text"), text);
-        values.append(note);
+        const QByteArray name_bytes = name.toUtf8();
+        const QByteArray text_bytes = text.toUtf8();
+        names.push_back(rust::String(name_bytes.constData(), static_cast<size_t>(name_bytes.size())));
+        texts.push_back(rust::String(text_bytes.constData(), static_cast<size_t>(text_bytes.size())));
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("hash"), hash);
-    payload.insert(QStringLiteral("notes"), values);
-
-    notify(UiAction::NotesSave, QString(), json_payload(payload));
+    const QByteArray hash_bytes = hash.toUtf8();
+    app_notes_save(
+        *this,
+        rust::Str(hash_bytes.constData(), static_cast<size_t>(hash_bytes.size())),
+        names,
+        texts);
 }

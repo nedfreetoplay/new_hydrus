@@ -185,3 +185,18 @@ fn display_tag_options_control_sorting_and_namespaces() {
         "series:thing"
     );
 }
+
+#[test]
+fn typed_notes_payload_skips_empty_rows_like_the_editor() {
+    let payload = notes_payload(
+        "abcd",
+        &[" memo ".to_string(), String::new(), "  ".to_string()],
+        &["hello".to_string(), "world".to_string()],
+    );
+
+    assert_eq!(payload["hash"], "abcd");
+    assert_eq!(payload["notes"], serde_json::json!([
+        {"name": "memo", "text": "hello"},
+        {"name": "", "text": "world"},
+    ]));
+}

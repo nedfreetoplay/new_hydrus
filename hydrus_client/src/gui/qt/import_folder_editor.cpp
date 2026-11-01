@@ -529,25 +529,29 @@ void HydrusMainWindow::show_import_folder(const ImportFolderEditorState &state) 
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("original"), original);
-    payload.insert(QStringLiteral("name"), name->text().trimmed());
-    payload.insert(QStringLiteral("path"), path->text().trimmed());
-    payload.insert(QStringLiteral("period"), period_value);
-    payload.insert(QStringLiteral("check_regularly"), check_regularly->isChecked());
-    payload.insert(QStringLiteral("search_subdirectories"), search_subdirectories->isChecked());
-    payload.insert(QStringLiteral("paused"), paused->isChecked());
-    payload.insert(QStringLiteral("check_now"), check_now->isChecked());
-    payload.insert(QStringLiteral("last_modified_skip"), skip_value);
-    payload.insert(QStringLiteral("show_working_popup"), show_working_popup->isChecked());
-    payload.insert(QStringLiteral("publish_files_to_popup_button"), publish_popup->isChecked());
-    payload.insert(QStringLiteral("publish_files_to_page"), publish_page->isChecked());
-
     // Use the successful action for the folder's single action (Rust stores one action).
-    payload.insert(QStringLiteral("action"), action_successful->currentData().toString());
-    payload.insert(QStringLiteral("action_path"), location_successful->text().trimmed());
-
-    payload.insert(QStringLiteral("filename_tagging"), filename_tagging);
-
-    notify(UiAction::ImportFolderSave, active_page, json_payload(payload));
+    const QByteArray active_bytes = active_page.toUtf8();
+    const QByteArray original_bytes = original.toUtf8();
+    const QByteArray folder_name_bytes = name->text().trimmed().toUtf8();
+    const QByteArray folder_path_bytes = path->text().trimmed().toUtf8();
+    const QByteArray action_bytes = action_successful->currentData().toString().toUtf8();
+    const QByteArray action_path_bytes = location_successful->text().trimmed().toUtf8();
+    app_import_folder_save(
+        *this,
+        rust::Str(active_bytes.constData(), static_cast<size_t>(active_bytes.size())),
+        rust::Str(original_bytes.constData(), static_cast<size_t>(original_bytes.size())),
+        rust::Str(folder_name_bytes.constData(), static_cast<size_t>(folder_name_bytes.size())),
+        rust::Str(folder_path_bytes.constData(), static_cast<size_t>(folder_path_bytes.size())),
+        static_cast<int64_t>(period_value),
+        check_regularly->isChecked(),
+        search_subdirectories->isChecked(),
+        paused->isChecked(),
+        check_now->isChecked(),
+        static_cast<int64_t>(skip_value),
+        show_working_popup->isChecked(),
+        publish_popup->isChecked(),
+        publish_page->isChecked(),
+        rust::Str(action_bytes.constData(), static_cast<size_t>(action_bytes.size())),
+        rust::Str(action_path_bytes.constData(), static_cast<size_t>(action_path_bytes.size())),
+        filename_tagging_entries(filename_tagging));
 }

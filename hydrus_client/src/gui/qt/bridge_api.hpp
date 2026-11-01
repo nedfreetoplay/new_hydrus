@@ -4,6 +4,7 @@
 
 #include "rust/cxx.h"
 
+#include <QJsonObject>
 #include <QString>
 
 class QApplication;
@@ -53,6 +54,14 @@ struct DuplicatesMergeOptionsDialogState;
 struct DuplicateCustomActionDialogState;
 struct DuplicatesRulePreviewState;
 struct DuplicateReviewDialogState;
+struct DirectoryTaggingRow;
+struct QuickNamespaceRow;
+struct FilenameTaggingEntry;
+
+// Typed reverse seam helper (WS-15.2.4c): flattens the tagging editor's
+// `filename_tagging` object into typed rows. Implemented in
+// local_import_tagging.cpp; shared with import_folder_editor.cpp.
+rust::Vec<FilenameTaggingEntry> filename_tagging_entries(const QJsonObject &tagging);
 
 std::unique_ptr<QApplication> new_application();
 int exec_application(QApplication &application);
@@ -467,6 +476,86 @@ void app_duplicates_rule_preview(
     rust::Str action,
     bool delete_a,
     bool delete_b) noexcept;
+// Typed reverse seams (WS-15.2.4c): export/import folders, local import,
+// options, notes. C++ calls these directly instead of `notify(..., json)`.
+void app_export_folder_run(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Str name,
+    rust::Vec<rust::String> hashes) noexcept;
+void app_export_folder_save(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Str original,
+    rust::Str name,
+    rust::Str path,
+    rust::Str query,
+    rust::Str phrase,
+    rust::Str export_type,
+    rust::Str sidecar_format,
+    bool overwrite_next,
+    bool overwrite_always,
+    bool delete_from_client,
+    bool export_symlinks,
+    bool run_regularly,
+    bool show_working_popup,
+    bool run_now_flag,
+    int64_t period) noexcept;
+void app_export_folder_test_examples(
+    HydrusMainWindow &window,
+    rust::Str query) noexcept;
+void app_import_folder_save(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Str original,
+    rust::Str name,
+    rust::Str path,
+    int64_t period,
+    bool check_regularly,
+    bool search_subdirectories,
+    bool paused,
+    bool check_now,
+    int64_t last_modified_skip,
+    bool show_working_popup,
+    bool publish_to_popup_button,
+    bool publish_to_page,
+    rust::Str action,
+    rust::Str action_path,
+    rust::Vec<FilenameTaggingEntry> tagging) noexcept;
+void app_local_import_add_paths(
+    HydrusMainWindow &window,
+    rust::Vec<rust::String> paths) noexcept;
+void app_local_import_remove_paths(
+    HydrusMainWindow &window,
+    rust::Vec<rust::String> paths) noexcept;
+void app_local_import_search_subdirectories(
+    HydrusMainWindow &window,
+    bool value) noexcept;
+void app_local_import_delete_after_success(
+    HydrusMainWindow &window,
+    bool value) noexcept;
+void app_local_import_tagging_save(
+    HydrusMainWindow &window,
+    rust::Vec<FilenameTaggingEntry> tagging,
+    bool import_after_save) noexcept;
+// `options_json` holds the whole options dialog tree (R1 exception: the set
+// of option keys is open-ended, like the Python options dict).
+void app_options_apply(
+    HydrusMainWindow &window,
+    rust::Str options_json) noexcept;
+// `options_json` holds the whole import options tree or one specific
+// container (R1 exception: arbitrary nested import-options dicts).
+void app_import_options_save(
+    HydrusMainWindow &window,
+    UiAction action,
+    rust::Str target,
+    rust::Str caller,
+    rust::Str options_json) noexcept;
+void app_notes_save(
+    HydrusMainWindow &window,
+    rust::Str hash,
+    rust::Vec<rust::String> names,
+    rust::Vec<rust::String> texts) noexcept;
 
 // Implemented in Rust: the Python VetoException text for an invalid export
 // filename phrase, or an empty string when the phrase parses.

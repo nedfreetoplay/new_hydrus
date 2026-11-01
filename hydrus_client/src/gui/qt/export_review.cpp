@@ -99,26 +99,30 @@ void HydrusMainWindow::show_export_review(const ExportReviewDialogState &typed) 
     connect(check_none, &QPushButton::clicked, &dialog, [set_all]() { set_all(Qt::Unchecked); });
     connect(close, &QPushButton::clicked, &dialog, &QDialog::reject);
     connect(export_checked, &QPushButton::clicked, &dialog, [this, &dialog, table, name]() {
-        QJsonArray hashes;
+        rust::Vec<rust::String> hashes;
 
         for (int index = 0; index < table->rowCount(); ++index) {
             QTableWidgetItem *item = table->item(index, 0);
 
             if (item != nullptr && item->checkState() == Qt::Checked) {
-                hashes.append(item->data(Qt::UserRole).toString());
+                const QByteArray bytes = item->data(Qt::UserRole).toString().toUtf8();
+                hashes.push_back(rust::String(bytes.constData(), static_cast<size_t>(bytes.size())));
             }
         }
 
-        if (hashes.isEmpty()) {
+        if (hashes.empty()) {
             QMessageBox::information(&dialog, QStringLiteral("export folder"),
                                      QStringLiteral("No files are checked."));
             return;
         }
 
-        QJsonObject payload;
-        payload.insert(QStringLiteral("name"), name);
-        payload.insert(QStringLiteral("hashes"), hashes);
-        notify(UiAction::ExportFolderRun, active_page, json_payload(payload));
+        const QByteArray page_bytes = active_page.toUtf8();
+        const QByteArray name_bytes = name.toUtf8();
+        app_export_folder_run(
+            *this,
+            rust::Str(page_bytes.constData(), static_cast<size_t>(page_bytes.size())),
+            rust::Str(name_bytes.constData(), static_cast<size_t>(name_bytes.size())),
+            hashes);
         dialog.accept();
     });
 

@@ -8,7 +8,6 @@
 #include <QFileDialog>
 #include <QHBoxLayout>
 #include <QHeaderView>
-#include <QJsonArray>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
@@ -92,13 +91,7 @@ HydrusLocalImportReviewDialog::HydrusLocalImportReviewDialog(
             return;
         }
 
-        QJsonObject payload;
-        QJsonArray array;
-        for (const QString &path : paths) {
-            array.append(path);
-        }
-        payload.insert(QStringLiteral("paths"), array);
-        send(UiAction::LocalImportAddPaths, payload);
+        app_local_import_add_paths(*main, to_rust_vec(paths));
     });
     connect(add_folder, &QPushButton::clicked, this, [this]() {
         const QString path = QFileDialog::getExistingDirectory(
@@ -109,9 +102,9 @@ HydrusLocalImportReviewDialog::HydrusLocalImportReviewDialog(
             return;
         }
 
-        QJsonObject payload;
-        payload.insert(QStringLiteral("paths"), QJsonArray{path});
-        send(UiAction::LocalImportAddPaths, payload);
+        QStringList single;
+        single << path;
+        app_local_import_add_paths(*main, to_rust_vec(single));
     });
     connect(remove, &QPushButton::clicked, this, [this]() {
         const QStringList paths = selected_paths();
@@ -121,25 +114,15 @@ HydrusLocalImportReviewDialog::HydrusLocalImportReviewDialog(
             return;
         }
 
-        QJsonObject payload;
-        QJsonArray array;
-        for (const QString &path : paths) {
-            array.append(path);
-        }
-        payload.insert(QStringLiteral("paths"), array);
-        send(UiAction::LocalImportRemove, payload);
+        app_local_import_remove_paths(*main, to_rust_vec(paths));
     });
     connect(search, &QCheckBox::toggled, this, [this](bool checked) {
-        QJsonObject payload;
-        payload.insert(QStringLiteral("value"), checked);
-        send(UiAction::LocalImportSearchSubdirectories, payload);
+        app_local_import_search_subdirectories(*main, checked);
     });
     connect(delete_after_success, &QCheckBox::toggled, this, [this](bool checked) {
         warning->setText(checked ? QStringLiteral("YOUR ORIGINAL FILES WILL BE DELETED")
                                  : QString());
-        QJsonObject payload;
-        payload.insert(QStringLiteral("value"), checked);
-        send(UiAction::LocalImportDeleteAfterSuccess, payload);
+        app_local_import_delete_after_success(*main, checked);
     });
     connect(options, &QPushButton::clicked, this, [this]() {
         main->notify(UiAction::LocalImportOptions);
@@ -171,10 +154,6 @@ QStringList HydrusLocalImportReviewDialog::selected_paths() const {
     }
 
     return paths;
-}
-
-void HydrusLocalImportReviewDialog::send(UiAction action, const QJsonObject &payload) {
-    main->notify(action, QString(), payload.isEmpty() ? QString() : json_payload(payload));
 }
 
 void HydrusLocalImportReviewDialog::set_state(const LocalImportReviewDialogState &state) {

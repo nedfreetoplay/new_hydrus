@@ -113,9 +113,10 @@ void build_export_sidecar_section(
     sidecar_box_layout->addWidget(test_examples, 0, Qt::AlignRight);
 
     QObject::connect(test_examples, &QPushButton::clicked, dialog, [main, query]() {
-        QJsonObject payload;
-        payload.insert(QStringLiteral("query"), query->text().trimmed());
-        main->notify(UiAction::ExportFolderTestExamples, QString(), json_payload(payload));
+        const QByteArray query_bytes = query->text().trimmed().toUtf8();
+        app_export_folder_test_examples(
+            *main,
+            rust::Str(query_bytes.constData(), static_cast<size_t>(query_bytes.size())));
     });
     vbox->addWidget(sidecar_box);
 }

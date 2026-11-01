@@ -1734,6 +1734,76 @@ fn page_commands(state: &AppState) -> Vec<UiCommand> {
     commands
 }
 
+/// Typed reverse seams (WS-15.2.4c). The C++ dialogs collect typed fields;
+/// the payload builders below rebuild the exact JSON the string dispatcher
+/// used, so both paths share `save_action`/`run_now`/`test_examples`.
+/// `page_id` only selects which page the dialog was opened from; the core
+/// refreshes every export page, so it is not needed here.
+///
+/// R2: `run_payload`/`test_payload` are pure and covered below.
+pub fn run_payload(name: &str, hashes: &[String]) -> String {
+    serde_json::json!({"name": name, "hashes": hashes}).to_string()
+}
+
+pub fn test_payload(query: &str) -> String {
+    serde_json::json!({"query": query}).to_string()
+}
+
+/// R2: summary line for the export review dialog (`N of M files checked`).
+pub fn review_checked_text(checked: usize, total: usize) -> String {
+    format!("{checked} of {total} files checked")
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn save_typed(
+    state: &mut AppState,
+    original: &str,
+    name: &str,
+    path: &str,
+    query: &str,
+    phrase: &str,
+    export_type: &str,
+    sidecar_format: &str,
+    overwrite_next: bool,
+    overwrite_always: bool,
+    delete_from_client: bool,
+    export_symlinks: bool,
+    run_regularly: bool,
+    show_working_popup: bool,
+    run_now_flag: bool,
+    period: i64,
+) -> Vec<UiCommand> {
+    let payload = serde_json::json!({
+        "original": original,
+        "name": name,
+        "path": path,
+        "query": query,
+        "phrase": phrase,
+        "export_type": export_type,
+        "sidecar_format": sidecar_format,
+        "overwrite_sidecars": overwrite_next,
+        "always_overwrite_sidecars": overwrite_always,
+        "delete_from_client": delete_from_client,
+        "export_symlinks": export_symlinks,
+        "run_regularly": run_regularly,
+        "show_working_popup": show_working_popup,
+        "run_now": run_now_flag,
+        "period": period,
+    })
+    .to_string();
+    save_action(state, &payload)
+}
+
+pub fn run_typed(state: &mut AppState, name: &str, hashes: &[String]) -> Vec<UiCommand> {
+    let payload = run_payload(name, hashes);
+    run_now(state, &payload)
+}
+
+pub fn test_examples_typed(state: &AppState, query: &str) -> Vec<UiCommand> {
+    let payload = test_payload(query);
+    test_examples(state, &payload)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1805,6 +1875,16 @@ mod tests {
         );
         assert_eq!(name, "pictures");
         assert_eq!(hashes, Some(vec![vec![0xab, 0xcd]]));
+    }
+
+    #[test]
+    fn typed_run_payload_round_trips_through_the_string_parser() {
+        let payload = run_payload("pictures", &["abcd".to_string()]);
+        let (name, hashes) = parse_run_payload(&payload);
+        assert_eq!(name, "pictures");
+        assert_eq!(hashes, Some(vec![vec![0xab, 0xcd]]));
+        assert_eq!(test_payload("  system:everything  "), r#"{"query":"  system:everything  "}"#);
+        assert_eq!(review_checked_text(2, 5), "2 of 5 files checked");
     }
 
     #[test]

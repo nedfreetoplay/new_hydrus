@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 
 use image::{Rgba, RgbaImage};
-use serde_json::Value;
 
 use super::*;
 use crate::gui::app::model::AppState;
@@ -132,18 +131,15 @@ fn dialog_counts_and_can_import_flag_are_rendered() {
     let mut app = state(&directory);
 
     app.local_import_review.add_paths(&[good, missing]);
-    let value: Value = serde_json::from_str(&dialog_json(&app)).unwrap();
+    let dialog = dialog_state(&app);
 
-    assert_eq!(value["counts"]["good"], 1);
-    assert_eq!(value["counts"]["missing"], 1);
-    assert_eq!(value["can_import"], true);
-    assert_eq!(value["good_count"], 1);
-    assert_eq!(value["paths"].as_array().unwrap().len(), 2);
-    assert!(
-        value["summary"]
-            .as_str()
-            .unwrap()
-            .contains("2 files parsed")
+    assert_eq!(dialog.paths.len(), 2);
+    assert!(dialog.can_import);
+    assert_eq!(dialog.import_label, "import now (1)");
+    assert!(dialog.summary.contains("2 files parsed"));
+    assert_eq!(
+        dialog.paths.iter().filter(|row| !row.bad).count(),
+        1
     );
 
     drop(app);
@@ -175,7 +171,7 @@ fn tagging_save_keeps_only_configured_rules() {
 
     assert!(matches!(
         commands.first(),
-        Some(crate::gui::app::UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: _ }))
+        Some(crate::gui::app::UiCommand::LocalImportReviewDialog(_))
     ));
     assert_eq!(app.local_import_review.filename_tagging.len(), 1);
     let rules = app

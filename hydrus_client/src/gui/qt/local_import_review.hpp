@@ -3,8 +3,12 @@
 // WS-15.1.3c2: local import review dialog moved from bridge.hpp/bridge.cpp (move-only split).
 
 #include <QDialog>
-#include <QJsonObject>
 #include <QStringList>
+
+#include <vector>
+
+struct LocalImportPathRow;
+struct LocalImportReviewDialogState;
 
 class QCheckBox;
 class QLabel;
@@ -17,9 +21,9 @@ enum class UiAction : std::int32_t;
 // import the good ones (optionally deleting the originals).
 class HydrusLocalImportReviewDialog : public QDialog {
 public:
-    HydrusLocalImportReviewDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+    HydrusLocalImportReviewDialog(HydrusMainWindow *main, const LocalImportReviewDialogState &state, QWidget *parent = nullptr);
 
-    void set_state(const QJsonObject &state);
+    void set_state(const LocalImportReviewDialogState &state);
 
 private:
     void rebuild();
@@ -27,7 +31,7 @@ private:
     QStringList selected_paths() const;
 
     HydrusMainWindow *main = nullptr;
-    QJsonObject data;
+    std::vector<LocalImportPathRow> paths_state;
     QTableWidget *table = nullptr;
     QLabel *summary = nullptr;
     QLabel *warning = nullptr;

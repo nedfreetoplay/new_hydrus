@@ -14,22 +14,16 @@
 #include <QVBoxLayout>
 
 void HydrusMainWindow::show_export_review(const ExportReviewDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
-    const QString name = state.value(QStringLiteral("name")).toString();
-    const QJsonArray files = state.value(QStringLiteral("files")).toArray();
+    const QString name = to_qstring(typed.name);
+    const int file_count = static_cast<int>(typed.files.size());
 
     QDialog dialog(this);
-    dialog.setWindowTitle(QStringLiteral("review export folder '%1'").arg(name));
+    dialog.setWindowTitle(to_qstring(typed.title));
     dialog.resize(860, 520);
 
     auto *layout = new QVBoxLayout(&dialog);
 
-    auto *summary = new QLabel(
-        QStringLiteral("%1 -> %2\n%3 files match the search. Uncheck anything you do not want "
-                       "to export this run.")
-            .arg(name, state.value(QStringLiteral("destination")).toString())
-            .arg(files.size()),
-        &dialog);
+    auto *summary = new QLabel(to_qstring(typed.summary), &dialog);
     summary->setWordWrap(true);
     layout->addWidget(summary);
 
@@ -53,19 +47,13 @@ void HydrusMainWindow::show_export_review(const ExportReviewDialogState &typed) 
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setTextElideMode(Qt::ElideMiddle);
     table->verticalHeader()->setVisible(false);
-    table->setRowCount(files.size());
+    table->setRowCount(file_count);
 
-    for (int index = 0; index < files.size(); ++index) {
-        const QJsonObject file = files.at(index).toObject();
-        const QString hash = file.value(QStringLiteral("hash")).toString();
-        const bool safe = file.value(QStringLiteral("safe")).toBool();
-        const bool source_exists = file.value(QStringLiteral("source_exists")).toBool(true);
-        const bool exists = file.value(QStringLiteral("exists")).toBool();
-        const QString destination = file.value(QStringLiteral("destination")).toString();
-        const QString root_dir = state.value(QStringLiteral("destination")).toString();
-        const QString relative = destination.startsWith(root_dir)
-            ? destination.mid(root_dir.size()).replace(QLatin1Char('\\'), QLatin1Char('/'))
-            : destination;
+    for (int index = 0; index < file_count; ++index) {
+        const ExportReviewFile &file = typed.files[index];
+        const QString hash = to_qstring(file.hash);
+        const QString destination = to_qstring(file.destination);
+        const QString relative = to_qstring(file.relative);
 
         for (int column = 0; column < 5; ++column) {
             table->setItem(index, column, new QTableWidgetItem());
@@ -73,30 +61,14 @@ void HydrusMainWindow::show_export_review(const ExportReviewDialogState &typed) 
 
         auto *check = table->item(index, 0);
         check->setFlags(Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsSelectable);
-        check->setCheckState(safe && source_exists ? Qt::Checked : Qt::Unchecked);
+        check->setCheckState(file.checked ? Qt::Checked : Qt::Unchecked);
         check->setData(Qt::UserRole, hash);
 
-        QStringList tags;
-
-        for (const QJsonValue &tag : file.value(QStringLiteral("tags")).toArray()) {
-            tags.append(tag.toString());
-        }
-
-        QString note = QStringLiteral("ready");
-
-        if (!source_exists) {
-            note = QStringLiteral("source missing");
-        } else if (!safe) {
-            note = QStringLiteral("unsafe filename");
-        } else if (exists) {
-            note = QStringLiteral("will be updated");
-        }
-
         table->item(index, 1)->setText(hash);
-        table->item(index, 2)->setText(tags.join(QStringLiteral(", ")));
+        table->item(index, 2)->setText(to_qstring(file.tags_text));
         table->item(index, 3)->setText(relative);
         table->item(index, 3)->setToolTip(destination);
-        table->item(index, 4)->setText(note);
+        table->item(index, 4)->setText(to_qstring(file.note));
     }
 
     layout->addWidget(table, 1);

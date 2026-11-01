@@ -7,7 +7,7 @@
 //! a `child -> parent` hierarchy.
 
 use hydrus_core::hydrus_constants::{ContentStatus, ServiceType};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::db::{
     master_tags,
@@ -34,27 +34,23 @@ fn relation_name(relation: TagRelation) -> &'static str {
     }
 }
 
-fn relation_json(
+    fn pair_row(
     relation: TagRelation,
     service_key: &str,
-    pairs: Vec<(String, String)>,
-) -> Vec<Value> {
-    pairs
-        .into_iter()
-        .map(|(first, second)| {
-            json!({
-                "relation": relation_name(relation),
-                "service": service_key,
-                "first": first,
-                "second": second,
-            })
-        })
-        .collect()
+    first: String,
+    second: String,
+) -> crate::gui::qt::api::ffi::TagRelationRow {
+    crate::gui::qt::api::ffi::TagRelationRow {
+        relation: relation_name(relation).to_string(),
+        service: service_key.to_string(),
+        first,
+        second,
+    }
 }
 
 /// Everything the relations dialog needs. Relations for every local tag
 /// service are sent at once so switching service in the dialog is instant.
-pub fn dialog_json(state: &AppState, tab: &str) -> String {
+pub fn dialog_state(state: &AppState, tab: &str) -> crate::gui::qt::api::ffi::TagRelationsDialogState {
     let manager = state.controller.services();
     let db = state.controller.db().db();
     let mut services = Vec::new();
@@ -62,7 +58,10 @@ pub fn dialog_json(state: &AppState, tab: &str) -> String {
 
     for service in manager.get_services(Some(&[ServiceType::LocalTag])) {
         let key = query::hex(&service.service_key);
-        services.push(json!({"key": key, "name": service.name}));
+        services.push(crate::gui::qt::api::ffi::TagRelationService {
+            key: key.clone(),
+            name: service.name.clone(),
+        });
 
         for relation in [TagRelation::Siblings, TagRelation::Parents] {
             let pairs = tag_relations::get_pairs_with_tags(
@@ -73,21 +72,21 @@ pub fn dialog_json(state: &AppState, tab: &str) -> String {
             )
             .unwrap_or_default();
 
-            relations.extend(relation_json(relation, &key, pairs));
+            relations.extend(pairs.into_iter().map(|(first, second)| {
+                pair_row(relation, &key, first, second)
+            }));
         }
     }
 
-    json!({
-        "dialog_id": "tag_relations",
-        "tab": if tab == PARENTS { PARENTS } else { SIBLINGS },
-        "services": services,
-        "relations": relations,
-    })
-    .to_string()
+    crate::gui::qt::api::ffi::TagRelationsDialogState {
+        tab: if tab == PARENTS { PARENTS.to_string() } else { SIBLINGS.to_string() },
+        services,
+        relations,
+    }
 }
 
 pub fn show(state: &AppState, tab: &str) -> Vec<UiCommand> {
-    vec![UiCommand::TagRelationsDialog(crate::gui::qt::api::ffi::TagRelationsDialogState { json: dialog_json(state, tab) })]
+    vec![UiCommand::TagRelationsDialog(dialog_state(state, tab))]
 }
 
 pub fn action(state: &mut AppState, payload: &str, add: bool) -> Vec<UiCommand> {
@@ -164,10 +163,10 @@ pub fn action(state: &mut AppState, payload: &str, add: bool) -> Vec<UiCommand> 
         }
     }
 
-    commands.push(UiCommand::TagRelationsDialog(crate::gui::qt::api::ffi::TagRelationsDialogState { json: dialog_json(
+    commands.push(UiCommand::TagRelationsDialog(dialog_state(
         state,
         relation_name(relation),
-    ) }));
+    )));
     commands.push(UiCommand::Status(render::status(state)));
     commands
 }
@@ -273,15 +272,16 @@ mod tests {
 
     #[test]
     fn pairs_are_rendered_with_their_service_and_kind() {
-        let rows = relation_json(
+        let row = pair_row(
             TagRelation::Parents,
             "aabb",
-            vec![("child".to_string(), "parent".to_string())],
+            "child".to_string(),
+            "parent".to_string(),
         );
 
-        assert_eq!(rows[0]["relation"], PARENTS);
-        assert_eq!(rows[0]["service"], "aabb");
-        assert_eq!(rows[0]["first"], "child");
-        assert_eq!(rows[0]["second"], "parent");
+        assert_eq!(row.relation, PARENTS);
+        assert_eq!(row.service, "aabb");
+        assert_eq!(row.first, "child");
+        assert_eq!(row.second, "parent");
     }
 }

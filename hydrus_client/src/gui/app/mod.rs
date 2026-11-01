@@ -3444,9 +3444,9 @@ impl AppState {
                 return vec![UiCommand::NotifyMessage("no file selected".to_string())];
             };
 
-            return vec![UiCommand::ManageTagsDialog(crate::gui::qt::api::ffi::ManageTagsDialogState { json: 
-                metadata::manage_tags_json(&controller, &hashes).to_string(),
-             })];
+            return vec![UiCommand::ManageTagsDialog(
+                metadata::manage_tags_state(&controller, &hashes),
+             )];
         }
 
         let Some(hash) = query::unhex(hash_hex) else {

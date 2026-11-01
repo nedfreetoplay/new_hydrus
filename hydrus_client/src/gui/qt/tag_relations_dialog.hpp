@@ -3,8 +3,13 @@
 // WS-15.1.3c1: tag relations dialog moved verbatim from bridge.hpp/bridge.cpp (move-only split).
 
 #include <QDialog>
-#include <QJsonObject>
 #include <QString>
+
+#include <vector>
+
+struct TagRelationService;
+struct TagRelationRow;
+struct TagRelationsDialogState;
 
 class QComboBox;
 class QTabWidget;
@@ -14,9 +19,9 @@ class HydrusMainWindow;
 // Tag sibling/parent editor. One service at a time, like Hydrus' dialog.
 class HydrusTagRelationsDialog : public QDialog {
 public:
-    HydrusTagRelationsDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+    HydrusTagRelationsDialog(HydrusMainWindow *main, const TagRelationsDialogState &state, QWidget *parent = nullptr);
 
-    void set_state(const QJsonObject &state);
+    void set_state(const TagRelationsDialogState &state);
 
 private:
     void rebuild();
@@ -26,7 +31,8 @@ private:
     QString current_relation() const;
 
     HydrusMainWindow *main = nullptr;
-    QJsonObject data;
+    std::vector<TagRelationService> services_state;
+    std::vector<TagRelationRow> relations_state;
     QComboBox *services = nullptr;
     QTabWidget *tabs = nullptr;
     QTableWidget *siblings = nullptr;

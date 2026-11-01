@@ -995,22 +995,76 @@ pub(crate) mod ffi {
         json: String,
     }
 
-    /// Tag filter dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// Tag filter dialog contents (WS-15.2.4b).
+    ///
+    /// One row of the dialog rule list: `slice` is the stored filter slice
+    /// (empty means all unnamespaced tags, `:` all namespaced ones),
+    /// `display` its dialog spelling (`*`, `*:*`) and `rule` either
+    /// `whitelist` or `blacklist`.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct TagFilterRule {
+        slice: String,
+        display: String,
+        rule: String,
+    }
+
+    /// Tag filter dialog contents (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct TagFilterDialogState {
-        json: String,
+        service_key: String,
+        name: String,
+        can_purge: bool,
+        filter_string: String,
+        note: String,
+        rules: Vec<TagFilterRule>,
     }
 
-    /// Tag relations dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// One local tag service of the tag relations dialog (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct TagRelationService {
+        key: String,
+        name: String,
+    }
+
+    /// One sibling/parent pair of the tag relations dialog (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct TagRelationRow {
+        relation: String,
+        service: String,
+        first: String,
+        second: String,
+    }
+
+    /// Tag relations dialog contents (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct TagRelationsDialogState {
-        json: String,
+        tab: String,
+        services: Vec<TagRelationService>,
+        relations: Vec<TagRelationRow>,
     }
 
-    /// Manage tags dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// One tag of a manage-tags service, with the count of selected files
+    /// already carrying it (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ManageTagEntry {
+        tag: String,
+        count: i64,
+    }
+
+    /// One local tag service of the manage-tags dialog (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ManageTagService {
+        name: String,
+        tags: Vec<ManageTagEntry>,
+    }
+
+    /// Manage tags dialog contents (WS-15.2.4b). `summary` is formatted in
+    /// Rust (`N file(s) selected`); C++ only assigns it.
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct ManageTagsDialogState {
-        json: String,
+        hashes: Vec<String>,
+        summary: String,
+        services: Vec<ManageTagService>,
     }
 
     /// Timestamps dialog contents: typed optional epoch seconds.
@@ -1039,10 +1093,29 @@ pub(crate) mod ffi {
         entries: Vec<NotificationRow>,
     }
 
-    /// Export review dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// One export-review file row (WS-15.2.4b). `tags_text` is the joined
+    /// `", "` list, `relative` the destination trimmed of the folder root,
+    /// `note` the ready/source-missing/unsafe/will-be-updated verdict and
+    /// `checked` whether the row starts checked. All formatted in Rust.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ExportReviewFile {
+        hash: String,
+        tags_text: String,
+        destination: String,
+        relative: String,
+        note: String,
+        checked: bool,
+    }
+
+    /// Export review dialog contents (WS-15.2.4b). `title` and `summary` are
+    /// formatted in Rust; C++ only assigns them.
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct ExportReviewDialogState {
-        json: String,
+        name: String,
+        destination: String,
+        title: String,
+        summary: String,
+        files: Vec<ExportReviewFile>,
     }
 
     /// One repair-location row.
@@ -1096,10 +1169,30 @@ pub(crate) mod ffi {
         target: String,
     }
 
-    /// Local import review dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// One local-import path row (WS-15.2.4b). `result_text` is the pretty
+    /// mime/result label, `size_display` the formatted size; colours follow
+    /// the `bad`/`sidecar` flags. All formatted in Rust.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct LocalImportPathRow {
+        index: i64,
+        path: String,
+        result_text: String,
+        size_display: String,
+        bad: bool,
+        sidecar: bool,
+    }
+
+    /// Local import review dialog contents (WS-15.2.4b). `summary` (with the
+    /// `note` already appended) and `import_label` (`import now` /
+    /// `import now (N)`) are formatted in Rust; C++ only assigns them.
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct LocalImportReviewDialogState {
-        json: String,
+        summary: String,
+        search_subdirectories: bool,
+        delete_after_success: bool,
+        can_import: bool,
+        import_label: String,
+        paths: Vec<LocalImportPathRow>,
     }
 
     /// Local import tagging dialog contents (WS-15.2.2d).

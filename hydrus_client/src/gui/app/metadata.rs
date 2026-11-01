@@ -49,8 +49,11 @@ pub struct NoteView {
 
 /// Aggregates the tags of every selected file per local tag service. The
 /// manage-tags dialog uses the counts to show how many files already have a
-/// tag.
-pub fn manage_tags_json(controller: &Controller, hashes: &[Vec<u8>]) -> Value {
+/// tag. `summary` (`N file(s) selected`) is formatted here; C++ only assigns it.
+pub fn manage_tags_state(
+    controller: &Controller,
+    hashes: &[Vec<u8>],
+) -> crate::gui::qt::api::ffi::ManageTagsDialogState {
     let db = controller.db().db();
     let mut services = Vec::new();
 
@@ -73,18 +76,25 @@ pub fn manage_tags_json(controller: &Controller, hashes: &[Vec<u8>]) -> Value {
             }
         }
 
-        let tags: Vec<Value> = counts
+        let tags: Vec<crate::gui::qt::api::ffi::ManageTagEntry> = counts
             .into_iter()
-            .map(|(tag, count)| json!({"tag": tag, "count": count}))
+            .map(|(tag, count)| crate::gui::qt::api::ffi::ManageTagEntry {
+                tag,
+                count: count as i64,
+            })
             .collect();
 
-        services.push(json!({"name": service.name, "tags": tags}));
+        services.push(crate::gui::qt::api::ffi::ManageTagService {
+            name: service.name.clone(),
+            tags,
+        });
     }
 
-    json!({
-        "hashes": hashes.iter().map(|hash| query::hex(hash)).collect::<Vec<_>>(),
-        "services": services,
-    })
+    crate::gui::qt::api::ffi::ManageTagsDialogState {
+        hashes: hashes.iter().map(|hash| query::hex(hash)).collect(),
+        summary: format!("{} file(s) selected", hashes.len()),
+        services,
+    }
 }
 
 pub fn metadata_json(controller: &Controller, hash: &[u8]) -> Value {

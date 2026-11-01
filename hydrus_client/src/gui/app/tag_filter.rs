@@ -87,32 +87,26 @@ pub fn open(state: &AppState, payload: &str) -> Vec<UiCommand> {
 
     let filter = filter_from_rules(&rules);
 
-    let entries: Vec<Value> = rules
+    let entries: Vec<crate::gui::qt::api::ffi::TagFilterRule> = rules
         .iter()
-        .map(|(tag_slice, rule)| {
-            json!({
-                "slice": tag_slice,
-                "display": display_slice(tag_slice),
-                "rule": rule,
-            })
+        .map(|(tag_slice, rule)| crate::gui::qt::api::ffi::TagFilterRule {
+            slice: tag_slice.clone(),
+            display: display_slice(tag_slice),
+            rule: rule.clone(),
         })
         .collect();
 
-    let value = json!({
-        "service_key": match &target {
+    vec![UiCommand::TagFilterDialog(crate::gui::qt::api::ffi::TagFilterDialogState {
+        service_key: match &target {
             Target::Local(service) => services::hex_encode(&service.service_key),
             Target::Remote { key, .. } => key.clone(),
         },
-        "name": target.name(),
-        "remote": target.is_remote(),
-        "can_purge": target.can_purge(),
-        "rules": entries,
-        "filter_string": filter.to_filter_string(),
-        "permitted_string": filter.to_permitted_string(),
-        "note": note,
-    });
-
-    vec![UiCommand::TagFilterDialog(crate::gui::qt::api::ffi::TagFilterDialogState { json: value.to_string() })]
+        name: target.name().to_string(),
+        can_purge: target.can_purge(),
+        filter_string: filter.to_filter_string(),
+        note,
+        rules: entries,
+    })]
 }
 
 pub fn save(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -582,14 +576,16 @@ mod tests {
             .any(|(slice, rule)| slice == "character:" && rule == "whitelist"));
 
         let opened = open(&state, &key);
-        let json = match opened.first() {
-            Some(UiCommand::TagFilterDialog(state)) => state.json.clone(),
+        let dialog = match opened.first() {
+            Some(UiCommand::TagFilterDialog(state)) => state,
             other => panic!("unexpected command: {other:?}"),
         };
-        let value: Value = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(value["rules"].as_array().unwrap().len(), 3);
-        assert_eq!(value["note"], "");
+        assert_eq!(dialog.rules.len(), 3);
+        assert_eq!(dialog.note, "");
+        assert!(dialog.rules.iter().any(|rule| rule.slice == "character:"
+            && rule.display == "character:"
+            && rule.rule == "whitelist"));
 
         let _ = std::fs::remove_dir_all(directory);
     }

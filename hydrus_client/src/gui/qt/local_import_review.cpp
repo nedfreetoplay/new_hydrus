@@ -17,7 +17,7 @@
 #include <QVBoxLayout>
 
 HydrusLocalImportReviewDialog::HydrusLocalImportReviewDialog(
-    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    HydrusMainWindow *main_window, const LocalImportReviewDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("review files to import"));
     setObjectName(QStringLiteral("hydrus_local_import_review"));
@@ -177,21 +177,22 @@ void HydrusLocalImportReviewDialog::send(UiAction action, const QJsonObject &pay
     main->notify(action, QString(), payload.isEmpty() ? QString() : json_payload(payload));
 }
 
-void HydrusLocalImportReviewDialog::set_state(const QJsonObject &state) {
-    data = state;
+void HydrusLocalImportReviewDialog::set_state(const LocalImportReviewDialogState &state) {
+    paths_state.clear();
 
-    summary->setText(state.value(QStringLiteral("summary")).toString()
-                     + (state.value(QStringLiteral("note")).toString().isEmpty()
-                            ? QString()
-                            : QStringLiteral("\n%1").arg(state.value(QStringLiteral("note")).toString())));
+    for (const LocalImportPathRow &row : state.paths) {
+        paths_state.push_back(row);
+    }
+
+    summary->setText(to_qstring(state.summary));
 
     {
         QSignalBlocker blocker(search);
-        search->setChecked(state.value(QStringLiteral("search_subdirectories")).toBool(true));
+        search->setChecked(state.search_subdirectories);
     }
     {
         QSignalBlocker blocker(delete_after_success);
-        const bool checked = state.value(QStringLiteral("delete_after_success")).toBool(false);
+        const bool checked = state.delete_after_success;
         delete_after_success->setChecked(checked);
         warning->setText(checked ? QStringLiteral("YOUR ORIGINAL FILES WILL BE DELETED")
                                  : QString());
@@ -202,31 +203,30 @@ void HydrusLocalImportReviewDialog::set_state(const QJsonObject &state) {
     table->setSortingEnabled(false);
     table->setRowCount(0);
 
-    for (const QJsonValue &value : state.value(QStringLiteral("paths")).toArray()) {
-        const QJsonObject parse = value.toObject();
-        const QString path = parse.value(QStringLiteral("path")).toString();
+    for (const LocalImportPathRow &parse : paths_state) {
+        const QString path = to_qstring(parse.path);
         const int row = table->rowCount();
         table->insertRow(row);
 
-        table->setItem(row, 0, new QTableWidgetItem(QString::number(parse.value(QStringLiteral("index")).toInt())));
+        table->setItem(row, 0, new QTableWidgetItem(QString::number(parse.index)));
 
         auto *path_item = new QTableWidgetItem(path);
         path_item->setData(Qt::UserRole, path);
         path_item->setToolTip(path);
         table->setItem(row, 1, path_item);
 
-        auto *result_item = new QTableWidgetItem(parse.value(QStringLiteral("result_text")).toString());
+        auto *result_item = new QTableWidgetItem(to_qstring(parse.result_text));
 
-        if (parse.value(QStringLiteral("bad")).toBool()) {
+        if (parse.bad) {
             result_item->setForeground(QColor(220, 110, 110));
-        } else if (parse.value(QStringLiteral("sidecar")).toBool()) {
+        } else if (parse.sidecar) {
             result_item->setForeground(QColor(170, 170, 170));
         } else {
             result_item->setForeground(QColor(120, 190, 120));
         }
 
         table->setItem(row, 2, result_item);
-        table->setItem(row, 3, new QTableWidgetItem(parse.value(QStringLiteral("size_display")).toString()));
+        table->setItem(row, 3, new QTableWidgetItem(to_qstring(parse.size_display)));
     }
 
     table->setSortingEnabled(true);
@@ -237,24 +237,21 @@ void HydrusLocalImportReviewDialog::set_state(const QJsonObject &state) {
         }
     }
 
-    const bool can_import = state.value(QStringLiteral("can_import")).toBool(false);
+    const bool can_import = state.can_import;
     import_button->setEnabled(can_import);
     tag_button->setEnabled(can_import);
-    import_button->setText(can_import
-        ? QStringLiteral("import now (%1)").arg(state.value(QStringLiteral("good_count")).toInt())
-        : QStringLiteral("import now"));
+    import_button->setText(to_qstring(state.import_label));
 }
 
 void HydrusMainWindow::show_local_import_review(const LocalImportReviewDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (local_import_review_dialog == nullptr) {
-        local_import_review_dialog = new HydrusLocalImportReviewDialog(this, state, this);
+        local_import_review_dialog = new HydrusLocalImportReviewDialog(this, typed, this);
         connect(local_import_review_dialog, &QObject::destroyed, this, [this]() {
             local_import_review_dialog = nullptr;
         });
         local_import_review_dialog->show();
     } else {
-        local_import_review_dialog->set_state(state);
+        local_import_review_dialog->set_state(typed);
         local_import_review_dialog->raise();
         local_import_review_dialog->activateWindow();
     }

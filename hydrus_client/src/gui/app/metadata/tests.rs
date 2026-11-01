@@ -37,16 +37,13 @@ fn manage_tags_counts_tags_across_the_selection() {
     .unwrap();
     mappings::add_mappings(db, service, ContentStatus::Current, second, &[shared]).unwrap();
 
-    let json = manage_tags_json(&controller, &[vec![0x31; 32], vec![0x32; 32]]);
-    let tags = json["services"][0]["tags"].as_array().unwrap();
-    let counts: BTreeMap<&str, i64> = tags
+    let state = manage_tags_state(&controller, &[vec![0x31; 32], vec![0x32; 32]]);
+    assert_eq!(state.summary, "2 file(s) selected");
+    assert_eq!(state.hashes.len(), 2);
+    let counts: BTreeMap<&str, i64> = state.services[0]
+        .tags
         .iter()
-        .map(|value| {
-            (
-                value["tag"].as_str().unwrap(),
-                value["count"].as_i64().unwrap(),
-            )
-        })
+        .map(|entry| (entry.tag.as_str(), entry.count))
         .collect();
 
     assert_eq!(counts.get("shared tag"), Some(&2));

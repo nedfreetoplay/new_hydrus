@@ -1352,6 +1352,7 @@ pub fn review(state: &AppState, payload: &str) -> Vec<UiCommand> {
 
     let mut entries = Vec::with_capacity(hashes.len());
     let root = std::fs::canonicalize(&folder.path).unwrap_or_else(|_| folder.path.clone());
+    let root_text = folder.path.display().to_string();
 
     for (index, hash) in hashes.iter().enumerate() {
         let Some(hash_id) = query::hash_id_for(&state.controller, hash) else {
@@ -1382,26 +1383,48 @@ pub fn review(state: &AppState, payload: &str) -> Vec<UiCommand> {
                 path.with_file_name(format!("{elided}{extension}"))
             });
 
-        entries.push(serde_json::json!({
-            "hash": query::hex(hash),
-            "tags": tags,
-            "mime": mime.mimetype_str(),
-            "destination": destination.as_ref().map(|path| path.display().to_string()).unwrap_or_default(),
-            "safe": destination.is_some(),
-            "exists": destination.as_ref().is_some_and(|path| path.exists()),
-            "source_exists": query::file_path(&state.controller, hash).is_some(),
-        }));
+        let safe = destination.is_some();
+        let source_exists = query::file_path(&state.controller, hash).is_some();
+        let exists = destination.as_ref().is_some_and(|path| path.exists());
+        let destination_text = destination
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_default();
+        let relative = destination_text
+            .strip_prefix(&root_text)
+            .map(|rest| rest.replace('\\', "/"))
+            .unwrap_or_else(|| destination_text.clone());
+        let note = if !source_exists {
+            "source missing"
+        } else if !safe {
+            "unsafe filename"
+        } else if exists {
+            "will be updated"
+        } else {
+            "ready"
+        };
+
+        entries.push(crate::gui::qt::api::ffi::ExportReviewFile {
+            hash: query::hex(hash),
+            tags_text: tags.join(", "),
+            destination: destination_text,
+            relative,
+            note: note.to_string(),
+            checked: safe && source_exists,
+        });
     }
 
-    vec![UiCommand::ExportReviewDialog(crate::gui::qt::api::ffi::ExportReviewDialogState { json: 
-        serde_json::json!({
-            "name": folder.name,
-            "destination": folder.path.display().to_string(),
-            "query": folder.query,
-            "files": entries,
-        })
-        .to_string(),
-     })]
+    let count = entries.len();
+    vec![UiCommand::ExportReviewDialog(crate::gui::qt::api::ffi::ExportReviewDialogState {
+        name: folder.name.clone(),
+        destination: root_text.clone(),
+        title: format!("review export folder '{}'", folder.name),
+        summary: format!(
+            "{} -> {}\n{} files match the search. Uncheck anything you do not want to export this run.",
+            folder.name, root_text, count,
+        ),
+        files: entries,
+    })]
 }
 
 pub fn folder_json(folder: &ExportFolderEntry) -> serde_json::Value {

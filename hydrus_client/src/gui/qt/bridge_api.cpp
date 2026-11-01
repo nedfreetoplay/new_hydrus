@@ -73,7 +73,7 @@ void hydrus_confirm_action(
 }
 
 void hydrus_show_manage_tags(HydrusMainWindow &window, const ManageTagsDialogState &state) {
-    HydrusManageTagsDialog dialog(&window, parse_object(rust::Str(state.json.data(), state.json.size())), &window);
+    HydrusManageTagsDialog dialog(&window, state, &window);
     dialog.exec();
 }
 

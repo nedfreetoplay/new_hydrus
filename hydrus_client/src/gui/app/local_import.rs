@@ -393,46 +393,53 @@ pub struct ReviewCounts {
     pub not_parsed: usize,
 }
 
-pub fn dialog_json(state: &AppState) -> String {
-    dialog_json_for(state, false, "")
+pub fn dialog_state(state: &AppState) -> crate::gui::qt::api::ffi::LocalImportReviewDialogState {
+    dialog_state_for(state, false, "")
 }
 
-fn dialog_json_for(state: &AppState, import_after_save: bool, note: &str) -> String {
+fn dialog_state_for(
+    state: &AppState,
+    import_after_save: bool,
+    note: &str,
+) -> crate::gui::qt::api::ffi::LocalImportReviewDialogState {
     let review = &state.local_import_review;
     let counts = review.counts();
 
-    let paths: Vec<Value> = review
+    let paths: Vec<crate::gui::qt::api::ffi::LocalImportPathRow> = review
         .paths
         .iter()
-        .map(|parse| {
-            json!({
-                "index": parse.index,
-                "path": parse.path.display().to_string(),
-                "result": parse.result,
-                "result_text": parse.pretty_mime(),
-                "size": parse.size,
-                "size_display": parse.size_display(),
-                "bad": parse.result.is_bad(),
-                "sidecar": parse.result == LocalFileResult::Sidecar,
-            })
+        .map(|parse| crate::gui::qt::api::ffi::LocalImportPathRow {
+            index: parse.index as i64,
+            path: parse.path.display().to_string(),
+            result_text: parse.pretty_mime(),
+            size_display: parse.size_display(),
+            bad: parse.result.is_bad(),
+            sidecar: parse.result == LocalFileResult::Sidecar,
         })
         .collect();
 
-    json!({
-        "title": "review files to import",
-        "summary": review.summary(),
-        "paths": paths,
-        "counts": counts,
-        "search_subdirectories": review.search_subdirectories,
-        "delete_after_success": review.delete_after_success,
-        "filename_tagging": review.filename_tagging,
-        "tag_services": tag_services(state),
-        "can_import": counts.good > 0,
-        "good_count": counts.good,
-        "import_after_save": import_after_save,
-        "note": note,
-    })
-    .to_string()
+    let _ = import_after_save;
+    let summary = review.summary()
+        + (if note.is_empty() {
+            String::new()
+        } else {
+            format!("\n{note}")
+        })
+        .as_str();
+    let good = counts.good as i64;
+
+    crate::gui::qt::api::ffi::LocalImportReviewDialogState {
+        summary,
+        search_subdirectories: review.search_subdirectories,
+        delete_after_success: review.delete_after_success,
+        can_import: counts.good > 0,
+        import_label: if counts.good > 0 {
+            format!("import now ({good})")
+        } else {
+            "import now".to_string()
+        },
+        paths,
+    }
 }
 
 fn tag_services(state: &AppState) -> Vec<Value> {
@@ -453,7 +460,7 @@ fn tag_services(state: &AppState) -> Vec<Value> {
 pub fn open(state: &mut AppState) -> Vec<UiCommand> {
     state.local_import_review.reset();
 
-    vec![UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: dialog_json(state) })]
+    vec![UiCommand::LocalImportReviewDialog(dialog_state(state))]
 }
 
 pub fn open_paths(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -472,7 +479,7 @@ pub fn add_paths(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 
     state.local_import_review.add_paths(&paths);
 
-    vec![UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: dialog_json(state) })]
+    vec![UiCommand::LocalImportReviewDialog(dialog_state(state))]
 }
 
 pub fn remove_paths(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -487,7 +494,7 @@ pub fn remove_paths(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     let removed = state.local_import_review.remove_paths(&paths);
 
     vec![
-        UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: dialog_json(state) }),
+        UiCommand::LocalImportReviewDialog(dialog_state(state)),
         UiCommand::NotifyMessage(format!("removed {removed} path(s)")),
     ]
 }
@@ -499,7 +506,7 @@ pub fn set_search_subdirectories(state: &mut AppState, payload: &str) -> Vec<UiC
         .and_then(Value::as_bool)
         .unwrap_or_else(|| payload.trim().eq_ignore_ascii_case("true"));
 
-    vec![UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: dialog_json(state) })]
+    vec![UiCommand::LocalImportReviewDialog(dialog_state(state))]
 }
 
 pub fn set_delete_after_success(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -509,7 +516,7 @@ pub fn set_delete_after_success(state: &mut AppState, payload: &str) -> Vec<UiCo
         .and_then(Value::as_bool)
         .unwrap_or_else(|| payload.trim().eq_ignore_ascii_case("true"));
 
-    vec![UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: dialog_json(state) })]
+    vec![UiCommand::LocalImportReviewDialog(dialog_state(state))]
 }
 
 pub fn tagging_open(state: &mut AppState) -> Vec<UiCommand> {
@@ -568,7 +575,7 @@ pub fn tagging_save(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     if import_after_save {
         import_now(state)
     } else {
-        vec![UiCommand::LocalImportReviewDialog(crate::gui::qt::api::ffi::LocalImportReviewDialogState { json: dialog_json(state) })]
+        vec![UiCommand::LocalImportReviewDialog(dialog_state(state))]
     }
 }
 

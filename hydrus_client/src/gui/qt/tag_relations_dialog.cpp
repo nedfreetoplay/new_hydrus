@@ -21,7 +21,7 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-HydrusTagRelationsDialog::HydrusTagRelationsDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+HydrusTagRelationsDialog::HydrusTagRelationsDialog(HydrusMainWindow *main_window, const TagRelationsDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("tag siblings and parents"));
     setAttribute(Qt::WA_DeleteOnClose, true);
@@ -84,18 +84,25 @@ HydrusTagRelationsDialog::HydrusTagRelationsDialog(HydrusMainWindow *main_window
     set_state(state);
 }
 
-void HydrusTagRelationsDialog::set_state(const QJsonObject &state) {
-    const bool first_load = data.isEmpty();
-    data = state;
+void HydrusTagRelationsDialog::set_state(const TagRelationsDialogState &state) {
+    const bool first_load = relations_state.empty() && services_state.empty();
+    services_state.clear();
+    relations_state.clear();
+
+    for (const TagRelationService &service : state.services) {
+        services_state.push_back(service);
+    }
+
+    for (const TagRelationRow &relation : state.relations) {
+        relations_state.push_back(relation);
+    }
 
     const QString previous = services->currentData().toString();
     QSignalBlocker blocker(services);
     services->clear();
 
-    for (const QJsonValue &value : state.value(QStringLiteral("services")).toArray()) {
-        const QJsonObject service = value.toObject();
-        services->addItem(service.value(QStringLiteral("name")).toString(),
-                          service.value(QStringLiteral("key")).toString());
+    for (const TagRelationService &service : services_state) {
+        services->addItem(to_qstring(service.name), to_qstring(service.key));
     }
 
     if (services->count() == 0) {
@@ -113,7 +120,7 @@ void HydrusTagRelationsDialog::set_state(const QJsonObject &state) {
     blocker.unblock();
 
     if (first_load) {
-        const QString tab = state.value(QStringLiteral("tab")).toString();
+        const QString tab = to_qstring(state.tab);
         tabs->setCurrentIndex(tab == QStringLiteral("parents") ? 1 : 0);
     }
 
@@ -126,22 +133,20 @@ void HydrusTagRelationsDialog::rebuild() {
 
     const QString key = services->currentData().toString();
 
-    for (const QJsonValue &value : data.value(QStringLiteral("relations")).toArray()) {
-        const QJsonObject relation = value.toObject();
-
-        if (relation.value(QStringLiteral("service")).toString() != key) {
+    for (const TagRelationRow &relation : relations_state) {
+        if (to_qstring(relation.service) != key) {
             continue;
         }
 
-        const bool is_parent = relation.value(QStringLiteral("relation")).toString() == QStringLiteral("parents");
+        const bool is_parent = to_qstring(relation.relation) == QStringLiteral("parents");
         QTableWidget *table = is_parent ? parents : siblings;
         const int row = table->rowCount();
         table->setRowCount(row + 1);
 
-        auto *first = new QTableWidgetItem(relation.value(QStringLiteral("first")).toString());
-        first->setData(Qt::UserRole, relation.value(QStringLiteral("first")).toString());
-        auto *second = new QTableWidgetItem(relation.value(QStringLiteral("second")).toString());
-        second->setData(Qt::UserRole, relation.value(QStringLiteral("second")).toString());
+        auto *first = new QTableWidgetItem(to_qstring(relation.first));
+        first->setData(Qt::UserRole, to_qstring(relation.first));
+        auto *second = new QTableWidgetItem(to_qstring(relation.second));
+        second->setData(Qt::UserRole, to_qstring(relation.second));
 
         table->setItem(row, 0, first);
         table->setItem(row, 1, second);
@@ -217,15 +222,14 @@ void HydrusTagRelationsDialog::remove_selected() {
 }
 
 void HydrusMainWindow::show_tag_relations(const TagRelationsDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (tag_relations_dialog == nullptr) {
-        tag_relations_dialog = new HydrusTagRelationsDialog(this, state, this);
+        tag_relations_dialog = new HydrusTagRelationsDialog(this, typed, this);
         connect(tag_relations_dialog, &QObject::destroyed, this, [this]() {
             tag_relations_dialog = nullptr;
         });
         tag_relations_dialog->show();
     } else {
-        tag_relations_dialog->set_state(state);
+        tag_relations_dialog->set_state(typed);
     }
 
     tag_relations_dialog->raise();

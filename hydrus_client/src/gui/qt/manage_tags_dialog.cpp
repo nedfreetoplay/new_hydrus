@@ -19,8 +19,8 @@
 #include <QRegularExpression>
 #include <QVBoxLayout>
 
-HydrusManageTagsDialog::HydrusManageTagsDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
-    : QDialog(parent), main(main_window), data(state) {
+HydrusManageTagsDialog::HydrusManageTagsDialog(HydrusMainWindow *main_window, const ManageTagsDialogState &state, QWidget *parent)
+    : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("manage tags"));
     resize(460, 600);
 
@@ -51,16 +51,21 @@ HydrusManageTagsDialog::HydrusManageTagsDialog(HydrusMainWindow *main_window, co
     connect(close_box, &QDialogButtonBox::rejected, this, &QDialog::accept);
     layout->addWidget(close_box);
 
-    for (const QJsonValue &value : data.value(QStringLiteral("services")).toArray()) {
-        const QString name = value.toObject().value(QStringLiteral("name")).toString();
+    for (const ManageTagService &service : state.services) {
+        const QString name = to_qstring(service.name);
 
         if (!name.isEmpty()) {
             services->addItem(name);
         }
+
+        services_state.push_back(service);
     }
 
-    summary->setText(QStringLiteral("%1 file(s) selected")
-        .arg(data.value(QStringLiteral("hashes")).toArray().size()));
+    for (const rust::String &hash : state.hashes) {
+        hashes_state.push_back(std::string(hash.data(), hash.size()));
+    }
+
+    summary->setText(to_qstring(state.summary));
 
     connect(services, &QComboBox::currentTextChanged, this, [this](const QString &) {
         rebuild();
@@ -72,27 +77,30 @@ HydrusManageTagsDialog::HydrusManageTagsDialog(HydrusMainWindow *main_window, co
     rebuild();
 }
 
-QJsonObject HydrusManageTagsDialog::current_service() const {
+const ManageTagService *HydrusManageTagsDialog::current_service() const {
     const QString name = services->currentText();
 
-    for (const QJsonValue &value : data.value(QStringLiteral("services")).toArray()) {
-        const QJsonObject service = value.toObject();
-
-        if (service.value(QStringLiteral("name")).toString() == name) {
-            return service;
+    for (const ManageTagService &service : services_state) {
+        if (to_qstring(service.name) == name) {
+            return &service;
         }
     }
 
-    return {};
+    return nullptr;
 }
 
 void HydrusManageTagsDialog::rebuild() {
     tags->clear();
 
-    for (const QJsonValue &value : current_service().value(QStringLiteral("tags")).toArray()) {
-        const QJsonObject tag = value.toObject();
-        const QString name = tag.value(QStringLiteral("tag")).toString();
-        const int count = tag.value(QStringLiteral("count")).toInt();
+    const ManageTagService *service = current_service();
+
+    if (service == nullptr) {
+        return;
+    }
+
+    for (const ManageTagEntry &entry : service->tags) {
+        const QString name = to_qstring(entry.tag);
+        const int count = static_cast<int>(entry.count);
         auto *item = new QListWidgetItem(
             count > 1 ? QStringLiteral("%1 (%2)").arg(name).arg(count) : name,
             tags);
@@ -105,7 +113,11 @@ void HydrusManageTagsDialog::send(const QStringList &values, const QString &oper
         return;
     }
 
-    QJsonArray hashes = data.value(QStringLiteral("hashes")).toArray();
+    QJsonArray hashes;
+
+    for (const std::string &hash : hashes_state) {
+        hashes.append(QString::fromStdString(hash));
+    }
     QJsonArray array;
 
     for (const QString &value : values) {

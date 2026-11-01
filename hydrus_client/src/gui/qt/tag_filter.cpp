@@ -16,10 +16,9 @@
 #include <QVBoxLayout>
 
 void HydrusMainWindow::show_tag_filter(const TagFilterDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
-    const QString service_key = state.value(QStringLiteral("service_key")).toString();
-    const QString name = state.value(QStringLiteral("name")).toString();
-    const bool can_purge = state.value(QStringLiteral("can_purge")).toBool(false);
+    const QString service_key = to_qstring(typed.service_key);
+    const QString name = to_qstring(typed.name);
+    const bool can_purge = typed.can_purge;
 
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("tag filter: ") + name);
@@ -29,12 +28,12 @@ void HydrusMainWindow::show_tag_filter(const TagFilterDialogState &typed) {
     auto *layout = new QVBoxLayout(&dialog);
 
     auto *summary = new QLabel(
-        QStringLiteral("current filter: %1").arg(state.value(QStringLiteral("filter_string")).toString()),
+        QStringLiteral("current filter: %1").arg(to_qstring(typed.filter_string)),
         &dialog);
     summary->setWordWrap(true);
     layout->addWidget(summary);
 
-    const QString note = state.value(QStringLiteral("note")).toString();
+    const QString note = to_qstring(typed.note);
 
     if (!note.isEmpty()) {
         auto *note_label = new QLabel(note, &dialog);
@@ -64,10 +63,9 @@ void HydrusMainWindow::show_tag_filter(const TagFilterDialogState &typed) {
     QStringList whitelist_lines;
     QStringList blacklist_lines;
 
-    for (const QJsonValue &entry : state.value(QStringLiteral("rules")).toArray()) {
-        const QJsonObject rule = entry.toObject();
-        const QString display = rule.value(QStringLiteral("display")).toString();
-        const QString kind = rule.value(QStringLiteral("rule")).toString();
+    for (const TagFilterRule &rule : typed.rules) {
+        const QString display = to_qstring(rule.display);
+        const QString kind = to_qstring(rule.rule);
 
         if (kind == QStringLiteral("whitelist")) {
             whitelist_lines.append(display);

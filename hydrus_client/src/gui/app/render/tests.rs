@@ -263,6 +263,9 @@ fn status_text_helpers_cover_query_downloader_and_busy() {
         message: String::new(),
     };
     assert_eq!(busy_text(&running_import, None), "1/2");
+    assert_eq!(notification_summary(0), "0 message(s)");
+    assert_eq!(notification_summary(1), "1 message(s)");
+    assert_eq!(notification_summary(12), "12 message(s)");
     assert_eq!(
         busy_text(&idle_import, Some(("gallery", 3, 7))),
         "gallery: 3/7"

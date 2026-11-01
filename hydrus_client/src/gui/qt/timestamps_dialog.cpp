@@ -1,5 +1,5 @@
 
-// WS-15.1.3c2: edit timestamps dialog moved verbatim from bridge.cpp (move-only split).
+// WS-15.2.4b: typed edit-timestamps dialog (no QJsonObject).
 
 #include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
@@ -12,8 +12,8 @@
 #include <QJsonDocument>
 #include <QVBoxLayout>
 
-HydrusTimestampsDialog::HydrusTimestampsDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
-    : QDialog(parent), main(main_window), hash(state.value(QStringLiteral("hash")).toString()) {
+HydrusTimestampsDialog::HydrusTimestampsDialog(HydrusMainWindow *main_window, const TimestampsDialogState &state, QWidget *parent)
+    : QDialog(parent), main(main_window), hash(to_qstring(state.hash)) {
     setWindowTitle(QStringLiteral("edit timestamps"));
     resize(420, 220);
 
@@ -34,8 +34,8 @@ HydrusTimestampsDialog::HydrusTimestampsDialog(HydrusMainWindow *main_window, co
 
     layout->addLayout(form);
 
-    set_time(archived_enabled, archived, state.value(QStringLiteral("archived")));
-    set_time(modified_enabled, modified, state.value(QStringLiteral("modified")));
+    set_time(archived_enabled, archived, state.has_archived, static_cast<long long>(state.archived));
+    set_time(modified_enabled, modified, state.has_modified, static_cast<long long>(state.modified));
 
     auto *buttons = new QDialogButtonBox(
         QDialogButtonBox::Save | QDialogButtonBox::Cancel,
@@ -45,10 +45,10 @@ HydrusTimestampsDialog::HydrusTimestampsDialog(HydrusMainWindow *main_window, co
     layout->addWidget(buttons);
 }
 
-void HydrusTimestampsDialog::set_time(QCheckBox *enabled, QDateTimeEdit *editor, const QJsonValue &value) {
-    if (value.isDouble()) {
+void HydrusTimestampsDialog::set_time(QCheckBox *enabled, QDateTimeEdit *editor, bool has_value, long long secs) {
+    if (has_value) {
         enabled->setChecked(true);
-        editor->setDateTime(QDateTime::fromSecsSinceEpoch(value.toInteger()));
+        editor->setDateTime(QDateTime::fromSecsSinceEpoch(secs));
     } else {
         enabled->setChecked(false);
         editor->setDateTime(QDateTime::currentDateTime());

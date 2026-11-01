@@ -13,6 +13,7 @@ use serde_json::{json, Value};
 use crate::files::ClientFilesManager;
 
 use super::{render, AppState, UiCommand};
+use crate::gui::qt::api::ffi::{OrphanFileRow, OrphanFilesDialogState};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OrphanFile {
@@ -161,6 +162,52 @@ fn decode_hex(value: &str) -> Option<Vec<u8>> {
         .collect()
 }
 
+pub fn dialog_state(state: &AppState) -> OrphanFilesDialogState {
+    match scan(state) {
+        Ok(orphans) => orphans_state(&orphans),
+        Err(error) => OrphanFilesDialogState {
+            status: format!("could not scan the file storage: {error}"),
+            bytes_display: "0 B".to_string(),
+            files: 0,
+            thumbnails: 0,
+            bytes: 0,
+            orphans: Vec::new(),
+        },
+    }
+}
+
+fn orphans_state(orphans: &[OrphanFile]) -> OrphanFilesDialogState {
+    let thumbnails = orphans.iter().filter(|orphan| orphan.thumbnail).count() as i64;
+    let files = orphans.len() as i64 - thumbnails;
+    let bytes: u64 = orphans.iter().map(|orphan| orphan.size).sum();
+    let rows = orphans
+        .iter()
+        .map(|orphan| OrphanFileRow {
+            kind: if orphan.thumbnail {
+                "thumbnail".to_string()
+            } else {
+                "file".to_string()
+            },
+            size_display: human_bytes(orphan.size),
+            hash: orphan.hash.clone(),
+            path: orphan.path.to_string_lossy().to_string(),
+        })
+        .collect();
+
+    OrphanFilesDialogState {
+        status: match orphans.len() {
+            0 => "no orphan files found".to_string(),
+            1 => "1 orphan file".to_string(),
+            count => format!("{count} orphan files"),
+        },
+        bytes_display: human_bytes(bytes),
+        files,
+        thumbnails,
+        bytes: bytes as i64,
+        orphans: rows,
+    }
+}
+
 pub fn dialog_json(state: &AppState) -> String {
     match scan(state) {
         Ok(orphans) => orphans_json(&orphans),
@@ -198,7 +245,7 @@ fn orphans_json(orphans: &[OrphanFile]) -> String {
 }
 
 pub fn open(state: &AppState) -> Vec<UiCommand> {
-    vec![UiCommand::OrphanFilesDialog(crate::gui::qt::api::ffi::OrphanFilesDialogState { json: dialog_json(state) })]
+    vec![UiCommand::OrphanFilesDialog(dialog_state(state))]
 }
 
 pub fn delete(state: &AppState, payload: &str) -> Vec<UiCommand> {
@@ -403,7 +450,7 @@ fn parse_paths(payload: &str) -> Result<Vec<PathBuf>, String> {
 
 fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
-        UiCommand::UpdateOrphanFiles(crate::gui::qt::api::ffi::OrphanFilesDialogState { json: dialog_json(state) }),
+        UiCommand::UpdateOrphanFiles(dialog_state(state)),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
@@ -413,7 +460,7 @@ fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
 fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::NotifyMessage(message.into()),
-        UiCommand::UpdateOrphanFiles(crate::gui::qt::api::ffi::OrphanFilesDialogState { json: dialog_json(state) }),
+        UiCommand::UpdateOrphanFiles(dialog_state(state)),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
     ]

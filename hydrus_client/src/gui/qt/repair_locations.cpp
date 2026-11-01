@@ -1,5 +1,5 @@
 
-// WS-15.1.3c2: repair file locations dialog moved verbatim from bridge.cpp (move-only split).
+// WS-15.2.4b: typed repair-locations dialog (no QJsonObject in set_state).
 
 #include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
@@ -9,6 +9,8 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
@@ -16,7 +18,7 @@
 #include <QVBoxLayout>
 
 HydrusRepairFileLocationsDialog::HydrusRepairFileLocationsDialog(
-    HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+    HydrusMainWindow *main_window, const RepairFileLocationsDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("repair file locations"));
     setObjectName(QStringLiteral("hydrus_repair_file_locations"));
@@ -102,7 +104,7 @@ HydrusRepairFileLocationsDialog::HydrusRepairFileLocationsDialog(
 
         QJsonObject payload;
         payload.insert(QStringLiteral("updates"), updates);
-        send(UiAction::RepairLocationsSet, payload);
+        send(UiAction::RepairLocationsSet, QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)));
     });
     connect(probe_button, &QPushButton::clicked, this, [this]() {
         const QString path = QFileDialog::getExistingDirectory(
@@ -115,12 +117,12 @@ HydrusRepairFileLocationsDialog::HydrusRepairFileLocationsDialog(
 
         QJsonObject payload;
         payload.insert(QStringLiteral("path"), path);
-        send(UiAction::RepairLocationsProbe, payload);
+        send(UiAction::RepairLocationsProbe, QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)));
     });
     connect(apply_button, &QPushButton::clicked, this, [this]() {
         QJsonObject payload;
         payload.insert(QStringLiteral("create_thumbnails"), create_thumbnails->isChecked());
-        send(UiAction::RepairLocationsApply, payload);
+        send(UiAction::RepairLocationsApply, QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)));
     });
     connect(close_button, &QPushButton::clicked, this, &QDialog::close);
 
@@ -145,16 +147,15 @@ QStringList HydrusRepairFileLocationsDialog::selected_prefixes() const {
     return prefixes;
 }
 
-void HydrusRepairFileLocationsDialog::send(UiAction action, const QJsonObject &payload) {
-    main->notify(action, QString(), payload.isEmpty() ? QString() : json_payload(payload));
+void HydrusRepairFileLocationsDialog::send(UiAction action, const QString &payload) {
+    main->notify(action, QString(), payload);
 }
 
-void HydrusRepairFileLocationsDialog::set_state(const QJsonObject &state) {
-    data = state;
-    summary->setText(state.value(QStringLiteral("summary")).toString());
-    message->setText(state.value(QStringLiteral("message")).toString());
+void HydrusRepairFileLocationsDialog::set_state(const RepairFileLocationsDialogState &state) {
+    summary->setText(to_qstring(state.summary));
+    message->setText(to_qstring(state.message));
 
-    const QString error = state.value(QStringLiteral("error")).toString();
+    const QString error = to_qstring(state.error);
 
     if (!error.isEmpty()) {
         QMessageBox::warning(this, windowTitle(), error);
@@ -162,18 +163,17 @@ void HydrusRepairFileLocationsDialog::set_state(const QJsonObject &state) {
 
     table->setRowCount(0);
 
-    for (const QJsonValue &value : state.value(QStringLiteral("rows")).toArray()) {
-        const QJsonObject row = value.toObject();
+    for (const RepairLocationRow &row : state.rows) {
         const int index = table->rowCount();
         table->insertRow(index);
 
-        table->setItem(index, 0, new QTableWidgetItem(row.value(QStringLiteral("old_base")).toString()));
-        table->setItem(index, 1, new QTableWidgetItem(row.value(QStringLiteral("prefix")).toString()));
-        table->item(index, 1)->setData(Qt::UserRole, row.value(QStringLiteral("prefix")).toString());
-        table->setItem(index, 2, new QTableWidgetItem(row.value(QStringLiteral("base")).toString()));
-        auto *status = new QTableWidgetItem(row.value(QStringLiteral("status")).toString());
+        table->setItem(index, 0, new QTableWidgetItem(to_qstring(row.old_base)));
+        table->setItem(index, 1, new QTableWidgetItem(to_qstring(row.prefix)));
+        table->item(index, 1)->setData(Qt::UserRole, to_qstring(row.prefix));
+        table->setItem(index, 2, new QTableWidgetItem(to_qstring(row.base)));
+        auto *status = new QTableWidgetItem(to_qstring(row.status));
 
-        if (row.value(QStringLiteral("exists")).toBool()) {
+        if (row.exists) {
             status->setForeground(QColor(120, 190, 120));
         } else {
             status->setForeground(QColor(220, 110, 110));
@@ -183,8 +183,7 @@ void HydrusRepairFileLocationsDialog::set_state(const QJsonObject &state) {
     }
 }
 
-void HydrusMainWindow::show_repair_file_locations(const RepairFileLocationsDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
+void HydrusMainWindow::show_repair_file_locations(const RepairFileLocationsDialogState &state) {
     if (repair_file_locations_dialog == nullptr) {
         repair_file_locations_dialog = new HydrusRepairFileLocationsDialog(this, state, this);
         connect(repair_file_locations_dialog, &QObject::destroyed, this, [this]() {

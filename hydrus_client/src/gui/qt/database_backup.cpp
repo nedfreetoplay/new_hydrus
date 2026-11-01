@@ -1,5 +1,5 @@
 
-// WS-15.1.3c2: database backup dialog moved verbatim from bridge.cpp (move-only split).
+// WS-15.2.4b: typed database-backup dialog (no QJsonObject).
 
 #include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
@@ -15,7 +15,7 @@
 #include <QStandardPaths>
 #include <QVBoxLayout>
 
-HydrusDatabaseBackupDialog::HydrusDatabaseBackupDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+HydrusDatabaseBackupDialog::HydrusDatabaseBackupDialog(HydrusMainWindow *main_window, const DatabaseBackupDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("database backup"));
     setObjectName(QStringLiteral("hydrus_database_backup_dialog"));
@@ -69,13 +69,13 @@ HydrusDatabaseBackupDialog::HydrusDatabaseBackupDialog(HydrusMainWindow *main_wi
     set_state(state);
 }
 
-void HydrusDatabaseBackupDialog::set_state(const QJsonObject &state) {
-    const QString directory = state.value(QStringLiteral("path")).toString();
+void HydrusDatabaseBackupDialog::set_state(const DatabaseBackupDialogState &state) {
+    const QString directory = to_qstring(state.path);
     path->setText(directory.isEmpty() ? QStringLiteral("(not set)") : directory);
     path->setCursorPosition(0);
-    last_backup->setText(state.value(QStringLiteral("last_backup")).toString());
+    last_backup->setText(to_qstring(state.last_backup));
 
-    const QString target = state.value(QStringLiteral("target")).toString();
+    const QString target = to_qstring(state.target);
     status->setText(target.isEmpty()
                         ? QStringLiteral("Set a backup directory to enable backups.")
                         : QStringLiteral("target: %1").arg(target));
@@ -91,8 +91,7 @@ void HydrusDatabaseBackupDialog::choose_path() {
     }
 }
 
-void HydrusMainWindow::show_database_backup(const DatabaseBackupDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
+void HydrusMainWindow::show_database_backup(const DatabaseBackupDialogState &state) {
     if (database_backup_dialog == nullptr) {
         database_backup_dialog = new HydrusDatabaseBackupDialog(this, state, this);
         connect(database_backup_dialog, &QObject::destroyed, this, [this]() { database_backup_dialog = nullptr; });
@@ -104,8 +103,7 @@ void HydrusMainWindow::show_database_backup(const DatabaseBackupDialogState &typ
     }
 }
 
-void HydrusMainWindow::update_database_backup(const DatabaseBackupDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
+void HydrusMainWindow::update_database_backup(const DatabaseBackupDialogState &state) {
     if (database_backup_dialog != nullptr) {
         database_backup_dialog->set_state(state);
     }

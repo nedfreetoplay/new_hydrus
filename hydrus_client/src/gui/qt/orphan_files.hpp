@@ -1,21 +1,20 @@
 #pragma once
 
-// WS-15.1.3c2: clear orphan files dialog moved from bridge.hpp/bridge.cpp (move-only split).
+// WS-15.2.4b: typed orphan-files dialog (no QJsonObject).
 
 #include <QDialog>
-#include <QJsonObject>
 #include <QStringList>
 
 class QLabel;
 class QTableWidget;
 class HydrusMainWindow;
+struct OrphanFilesDialogState;
 
-// Non-modal surplus file cleaner for the media storage.
 class HydrusOrphanFilesDialog : public QDialog {
 public:
-    explicit HydrusOrphanFilesDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+    explicit HydrusOrphanFilesDialog(HydrusMainWindow *main, const OrphanFilesDialogState &state, QWidget *parent = nullptr);
 
-    void set_state(const QJsonObject &state);
+    void set_state(const OrphanFilesDialogState &state);
 
 private:
     void delete_selected(bool all);
@@ -23,7 +22,6 @@ private:
     QStringList selected_paths(bool all) const;
 
     HydrusMainWindow *main = nullptr;
-    QJsonObject data;
     QTableWidget *table = nullptr;
     QLabel *status = nullptr;
 };

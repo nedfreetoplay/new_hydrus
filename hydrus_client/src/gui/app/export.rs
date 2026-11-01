@@ -17,6 +17,7 @@ use crate::db::files_storage;
 use super::model::ExportFoldersPage;
 use super::worker::AsyncJob;
 use super::{AppState, PageNode, UiCommand, query, render};
+use crate::gui::qt::api::ffi::{FolderPageState, FolderRow};
 
 const FILENAME: &str = "export folders.json";
 
@@ -1533,6 +1534,34 @@ fn pretty_period(seconds: i64) -> String {
     }
 
     parts.join(" ")
+}
+
+pub fn folder_page_state(state: &AppState, page_id: &str) -> FolderPageState {
+    let folders = state
+        .export_folders
+        .iter()
+        .map(|folder| FolderRow {
+            name: folder.name.clone(),
+            path: folder.path.display().to_string(),
+            status: folder.status.clone(),
+            paused: folder.paused,
+            period_text: if folder.run_regularly {
+                pretty_period(folder.period)
+            } else {
+                "not running regularly".to_string()
+            },
+            last_queued: folder.last_check.to_string(),
+            extra: folder.query.clone(),
+        })
+        .collect();
+
+    FolderPageState {
+        summary: state
+            .find_export_folders(page_id)
+            .map(|page| page.status.clone())
+            .unwrap_or_default(),
+        folders,
+    }
 }
 
 pub fn folders_json(state: &AppState, page_id: &str) -> String {

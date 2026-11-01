@@ -10,8 +10,9 @@ use std::path::{Path, PathBuf};
 use serde_json::json;
 
 use super::{render, AppState, UiCommand};
+use crate::gui::qt::api::ffi::DatabaseBackupDialogState;
 
-pub fn dialog_json(state: &AppState) -> String {
+pub fn dialog_state(state: &AppState) -> DatabaseBackupDialogState {
     let options = state.controller.options();
     let path = options
         .get_noneable_string("backup_path")
@@ -22,19 +23,30 @@ pub fn dialog_json(state: &AppState) -> String {
             hydrus_core::hydrus_time::timestamp_to_pretty_time(Some(timestamp as f64), false, true)
         });
 
-    json!({
-        "path": path.clone().unwrap_or_default(),
-        "db_dir": state.controller.db_dir().to_string_lossy(),
-        "last_backup": last_backup.unwrap_or_else(|| "never".to_string()),
-        "target": path
+    DatabaseBackupDialogState {
+        path: path.clone().unwrap_or_default(),
+        db_dir: state.controller.db_dir().to_string_lossy().to_string(),
+        last_backup: last_backup.unwrap_or_else(|| "never".to_string()),
+        target: path
             .map(|path| Path::new(&path).join("client.db").to_string_lossy().to_string())
             .unwrap_or_default(),
+    }
+}
+
+pub fn dialog_json(state: &AppState) -> String {
+    let dialog = dialog_state(state);
+
+    json!({
+        "path": dialog.path,
+        "db_dir": dialog.db_dir,
+        "last_backup": dialog.last_backup,
+        "target": dialog.target,
     })
     .to_string()
 }
 
 pub fn open(state: &AppState) -> Vec<UiCommand> {
-    vec![UiCommand::DatabaseBackupDialog(crate::gui::qt::api::ffi::DatabaseBackupDialogState { json: dialog_json(state) })]
+    vec![UiCommand::DatabaseBackupDialog(dialog_state(state))]
 }
 
 pub fn set_path(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -158,7 +170,7 @@ fn human_bytes(bytes: u64) -> String {
 
 fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
-        UiCommand::UpdateDatabaseBackup(crate::gui::qt::api::ffi::DatabaseBackupDialogState { json: dialog_json(state) }),
+        UiCommand::UpdateDatabaseBackup(dialog_state(state)),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
@@ -168,7 +180,7 @@ fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
 fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
         UiCommand::NotifyMessage(message.into()),
-        UiCommand::UpdateDatabaseBackup(crate::gui::qt::api::ffi::DatabaseBackupDialogState { json: dialog_json(state) }),
+        UiCommand::UpdateDatabaseBackup(dialog_state(state)),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
     ]

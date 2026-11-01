@@ -20,6 +20,7 @@ use crate::files::{ClientFilesManager, FilesStorageBaseLocation, FilesStorageSub
 use super::UiCommand;
 use super::model::AppState;
 use super::render;
+use crate::gui::qt::api::ffi::{RepairFileLocationsDialogState, RepairLocationRow};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepairEntry {
@@ -78,7 +79,7 @@ pub fn open(state: &mut AppState) -> Vec<UiCommand> {
         error: String::new(),
     };
 
-    vec![UiCommand::RepairFileLocationsDialog(crate::gui::qt::api::ffi::RepairFileLocationsDialogState { json: dialog_json(state) })]
+    vec![UiCommand::RepairFileLocationsDialog(dialog_state(state))]
 }
 
 pub fn set_locations(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -122,7 +123,7 @@ pub fn set_locations(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     state.file_location_repair.error.clear();
     state.file_location_repair.message = format!("updated {changed} location(s)");
 
-    vec![UiCommand::RepairFileLocationsDialog(crate::gui::qt::api::ffi::RepairFileLocationsDialogState { json: dialog_json(state) })]
+    vec![UiCommand::RepairFileLocationsDialog(dialog_state(state))]
 }
 
 /// `_AddLocation`: try a folder root and its `client_files`/`thumbnails`
@@ -194,7 +195,7 @@ pub fn probe(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     state.file_location_repair.error.clear();
     state.file_location_repair.message = format!("found {found} subfolder(s) under {path}");
 
-    vec![UiCommand::RepairFileLocationsDialog(crate::gui::qt::api::ffi::RepairFileLocationsDialogState { json: dialog_json(state) })]
+    vec![UiCommand::RepairFileLocationsDialog(dialog_state(state))]
 }
 
 pub fn apply(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -304,7 +305,51 @@ pub fn apply(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 fn repair_error(state: &mut AppState, message: impl Into<String>) -> Vec<UiCommand> {
     state.file_location_repair.error = message.into();
 
-    vec![UiCommand::RepairFileLocationsDialog(crate::gui::qt::api::ffi::RepairFileLocationsDialogState { json: dialog_json(state) })]
+    vec![UiCommand::RepairFileLocationsDialog(dialog_state(state))]
+}
+
+pub fn dialog_state(state: &AppState) -> RepairFileLocationsDialogState {
+    let repair = &state.file_location_repair;
+    let rows: Vec<RepairLocationRow> = repair
+        .entries
+        .iter()
+        .map(|entry| {
+            let exists = entry.exists();
+
+            RepairLocationRow {
+                prefix: entry.prefix.clone(),
+                old_base: entry.old_base.display().to_string(),
+                base: entry.base.display().to_string(),
+                status: if exists { "ok!".to_string() } else { "missing".to_string() },
+                exists,
+            }
+        })
+        .collect();
+    let missing_files = repair
+        .entries
+        .iter()
+        .filter(|entry| entry.is_for_files && !entry.exists())
+        .count() as i64;
+    let missing_thumbs = repair
+        .entries
+        .iter()
+        .filter(|entry| !entry.is_for_files && !entry.exists())
+        .count() as i64;
+
+    RepairFileLocationsDialogState {
+        title: "repair file locations".to_string(),
+        summary: format!(
+            "{} subfolder(s): {} file path(s) missing, {} thumbnail path(s) missing",
+            repair.entries.len(),
+            missing_files,
+            missing_thumbs,
+        ),
+        message: repair.message.clone(),
+        error: repair.error.clone(),
+        missing_files,
+        missing_thumbs,
+        rows,
+    }
 }
 
 pub fn dialog_json(state: &AppState) -> String {

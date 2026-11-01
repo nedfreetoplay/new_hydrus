@@ -223,10 +223,10 @@ import/export-папок (их шов — отдельная подзадача)
 
 | Шов | Где | Кол-во | Почему JSON остаётся | Статус |
 | --- | --- | --- | --- | --- |
-| Forward: состояние диалога | `api.rs`: 22 структуры с единственным полем `json: String` (`OptionsDialogState`, `ServicesDialogState`, …) | 22 | Содержимое диалога в Python — фиксированный `JObject`, но шов ещё не разобран по полям | долг 15.2.2/15.2.3 |
-| Forward: стартовое состояние страницы | `PageRow.state: String` | 1 | Только import/export folder pages (у query/downloader/subscriptions/duplicates поля типизированы) | долг, отдельная подзадача |
+| Forward: состояние диалога | `api.rs`: 17 структур с единственным полем `json: String` (остались из 22; закрыты timestamps/notifications/repair/orphans/backup) | 17 | Содержимое диалога в Python — фиксированный `JObject`, но шов ещё не разобран по полям | долг 15.2.2/15.2.3 |
+| Forward: стартовое состояние страницы | `PageRow.state: String` + `PageRow.folder: FolderPageState` | 1+1 | `state` — только placeholder-сообщение (не JSON); folder-страницы несут типизированный `FolderPageState` | частично закрыто (WS-15.2.4b) |
 | Forward: произвольный dict | `SubscriptionDialogRow.import_options_json` | 1 | Import options — словарь произвольной формы, копируется в буфер как есть; `dict` и в Python | допустимое исключение R1 |
-| Forward: C++-точки входа | `bridge_api.cpp`: 13 `parse_object(...)` (import/export folders 6, notes, tag dialog, autocomplete, manage tags, timestamps) | 13 | Старые JSON-обёртки этих экранов ещё не переведены на `hydrus_show_*` со структурой | долг |
+| Forward: C++-точки входа | `bridge_api.cpp`: 12 `parse_object(...)` (import/export folders 6, notes, tag dialog, autocomplete, manage tags) | 12 | Старые JSON-обёртки этих экранов ещё не переведены на `hydrus_show_*` со структурой | долг |
 | Reverse: payload события | `notify(UiAction, target, payload)` + 57 `json_payload(...)` в 34 файлах | 57 | `UiAction` уже enum, но данные события всё ещё сериализуются в строку | долг 15.2.3 |
 | Инфраструктура | `support/strings.{hpp,cpp}` (объявления/определения), `typed_seams.cpp:389` (`parse_string` для `PageRow.state`) | 5 | Плумбинг; удаляется вместе с последним вызовом | — |
 | C++-параметры | `QJsonObject &` в 26 заголовках (`auto_resolution.hpp` 19, `main_window.hpp` 11, `services.hpp` 5, …) | 80 | Следствие строк выше: диалоги принимают `const QJsonObject &state` | долг |

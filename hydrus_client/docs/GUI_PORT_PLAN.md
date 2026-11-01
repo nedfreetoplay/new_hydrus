@@ -510,14 +510,17 @@ C++.
 
 Остаток 15.2 (для закрытия):
 
-1. 22 структуры-обёртки с единственным полем `json: String` в `api.rs`
-   (options, services, network, account types, API permissions, tag filter,
-   tag relations, manage tags, timestamps, notifications, export review,
-   repair locations, orphan files, database backup, local import review/tagging,
-   auto-resolution rules/merge/custom/preview/review) → типизировать по полям.
-2. `PageRow.state` → типизированное состояние import/export folder pages.
-3. 13 вызовов `parse_object(` в `bridge_api.cpp`: import/export folders (6),
-   notes, tag dialog, autocomplete, manage tags, timestamps.
+1. 17 структур-обёрток с единственным полем `json: String` в `api.rs`
+    (options, services, network, account types, API permissions, tag filter,
+    tag relations, manage tags, export review, local import review/tagging,
+    auto-resolution rules/merge/custom/preview/review) → типизировать по полям.
+    Закрыто в WS-15.2.4b: timestamps, notifications, repair locations,
+    orphan files, database backup (5 структур, parse_object в bridge_api 13→12).
+ 2. `PageRow.state` → частично закрыто в WS-15.2.4b: добавлен типизированный
+    `FolderPageState`/`FolderRow` (summary + rows) в `PageRow.folder`;
+    `state` остался только для placeholder-сообщения (не JSON).
+3. 12 вызовов `parse_object(` в `bridge_api.cpp`: import/export folders (6),
+    notes, tag dialog, autocomplete, manage tags (timestamps закрыт в WS-15.2.4b).
 4. 57 `json_payload(` в обратном канале: заменить `notify(action, target, json)`
    на `app_<domain>_<verb>(...)` с типизированными аргументами.
 

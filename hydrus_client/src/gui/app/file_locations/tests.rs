@@ -36,7 +36,7 @@ fn opening_lists_every_subfolder_with_its_status() {
     let commands = open(&mut app);
     assert!(matches!(
         commands.first(),
-        Some(crate::gui::app::UiCommand::RepairFileLocationsDialog(crate::gui::qt::api::ffi::RepairFileLocationsDialogState { json: _ }))
+        Some(crate::gui::app::UiCommand::RepairFileLocationsDialog(crate::gui::qt::api::ffi::RepairFileLocationsDialogState { .. }))
     ));
 
     let value = dialog(&app);

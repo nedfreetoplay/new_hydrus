@@ -1941,9 +1941,9 @@ impl AppState {
                 commands.push(self.status_command());
                 commands
             }
-            ffi::UiAction::Notifications => vec![UiCommand::NotificationsDialog(crate::gui::qt::api::ffi::NotificationsDialogState { json: render::notifications_json(
+            ffi::UiAction::Notifications => vec![UiCommand::NotificationsDialog(render::notifications_state(
                 self,
-            ) })],
+            ))],
             ffi::UiAction::NotificationsClear => {
                 self.notifications.clear();
                 vec![
@@ -3602,14 +3602,13 @@ impl AppState {
                 .ok()
                 .flatten();
 
-        let json = json!({
-            "hash": query::hex(&hash),
-            "archived": archived,
-            "modified": modified,
-        })
-        .to_string();
-
-        vec![UiCommand::TimestampsDialog(crate::gui::qt::api::ffi::TimestampsDialogState { json: json })]
+        vec![UiCommand::TimestampsDialog(crate::gui::qt::api::ffi::TimestampsDialogState {
+            hash: query::hex(&hash),
+            has_archived: archived.is_some(),
+            archived: archived.unwrap_or_default(),
+            has_modified: modified.is_some(),
+            modified: modified.unwrap_or_default(),
+        })]
     }
 
     fn save_timestamps(&mut self, payload: &str) -> Vec<UiCommand> {

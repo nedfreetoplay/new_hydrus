@@ -17,7 +17,7 @@ const MANIFEST_DIR: &str = env!("CARGO_MANIFEST_DIR");
 /// grow beyond its baseline. Converting a seam only lowers the number, so the
 /// allowlist entry can be deleted once it reaches zero.
 const PARSE_OBJECT_ALLOWLIST: &[(&str, usize)] = &[
-    ("src/gui/qt/bridge_api.cpp", 13),
+    ("src/gui/qt/bridge_api.cpp", 12),
     ("src/gui/qt/support/strings.cpp", 1),
     ("src/gui/qt/support/strings.hpp", 1),
     ("src/gui/qt/typed_seams.cpp", 1),
@@ -76,12 +76,7 @@ const JSON_FIELD_ALLOWLIST: &[&str] = &[
     "TagFilterDialogState.json",
     "TagRelationsDialogState.json",
     "ManageTagsDialogState.json",
-    "TimestampsDialogState.json",
-    "NotificationsDialogState.json",
     "ExportReviewDialogState.json",
-    "RepairFileLocationsDialogState.json",
-    "OrphanFilesDialogState.json",
-    "DatabaseBackupDialogState.json",
     "LocalImportReviewDialogState.json",
     "LocalImportTaggingDialogState.json",
     "DuplicatesRulesDialogState.json",

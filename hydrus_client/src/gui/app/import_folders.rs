@@ -17,6 +17,7 @@ use crate::importing::options::FilenameTaggingOptions;
 use super::model::ImportFoldersPage;
 use super::worker::AsyncJob;
 use super::{AppState, PageNode, UiCommand, render};
+use crate::gui::qt::api::ffi::{FolderPageState, FolderRow};
 
 const FILENAME: &str = "import folders.json";
 
@@ -644,6 +645,34 @@ pub fn pretty_period(seconds: i64) -> String {
         format!("{minutes} minute{}", if minutes == 1 { "" } else { "s" })
     } else {
         format!("{seconds} seconds")
+    }
+}
+
+pub fn folder_page_state(state: &AppState, page_id: &str) -> FolderPageState {
+    let folders = state
+        .import_folders
+        .iter()
+        .map(|folder| FolderRow {
+            name: folder.name.clone(),
+            path: folder.path.display().to_string(),
+            status: folder.status.clone(),
+            paused: folder.paused,
+            period_text: if folder.check_regularly {
+                pretty_period(folder.period)
+            } else {
+                "not checking regularly".to_string()
+            },
+            last_queued: folder.last_check.to_string(),
+            extra: folder.action.clone(),
+        })
+        .collect();
+
+    FolderPageState {
+        summary: state
+            .find_import_folders(page_id)
+            .map(|page| page.status.clone())
+            .unwrap_or_default(),
+        folders,
     }
 }
 

@@ -1,5 +1,5 @@
 
-// WS-15.1.3c2: clear orphan files dialog moved verbatim from bridge.cpp (move-only split).
+// WS-15.2.4b: typed orphan-files dialog (no QJsonObject).
 
 #include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
@@ -9,6 +9,8 @@
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
@@ -17,7 +19,7 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-HydrusOrphanFilesDialog::HydrusOrphanFilesDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+HydrusOrphanFilesDialog::HydrusOrphanFilesDialog(HydrusMainWindow *main_window, const OrphanFilesDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("clear orphan files"));
     setObjectName(QStringLiteral("hydrus_orphan_files_dialog"));
@@ -89,29 +91,27 @@ HydrusOrphanFilesDialog::HydrusOrphanFilesDialog(HydrusMainWindow *main_window, 
     set_state(state);
 }
 
-void HydrusOrphanFilesDialog::set_state(const QJsonObject &state) {
-    data = state;
-
-    const QJsonArray orphans = state.value(QStringLiteral("orphans")).toArray();
+void HydrusOrphanFilesDialog::set_state(const OrphanFilesDialogState &state) {
+    const size_t count = state.orphans.size();
     const int previous_row = table->currentRow();
-    table->setRowCount(orphans.size());
+    table->setRowCount(static_cast<int>(count));
 
-    for (int index = 0; index < orphans.size(); ++index) {
-        const QJsonObject entry = orphans.at(index).toObject();
+    for (size_t index = 0; index < count; ++index) {
+        const OrphanFileRow &entry = state.orphans[index];
+        const int row = static_cast<int>(index);
 
         for (int column = 0; column < 4; ++column) {
-            if (table->item(index, column) == nullptr) {
-                table->setItem(index, column, new QTableWidgetItem());
+            if (table->item(row, column) == nullptr) {
+                table->setItem(row, column, new QTableWidgetItem());
             }
         }
 
-        auto *kind = table->item(index, 0);
-        kind->setText(entry.value(QStringLiteral("kind")).toString());
-        kind->setData(Qt::UserRole, entry.value(QStringLiteral("path")).toString());
-        table->item(index, 1)->setText(
-            entry.value(QStringLiteral("size_display")).toString());
-        table->item(index, 2)->setText(entry.value(QStringLiteral("hash")).toString());
-        table->item(index, 3)->setText(entry.value(QStringLiteral("path")).toString());
+        auto *kind = table->item(row, 0);
+        kind->setText(to_qstring(entry.kind));
+        kind->setData(Qt::UserRole, to_qstring(entry.path));
+        table->item(row, 1)->setText(to_qstring(entry.size_display));
+        table->item(row, 2)->setText(to_qstring(entry.hash));
+        table->item(row, 3)->setText(to_qstring(entry.path));
     }
 
     if (previous_row >= 0 && previous_row < table->rowCount()) {
@@ -120,10 +120,10 @@ void HydrusOrphanFilesDialog::set_state(const QJsonObject &state) {
 
     table->resizeRowsToContents();
     status->setText(QStringLiteral("%1 — %2 file(s), %3 thumbnail(s), %4")
-                        .arg(state.value(QStringLiteral("status")).toString())
-                        .arg(state.value(QStringLiteral("files")).toInt())
-                        .arg(state.value(QStringLiteral("thumbnails")).toInt())
-                        .arg(state.value(QStringLiteral("bytes_display")).toString()));
+                        .arg(to_qstring(state.status))
+                        .arg(static_cast<qlonglong>(state.files))
+                        .arg(static_cast<qlonglong>(state.thumbnails))
+                        .arg(to_qstring(state.bytes_display)));
 }
 
 QStringList HydrusOrphanFilesDialog::selected_paths(bool all) const {
@@ -188,8 +188,7 @@ void HydrusOrphanFilesDialog::move_selected(bool all) {
     main->notify(UiAction::OrphanFilesMove, QString(), json_payload(payload));
 }
 
-void HydrusMainWindow::show_orphan_files(const OrphanFilesDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
+void HydrusMainWindow::show_orphan_files(const OrphanFilesDialogState &state) {
     if (orphan_files_dialog == nullptr) {
         orphan_files_dialog = new HydrusOrphanFilesDialog(this, state, this);
         connect(orphan_files_dialog, &QObject::destroyed, this, [this]() { orphan_files_dialog = nullptr; });
@@ -201,8 +200,7 @@ void HydrusMainWindow::show_orphan_files(const OrphanFilesDialogState &typed) {
     }
 }
 
-void HydrusMainWindow::update_orphan_files(const OrphanFilesDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
+void HydrusMainWindow::update_orphan_files(const OrphanFilesDialogState &state) {
     if (orphan_files_dialog != nullptr) {
         orphan_files_dialog->set_state(state);
     }

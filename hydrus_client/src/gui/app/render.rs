@@ -10,8 +10,8 @@ use super::model::{
 use super::query;
 use crate::gui::qt::api::ffi::{
     AboutInfo, DownloaderPageState, DuplicatePairState, DuplicateRuleRow, DuplicateSearchState,
-    DuplicatesPageState, GallerySite, MediaItem, MenuBar, MenuEntry, MetadataState, NoteState,
-    PageKind, PageProgress, PageRow, PageTree, PageTreeRow, Pages, QueryPageState, RatingKind,
+    DuplicatesPageState, FolderPageState, GallerySite, MediaItem, MenuBar, MenuEntry, MetadataState, NoteState,
+    NotificationRow, NotificationsDialogState, PageKind, PageProgress, PageRow, PageTree, PageTreeRow, Pages, QueryPageState, RatingKind,
     RatingState, SelectionState, StatusBar, SubscriptionDialogRow, SubscriptionPageRow,
     SubscriptionsDialogState, SubscriptionsPageState, TagServiceState, TagSource, UiAction,
     ViewerState, ViewingStatRow, ViewingStats,
@@ -1045,6 +1045,36 @@ fn session_menu_entries(state: &AppState, entries: &mut Vec<MenuEntry>, depth: i
     }
 }
 
+pub fn notifications_state(state: &AppState) -> NotificationsDialogState {
+    let entries: Vec<NotificationRow> = state
+        .notifications
+        .entries()
+        .iter()
+        .rev()
+        .map(|notification| NotificationRow {
+            time: hydrus_core::hydrus_time::timestamp_to_pretty_time(
+                Some(notification.timestamp as f64),
+                false,
+                true,
+            ),
+            level: notification.level.clone(),
+            text: notification.text.clone(),
+        })
+        .collect();
+    let count = state.notifications.len() as i64;
+
+    NotificationsDialogState {
+        count,
+        summary: notification_summary(count as usize),
+        entries,
+    }
+}
+
+/// Pure R2 helper: popup-messages summary label.
+pub fn notification_summary(count: usize) -> String {
+    format!("{count} message(s)")
+}
+
 pub fn notifications_json(state: &AppState) -> String {
     let entries: Vec<Value> = state
         .notifications
@@ -1197,6 +1227,7 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             downloader: DownloaderPageState::default(),
             subscriptions: SubscriptionsPageState::default(),
             duplicates: DuplicatesPageState::default(),
+            folder: FolderPageState::default(),
             state: String::new(),
         }),
         PageNode::Notebook(notebook) => {
@@ -1210,6 +1241,7 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
                 downloader: DownloaderPageState::default(),
                 subscriptions: SubscriptionsPageState::default(),
                 duplicates: DuplicatesPageState::default(),
+                folder: FolderPageState::default(),
                 state: String::new(),
             });
             pages_rows(state, notebook, depth + 1, rows);
@@ -1224,6 +1256,7 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             query: QueryPageState::default(),
             subscriptions: SubscriptionsPageState::default(),
             duplicates: DuplicatesPageState::default(),
+            folder: FolderPageState::default(),
             state: String::new(),
         }),
         PageNode::Subscriptions(page) => rows.push(PageRow {
@@ -1236,6 +1269,7 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             query: QueryPageState::default(),
             downloader: DownloaderPageState::default(),
             duplicates: DuplicatesPageState::default(),
+            folder: FolderPageState::default(),
             state: String::new(),
         }),
         PageNode::Duplicates(page) => rows.push(PageRow {
@@ -1248,6 +1282,7 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             query: QueryPageState::default(),
             downloader: DownloaderPageState::default(),
             subscriptions: SubscriptionsPageState::default(),
+            folder: FolderPageState::default(),
             state: String::new(),
         }),
         PageNode::ImportFolders(page) => rows.push(PageRow {
@@ -1260,7 +1295,8 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             downloader: DownloaderPageState::default(),
             subscriptions: SubscriptionsPageState::default(),
             duplicates: DuplicatesPageState::default(),
-            state: super::import_folders::rules_json(state, &page.id),
+            folder: super::import_folders::folder_page_state(state, &page.id),
+            state: String::new(),
         }),
         PageNode::ExportFolders(page) => rows.push(PageRow {
             id: page.id.clone(),
@@ -1272,7 +1308,8 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             downloader: DownloaderPageState::default(),
             subscriptions: SubscriptionsPageState::default(),
             duplicates: DuplicatesPageState::default(),
-            state: super::export::folders_json(state, &page.id),
+            folder: super::export::folder_page_state(state, &page.id),
+            state: String::new(),
         }),
         PageNode::Placeholder(page) => rows.push(PageRow {
             id: page.id.clone(),
@@ -1284,6 +1321,7 @@ fn page_row(state: &AppState, node: &PageNode, depth: i32, rows: &mut Vec<PageRo
             downloader: DownloaderPageState::default(),
             subscriptions: SubscriptionsPageState::default(),
             duplicates: DuplicatesPageState::default(),
+            folder: FolderPageState::default(),
             state: page.message.clone(),
         }),
     }

@@ -1,23 +1,21 @@
 #pragma once
 
-// WS-15.1.3c2: edit timestamps dialog moved from bridge.cpp (move-only split;
-// inline methods outlined into timestamps_dialog.cpp, no logic change).
+// WS-15.2.4b: typed edit-timestamps dialog (no QJsonObject).
 
 #include <QDialog>
-#include <QJsonObject>
-#include <QJsonValue>
 #include <QString>
 
 class QCheckBox;
 class QDateTimeEdit;
 class HydrusMainWindow;
+struct TimestampsDialogState;
 
 class HydrusTimestampsDialog : public QDialog {
 public:
-    HydrusTimestampsDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent = nullptr);
+    HydrusTimestampsDialog(HydrusMainWindow *main_window, const TimestampsDialogState &state, QWidget *parent = nullptr);
 
 private:
-    void set_time(QCheckBox *enabled, QDateTimeEdit *editor, const QJsonValue &value);
+    void set_time(QCheckBox *enabled, QDateTimeEdit *editor, bool has_value, long long secs);
     void save();
 
     HydrusMainWindow *main = nullptr;

@@ -1,9 +1,8 @@
 #pragma once
 
-// WS-15.1.3c2: repair file locations dialog moved from bridge.hpp/bridge.cpp (move-only split).
+// WS-15.2.4b: typed repair-locations dialog (no QJsonObject).
 
 #include <QDialog>
-#include <QJsonObject>
 #include <QStringList>
 
 class QCheckBox;
@@ -11,21 +10,19 @@ class QLabel;
 class QTableWidget;
 class HydrusMainWindow;
 enum class UiAction : std::int32_t;
+struct RepairFileLocationsDialogState;
 
-// Remap missing media/thumbnail subfolder roots.
 class HydrusRepairFileLocationsDialog : public QDialog {
 public:
-    HydrusRepairFileLocationsDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+    HydrusRepairFileLocationsDialog(HydrusMainWindow *main, const RepairFileLocationsDialogState &state, QWidget *parent = nullptr);
 
-    void set_state(const QJsonObject &state);
+    void set_state(const RepairFileLocationsDialogState &state);
 
 private:
-    void rebuild();
-    void send(UiAction action, const QJsonObject &payload = QJsonObject());
+    void send(UiAction action, const QString &payload = QString());
     QStringList selected_prefixes() const;
 
     HydrusMainWindow *main = nullptr;
-    QJsonObject data;
     QTableWidget *table = nullptr;
     QLabel *summary = nullptr;
     QLabel *message = nullptr;

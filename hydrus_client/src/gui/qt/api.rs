@@ -841,13 +841,29 @@ pub(crate) mod ffi {
         seeds: Vec<SeedRow>,
     }
 
+    /// One import/export folder row of a folder page.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct FolderRow {
+        name: String,
+        path: String,
+        status: String,
+        paused: bool,
+        period_text: String,
+        last_queued: String,
+        extra: String,
+    }
+
+    /// Typed state of import/export folder pages (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct FolderPageState {
+        summary: String,
+        folders: Vec<FolderRow>,
+    }
     /// One page row of the notebook tree (WS-15.2.2a / WS-15.2.3c).
     ///
-    /// The envelope is typed. Query, downloader, subscriptions and duplicates
-    /// pages carry their typed initial state here, so `build_pages` no longer
-    /// parses a JSON blob for them. `state` stays only for the import/export
-    /// folder screens (their typed seams are separate subtasks) and for the
-    /// placeholder message.
+    /// The envelope is typed. Query, downloader, subscriptions, duplicates and
+    /// folder pages carry their typed initial state here; `state` stays only
+    /// for the placeholder message (plain string, not JSON).
     #[derive(Clone, Debug, PartialEq)]
     struct PageRow {
         id: String,
@@ -859,6 +875,7 @@ pub(crate) mod ffi {
         downloader: DownloaderPageState,
         subscriptions: SubscriptionsPageState,
         duplicates: DuplicatesPageState,
+        folder: FolderPageState,
         state: String,
     }
 
@@ -996,16 +1013,30 @@ pub(crate) mod ffi {
         json: String,
     }
 
-    /// Timestamps dialog contents (WS-15.2.2d).
+    /// Timestamps dialog contents: typed optional epoch seconds.
     #[derive(Clone, Debug, PartialEq)]
     struct TimestampsDialogState {
-        json: String,
+        hash: String,
+        has_archived: bool,
+        archived: i64,
+        has_modified: bool,
+        modified: i64,
     }
 
-    /// Notifications dialog contents (WS-15.2.2d).
+    /// One popup-message row (time/level preformatted in Rust).
+    #[derive(Clone, Debug, PartialEq)]
+    struct NotificationRow {
+        time: String,
+        level: String,
+        text: String,
+    }
+
+    /// Notifications dialog contents.
     #[derive(Clone, Debug, PartialEq)]
     struct NotificationsDialogState {
-        json: String,
+        count: i64,
+        summary: String,
+        entries: Vec<NotificationRow>,
     }
 
     /// Export review dialog contents (WS-15.2.2d).
@@ -1014,22 +1045,55 @@ pub(crate) mod ffi {
         json: String,
     }
 
-    /// Repair file locations dialog contents (WS-15.2.2d).
+    /// One repair-location row.
+    #[derive(Clone, Debug, PartialEq)]
+    struct RepairLocationRow {
+        prefix: String,
+        old_base: String,
+        base: String,
+        status: String,
+        exists: bool,
+    }
+
+    /// Repair file locations dialog contents.
     #[derive(Clone, Debug, PartialEq)]
     struct RepairFileLocationsDialogState {
-        json: String,
+        title: String,
+        summary: String,
+        message: String,
+        error: String,
+        missing_files: i64,
+        missing_thumbs: i64,
+        rows: Vec<RepairLocationRow>,
     }
 
-    /// Orphan files dialog contents (WS-15.2.2d).
+    /// One orphan-file row.
+    #[derive(Clone, Debug, PartialEq)]
+    struct OrphanFileRow {
+        kind: String,
+        size_display: String,
+        hash: String,
+        path: String,
+    }
+
+    /// Orphan files dialog contents.
     #[derive(Clone, Debug, PartialEq)]
     struct OrphanFilesDialogState {
-        json: String,
+        status: String,
+        bytes_display: String,
+        files: i64,
+        thumbnails: i64,
+        bytes: i64,
+        orphans: Vec<OrphanFileRow>,
     }
 
-    /// Database backup dialog contents (WS-15.2.2d).
+    /// Database backup dialog contents.
     #[derive(Clone, Debug, PartialEq)]
     struct DatabaseBackupDialogState {
-        json: String,
+        path: String,
+        db_dir: String,
+        last_backup: String,
+        target: String,
     }
 
     /// Local import review dialog contents (WS-15.2.2d).

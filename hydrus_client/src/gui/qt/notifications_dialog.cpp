@@ -1,5 +1,5 @@
 
-// WS-15.1.3c2: popup messages dialog moved verbatim from bridge.cpp (move-only split).
+// WS-15.2.4b: typed popup messages dialog (no QJsonObject).
 
 #include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
@@ -11,16 +11,14 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-HydrusNotificationsDialog::HydrusNotificationsDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+HydrusNotificationsDialog::HydrusNotificationsDialog(HydrusMainWindow *main_window, const NotificationsDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("popup messages"));
     resize(720, 460);
 
     auto *layout = new QVBoxLayout(this);
 
-    summary = new QLabel(
-        QStringLiteral("%1 message(s)").arg(state.value(QStringLiteral("count")).toInt()),
-        this);
+    summary = new QLabel(to_qstring(state.summary), this);
     layout->addWidget(summary);
 
     table = new QTableWidget(this);
@@ -38,7 +36,7 @@ HydrusNotificationsDialog::HydrusNotificationsDialog(HydrusMainWindow *main_wind
     table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
     layout->addWidget(table, 1);
 
-    rebuild(state.value(QStringLiteral("entries")).toArray());
+    rebuild(state);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     auto *clear = new QPushButton(QStringLiteral("clear"), this);
@@ -52,20 +50,19 @@ HydrusNotificationsDialog::HydrusNotificationsDialog(HydrusMainWindow *main_wind
     layout->addWidget(buttons);
 }
 
-void HydrusNotificationsDialog::rebuild(const QJsonArray &entries) {
-    table->setRowCount(entries.size());
+void HydrusNotificationsDialog::rebuild(const NotificationsDialogState &state) {
+    const size_t count = state.entries.size();
+    table->setRowCount(static_cast<int>(count));
 
-    for (int row = 0; row < entries.size(); ++row) {
-        const QJsonObject entry = entries.at(row).toObject();
-
-        table->setItem(row, 0, new QTableWidgetItem(entry.value(QStringLiteral("time")).toString()));
-        table->setItem(row, 1, new QTableWidgetItem(entry.value(QStringLiteral("level")).toString()));
-        table->setItem(row, 2, new QTableWidgetItem(entry.value(QStringLiteral("text")).toString()));
+    for (size_t row = 0; row < count; ++row) {
+        const NotificationRow &entry = state.entries[row];
+        table->setItem(static_cast<int>(row), 0, new QTableWidgetItem(to_qstring(entry.time)));
+        table->setItem(static_cast<int>(row), 1, new QTableWidgetItem(to_qstring(entry.level)));
+        table->setItem(static_cast<int>(row), 2, new QTableWidgetItem(to_qstring(entry.text)));
     }
 }
 
-void HydrusMainWindow::show_notifications(const NotificationsDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
+void HydrusMainWindow::show_notifications(const NotificationsDialogState &state) {
     HydrusNotificationsDialog dialog(this, state, this);
     dialog.exec();
 }

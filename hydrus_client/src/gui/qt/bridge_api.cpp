@@ -78,7 +78,7 @@ void hydrus_show_manage_tags(HydrusMainWindow &window, const ManageTagsDialogSta
 }
 
 void hydrus_show_timestamps(HydrusMainWindow &window, const TimestampsDialogState &state) {
-    HydrusTimestampsDialog dialog(&window, parse_object(rust::Str(state.json.data(), state.json.size())), &window);
+    HydrusTimestampsDialog dialog(&window, state, &window);
     dialog.exec();
 }
 

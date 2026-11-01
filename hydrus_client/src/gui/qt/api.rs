@@ -535,6 +535,24 @@ pub(crate) mod ffi {
             value: f64,
         );
         fn app_manage_notes(window: Pin<&mut HydrusMainWindow>, hash: &str);
+        /// Typed reverse seams (WS-15.2.3a): page/tab/session/history events.
+        fn app_page_selected(window: Pin<&mut HydrusMainWindow>, page_id: &str);
+        fn app_close_page(window: Pin<&mut HydrusMainWindow>, page_id: &str);
+        fn app_close_other_pages(window: Pin<&mut HydrusMainWindow>, page_id: &str);
+        fn app_rename_page(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            name: &str,
+        );
+        fn app_refresh_page(window: Pin<&mut HydrusMainWindow>, page_id: &str);
+        fn app_page_manager_activate(window: Pin<&mut HydrusMainWindow>, page_id: &str);
+        fn app_page_sort(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            sort: &str,
+            ascending: bool,
+        );
+        fn app_history_step(window: Pin<&mut HydrusMainWindow>, step: i32);
         fn hydrus_validate_export_phrase(phrase: &str) -> String;
         fn hydrus_static_dir() -> String;
     }
@@ -616,6 +634,48 @@ fn app_set_rating(
 
 fn app_manage_notes(mut window: Pin<&mut ffi::HydrusMainWindow>, hash: &str) {
     crate::gui::app::handle_manage_notes(window.as_mut(), hash);
+}
+
+/// Typed reverse seams (WS-15.2.3a): page/tab/session/history events.
+fn app_page_selected(mut window: Pin<&mut ffi::HydrusMainWindow>, page_id: &str) {
+    crate::gui::app::handle_page_selected(window.as_mut(), page_id);
+}
+
+fn app_close_page(mut window: Pin<&mut ffi::HydrusMainWindow>, page_id: &str) {
+    crate::gui::app::handle_close_page(window.as_mut(), page_id);
+}
+
+fn app_close_other_pages(mut window: Pin<&mut ffi::HydrusMainWindow>, page_id: &str) {
+    crate::gui::app::handle_close_other_pages(window.as_mut(), page_id);
+}
+
+fn app_rename_page(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    name: &str,
+) {
+    crate::gui::app::handle_rename_page(window.as_mut(), page_id, name);
+}
+
+fn app_refresh_page(mut window: Pin<&mut ffi::HydrusMainWindow>, page_id: &str) {
+    crate::gui::app::handle_refresh_page(window.as_mut(), page_id);
+}
+
+fn app_page_manager_activate(mut window: Pin<&mut ffi::HydrusMainWindow>, page_id: &str) {
+    crate::gui::app::handle_page_manager_activate(window.as_mut(), page_id);
+}
+
+fn app_page_sort(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    sort: &str,
+    ascending: bool,
+) {
+    crate::gui::app::handle_page_sort(window.as_mut(), page_id, sort, ascending);
+}
+
+fn app_history_step(mut window: Pin<&mut ffi::HydrusMainWindow>, step: i32) {
+    crate::gui::app::handle_history_step(window.as_mut(), step);
 }
 
 /// Returns the Python `VetoException` text for an invalid export filename

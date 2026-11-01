@@ -211,6 +211,16 @@ void app_set_rating(
 
 void app_manage_notes(HydrusMainWindow &window, rust::Str hash) noexcept;
 
+// Typed reverse seams (WS-15.2.3a): page/tab/session/history events.
+void app_page_selected(HydrusMainWindow &window, rust::Str page_id) noexcept;
+void app_close_page(HydrusMainWindow &window, rust::Str page_id) noexcept;
+void app_close_other_pages(HydrusMainWindow &window, rust::Str page_id) noexcept;
+void app_rename_page(HydrusMainWindow &window, rust::Str page_id, rust::Str name) noexcept;
+void app_refresh_page(HydrusMainWindow &window, rust::Str page_id) noexcept;
+void app_page_manager_activate(HydrusMainWindow &window, rust::Str page_id) noexcept;
+void app_page_sort(HydrusMainWindow &window, rust::Str page_id, rust::Str sort, bool ascending) noexcept;
+void app_history_step(HydrusMainWindow &window, int step) noexcept;
+
 // Implemented in Rust: the Python VetoException text for an invalid export
 // filename phrase, or an empty string when the phrase parses.
 rust::String hydrus_validate_export_phrase(rust::Str phrase) noexcept;

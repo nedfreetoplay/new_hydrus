@@ -150,7 +150,10 @@ HydrusNotebook::HydrusNotebook(HydrusMainWindow *main_window, const QString &not
         if (ok && !name.isEmpty()) {
             QByteArray page_bytes = page_id.toUtf8();
             QByteArray name_bytes = name.toUtf8();
-            app_action(*main, rust::Str("rename_page", 11), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(name_bytes.constData(), name_bytes.size()));
+            app_rename_page(
+                *main,
+                rust::Str(page_bytes.constData(), page_bytes.size()),
+                rust::Str(name_bytes.constData(), name_bytes.size()));
         }
     });
 
@@ -180,8 +183,7 @@ HydrusNotebook::HydrusNotebook(HydrusMainWindow *main_window, const QString &not
         main->active_notebook = id;
 
         QByteArray page_bytes = page_id.toUtf8();
-        QByteArray notebook_bytes = id.toUtf8();
-        app_action(*main, rust::Str("page_selected", 13), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(notebook_bytes.constData(), notebook_bytes.size()));
+        app_page_selected(*main, rust::Str(page_bytes.constData(), page_bytes.size()));
     });
 
     tabBar()->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -308,7 +310,7 @@ void HydrusNotebook::request_close(int index) {
     }
 
     QByteArray page_bytes = page_id.toUtf8();
-    app_action(*main, rust::Str("close_page", 10), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str());
+    app_close_page(*main, rust::Str(page_bytes.constData(), page_bytes.size()));
 }
 
 void HydrusNotebook::show_tab_menu(const QPoint &position) {
@@ -355,13 +357,13 @@ void HydrusNotebook::show_tab_menu(const QPoint &position) {
 
     if (chosen == refresh) {
         QByteArray page_bytes = page_id.toUtf8();
-        app_action(*main, rust::Str("refresh_page", 12), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str());
+        app_refresh_page(*main, rust::Str(page_bytes.constData(), page_bytes.size()));
         return;
     }
 
     if (chosen == close_others) {
         QByteArray page_bytes = page_id.toUtf8();
-        app_action(*main, rust::Str("close_other_pages", 17), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str());
+        app_close_other_pages(*main, rust::Str(page_bytes.constData(), page_bytes.size()));
         return;
     }
 
@@ -378,7 +380,10 @@ void HydrusNotebook::show_tab_menu(const QPoint &position) {
         if (ok && !name.isEmpty()) {
             QByteArray page_bytes = page_id.toUtf8();
             QByteArray name_bytes = name.toUtf8();
-            app_action(*main, rust::Str("rename_page", 11), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(name_bytes.constData(), name_bytes.size()));
+            app_rename_page(
+                *main,
+                rust::Str(page_bytes.constData(), page_bytes.size()),
+                rust::Str(name_bytes.constData(), name_bytes.size()));
         }
     }
 }

@@ -25,7 +25,8 @@ void HydrusMainWindow::build_shortcuts() {
     auto *refresh = new QShortcut(QKeySequence(QStringLiteral("Ctrl+R")), this);
     connect(refresh, &QShortcut::activated, this, [this]() {
         if (!active_page.isEmpty()) {
-            notify(QStringLiteral("refresh_page"), active_page);
+            QByteArray page_bytes = active_page.toUtf8();
+            app_refresh_page(*this, rust::Str(page_bytes.constData(), page_bytes.size()));
         }
     });
 
@@ -33,10 +34,10 @@ void HydrusMainWindow::build_shortcuts() {
     connect(undo, &QShortcut::activated, this, [this]() { notify(QStringLiteral("undo")); });
 
     auto *back = new QShortcut(QKeySequence(QStringLiteral("Alt+Left")), this);
-    connect(back, &QShortcut::activated, this, [this]() { notify(QStringLiteral("history_back")); });
+    connect(back, &QShortcut::activated, this, [this]() { app_history_step(*this, -1); });
 
     auto *forward = new QShortcut(QKeySequence(QStringLiteral("Alt+Right")), this);
-    connect(forward, &QShortcut::activated, this, [this]() { notify(QStringLiteral("history_forward")); });
+    connect(forward, &QShortcut::activated, this, [this]() { app_history_step(*this, 1); });
 
     auto *page_manager = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Shift+P")), this);
     connect(page_manager, &QShortcut::activated, this, [this]() { notify(QStringLiteral("page_manager")); });

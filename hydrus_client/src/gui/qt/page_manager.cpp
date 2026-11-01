@@ -105,7 +105,8 @@ void HydrusPageManager::activate_current() {
         return;
     }
 
-    main->notify(QStringLiteral("page_manager_activate"), id);
+    const QByteArray page_bytes = id.toUtf8();
+    app_page_manager_activate(*main, rust::Str(page_bytes.constData(), page_bytes.size()));
     accept();
 }
 

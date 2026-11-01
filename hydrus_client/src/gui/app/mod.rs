@@ -443,6 +443,109 @@ pub fn handle_manage_notes(mut window: Pin<&mut ffi::HydrusMainWindow>, hash: &s
     }
 }
 
+/// Typed reverse seams (WS-15.2.3a): page/tab/session/history events.
+pub fn handle_page_selected(mut window: Pin<&mut ffi::HydrusMainWindow>, page_id: &str) {
+    let commands = with_state_mut(|state| state.page_selected_command(page_id));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_close_page(mut window: Pin<&mut ffi::HydrusMainWindow>, page_id: &str) {
+    let commands = with_state_mut(|state| state.close_page(page_id));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_close_other_pages(mut window: Pin<&mut ffi::HydrusMainWindow>, page_id: &str) {
+    let commands = with_state_mut(|state| state.close_other_pages(page_id));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_rename_page(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    name: &str,
+) {
+    let commands = with_state_mut(|state| state.rename_page(page_id, name));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_refresh_page(mut window: Pin<&mut ffi::HydrusMainWindow>, page_id: &str) {
+    let commands = with_state_mut(|state| {
+        let id = state.page_id_or_active(page_id);
+        state.refresh_page_commands(&id)
+    });
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_page_manager_activate(mut window: Pin<&mut ffi::HydrusMainWindow>, page_id: &str) {
+    let commands = with_state_mut(|state| state.page_manager_activate_command(page_id));
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_page_sort(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    sort: &str,
+    ascending: bool,
+) {
+    let commands = with_state_mut(|state| {
+        state.set_sort_command(page_id, Some(sort), Some(ascending))
+    });
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+pub fn handle_history_step(mut window: Pin<&mut ffi::HydrusMainWindow>, step: i32) {
+    let commands = with_state_mut(|state| {
+        if step < 0 {
+            state.navigate_history(true)
+        } else if step > 0 {
+            state.navigate_history(false)
+        } else {
+            Vec::new()
+        }
+    });
+
+    record_notifications(&commands);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
 fn record_notifications(commands: &[UiCommand]) {
     with_state_mut(|state| {
         for command in commands {
@@ -616,17 +719,7 @@ impl AppState {
 
     fn dispatch(&mut self, action: &str, target: &str, payload: &str) -> Vec<UiCommand> {
         match action {
-            "page_selected" => {
-                self.active = Some(target.to_string());
-                self.record_history(target);
-                let mut commands = vec![self.status_command()];
-
-                if self.select_page(target) {
-                    commands.insert(0, UiCommand::Menus(render::menus(self)));
-                }
-
-                commands
-            }
+            "page_selected" => self.page_selected_command(target),
             "selection_changed" => {
                 let hashes: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
                 self.set_selection(target, &hashes)
@@ -751,17 +844,7 @@ impl AppState {
             "history_forward" => self.navigate_history(false),
             "page_manager" => vec![UiCommand::PageManagerDialog(render::page_manager(self))],
             "command_palette" => vec![UiCommand::CommandPalette],
-            "page_manager_activate" => {
-                if self.select_page(target) {
-                    vec![
-                        UiCommand::BuildPages(render::pages(self)),
-                        UiCommand::Menus(render::menus(self)),
-                        self.status_command(),
-                    ]
-                } else {
-                    vec![UiCommand::NotifyMessage("page is missing".to_string())]
-                }
-            }
+            "page_manager_activate" => self.page_manager_activate_command(target),
             "page_manager_close" => {
                 let ids: Vec<String> = serde_json::from_str(payload).unwrap_or_default();
                 self.close_pages(&ids)
@@ -1228,22 +1311,13 @@ impl AppState {
                     return vec![UiCommand::NotifyMessage("invalid sort request".to_string())];
                 };
 
-                if let Some(page) = self.find_query_mut(target) {
-                    if let Some(sort) = request.get("sort").and_then(Value::as_str) {
-                        page.sort = sort.to_string();
-                    }
+                let sort = request
+                    .get("sort")
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
+                let ascending = request.get("ascending").and_then(Value::as_bool);
 
-                    if let Some(ascending) = request.get("ascending").and_then(Value::as_bool) {
-                        page.sort_ascending = ascending;
-                    }
-                } else {
-                    return vec![UiCommand::NotifyMessage(
-                        "page is not a file page".to_string(),
-                    )];
-                }
-
-                let controller = self.controller.clone();
-                self.replace_query_and_refresh(&controller, target)
+                self.set_sort_command(target, sort.as_deref(), ascending)
             }
             "favourite_save" => {
                 let initial = self
@@ -2053,6 +2127,53 @@ impl AppState {
         commands.push(self.status_command());
 
         commands
+    }
+
+    pub(crate) fn page_selected_command(&mut self, page_id: &str) -> Vec<UiCommand> {
+        self.active = Some(page_id.to_string());
+        self.record_history(page_id);
+
+        let mut commands = vec![self.status_command()];
+
+        if self.select_page(page_id) {
+            commands.insert(0, UiCommand::Menus(render::menus(self)));
+        }
+
+        commands
+    }
+
+    pub(crate) fn page_manager_activate_command(&mut self, page_id: &str) -> Vec<UiCommand> {
+        if self.select_page(page_id) {
+            vec![
+                UiCommand::BuildPages(render::pages(self)),
+                UiCommand::Menus(render::menus(self)),
+                self.status_command(),
+            ]
+        } else {
+            vec![UiCommand::NotifyMessage("page is missing".to_string())]
+        }
+    }
+
+    pub(crate) fn set_sort_command(
+        &mut self,
+        page_id: &str,
+        sort: Option<&str>,
+        ascending: Option<bool>,
+    ) -> Vec<UiCommand> {
+        if let Some(page) = self.find_query_mut(page_id) {
+            if let Some(sort) = sort {
+                page.sort = sort.to_string();
+            }
+
+            if let Some(ascending) = ascending {
+                page.sort_ascending = ascending;
+            }
+        } else {
+            return vec![UiCommand::NotifyMessage("page is not a file page".to_string())];
+        }
+
+        let controller = self.controller.clone();
+        self.replace_query_and_refresh(&controller, page_id)
     }
 
     fn close_other_pages(&mut self, page_id: &str) -> Vec<UiCommand> {

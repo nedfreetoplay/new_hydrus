@@ -75,13 +75,13 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
             return;
         }
 
-        QJsonObject request;
-        request.insert(QStringLiteral("sort"), sort_value);
-        request.insert(QStringLiteral("ascending"), sort_ascending_value);
-        main->notify(
-            QStringLiteral("set_sort"),
-            id,
-            QString::fromUtf8(QJsonDocument(request).toJson(QJsonDocument::Compact)));
+        const QByteArray page_bytes = id.toUtf8();
+        const QByteArray sort_bytes = sort_value.toUtf8();
+        app_page_sort(
+            *main,
+            rust::Str(page_bytes.constData(), page_bytes.size()),
+            rust::Str(sort_bytes.constData(), sort_bytes.size()),
+            sort_ascending_value);
     };
 
     const auto set_sort_direction = [this, send_sort](bool ascending) {

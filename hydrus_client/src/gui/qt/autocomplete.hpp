@@ -17,6 +17,8 @@
 
 #include <functional>
 
+#include "avail.hpp"
+
 // Hydrus' AC dropdown groups matches into tabs and shows how many files each
 // predicate selects. The popup keeps focus in the line edit so typing can
 // continue while Arrow keys move through the list.
@@ -63,7 +65,7 @@ public:
         }
 
         const int width = qMax(320, anchor->width());
-        const int rows = qBound(1, list->count(), 12);
+        const int rows = static_cast<int>(hydrus_metric_autocomplete_rows(list->count()));
         resize(width, tabs->sizeHint().height() + rows * 24 + 12);
 
         const QPoint position = anchor->mapTo(parentWidget(), QPoint(0, anchor->height()));

@@ -54,10 +54,10 @@ HydrusImportFoldersDialog::HydrusImportFoldersDialog(
     table->horizontalHeader()->setTextElideMode(Qt::ElideRight);
     table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     table->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
-    table->setColumnWidth(0, 200);
-    table->setColumnWidth(1, 430);
-    table->setColumnWidth(2, 70);
-    table->setColumnWidth(3, 140);
+    table->setColumnWidth(0, static_cast<int>(hydrus_metric_import_width(0)));
+    table->setColumnWidth(1, static_cast<int>(hydrus_metric_import_width(1)));
+    table->setColumnWidth(2, static_cast<int>(hydrus_metric_import_width(2)));
+    table->setColumnWidth(3, static_cast<int>(hydrus_metric_import_width(3)));
     table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     table->setMinimumHeight(120);
     table->setMaximumHeight(190);

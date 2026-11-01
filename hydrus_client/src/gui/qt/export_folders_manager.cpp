@@ -54,10 +54,8 @@ HydrusExportFoldersDialog::HydrusExportFoldersDialog(
     table->horizontalHeader()->setStretchLastSection(true);
     table->horizontalHeader()->setSortIndicator(0, Qt::AscendingOrder);
 
-    const int widths[] = {132, 20, 79, 106, 106, 132};
-
     for (int column = 0; column < 6; ++column) {
-        table->setColumnWidth(column, widths[column]);
+        table->setColumnWidth(column, static_cast<int>(hydrus_metric_export_width(column)));
     }
 
     table->setMinimumHeight(98);

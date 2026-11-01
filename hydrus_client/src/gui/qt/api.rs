@@ -2524,6 +2524,17 @@ pub(crate) mod ffi {
         fn hydrus_avail_favourite_editable(key: &str) -> bool;
         fn hydrus_avail_good_count(good_count: i64) -> bool;
         fn hydrus_avail_tagging_services(count: i64) -> bool;
+        /// Thin typed getters for layout metrics (WS-15.3.2c, R2).
+        fn hydrus_metric_gallery_width(index: i64) -> i64;
+        fn hydrus_metric_watcher_width(index: i64) -> i64;
+        fn hydrus_metric_export_width(index: i64) -> i64;
+        fn hydrus_metric_import_width(index: i64) -> i64;
+        fn hydrus_metric_preview_width() -> i64;
+        fn hydrus_metric_review_width() -> i64;
+        fn hydrus_metric_scale_clamp(scale: i64) -> i64;
+        fn hydrus_metric_file_limit_clamp(value: i64) -> i64;
+        fn hydrus_metric_files_progress(done: i64, total: i64) -> i64;
+        fn hydrus_metric_autocomplete_rows(count: i64) -> i64;
     }
 }
 
@@ -3412,6 +3423,36 @@ fn hydrus_avail_good_count(good_count: i64) -> bool {
 }
 fn hydrus_avail_tagging_services(count: i64) -> bool {
     avail::tagging_add_enabled(count)
+}
+fn hydrus_metric_gallery_width(index: i64) -> i64 {
+    crate::gui::app::layout_metrics::gallery_column_width(index)
+}
+fn hydrus_metric_watcher_width(index: i64) -> i64 {
+    crate::gui::app::layout_metrics::watcher_column_width(index)
+}
+fn hydrus_metric_export_width(index: i64) -> i64 {
+    crate::gui::app::layout_metrics::export_manager_column_width(index)
+}
+fn hydrus_metric_import_width(index: i64) -> i64 {
+    crate::gui::app::layout_metrics::import_manager_column_width(index)
+}
+fn hydrus_metric_preview_width() -> i64 {
+    crate::gui::app::layout_metrics::auto_resolution_preview_column_width()
+}
+fn hydrus_metric_review_width() -> i64 {
+    crate::gui::app::layout_metrics::auto_resolution_review_column_width()
+}
+fn hydrus_metric_scale_clamp(scale: i64) -> i64 {
+    crate::gui::app::layout_metrics::thumbnail_scale_clamp(scale)
+}
+fn hydrus_metric_file_limit_clamp(value: i64) -> i64 {
+    crate::gui::app::layout_metrics::file_limit_clamp(value)
+}
+fn hydrus_metric_files_progress(done: i64, total: i64) -> i64 {
+    crate::gui::app::layout_metrics::files_progress_percent(done, total)
+}
+fn hydrus_metric_autocomplete_rows(count: i64) -> i64 {
+    crate::gui::app::layout_metrics::autocomplete_visible_rows(count)
 }
 
 fn action_from_str(action: &str) -> ffi::UiAction {

@@ -212,8 +212,8 @@ HydrusAutoResolutionRuleDialog::HydrusAutoResolutionRuleDialog(
     preview_pass->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
     preview_pass->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
     preview_pass->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
-    preview_pass->setColumnWidth(0, 116);
-    preview_pass->setColumnWidth(1, 116);
+    preview_pass->setColumnWidth(0, static_cast<int>(hydrus_metric_preview_width()));
+    preview_pass->setColumnWidth(1, static_cast<int>(hydrus_metric_preview_width()));
     preview_pass->setSelectionBehavior(QAbstractItemView::SelectRows);
     preview_pass->setSelectionMode(QAbstractItemView::ExtendedSelection);
     preview_pass->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -232,8 +232,8 @@ HydrusAutoResolutionRuleDialog::HydrusAutoResolutionRuleDialog(
     preview_fail->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Fixed);
     preview_fail->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Fixed);
     preview_fail->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
-    preview_fail->setColumnWidth(0, 116);
-    preview_fail->setColumnWidth(1, 116);
+    preview_fail->setColumnWidth(0, static_cast<int>(hydrus_metric_preview_width()));
+    preview_fail->setColumnWidth(1, static_cast<int>(hydrus_metric_preview_width()));
     preview_fail->setSelectionBehavior(QAbstractItemView::SelectRows);
     preview_fail->setSelectionMode(QAbstractItemView::ExtendedSelection);
     preview_fail->setEditTriggers(QAbstractItemView::NoEditTriggers);

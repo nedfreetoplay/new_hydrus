@@ -92,7 +92,7 @@ HydrusDuplicateReviewDialog::HydrusDuplicateReviewDialog(HydrusMainWindow *main_
 
         for (int column = 0; column < 2 && column < table->columnCount(); ++column) {
             table->horizontalHeader()->setSectionResizeMode(column, QHeaderView::Fixed);
-            table->setColumnWidth(column, 116);
+            table->setColumnWidth(column, static_cast<int>(hydrus_metric_review_width()));
         }
 
         return table;

@@ -39,3 +39,16 @@ bool hydrus_avail_export_delete(rust::Str export_type) noexcept;
 bool hydrus_avail_favourite_editable(rust::Str key) noexcept;
 bool hydrus_avail_good_count(int64_t good_count) noexcept;
 bool hydrus_avail_tagging_services(int64_t count) noexcept;
+
+// Layout metrics (WS-15.3.2c, gui/app/layout_metrics.rs): C++ passes an
+// index/state and applies the returned number, never a literal.
+int64_t hydrus_metric_gallery_width(int64_t index) noexcept;
+int64_t hydrus_metric_watcher_width(int64_t index) noexcept;
+int64_t hydrus_metric_export_width(int64_t index) noexcept;
+int64_t hydrus_metric_import_width(int64_t index) noexcept;
+int64_t hydrus_metric_preview_width() noexcept;
+int64_t hydrus_metric_review_width() noexcept;
+int64_t hydrus_metric_scale_clamp(int64_t scale) noexcept;
+int64_t hydrus_metric_file_limit_clamp(int64_t value) noexcept;
+int64_t hydrus_metric_files_progress(int64_t done, int64_t total) noexcept;
+int64_t hydrus_metric_autocomplete_rows(int64_t count) noexcept;

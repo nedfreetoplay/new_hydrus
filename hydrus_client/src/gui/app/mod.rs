@@ -28,6 +28,7 @@ pub mod file_locations;
 pub mod import;
 pub mod import_folders;
 pub mod import_options;
+pub mod layout_metrics;
 pub mod local_import;
 pub mod metadata;
 pub mod model;

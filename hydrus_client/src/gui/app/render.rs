@@ -1939,11 +1939,7 @@ pub fn downloader_search_status(success: i64, failed: i64, total: i64) -> String
 
 /// Integer progress percentage: `done * 100 / total`, zero for an empty set.
 pub fn progress_percent(done: i64, total: i64) -> i32 {
-    if total > 0 {
-        (done * 100 / total) as i32
-    } else {
-        0
-    }
+    crate::gui::app::layout_metrics::files_progress_percent(done, total) as i32
 }
 
 /// Typed downloader page contents for `UiCommand::UpdateDownloader`

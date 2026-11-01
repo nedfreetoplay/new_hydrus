@@ -154,7 +154,7 @@ HydrusThumbnailGrid::HydrusThumbnailGrid(HydrusMainWindow *main_window, HydrusDu
 void HydrusThumbnailGrid::set_layout(bool masonry_layout, bool horizontal_scroll, int scale) {
     masonry = masonry_layout;
     horizontal = horizontal_scroll;
-    scale_percent = qBound(25, scale, 400);
+    scale_percent = static_cast<int>(hydrus_metric_scale_clamp(scale));
 
     setFlow(horizontal ? QListView::TopToBottom : QListView::LeftToRight);
     setWrapping(true);

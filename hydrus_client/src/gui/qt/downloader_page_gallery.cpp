@@ -72,10 +72,8 @@ void HydrusDownloaderPage::build_gallery_panel(QVBoxLayout *main_layout) {
         queue->horizontalHeader()->setTextElideMode(Qt::ElideRight);
         queue->horizontalHeader()->setFixedHeight(24);
 
-        const int widths[] = {56, 78, 30, 30, 56, 64, 56};
-
         for (int index = 0; index < 7; ++index) {
-            queue->setColumnWidth(index, widths[index]);
+            queue->setColumnWidth(index, static_cast<int>(hydrus_metric_gallery_width(index)));
             queue->horizontalHeader()->setSectionResizeMode(index, QHeaderView::Fixed);
         }
 
@@ -259,10 +257,8 @@ void HydrusDownloaderPage::build_watcher_panel(QVBoxLayout *main_layout) {
         watcher_table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
         watcher_table->horizontalHeader()->setFixedHeight(24);
 
-        const int watcher_widths[] = {80, 38, 38, 48, 38, 46};
-
         for (int index = 0; index < 6; ++index) {
-            watcher_table->setColumnWidth(index, watcher_widths[index]);
+            watcher_table->setColumnWidth(index, static_cast<int>(hydrus_metric_watcher_width(index)));
             watcher_table->horizontalHeader()->setSectionResizeMode(index, QHeaderView::Fixed);
         }
 

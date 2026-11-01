@@ -176,7 +176,7 @@ void HydrusDownloaderPage::fill_sites(const rust::Vec<GallerySite> &value) {
 }
 
 void HydrusDownloaderPage::apply_file_limit(int value, bool unlimited) {
-    const int clamped = qMax(1, value);
+    const int clamped = static_cast<int>(hydrus_metric_file_limit_clamp(value));
     file_limit_value = static_cast<int>(hydrus_avail_file_limit_value(unlimited, clamped));
     no_limit_value = unlimited;
 

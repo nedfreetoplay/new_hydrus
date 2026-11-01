@@ -34,6 +34,13 @@ cargo run -p hydrus_client
 .\scripts\cargo.ps1 run -p hydrus_client
 ```
 
+`scripts/cargo.ps1` после успешной сборки сам докладывает Qt runtime
+(`windeployqt`) в `target\<profile>`, если рядом с `hydrus_client.exe` нет
+`Qt6Core.dll`. Благодаря этому exe можно запускать двойным щелчком, не добавляя
+`C:\Qt\...\bin` в `PATH`. Если запустить exe без DLL, Windows показывает
+системную ошибку «не обнаружена Qt6Core.dll» (диалог остаётся висеть даже после
+закрытия процесса) — лечится повторным `.\scripts\cargo.ps1 build -p hydrus_client`.
+
 ## Статус портирования
 
 Фундамент готов: константы, настройки (миграции 1→8), метаданные, поиск, медиа-модель,

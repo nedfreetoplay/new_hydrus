@@ -1,4 +1,4 @@
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 
 #include "support/support.hpp"
 
@@ -65,16 +65,16 @@ HydrusSubscriptionsPage::HydrusSubscriptionsPage(HydrusMainWindow *main_window, 
     layout->addLayout(buttons);
 
     connect(add, &QPushButton::clicked, this, [this]() { add_subscription(); });
-    connect(check, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("subscription_check")); });
-    connect(edit_button, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("subscription_edit")); });
-    connect(toggle, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("subscription_toggle")); });
-    connect(remove, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("subscription_delete")); });
-    connect(results, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("subscription_open_results")); });
+    connect(check, &QPushButton::clicked, this, [this]() { with_selected(UiAction::SubscriptionCheck); });
+    connect(edit_button, &QPushButton::clicked, this, [this]() { with_selected(UiAction::SubscriptionEdit); });
+    connect(toggle, &QPushButton::clicked, this, [this]() { with_selected(UiAction::SubscriptionToggle); });
+    connect(remove, &QPushButton::clicked, this, [this]() { with_selected(UiAction::SubscriptionDelete); });
+    connect(results, &QPushButton::clicked, this, [this]() { with_selected(UiAction::SubscriptionOpenResults); });
     connect(import_options_button, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("subscription_import_options"));
+        with_selected(UiAction::SubscriptionImportOptions);
     });
     connect(table, &QTableWidget::cellDoubleClicked, this, [this](int, int) {
-        with_selected(QStringLiteral("subscription_edit"));
+        with_selected(UiAction::SubscriptionEdit);
     });
 
     update_state(state);
@@ -84,7 +84,7 @@ const QString &HydrusSubscriptionsPage::page_id() const {
     return id;
 }
 
-void HydrusSubscriptionsPage::with_selected(const QString &action) {
+void HydrusSubscriptionsPage::with_selected(UiAction action) {
     const int row = table->currentRow();
 
     if (row < 0) {
@@ -147,7 +147,7 @@ void HydrusSubscriptionsPage::add_subscription() {
     payload.insert(QStringLiteral("filter"), filter->text());
     payload.insert(QStringLiteral("period"), period->value());
 
-    main->notify(QStringLiteral("subscription_add"), id, json_payload(payload));
+    main->notify(UiAction::SubscriptionAdd, id, json_payload(payload));
 }
 
 void HydrusSubscriptionsPage::update_state(const QJsonObject &state) {
@@ -279,8 +279,7 @@ void HydrusSubscriptionEditorDialog::save() {
     payload.insert(QStringLiteral("period"), period->value());
     payload.insert(QStringLiteral("paused"), paused->isChecked());
 
-    main->notify(
-        QStringLiteral("subscription_edit_save"),
+    main->notify(UiAction::SubscriptionEditSave,
         page_id,
         json_payload(payload));
 

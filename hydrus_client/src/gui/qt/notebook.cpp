@@ -25,72 +25,126 @@ HydrusTabBar::HydrusTabBar(HydrusMainWindow *main_window, HydrusNotebook *notebo
 }
 
 void HydrusTabBar::mousePressEvent(QMouseEvent *event) {
-        if (event->button() == Qt::LeftButton) {
-            press_position = event->pos();
-        }
-
-        QTabBar::mousePressEvent(event);
+        if (event->button() == Qt::LeftButton) {
+
+            press_position = event->pos();
+
+        }
+
+
+
+        QTabBar::mousePressEvent(event);
+
     }
 
 void HydrusTabBar::mouseMoveEvent(QMouseEvent *event) {
-        if (!(event->buttons() & Qt::LeftButton)) {
-            QTabBar::mouseMoveEvent(event);
-            return;
-        }
-
-        if ((event->pos() - press_position).manhattanLength() < QApplication::startDragDistance()) {
-            QTabBar::mouseMoveEvent(event);
-            return;
-        }
-
-        const int index = tabAt(press_position);
-        const QPoint pressed = press_position;
-        press_position = QPoint(-1000, -1000);
-
-        if (index < 0) {
-            return;
-        }
-
-        const QString page_id = tabData(index).toString();
-
-        if (page_id.isEmpty() || page_id == QStringLiteral("__plus__")) {
-            return;
-        }
-
-        auto *mime = new QMimeData();
-        mime->setData(kPageMimeType, page_id.toUtf8());
-
-        auto *drag = new QDrag(this);
-        drag->setMimeData(mime);
-        drag->exec(Qt::MoveAction);
-
-        Q_UNUSED(pressed);
+        if (!(event->buttons() & Qt::LeftButton)) {
+
+            QTabBar::mouseMoveEvent(event);
+
+            return;
+
+        }
+
+
+
+        if ((event->pos() - press_position).manhattanLength() < QApplication::startDragDistance()) {
+
+            QTabBar::mouseMoveEvent(event);
+
+            return;
+
+        }
+
+
+
+        const int index = tabAt(press_position);
+
+        const QPoint pressed = press_position;
+
+        press_position = QPoint(-1000, -1000);
+
+
+
+        if (index < 0) {
+
+            return;
+
+        }
+
+
+
+        const QString page_id = tabData(index).toString();
+
+
+
+        if (page_id.isEmpty() || page_id == QStringLiteral("__plus__")) {
+
+            return;
+
+        }
+
+
+
+        auto *mime = new QMimeData();
+
+        mime->setData(kPageMimeType, page_id.toUtf8());
+
+
+
+        auto *drag = new QDrag(this);
+
+        drag->setMimeData(mime);
+
+        drag->exec(Qt::MoveAction);
+
+
+
+        Q_UNUSED(pressed);
+
     }
 
 void HydrusTabBar::dragEnterEvent(QDragEnterEvent *event) {
-        if (event->mimeData()->hasFormat(kPageMimeType)) {
-            event->acceptProposedAction();
-            return;
-        }
-
-        QTabBar::dragEnterEvent(event);
+        if (event->mimeData()->hasFormat(kPageMimeType)) {
+
+            event->acceptProposedAction();
+
+            return;
+
+        }
+
+
+
+        QTabBar::dragEnterEvent(event);
+
     }
 
 void HydrusTabBar::dragMoveEvent(QDragMoveEvent *event) {
-        if (event->mimeData()->hasFormat(kPageMimeType)) {
-            event->acceptProposedAction();
-            return;
-        }
-
-        QTabBar::dragMoveEvent(event);
+        if (event->mimeData()->hasFormat(kPageMimeType)) {
+
+            event->acceptProposedAction();
+
+            return;
+
+        }
+
+
+
+        QTabBar::dragMoveEvent(event);
+
     }
 
 void HydrusTabBar::dropEvent(QDropEvent *event) {
-        if (!event->mimeData()->hasFormat(kPageMimeType)) {
-            QTabBar::dropEvent(event);
-            return;
-        }
-
+        if (!event->mimeData()->hasFormat(kPageMimeType)) {
+
+            QTabBar::dropEvent(event);
+
+            return;
+
+        }
+
+
+
         const QString source = QString::fromUtf8(event->mimeData()->data(kPageMimeType));
 
         QString drop_target = notebook->notebook_id();
@@ -115,7 +169,8 @@ void HydrusTabBar::dropEvent(QDropEvent *event) {
             rust::Str(source_bytes.constData(), source_bytes.size()),
             rust::Str(target_bytes.constData(), target_bytes.size()),
             rust::Str(position_bytes.constData(), position_bytes.size()));
-        event->acceptProposedAction();
+        event->acceptProposedAction();
+
     }
 
 HydrusNotebook::HydrusNotebook(HydrusMainWindow *main_window, const QString &notebook_id, QWidget *parent)

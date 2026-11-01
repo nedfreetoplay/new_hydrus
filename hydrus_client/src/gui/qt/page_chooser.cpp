@@ -1,8 +1,7 @@
-#include "page_chooser.hpp"
 
 // WS-15.1.3c2: new page chooser moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QDialogButtonBox>
@@ -103,6 +102,6 @@ void HydrusMainWindow::show_page_chooser(const QString &notebook_id) {
     HydrusPageChooser chooser(notebook_id, this);
 
     if (chooser.exec() == QDialog::Accepted && !chooser.result.isEmpty()) {
-        notify(QStringLiteral("create_page"), notebook_id, chooser.result);
+        notify(UiAction::CreatePage, notebook_id, chooser.result);
     }
 }

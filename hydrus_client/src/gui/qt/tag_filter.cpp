@@ -1,6 +1,6 @@
 // WS-15.1.3c2: tag filter dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QDialog>
@@ -131,7 +131,7 @@ void HydrusMainWindow::show_tag_filter(const QJsonObject &state) {
     connect(test_button, &QPushButton::clicked, this, [this, test_input, build_payload]() {
         QJsonObject payload = build_payload();
         payload.insert(QStringLiteral("tag"), test_input->text().trimmed());
-        notify(QStringLiteral("tag_filter_test"), QString(), json_payload(payload));
+        notify(UiAction::TagFilterTest, QString(), json_payload(payload));
     });
     connect(test_input, &QLineEdit::returnPressed, test_button, &QPushButton::click);
 
@@ -193,7 +193,7 @@ void HydrusMainWindow::show_tag_filter(const QJsonObject &state) {
         payload.insert(QStringLiteral("tags"), list);
         payload.insert(QStringLiteral("reason"), purge_reason->text().trimmed());
 
-        notify(QStringLiteral("purge_tags"), QString(), json_payload(payload));
+        notify(UiAction::PurgeTags, QString(), json_payload(payload));
         purge_tags->clear();
         purge_button->setEnabled(false);
     });
@@ -202,7 +202,7 @@ void HydrusMainWindow::show_tag_filter(const QJsonObject &state) {
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(buttons, &QDialogButtonBox::accepted, this, [&]() {
-        notify(QStringLiteral("tag_filter_save"), QString(), json_payload(build_payload()));
+        notify(UiAction::TagFilterSave, QString(), json_payload(build_payload()));
         dialog.accept();
     });
 

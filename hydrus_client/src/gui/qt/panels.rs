@@ -34,7 +34,8 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
             payload,
             delay_ms,
         } => {
-            ffi::hydrus_defer_action(window.as_mut(), &action, &target, &payload, delay_ms);
+            let ua = crate::gui::app::ui_action_from_str(&action);
+            ffi::hydrus_defer_action(window.as_mut(), ua, &target, &payload, delay_ms);
         }
         UiCommand::UpdateDownloader(state) => {
             ffi::hydrus_update_downloader(window.as_mut(), &state);
@@ -140,7 +141,8 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
             label,
             initial,
         } => {
-            ffi::hydrus_prompt_text(window.as_mut(), &action, &title, &label, &initial);
+            let ua = crate::gui::app::ui_action_from_str(&action);
+            ffi::hydrus_prompt_text(window.as_mut(), ua, &title, &label, &initial);
         }
         UiCommand::ConfirmAction {
             action,
@@ -148,7 +150,8 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
             title,
             text,
         } => {
-            ffi::hydrus_confirm_action(window.as_mut(), &action, &target, &title, &text);
+            let ua = crate::gui::app::ui_action_from_str(&action);
+            ffi::hydrus_confirm_action(window.as_mut(), ua, &target, &title, &text);
         }
         UiCommand::PromptOr { page_id, initial } => {
             ffi::hydrus_show_or_dialog(window.as_mut(), &page_id, &initial);

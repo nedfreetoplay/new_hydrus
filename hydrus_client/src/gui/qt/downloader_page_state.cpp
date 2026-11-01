@@ -1,8 +1,7 @@
-#include "downloader_page.hpp"
 
 // WS-15.1.2c: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QAction>
@@ -104,9 +103,9 @@ void HydrusDownloaderPage::start() {
             site->itemData(site->currentIndex(), Qt::UserRole + 1).toString());
     }
 
-    const QString action =
-        kind == QStringLiteral("watcher") ? QStringLiteral("watcher_check")
-                                          : QStringLiteral("downloader_start");
+    const UiAction action =
+        kind == QStringLiteral("watcher") ? UiAction::WatcherCheck
+                                          : UiAction::DownloaderStart;
     main->notify(action, id, json_payload(payload));
 }
 

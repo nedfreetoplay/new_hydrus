@@ -1,8 +1,7 @@
-#include "services.hpp"
 
 // WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QApplication>
@@ -100,7 +99,7 @@ void HydrusServicesDialog::delete_selected() {
     QJsonObject payload;
     payload.insert(QStringLiteral("key"), key);
 
-    main->notify(QStringLiteral("service_delete"), QString(), json_payload(payload));
+    main->notify(UiAction::ServiceDelete, QString(), json_payload(payload));
 }
 
 void HydrusServicesDialog::show_specifier() {
@@ -229,7 +228,7 @@ void HydrusServicesDialog::edit_login() {
                        QDateTime::currentSecsSinceEpoch() + static_cast<qint64>(expires->value()) * 86400);
     }
 
-    main->notify(QStringLiteral("login_save"), QString(), json_payload(payload));
+    main->notify(UiAction::LoginSave, QString(), json_payload(payload));
 }
 
 void HydrusServicesDialog::remove_login() {
@@ -245,7 +244,7 @@ void HydrusServicesDialog::remove_login() {
         return;
     }
 
-    main->notify(QStringLiteral("login_remove"), QString(), domain);
+    main->notify(UiAction::LoginRemove, QString(), domain);
 }
 
 void HydrusServicesDialog::connect_admin() {
@@ -253,7 +252,7 @@ void HydrusServicesDialog::connect_admin() {
     payload.insert(QStringLiteral("address"), admin_address->text().trimmed());
     payload.insert(QStringLiteral("access_key"), admin_key->text().trimmed());
 
-    main->notify(QStringLiteral("admin_connect"), QString(), json_payload(payload));
+    main->notify(UiAction::AdminConnect, QString(), json_payload(payload));
 }
 
 void HydrusServicesDialog::select_remote_service() {
@@ -267,7 +266,7 @@ void HydrusServicesDialog::select_remote_service() {
     payload.insert(QStringLiteral("service_key"), key);
     payload.insert(QStringLiteral("access_key"), remote_key->text().trimmed());
 
-    main->notify(QStringLiteral("admin_service_action"), QString(),
+    main->notify(UiAction::AdminServiceAction, QString(),
                  json_payload([&]() {
                      QJsonObject with_action = payload;
                      with_action.insert(QStringLiteral("action"), QStringLiteral("select"));
@@ -323,7 +322,7 @@ void HydrusServicesDialog::add_remote_service() {
     payload.insert(QStringLiteral("type_int"), type->currentData().toInt());
     payload.insert(QStringLiteral("port"), port->value());
 
-    main->notify(QStringLiteral("admin_add_service"), QString(), json_payload(payload));
+    main->notify(UiAction::AdminAddService, QString(), json_payload(payload));
 }
 
 void HydrusServicesDialog::edit_remote_service() {
@@ -367,7 +366,7 @@ void HydrusServicesDialog::edit_remote_service() {
     payload.insert(QStringLiteral("name"), name->text().trimmed());
     payload.insert(QStringLiteral("port"), port->value());
 
-    main->notify(QStringLiteral("admin_edit_service"), QString(), json_payload(payload));
+    main->notify(UiAction::AdminEditService, QString(), json_payload(payload));
 }
 
 void HydrusServicesDialog::remove_remote_service() {
@@ -384,7 +383,7 @@ void HydrusServicesDialog::remove_remote_service() {
         return;
     }
 
-    main->notify(QStringLiteral("admin_remove_service"), QString(), key);
+    main->notify(UiAction::AdminRemoveService, QString(), key);
 }
 
 void HydrusServicesDialog::remote_service_action() {
@@ -438,7 +437,7 @@ void HydrusServicesDialog::remote_service_action() {
         payload.insert(QStringLiteral("period"), seconds);
     }
 
-    main->notify(QStringLiteral("admin_service_action"), QString(), json_payload(payload));
+    main->notify(UiAction::AdminServiceAction, QString(), json_payload(payload));
 }
 
 void HydrusServicesDialog::account_action() {
@@ -562,5 +561,5 @@ void HydrusServicesDialog::account_action() {
         }
     }
 
-    main->notify(QStringLiteral("admin_account_action"), QString(), json_payload(payload));
+    main->notify(UiAction::AdminAccountAction, QString(), json_payload(payload));
 }

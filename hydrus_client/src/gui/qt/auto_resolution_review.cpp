@@ -1,8 +1,7 @@
-#include "auto_resolution.hpp"
 
 // WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QApplication>
@@ -180,12 +179,12 @@ void HydrusDuplicateReviewDialog::apply_selected(bool approve) {
     QJsonObject payload;
     payload.insert(QStringLiteral("indices"), indices);
     payload.insert(QStringLiteral("approve"), approve);
-    main->notify(QStringLiteral("duplicates_review_apply"), QString(), json_payload(payload));
+    main->notify(UiAction::DuplicatesReviewApply, QString(), json_payload(payload));
 }
 
 void HydrusDuplicateReviewDialog::apply_all(bool approve) {
     QJsonObject payload;
     payload.insert(QStringLiteral("all"), true);
     payload.insert(QStringLiteral("approve"), approve);
-    main->notify(QStringLiteral("duplicates_review_apply"), QString(), json_payload(payload));
+    main->notify(UiAction::DuplicatesReviewApply, QString(), json_payload(payload));
 }

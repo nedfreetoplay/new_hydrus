@@ -1,8 +1,7 @@
-#include "auto_resolution.hpp"
 
 // WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QApplication>
@@ -92,7 +91,7 @@ HydrusDuplicatesRulesDialog::HydrusDuplicatesRulesDialog(HydrusMainWindow *main_
     layout->addLayout(buttons);
 
     QObject::connect(enabled, &QCheckBox::clicked, this, [this](bool) {
-        main->notify(QStringLiteral("duplicates_auto_toggle"));
+        main->notify(UiAction::DuplicatesAutoToggle);
     });
     QObject::connect(add, &QPushButton::clicked, this, [this]() { add_rule(); });
     QObject::connect(edit, &QPushButton::clicked, this, [this]() { edit_selected(); });
@@ -258,11 +257,11 @@ void HydrusDuplicatesRulesDialog::remove_selected() {
         return;
     }
 
-    main->notify(QStringLiteral("duplicates_rule_remove"), QString(), name);
+    main->notify(UiAction::DuplicatesRuleRemove, QString(), name);
 }
 
 void HydrusDuplicatesRulesDialog::open_review() {
-    main->notify(QStringLiteral("duplicates_review"));
+    main->notify(UiAction::DuplicatesReview);
 }
 
 void HydrusDuplicatesRulesDialog::edit_rule(const QJsonObject &rule) {

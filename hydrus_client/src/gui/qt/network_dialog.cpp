@@ -1,8 +1,7 @@
-#include "network.hpp"
 
 // WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QApplication>
@@ -192,7 +191,7 @@ HydrusNetworkDialog::HydrusNetworkDialog(HydrusMainWindow *main_window, const QJ
     layout->addWidget(buttons);
 
     connect(paused, &QCheckBox::clicked, this, [this](bool) {
-        main->notify(QStringLiteral("network_pause"));
+        main->notify(UiAction::NetworkPause);
     });
     connect(add_header_button, &QPushButton::clicked, this, [this]() { add_header(); });
     connect(remove_header_button, &QPushButton::clicked, this, [this]() { remove_header(); });
@@ -341,5 +340,5 @@ void HydrusNetworkDialog::save() {
     payload.insert(QStringLiteral("strings"), strings);
     payload.insert(QStringLiteral("noneable_strings"), noneable_strings);
 
-    main->notify(QStringLiteral("network_save"), QString(), json_payload(payload));
+    main->notify(UiAction::NetworkSave, QString(), json_payload(payload));
 }

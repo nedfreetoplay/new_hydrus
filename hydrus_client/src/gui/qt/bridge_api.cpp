@@ -1,4 +1,5 @@
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 
 #include "support/support.hpp"
 
@@ -35,7 +36,7 @@ void hydrus_show_command_palette(HydrusMainWindow &window) {
 
 void hydrus_prompt_text(
     HydrusMainWindow &window,
-    rust::Str action,
+    UiAction action,
     rust::Str title,
     rust::Str label,
     rust::Str initial) {
@@ -49,13 +50,13 @@ void hydrus_prompt_text(
         &ok);
 
     if (ok) {
-        window.notify(from_rust(action), QString(), text);
+        window.notify(action, QString(), text);
     }
 }
 
 void hydrus_confirm_action(
     HydrusMainWindow &window,
-    rust::Str action,
+    UiAction action,
     rust::Str target,
     rust::Str title,
     rust::Str text) {
@@ -67,7 +68,7 @@ void hydrus_confirm_action(
         QMessageBox::No);
 
     if (answer == QMessageBox::Yes) {
-        window.notify(from_rust(action), from_rust(target));
+        window.notify(action, from_rust(target));
     }
 }
 
@@ -371,7 +372,7 @@ void hydrus_pick_files(HydrusMainWindow &window) {
         array.append(path);
     }
 
-    window.notify(QStringLiteral("import_paths"), QString(), QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
+    window.notify(UiAction::ImportPaths, QString(), QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
 }
 
 void hydrus_prompt_url(HydrusMainWindow &window) {
@@ -414,7 +415,7 @@ void hydrus_export_downloader(HydrusMainWindow &window, rust::Str page_id) {
         QStringLiteral("JSON (*.json)"));
 
     if (!path.isEmpty()) {
-        window.notify(QStringLiteral("downloader_export_to"), to_qstring(page_id), path);
+        window.notify(UiAction::DownloaderExportTo, to_qstring(page_id), path);
     }
 }
 
@@ -426,7 +427,7 @@ void hydrus_import_downloader(HydrusMainWindow &window, rust::Str target) {
         QStringLiteral("JSON (*.json)"));
 
     if (!path.isEmpty()) {
-        window.notify(QStringLiteral("downloader_import_from"), to_qstring(target), path);
+        window.notify(UiAction::DownloaderImportFrom, to_qstring(target), path);
     }
 }
 
@@ -492,22 +493,20 @@ void hydrus_start_tick(HydrusMainWindow &window) {
 
 void hydrus_defer_action(
     HydrusMainWindow &window,
-    rust::Str action,
+    UiAction action,
     rust::Str target,
     rust::Str payload,
     int delay_ms) {
-    const QString action_text = to_qstring(action);
     const QString target_text = to_qstring(target);
     const QString payload_text = to_qstring(payload);
 
-    QTimer::singleShot(delay_ms, &window, [&window, action_text, target_text, payload_text]() {
-        QByteArray action_bytes = action_text.toUtf8();
+    QTimer::singleShot(delay_ms, &window, [&window, action, target_text, payload_text]() {
         QByteArray target_bytes = target_text.toUtf8();
         QByteArray payload_bytes = payload_text.toUtf8();
 
         app_action(
             window,
-            rust::Str(action_bytes.constData(), action_bytes.size()),
+            action,
             rust::Str(target_bytes.constData(), target_bytes.size()),
             rust::Str(payload_bytes.constData(), payload_bytes.size()));
     });

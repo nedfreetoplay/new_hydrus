@@ -1,4 +1,5 @@
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 
 // WS-15.1.3b: HydrusMainWindow shell moved verbatim from bridge.cpp (move-only split).
 
@@ -50,7 +51,7 @@ void HydrusMainWindow::dropEvent(QDropEvent *event) {
         array.append(path);
     }
 
-    notify(QStringLiteral("local_import_open_paths"), QString(), QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
+    notify(UiAction::LocalImportOpenPaths, QString(), QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
     event->acceptProposedAction();
 }
 
@@ -79,14 +80,13 @@ void HydrusMainWindow::closeEvent(QCloseEvent *event) {
     QMainWindow::closeEvent(event);
 }
 
-void HydrusMainWindow::notify(const QString &action, const QString &target, const QString &payload) {
-    QByteArray action_bytes = action.toUtf8();
+void HydrusMainWindow::notify(UiAction action, const QString &target, const QString &payload) {
     QByteArray target_bytes = target.toUtf8();
     QByteArray payload_bytes = payload.toUtf8();
 
     app_action(
         *this,
-        rust::Str(action_bytes.constData(), action_bytes.size()),
+        action,
         rust::Str(target_bytes.constData(), target_bytes.size()),
         rust::Str(payload_bytes.constData(), payload_bytes.size()));
 }
@@ -142,7 +142,7 @@ void HydrusMainWindow::build_shell() {
                 activateWindow();
             }
         });
-        connect(tray_exit, &QAction::triggered, this, [this]() { notify(QStringLiteral("exit")); });
+        connect(tray_exit, &QAction::triggered, this, [this]() { notify(UiAction::Exit); });
         connect(tray, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
             if (reason == QSystemTrayIcon::Trigger) {
                 if (isVisible()) {

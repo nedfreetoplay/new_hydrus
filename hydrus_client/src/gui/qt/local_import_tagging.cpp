@@ -1,10 +1,8 @@
-#include "local_import_tagging.hpp"
 
 // WS-15.1.3c2: local import filename tagging dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
-#include "import_folder.hpp"
 
 #include <QHash>
 #include <QHBoxLayout>
@@ -162,7 +160,7 @@ void HydrusLocalImportTaggingDialog::save() {
     QJsonObject payload;
     payload.insert(QStringLiteral("filename_tagging"), filename_tagging);
     payload.insert(QStringLiteral("import_after_save"), import_after_save);
-    main->notify(QStringLiteral("local_import_tagging_save"), QString(), json_payload(payload));
+    main->notify(UiAction::LocalImportTaggingSave, QString(), json_payload(payload));
     close();
 }
 

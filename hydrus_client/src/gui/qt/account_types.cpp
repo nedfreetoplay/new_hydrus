@@ -1,8 +1,7 @@
-#include "account_types.hpp"
 
 // WS-15.1.3c2: account types dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QComboBox>
@@ -133,7 +132,7 @@ void show_account_type_editor(HydrusMainWindow *main, QWidget *parent, const QJs
     payload.insert(QStringLiteral("auto_create_accounts"), accounts->value());
     payload.insert(QStringLiteral("auto_create_time_delta"), time_delta->value());
 
-    main->notify(QStringLiteral("account_type_save"), QString(), json_payload(payload));
+    main->notify(UiAction::AccountTypeSave, QString(), json_payload(payload));
 }
 
 HydrusAccountTypesDialog::HydrusAccountTypesDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
@@ -313,7 +312,7 @@ void HydrusAccountTypesDialog::delete_selected() {
     payload.insert(QStringLiteral("account_type_key"), entry.value(QStringLiteral("key")));
     payload.insert(QStringLiteral("replacement_account_type_key"), keys.at(titles.indexOf(title)));
 
-    main->notify(QStringLiteral("account_type_delete"), QString(), json_payload(payload));
+    main->notify(UiAction::AccountTypeDelete, QString(), json_payload(payload));
 }
 
 void HydrusMainWindow::show_account_types(const QJsonObject &state) {

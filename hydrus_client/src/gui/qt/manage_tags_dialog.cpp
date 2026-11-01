@@ -1,9 +1,8 @@
-#include "manage_tags_dialog.hpp"
 
 // WS-15.1.3c1: manage tags dialog moved from bridge.cpp (move-only split;
 // inline methods outlined, no logic change).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QComboBox>
@@ -117,8 +116,7 @@ void HydrusManageTagsDialog::send(const QStringList &values, const QString &oper
     payload.insert(QStringLiteral("hashes"), hashes);
     payload.insert(QStringLiteral("service"), services->currentText());
     payload.insert(operation, array);
-    main->notify(
-        QStringLiteral("apply_tags"),
+    main->notify(UiAction::ApplyTags,
         QString(),
         QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)));
 }

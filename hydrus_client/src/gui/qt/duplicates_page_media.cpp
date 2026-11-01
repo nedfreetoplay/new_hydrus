@@ -1,8 +1,7 @@
-#include "duplicates_page.hpp"
 
 // WS-15.1.2c: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QAction>
@@ -116,31 +115,31 @@ void HydrusDuplicatesPage::build_media_panel(
     sidebar->setMinimumHeight(sidebar_layout->minimumSize().height());
     page_splitter->setSizes({440, 872});
 
-    connect(same, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_same")); });
-    connect(alternates, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_alternates")); });
-    connect(custom_action, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_custom_action")); });
-    connect(not_duplicates, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_false")); });
-    connect(skip, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_skip")); });
-    connect(refresh_button, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_refresh")); });
-    connect(next_batch, &QPushButton::clicked, this, [this]() { act(QStringLiteral("duplicates_next_batch")); });
+    connect(same, &QPushButton::clicked, this, [this]() { act(UiAction::DuplicatesSame); });
+    connect(alternates, &QPushButton::clicked, this, [this]() { act(UiAction::DuplicatesAlternates); });
+    connect(custom_action, &QPushButton::clicked, this, [this]() { act(UiAction::DuplicatesCustomAction); });
+    connect(not_duplicates, &QPushButton::clicked, this, [this]() { act(UiAction::DuplicatesFalse); });
+    connect(skip, &QPushButton::clicked, this, [this]() { act(UiAction::DuplicatesSkip); });
+    connect(refresh_button, &QPushButton::clicked, this, [this]() { act(UiAction::DuplicatesRefresh); });
+    connect(next_batch, &QPushButton::clicked, this, [this]() { act(UiAction::DuplicatesNextBatch); });
     connect(batch, &QSpinBox::valueChanged, this, [this](int value) {
-        main->notify(QStringLiteral("duplicates_batch_size"), id, QString::number(value));
+        main->notify(UiAction::DuplicatesBatchSize, id, QString::number(value));
     });
     connect(rules, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("duplicates_rules"));
+        main->notify(UiAction::DuplicatesRules);
     });
     connect(merge_options, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("duplicates_merge_options_dialog"));
+        main->notify(UiAction::DuplicatesMergeOptionsDialog);
     });
     connect(review, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("duplicates_review"));
+        main->notify(UiAction::DuplicatesReview);
     });
     connect(group_actions, &QPushButton::clicked, this, [this]() {
         show_group_actions(QStringLiteral("both"), group_actions->mapToGlobal(QPoint(0, group_actions->height())));
     });
     connect(delete_both, &QPushButton::clicked, this, [this]() {
         if (QMessageBox::question(this, QStringLiteral("delete both"), QStringLiteral("Move both files to the trash?")) == QMessageBox::Yes) {
-            act(QStringLiteral("duplicates_delete_both"));
+            act(UiAction::DuplicatesDeleteBoth);
         }
     });
 
@@ -168,7 +167,7 @@ void HydrusDuplicatesPage::build_media_panel(
     update_state(state);
 
     if (qEnvironmentVariableIsSet("HYDRUS_QT_DUPLICATES_CUSTOM_ACTION")) {
-        QTimer::singleShot(150, this, [this]() { act(QStringLiteral("duplicates_custom_action")); });
+        QTimer::singleShot(150, this, [this]() { act(UiAction::DuplicatesCustomAction); });
     }
 
     if (qEnvironmentVariableIsSet("HYDRUS_QT_DUPLICATES_ACTIONS_MENU")) {
@@ -197,7 +196,7 @@ void HydrusDuplicatesPage::notify_search_context() {
     payload.insert(QStringLiteral("sort_type"), sort_type->currentData().toString());
     payload.insert(QStringLiteral("sort_ascending"), sort_ascending->currentData().toBool());
 
-    main->notify(QStringLiteral("duplicates_search_context"), id, json_payload(payload));
+    main->notify(UiAction::DuplicatesSearchContext, id, json_payload(payload));
 }
 
 void HydrusDuplicatesPage::update_search_controls() {
@@ -319,10 +318,10 @@ void HydrusDuplicatesPage::show_group_actions(const QString &target, const QPoin
     QJsonObject payload;
     payload.insert(QStringLiteral("kind"), kind);
     payload.insert(QStringLiteral("target"), target);
-    main->notify(QStringLiteral("duplicates_group_action"), id, json_payload(payload));
+    main->notify(UiAction::DuplicatesGroupAction, id, json_payload(payload));
 }
 
-void HydrusDuplicatesPage::act(const QString &action) {
+void HydrusDuplicatesPage::act(UiAction action) {
     main->notify(action, id);
 }
 

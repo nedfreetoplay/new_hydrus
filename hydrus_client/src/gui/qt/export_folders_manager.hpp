@@ -11,6 +11,7 @@
 #include <QWidget>
 
 class HydrusMainWindow;
+enum class UiAction : std::int32_t;
 class HydrusExportFoldersDialog : public QDialog {
 public:
     HydrusExportFoldersDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
@@ -18,7 +19,7 @@ public:
     void set_state(const QJsonObject &state);
 
 private:
-    void with_selected(const QString &action);
+    void with_selected(UiAction action);
     void refresh_buttons();
 
     HydrusMainWindow *main = nullptr;
@@ -36,7 +37,7 @@ public:
     void update_state(const QJsonObject &state);
 
 private:
-    void with_selected(const QString &action);
+    void with_selected(UiAction action);
 
     HydrusMainWindow *main = nullptr;
     QString id;

@@ -1,4 +1,4 @@
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 
 #include "support/support.hpp"
 
@@ -87,16 +87,16 @@ HydrusImportFoldersDialog::HydrusImportFoldersDialog(
     layout->addLayout(bottom);
 
     connect(add, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("import_folder_edit"), QString(), QString());
+        main->notify(UiAction::ImportFolderEdit, QString(), QString());
     });
     connect(edit_button, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("import_folder_edit"));
+        with_selected(UiAction::ImportFolderEdit);
     });
     connect(delete_button, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("import_folder_remove"));
+        with_selected(UiAction::ImportFolderRemove);
     });
     connect(table, &QTableWidget::cellDoubleClicked, this, [this](int, int) {
-        with_selected(QStringLiteral("import_folder_edit"));
+        with_selected(UiAction::ImportFolderEdit);
     });
     connect(table, &QTableWidget::itemSelectionChanged, this, [this]() {
         refresh_buttons();
@@ -168,7 +168,7 @@ void HydrusImportFoldersDialog::refresh_buttons() {
     delete_button->setEnabled(selected);
 }
 
-void HydrusImportFoldersDialog::with_selected(const QString &action) {
+void HydrusImportFoldersDialog::with_selected(UiAction action) {
     const int row = table->currentRow();
 
     if (row < 0 || table->item(row, 0) == nullptr) {
@@ -243,12 +243,12 @@ HydrusImportFoldersPage::HydrusImportFoldersPage(HydrusMainWindow *main_window, 
     layout->addLayout(buttons);
 
     connect(add, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("import_folder_edit"), id);
+        main->notify(UiAction::ImportFolderEdit, id);
     });
-    connect(edit, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("import_folder_edit")); });
-    connect(check, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("import_folder_check")); });
-    connect(toggle, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("import_folder_toggle")); });
-    connect(remove, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("import_folder_remove")); });
+    connect(edit, &QPushButton::clicked, this, [this]() { with_selected(UiAction::ImportFolderEdit); });
+    connect(check, &QPushButton::clicked, this, [this]() { with_selected(UiAction::ImportFolderCheck); });
+    connect(toggle, &QPushButton::clicked, this, [this]() { with_selected(UiAction::ImportFolderToggle); });
+    connect(remove, &QPushButton::clicked, this, [this]() { with_selected(UiAction::ImportFolderRemove); });
 
     update_state(state);
 }
@@ -257,7 +257,7 @@ const QString &HydrusImportFoldersPage::page_id() const {
     return id;
 }
 
-void HydrusImportFoldersPage::with_selected(const QString &action) {
+void HydrusImportFoldersPage::with_selected(UiAction action) {
     const int row = table->currentRow();
 
     if (row < 0 || table->item(row, 0) == nullptr) {

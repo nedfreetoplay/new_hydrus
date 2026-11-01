@@ -1,8 +1,7 @@
-#include "thumbnail_grid.hpp"
 
 // WS-15.1.2b: thumbnail-grid drag&drop, wheel zoom and context menu moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QAction>
@@ -123,8 +122,7 @@ void HydrusThumbnailGrid::dropEvent(QDropEvent *event) {
         }
 
         if (!paths.isEmpty()) {
-            main->notify(
-                QStringLiteral("local_import_open_paths"),
+            main->notify(UiAction::LocalImportOpenPaths,
                 QString(),
                 QString::fromUtf8(QJsonDocument(paths).toJson(QJsonDocument::Compact)));
             event->acceptProposedAction();
@@ -235,30 +233,29 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
     }
 
     if (chosen == timestamps) {
-        main->notify(QStringLiteral("edit_timestamps"));
+        main->notify(UiAction::EditTimestamps);
         return;
     }
 
     if (chosen == copy_tags) {
-        main->notify(QStringLiteral("copy_tags"));
+        main->notify(UiAction::CopyTags);
         return;
     }
 
     if (chosen == paste_tags) {
-        main->notify(
-            QStringLiteral("paste_tags"),
+        main->notify(UiAction::PasteTags,
             QString(),
             QApplication::clipboard()->text());
         return;
     }
 
     if (chosen == apply_tags) {
-        main->notify(QStringLiteral("apply_tags_selection"));
+        main->notify(UiAction::ApplyTagsSelection);
         return;
     }
 
     if (chosen == viewing_stats) {
-        main->notify(QStringLiteral("viewing_stats"), page->page_id(), hash);
+        main->notify(UiAction::ViewingStats, page->page_id(), hash);
         return;
     }
 
@@ -279,27 +276,30 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
         return;
     }
 
-    QString action;
+    UiAction action = UiAction::None;
 
     if (chosen == open) {
-        action = QStringLiteral("open_viewer");
+        action = UiAction::OpenViewer;
     } else if (chosen == tags) {
-        action = QStringLiteral("manage_tags");
+        action = UiAction::ManageTags;
     } else if (chosen == archive) {
-        action = QStringLiteral("archive_hashes");
+        action = UiAction::ArchiveHashes;
     } else if (chosen == inbox) {
-        action = QStringLiteral("inbox_hashes");
+        action = UiAction::InboxHashes;
     } else if (chosen == remove) {
-        action = QStringLiteral("delete_hashes");
+        action = UiAction::DeleteHashes;
     }
 
-    if (action.isEmpty()) {
+    if (action == UiAction::None) {
         return;
     }
 
     QString payload = hash;
 
-    if (action.endsWith(QStringLiteral("_hashes"))) {
+    const bool hashes_action = action == UiAction::ArchiveHashes
+        || action == UiAction::InboxHashes
+        || action == UiAction::DeleteHashes;
+    if (hashes_action) {
         QJsonArray hashes;
         const QStringList selected = selected_hashes();
 
@@ -314,8 +314,7 @@ void HydrusThumbnailGrid::contextMenuEvent(QContextMenuEvent *event) {
         payload = QString::fromUtf8(QJsonDocument(hashes).toJson(QJsonDocument::Compact));
     }
 
-    const QByteArray action_bytes = action.toUtf8();
     const QByteArray page_bytes = page->page_id().toUtf8();
     const QByteArray payload_bytes = payload.toUtf8();
-    app_action(*main, rust::Str(action_bytes.constData(), action_bytes.size()), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(payload_bytes.constData(), payload_bytes.size()));
+    app_action(*main, action, rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(payload_bytes.constData(), payload_bytes.size()));
 }

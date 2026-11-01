@@ -1,8 +1,7 @@
-#include "repair_locations.hpp"
 
 // WS-15.1.3c2: repair file locations dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QCheckBox>
@@ -103,7 +102,7 @@ HydrusRepairFileLocationsDialog::HydrusRepairFileLocationsDialog(
 
         QJsonObject payload;
         payload.insert(QStringLiteral("updates"), updates);
-        send(QStringLiteral("repair_locations_set"), payload);
+        send(UiAction::RepairLocationsSet, payload);
     });
     connect(probe_button, &QPushButton::clicked, this, [this]() {
         const QString path = QFileDialog::getExistingDirectory(
@@ -116,12 +115,12 @@ HydrusRepairFileLocationsDialog::HydrusRepairFileLocationsDialog(
 
         QJsonObject payload;
         payload.insert(QStringLiteral("path"), path);
-        send(QStringLiteral("repair_locations_probe"), payload);
+        send(UiAction::RepairLocationsProbe, payload);
     });
     connect(apply_button, &QPushButton::clicked, this, [this]() {
         QJsonObject payload;
         payload.insert(QStringLiteral("create_thumbnails"), create_thumbnails->isChecked());
-        send(QStringLiteral("repair_locations_apply"), payload);
+        send(UiAction::RepairLocationsApply, payload);
     });
     connect(close_button, &QPushButton::clicked, this, &QDialog::close);
 
@@ -146,7 +145,7 @@ QStringList HydrusRepairFileLocationsDialog::selected_prefixes() const {
     return prefixes;
 }
 
-void HydrusRepairFileLocationsDialog::send(const QString &action, const QJsonObject &payload) {
+void HydrusRepairFileLocationsDialog::send(UiAction action, const QJsonObject &payload) {
     main->notify(action, QString(), payload.isEmpty() ? QString() : json_payload(payload));
 }
 

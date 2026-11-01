@@ -1,8 +1,7 @@
-#include "seed_cache_dialog.hpp"
 
 // WS-15.1.3c1: file seed cache dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QApplication>
@@ -241,8 +240,8 @@ void HydrusSeedCacheDialog::send_action(const QString &action) {
     }
     payload.insert(QStringLiteral("urls"), urls);
 
-    main->notify(gallery ? QStringLiteral("gallery_seed_log_action")
-                         : QStringLiteral("file_seed_cache_action"),
+    main->notify(gallery ? UiAction::GallerySeedLogAction
+                         : UiAction::FileSeedCacheAction,
                  QString(),
                  json_payload(payload));
 }

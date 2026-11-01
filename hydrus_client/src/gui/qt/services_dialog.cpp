@@ -1,8 +1,7 @@
-#include "services.hpp"
 
 // WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QApplication>
@@ -92,7 +91,7 @@ HydrusServicesDialog::HydrusServicesDialog(HydrusMainWindow *main_window, const 
         const QString key = selected_key();
 
         if (!key.isEmpty()) {
-            main->notify(QStringLiteral("tag_filter_open"), QString(), key);
+            main->notify(UiAction::TagFilterOpen, QString(), key);
         }
     });
     connect(table, &QTableWidget::cellDoubleClicked, this, [this](int, int) { edit_selected(); });
@@ -249,12 +248,12 @@ HydrusServicesDialog::HydrusServicesDialog(HydrusMainWindow *main_window, const 
         const QString key = selected_remote_key();
 
         if (!key.isEmpty()) {
-            main->notify(QStringLiteral("tag_filter_open"), QString(), key);
+            main->notify(UiAction::TagFilterOpen, QString(), key);
         }
     });
     connect(account_types, &QPushButton::clicked, this, [this]() {
         if (!selected_remote_key().isEmpty()) {
-            main->notify(QStringLiteral("account_types_open"), QString(), selected_remote_key());
+            main->notify(UiAction::AccountTypesOpen, QString(), selected_remote_key());
         }
     });
     connect(ban, &QPushButton::clicked, this, [this]() { account_action(); });
@@ -455,8 +454,8 @@ void HydrusServicesDialog::set_state(const QJsonObject &state) {
                       first.value(QStringLiteral("access_key")).toString().isEmpty()
                           ? admin_key->text().trimmed()
                           : first.value(QStringLiteral("access_key")).toString());
-        main->notify(QStringLiteral("admin_service_action"), QString(), json_payload(select));
-        main->notify(QStringLiteral("account_types_open"), QString(), key);
+        main->notify(UiAction::AdminServiceAction, QString(), json_payload(select));
+        main->notify(UiAction::AccountTypesOpen, QString(), key);
     }
 
     const QJsonArray account_list = admin.value(QStringLiteral("accounts")).toArray();

@@ -1,8 +1,7 @@
-#include "downloader_page.hpp"
 
 // WS-15.1.2c: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QAction>
@@ -67,7 +66,7 @@ QFrame *HydrusDownloaderPage::make_status_box(
                                      QToolButton **cog_button,
                                      const QString &pause_tip,
                                      const QString &log_text,
-                                     const QString &log_action) {
+                                     UiAction log_action) {
         QVBoxLayout *box_layout = nullptr;
         QFrame *box = make_static_box(title, container, &box_layout);
         box_layout->setContentsMargins(8, 4, 8, 10);
@@ -109,7 +108,7 @@ QFrame *HydrusDownloaderPage::make_status_box(
                 main->notify(log_action, id);
             });
         log_menu->addAction(QStringLiteral("clear finished"), this, [this]() {
-            main->notify(QStringLiteral("downloader_clear"), id);
+            main->notify(UiAction::DownloaderClear, id);
         });
         (*log_button)->setMenu(log_menu);
         seed_layout->addWidget(*log_button, 0);
@@ -331,7 +330,7 @@ HydrusDownloaderPage::HydrusDownloaderPage(HydrusMainWindow *main_window, const 
 
     if (auto_button != nullptr) {
         connect(auto_button, &QPushButton::clicked, this, [this]() {
-            main->notify(QStringLiteral("watcher_auto"), id);
+            main->notify(UiAction::WatcherAuto, id);
         });
     }
     if (query != nullptr) {
@@ -360,11 +359,11 @@ const QString &HydrusDownloaderPage::page_id() const {
 
 void HydrusDownloaderPage::build_footer(QVBoxLayout *sidebar_layout) {
     connect(files_pause, &QToolButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("downloader_pause"), id);
+        main->notify(UiAction::DownloaderPause, id);
     });
     if (search_pause != nullptr) {
         connect(search_pause, &QToolButton::clicked, this, [this]() {
-            main->notify(QStringLiteral("downloader_pause"), id);
+            main->notify(UiAction::DownloaderPause, id);
         });
     }
 
@@ -372,10 +371,10 @@ void HydrusDownloaderPage::build_footer(QVBoxLayout *sidebar_layout) {
         auto *menu = new QMenu(this);
         menu->setAttribute(Qt::WA_DeleteOnClose);
         menu->addAction(QStringLiteral("pause files"), this, [this]() {
-            main->notify(QStringLiteral("downloader_pause"), id);
+            main->notify(UiAction::DownloaderPause, id);
         });
         menu->addAction(QStringLiteral("clear finished"), this, [this]() {
-            main->notify(QStringLiteral("downloader_clear"), id);
+            main->notify(UiAction::DownloaderClear, id);
         });
         menu->popup(button->mapToGlobal(QPoint(0, button->height())));
     };

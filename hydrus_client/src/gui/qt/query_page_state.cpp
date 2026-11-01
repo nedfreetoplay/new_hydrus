@@ -1,8 +1,7 @@
-#include "query_page_sidebar.hpp"
 
 // WS-15.1.2b: query-page state and media commands moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QColor>
@@ -41,7 +40,7 @@ void HydrusQueryPage::archive_focused() {
 
     const QByteArray page_bytes = id.toUtf8();
     const QByteArray hash_bytes = hash.toUtf8();
-    app_action(*main, rust::Str("archive_files", 13), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
+    app_action(*main, UiAction::ArchiveFiles, rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
 }
 
 void HydrusQueryPage::inbox_focused() {
@@ -53,7 +52,7 @@ void HydrusQueryPage::inbox_focused() {
 
     const QByteArray page_bytes = id.toUtf8();
     const QByteArray hash_bytes = hash.toUtf8();
-    app_action(*main, rust::Str("inbox_files", 11), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
+    app_action(*main, UiAction::InboxFiles, rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
 }
 
 void HydrusQueryPage::delete_focused() {
@@ -65,7 +64,7 @@ void HydrusQueryPage::delete_focused() {
 
     const QByteArray page_bytes = id.toUtf8();
     const QByteArray hash_bytes = hash.toUtf8();
-    app_action(*main, rust::Str("delete_files", 12), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
+    app_action(*main, UiAction::DeleteFiles, rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
 }
 
 QString HydrusQueryPage::focused_hash() const {

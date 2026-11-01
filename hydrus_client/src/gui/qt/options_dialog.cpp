@@ -1,9 +1,8 @@
-#include "options_dialog.hpp"
 
 // WS-15.1.3c1: options dialog moved from bridge.cpp (move-only split; inline
 // methods outlined, no logic change).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QDialogButtonBox>
@@ -211,7 +210,7 @@ void HydrusOptionsDialog::apply() {
     payload.insert(QStringLiteral("noneable_strings"), noneable_strings);
     payload.insert(QStringLiteral("noneable_integers"), noneable_integers);
 
-    main->notify(QStringLiteral("options_apply"), QString(), json_payload(payload));
+    main->notify(UiAction::OptionsApply, QString(), json_payload(payload));
     accept();
 }
 

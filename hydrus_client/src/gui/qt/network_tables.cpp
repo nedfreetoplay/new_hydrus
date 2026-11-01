@@ -1,9 +1,7 @@
-#include "network.hpp"
-#include "url_class_dialog.hpp"
 
 // WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QApplication>
@@ -59,7 +57,7 @@ void HydrusNetworkDialog::add_header() {
     payload.insert(QStringLiteral("name"), name->text().trimmed());
     payload.insert(QStringLiteral("value"), value->text());
 
-    main->notify(QStringLiteral("network_header_add"), QString(), json_payload(payload));
+    main->notify(UiAction::NetworkHeaderAdd, QString(), json_payload(payload));
 }
 
 void HydrusNetworkDialog::remove_header() {
@@ -72,7 +70,7 @@ void HydrusNetworkDialog::remove_header() {
     QJsonObject payload;
     payload.insert(QStringLiteral("name"), headers->item(row, 0)->text());
 
-    main->notify(QStringLiteral("network_header_remove"), QString(), json_payload(payload));
+    main->notify(UiAction::NetworkHeaderRemove, QString(), json_payload(payload));
 }
 
 void HydrusNetworkDialog::add_url_class() {
@@ -88,7 +86,7 @@ void HydrusNetworkDialog::add_url_class() {
         return;
     }
 
-    main->notify(QStringLiteral("network_url_class_add"), QString(), json_payload(payload));
+    main->notify(UiAction::NetworkUrlClassAdd, QString(), json_payload(payload));
 }
 
 void HydrusNetworkDialog::edit_url_class() {
@@ -108,8 +106,7 @@ void HydrusNetworkDialog::edit_url_class() {
         return;
     }
 
-    main->notify(
-        QStringLiteral("network_url_class_save"),
+    main->notify(UiAction::NetworkUrlClassSave,
         QString(),
         json_payload(dialog.payload()));
 }
@@ -124,7 +121,7 @@ void HydrusNetworkDialog::remove_url_class() {
     QJsonObject payload;
     payload.insert(QStringLiteral("name"), url_classes->item(row, 0)->text());
 
-    main->notify(QStringLiteral("network_url_class_remove"), QString(), json_payload(payload));
+    main->notify(UiAction::NetworkUrlClassRemove, QString(), json_payload(payload));
 }
 
 void HydrusNetworkDialog::add_pool() {
@@ -152,7 +149,7 @@ void HydrusNetworkDialog::add_pool() {
     QJsonObject payload;
     payload.insert(QStringLiteral("domain"), domain->text().trimmed());
     payload.insert(QStringLiteral("limit"), limit->value());
-    main->notify(QStringLiteral("network_pool_set"), QString(), json_payload(payload));
+    main->notify(UiAction::NetworkPoolSet, QString(), json_payload(payload));
 }
 
 void HydrusNetworkDialog::remove_pool() {
@@ -164,7 +161,7 @@ void HydrusNetworkDialog::remove_pool() {
 
     QJsonObject payload;
     payload.insert(QStringLiteral("domain"), pools->item(row, 0)->data(Qt::UserRole).toString());
-    main->notify(QStringLiteral("network_pool_remove"), QString(), json_payload(payload));
+    main->notify(UiAction::NetworkPoolRemove, QString(), json_payload(payload));
 }
 
 void HydrusNetworkDialog::add_bandwidth_rule() {
@@ -233,7 +230,7 @@ void HydrusNetworkDialog::add_bandwidth_rule() {
             ? static_cast<qint64>(maximum->value()) * 1024 * 1024
             : static_cast<qint64>(maximum->value()));
 
-    main->notify(QStringLiteral("network_rule_set"), QString(), json_payload(payload));
+    main->notify(UiAction::NetworkRuleSet, QString(), json_payload(payload));
 }
 
 void HydrusNetworkDialog::remove_bandwidth_rule() {
@@ -248,5 +245,5 @@ void HydrusNetworkDialog::remove_bandwidth_rule() {
     payload.insert(QStringLiteral("context"), bandwidth_rules->item(row, 1)->data(Qt::UserRole).toString());
     payload.insert(QStringLiteral("bandwidth_type"), bandwidth_rules->item(row, 2)->data(Qt::UserRole).toString());
 
-    main->notify(QStringLiteral("network_rule_remove"), QString(), json_payload(payload));
+    main->notify(UiAction::NetworkRuleRemove, QString(), json_payload(payload));
 }

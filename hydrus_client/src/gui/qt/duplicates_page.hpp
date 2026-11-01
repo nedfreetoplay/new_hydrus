@@ -20,6 +20,7 @@ class QHBoxLayout;
 class QPoint;
 class HydrusCanvas;
 class HydrusMainWindow;
+enum class UiAction : std::int32_t;
 class HydrusThumbnailGrid;
 
 // Side-by-side duplicate pair filter.
@@ -32,7 +33,7 @@ public:
     void update_auto_resolution_rules(const QJsonObject &state);
 
 private:
-    void act(const QString &action);
+    void act(UiAction action);
     void notify_search_context();
     void update_search_controls();
     void show_group_actions(const QString &target, const QPoint &global_pos);

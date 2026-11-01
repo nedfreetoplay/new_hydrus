@@ -11,6 +11,7 @@ class QLabel;
 class QPushButton;
 class QTableWidget;
 class HydrusMainWindow;
+enum class UiAction : std::int32_t;
 
 // Local import review panel: parse paths, show good/bad/sidecar rows, then
 // import the good ones (optionally deleting the originals).
@@ -22,7 +23,7 @@ public:
 
 private:
     void rebuild();
-    void send(const QString &action, const QJsonObject &payload = QJsonObject());
+    void send(UiAction action, const QJsonObject &payload = QJsonObject());
     QStringList selected_paths() const;
 
     HydrusMainWindow *main = nullptr;

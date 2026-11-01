@@ -17,6 +17,7 @@
 #include <QWidget>
 
 class HydrusMainWindow;
+enum class UiAction : std::int32_t;
 struct SubscriptionsPageState;
 struct SubscriptionsDialogState;
 struct SubscriptionEditorState;
@@ -52,7 +53,7 @@ public:
 
 private:
     void add_subscription();
-    void with_selected(const QString &action);
+    void with_selected(UiAction action);
     void import_options_action(const QString &action);
     void refresh_buttons();
     QStringList selected_names() const;
@@ -74,7 +75,7 @@ public:
 
 private:
     void add_subscription();
-    void with_selected(const QString &action);
+    void with_selected(UiAction action);
 
     HydrusMainWindow *main = nullptr;
     QString id;

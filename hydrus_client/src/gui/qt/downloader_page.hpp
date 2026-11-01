@@ -22,6 +22,7 @@ class QTableWidget;
 class QToolButton;
 class QVBoxLayout;
 class HydrusMainWindow;
+enum class UiAction : std::int32_t;
 
 // URL/gallery/watcher/simple downloader page.
 class HydrusDownloaderPage : public QWidget {
@@ -54,7 +55,7 @@ private:
         QToolButton **cog_button,
         const QString &pause_tip,
         const QString &log_text,
-        const QString &log_action);
+        UiAction log_action);
     void build_gallery_panel(QVBoxLayout *main_layout);
     void build_watcher_panel(QVBoxLayout *main_layout);
     void build_urls_panels(QVBoxLayout *main_layout);

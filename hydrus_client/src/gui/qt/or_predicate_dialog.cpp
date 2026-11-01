@@ -1,9 +1,8 @@
-#include "or_predicate_dialog.hpp"
 
 // WS-15.1.3c1: OR predicate editor moved from bridge.cpp (move-only split;
 // inline methods outlined, no logic change).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QDialogButtonBox>
@@ -63,7 +62,7 @@ void show_or_predicate_dialog(HydrusMainWindow &main, const QString &page_id, co
         const QString expression = dialog.expression();
 
         if (!expression.isEmpty()) {
-            main.notify(QStringLiteral("or_insert"), page_id, expression);
+            main.notify(UiAction::OrInsert, page_id, expression);
         }
     }
 }

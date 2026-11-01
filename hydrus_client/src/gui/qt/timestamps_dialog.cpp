@@ -1,8 +1,7 @@
-#include "timestamps_dialog.hpp"
 
 // WS-15.1.3c2: edit timestamps dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QCheckBox>
@@ -70,8 +69,7 @@ void HydrusTimestampsDialog::save() {
             ? QJsonValue(modified->dateTime().toSecsSinceEpoch())
             : QJsonValue(QJsonValue::Null));
 
-    main->notify(
-        QStringLiteral("timestamps_save"),
+    main->notify(UiAction::TimestampsSave,
         QString(),
         QString::fromUtf8(QJsonDocument(payload).toJson(QJsonDocument::Compact)));
     accept();

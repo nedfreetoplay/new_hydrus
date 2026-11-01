@@ -1,8 +1,7 @@
-#include "api_permissions.hpp"
 
 // WS-15.1.3c2: client api permissions dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QCheckBox>
@@ -206,7 +205,7 @@ void show_api_permission_editor(HydrusMainWindow *main, QWidget *parent, const Q
     payload.insert(QStringLiteral("basic_permissions"), permissions);
     payload.insert(QStringLiteral("rules"), rules);
 
-    main->notify(QStringLiteral("api_permissions_save"), QString(), json_payload(payload));
+    main->notify(UiAction::ApiPermissionsSave, QString(), json_payload(payload));
 }
 
 HydrusApiPermissionsDialog::HydrusApiPermissionsDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
@@ -342,7 +341,7 @@ void HydrusApiPermissionsDialog::delete_selected() {
         return;
     }
 
-    main->notify(QStringLiteral("api_permissions_delete"), QString(),
+    main->notify(UiAction::ApiPermissionsDelete, QString(),
                  entry.value(QStringLiteral("access_key")).toString());
 }
 

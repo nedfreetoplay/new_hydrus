@@ -1,8 +1,7 @@
-#include "duplicates_page.hpp"
 
 // WS-15.1.2c: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QAction>
@@ -219,7 +218,7 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
         }
     });
     connect(search_favourite, &QToolButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("notify"),
+        main->notify(UiAction::Notify,
                      QString(),
                      QStringLiteral("favourite searches are not implemented yet"));
     });
@@ -229,7 +228,7 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
         notify_search_context();
     });
     connect(search_lock, &QToolButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("notify"),
+        main->notify(UiAction::Notify,
                      QString(),
                      QStringLiteral("search synchronisation is not implemented yet"));
     });
@@ -276,13 +275,13 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     search_layout->addWidget(count_row);
 
     connect(count_info, &QToolButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("notify"),
+        main->notify(UiAction::Notify,
                      QString(),
                      QStringLiteral("this counts potential duplicate pairs for the current "
                                     "search"));
     });
     connect(count_refresh, &QToolButton::clicked, this, [this]() {
-        act(QStringLiteral("duplicates_refresh"));
+        act(UiAction::DuplicatesRefresh);
     });
     connect(count_cog, &QToolButton::clicked, this, [this, count_cog]() {
         auto *menu = new QMenu(this);
@@ -290,7 +289,7 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
         menu->addAction(QStringLiteral("start new potential duplicate pair search panels paused"),
                         this,
                         [this]() {
-                            main->notify(QStringLiteral("notify"),
+                            main->notify(UiAction::Notify,
                                          QString(),
                                          QStringLiteral("this option is not implemented yet"));
                         });
@@ -314,10 +313,10 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
         menu->setAttribute(Qt::WA_DeleteOnClose);
         menu->addAction(QStringLiteral("edit duplicate metadata merge options for 'this is better'"),
                         this,
-                        [this]() { act(QStringLiteral("duplicates_merge_options_dialog")); });
+                        [this]() { act(UiAction::DuplicatesMergeOptionsDialog); });
         menu->addAction(QStringLiteral("edit duplicate metadata merge options for 'same quality'"),
                         this,
-                        [this]() { act(QStringLiteral("duplicates_merge_options_dialog")); });
+                        [this]() { act(UiAction::DuplicatesMergeOptionsDialog); });
         menu->popup(merge_button->mapToGlobal(QPoint(0, merge_button->height())));
     });
 
@@ -343,7 +342,7 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
         });
         connect(group, &QAction::triggered, this, [this, group_mode]() {
             group_mode->setText(QStringLiteral("group mode"));
-            main->notify(QStringLiteral("notify"),
+            main->notify(UiAction::Notify,
                          QString(),
                          QStringLiteral("group mode is not implemented yet"));
         });
@@ -354,7 +353,7 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     launch_filter->setMinimumHeight(24);
     filter_layout->addWidget(launch_filter);
     connect(launch_filter, &QPushButton::clicked, this, [this]() {
-        act(QStringLiteral("duplicates_next_batch"));
+        act(UiAction::DuplicatesNextBatch);
     });
 
     QVBoxLayout *quick_layout = nullptr;
@@ -414,16 +413,16 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
                 : QStringLiteral("smallest first"));
     });
     connect(show_random, &QPushButton::clicked, this, [this]() {
-        act(QStringLiteral("duplicates_refresh"));
+        act(UiAction::DuplicatesRefresh);
     });
     connect(set_same_quality, &QPushButton::clicked, this, [this]() {
-        act(QStringLiteral("duplicates_same"));
+        act(UiAction::DuplicatesSame);
     });
     connect(set_alternates, &QPushButton::clicked, this, [this]() {
-        act(QStringLiteral("duplicates_alternates"));
+        act(UiAction::DuplicatesAlternates);
     });
     connect(set_false_positive, &QPushButton::clicked, this, [this]() {
-        act(QStringLiteral("duplicates_false"));
+        act(UiAction::DuplicatesFalse);
     });
 
     QVBoxLayout *tags_layout = nullptr;
@@ -504,21 +503,21 @@ HydrusDuplicatesPage::HydrusDuplicatesPage(HydrusMainWindow *main_window, const 
     auto_layout->addLayout(actions_hbox);
 
     connect(auto_refresh_button, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("duplicates_rules"));
+        main->notify(UiAction::DuplicatesRules);
     });
     connect(pause_play, &QPushButton::clicked, this, [this]() {
         // toggle paused state through the rules dialog flow is not available;
         // request a refresh of the rules list instead
-        main->notify(QStringLiteral("duplicates_rules"));
+        main->notify(UiAction::DuplicatesRules);
     });
     connect(review_actions, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("duplicates_review"));
+        main->notify(UiAction::DuplicatesReview);
     });
     connect(edit_rules, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("duplicates_rules"));
+        main->notify(UiAction::DuplicatesRules);
     });
     connect(help_button, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("docs"));
+        main->notify(UiAction::Docs);
     });
     update_auto_resolution_rules(state);
 

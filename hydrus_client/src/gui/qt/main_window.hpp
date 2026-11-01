@@ -26,6 +26,7 @@ class QTabBar;
 class QVBoxLayout;
 class HydrusMainWindow;
 class HydrusNotebook;
+enum class UiAction : std::int32_t;
 class HydrusTabBar;
 class HydrusQueryPage;
 class HydrusThumbnailGrid;
@@ -153,7 +154,7 @@ public:
 
     HydrusQueryPage *find_page(const QString &page_id) const;
 
-    void notify(const QString &action, const QString &target = {}, const QString &payload = {});
+    void notify(UiAction action, const QString &target = {}, const QString &payload = {});
 
     bool building = true;
     QString active_page;

@@ -1,9 +1,8 @@
-#include "command_palette.hpp"
 
 // WS-15.1.3c1: command palette moved from bridge.cpp (move-only split; inline
 // methods outlined, no logic change).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QLineEdit>
@@ -101,11 +100,13 @@ void HydrusCommandPalette::run_current() {
     accept();
 
     if (!action.isEmpty()) {
-        if (action == QStringLiteral("duplicate_page")
-            || action == QStringLiteral("refresh_page")) {
-            main->notify(action, main->active_page);
+        const QByteArray action_bytes = action.toUtf8();
+        const UiAction ua = ui_action_from_str(
+            rust::Str(action_bytes.constData(), action_bytes.size()));
+        if (ua == UiAction::DuplicatePage || ua == UiAction::RefreshPage) {
+            main->notify(ua, main->active_page);
         } else {
-            main->notify(action);
+            main->notify(ua);
         }
     }
 }

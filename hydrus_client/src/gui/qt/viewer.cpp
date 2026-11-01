@@ -1,8 +1,5 @@
-#include "viewer.hpp"
 
-#include "bridge.hpp"
-#include "canvas.hpp"
-#include "metadata_panel.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QApplication>
@@ -60,7 +57,7 @@ bool HydrusViewerWindow::eventFilter(QObject *watched, QEvent *event) {
 void HydrusViewerWindow::navigate(const QString &direction) {
     const QByteArray viewer_bytes = id.toUtf8();
     const QByteArray direction_bytes = direction.toUtf8();
-    app_action(*main, rust::Str("viewer_nav", 10), rust::Str(viewer_bytes.constData(), viewer_bytes.size()), rust::Str(direction_bytes.constData(), direction_bytes.size()));
+    app_action(*main, UiAction::ViewerNav, rust::Str(viewer_bytes.constData(), viewer_bytes.size()), rust::Str(direction_bytes.constData(), direction_bytes.size()));
 }
 
 void HydrusViewerWindow::closeEvent(QCloseEvent *event) {
@@ -69,7 +66,7 @@ void HydrusViewerWindow::closeEvent(QCloseEvent *event) {
     settings.sync();
 
     const QByteArray viewer_bytes = id.toUtf8();
-    app_action(*main, rust::Str("viewer_close", 12), rust::Str(viewer_bytes.constData(), viewer_bytes.size()), rust::Str());
+    app_action(*main, UiAction::ViewerClose, rust::Str(viewer_bytes.constData(), viewer_bytes.size()), rust::Str());
 
     QWidget::closeEvent(event);
 }

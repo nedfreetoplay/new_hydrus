@@ -1,6 +1,6 @@
 // WS-15.1.3c2: notes editor dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QDialog>
@@ -99,5 +99,5 @@ void HydrusMainWindow::show_notes(const QJsonObject &state) {
     payload.insert(QStringLiteral("hash"), hash);
     payload.insert(QStringLiteral("notes"), values);
 
-    notify(QStringLiteral("notes_save"), QString(), json_payload(payload));
+    notify(UiAction::NotesSave, QString(), json_payload(payload));
 }

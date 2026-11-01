@@ -45,3 +45,5 @@
 #include "export_folders_manager.hpp"
 #include "main_window.hpp"
 #include "bridge_api.hpp"
+
+enum class UiAction : std::int32_t;

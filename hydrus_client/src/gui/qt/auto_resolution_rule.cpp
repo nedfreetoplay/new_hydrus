@@ -1,8 +1,7 @@
-#include "auto_resolution.hpp"
 
 // WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QApplication>
@@ -323,7 +322,7 @@ void HydrusAutoResolutionRuleDialog::run_preview() {
 
     QJsonObject payload = rule_json();
     payload.insert(QStringLiteral("original_name"), original_name);
-    main->notify(QStringLiteral("duplicates_rule_preview"), QString(), json_payload(payload));
+    main->notify(UiAction::DuplicatesRulePreview, QString(), json_payload(payload));
 }
 
 void HydrusAutoResolutionRuleDialog::set_preview(const QJsonObject &preview) {
@@ -371,6 +370,6 @@ void HydrusAutoResolutionRuleDialog::save() {
 
     QJsonObject payload = rule_json();
     payload.insert(QStringLiteral("original_name"), original_name);
-    main->notify(QStringLiteral("duplicates_rule_save"), QString(), json_payload(payload));
+    main->notify(UiAction::DuplicatesRuleSave, QString(), json_payload(payload));
     close();
 }

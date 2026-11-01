@@ -1,8 +1,7 @@
-#include "notifications_dialog.hpp"
 
 // WS-15.1.3c2: popup messages dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QDialogButtonBox>
@@ -47,7 +46,7 @@ HydrusNotificationsDialog::HydrusNotificationsDialog(HydrusMainWindow *main_wind
     connect(clear, &QPushButton::clicked, this, [this]() {
         table->setRowCount(0);
         summary->setText(QStringLiteral("0 message(s)"));
-        main->notify(QStringLiteral("notifications_clear"));
+        main->notify(UiAction::NotificationsClear);
     });
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::accept);
     layout->addWidget(buttons);

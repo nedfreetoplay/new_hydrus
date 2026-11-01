@@ -1,8 +1,7 @@
-#include "import_options.hpp"
 
 // WS-15.1.3b: import options dialog shell moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QDialogButtonBox>
@@ -363,8 +362,10 @@ void HydrusImportOptionsDialog::save() {
         payload.insert(QStringLiteral("caller"), specific.value(QStringLiteral("caller")));
         payload.insert(QStringLiteral("container"), read_editor());
 
+        const QString action_text = specific.value(QStringLiteral("action")).toString();
+        const QByteArray action_bytes = action_text.toUtf8();
         main->notify(
-            specific.value(QStringLiteral("action")).toString(),
+            ui_action_from_str(rust::Str(action_bytes.constData(), action_bytes.size())),
             QString(),
             json_payload(payload));
 
@@ -378,7 +379,7 @@ void HydrusImportOptionsDialog::save() {
     payload.insert(QStringLiteral("defaults"), data.value(QStringLiteral("defaults")));
     payload.insert(QStringLiteral("favourites"), data.value(QStringLiteral("favourites")));
 
-    main->notify(QStringLiteral("import_options_save"), QString(), json_payload(payload));
+    main->notify(UiAction::ImportOptionsSave, QString(), json_payload(payload));
 
     close();
 }

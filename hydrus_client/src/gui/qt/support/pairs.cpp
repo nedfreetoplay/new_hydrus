@@ -1,6 +1,6 @@
 #include "pairs.hpp"
 
-#include "../bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "strings.hpp"
 
 #include <QAction>
@@ -74,7 +74,7 @@ void show_selected_pair_rows(QTableWidget *table, HydrusMainWindow *main) {
 
     QJsonObject payload;
     payload.insert(QStringLiteral("hashes"), QJsonArray::fromStringList(hashes));
-    main->notify(QStringLiteral("duplicates_show_pair"), QString(), json_payload(payload));
+    main->notify(UiAction::DuplicatesShowPair, QString(), json_payload(payload));
 }
 
 void install_pair_list_actions(QTableWidget *table, HydrusMainWindow *main) {

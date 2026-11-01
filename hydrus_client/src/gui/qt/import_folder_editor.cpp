@@ -1,8 +1,7 @@
-#include "import_folder.hpp"
 
 // WS-15.1.3b: edit import folder dialog moved from bridge.cpp; the filename tagging section lives in import_folder_tagging.cpp (layout layer split, logic unchanged).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QCheckBox>
@@ -503,5 +502,5 @@ void HydrusMainWindow::show_import_folder(const QJsonObject &state) {
 
     payload.insert(QStringLiteral("filename_tagging"), filename_tagging);
 
-    notify(QStringLiteral("import_folder_save"), active_page, json_payload(payload));
+    notify(UiAction::ImportFolderSave, active_page, json_payload(payload));
 }

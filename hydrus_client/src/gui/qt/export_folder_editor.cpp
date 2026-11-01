@@ -1,8 +1,7 @@
-#include "export_folder.hpp"
 
 // WS-15.1.3b: edit export folder dialog moved from bridge.cpp; the sidecar exporting section lives in export_folder_sidecar.cpp (layout layer split, logic unchanged).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QCheckBox>
@@ -337,7 +336,7 @@ void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
         }
     });
     connect(query_favourite, &QToolButton::clicked, &dialog, [this]() {
-        notify(QStringLiteral("notify"),
+        notify(UiAction::Notify,
                QString(),
                QStringLiteral("favourite searches are not implemented yet"));
     });
@@ -345,7 +344,7 @@ void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
         query->clear();
     });
     connect(query_lock, &QToolButton::clicked, &dialog, [this]() {
-        notify(QStringLiteral("notify"),
+        notify(UiAction::Notify,
                QString(),
                QStringLiteral("search synchronisation is not implemented yet"));
     });
@@ -534,5 +533,5 @@ void HydrusMainWindow::show_export_folder(const QJsonObject &state) {
     payload.insert(QStringLiteral("run_now"), run_on_ok->isChecked());
     payload.insert(QStringLiteral("period"), period_value);
 
-    notify(QStringLiteral("export_folder_save"), active_page, json_payload(payload));
+    notify(UiAction::ExportFolderSave, active_page, json_payload(payload));
 }

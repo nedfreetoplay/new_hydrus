@@ -120,7 +120,7 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const View
     hover_layout->setContentsMargins(6, 4, 6, 4);
     hover_layout->setSpacing(4);
 
-    const auto add_hover = [this, hover_layout](const QString &label, const QString &action) {
+    const auto add_hover = [this, hover_layout](const QString &label, UiAction action) {
         auto *button = new QPushButton(label, hover_frame);
         button->setAutoDefault(false);
         connect(button, &QPushButton::clicked, this, [this, action]() {
@@ -131,10 +131,10 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const View
         hover_layout->addWidget(button);
     };
 
-    add_hover(QStringLiteral("archive"), QStringLiteral("archive_files"));
-    add_hover(QStringLiteral("inbox"), QStringLiteral("inbox_files"));
-    add_hover(QStringLiteral("delete"), QStringLiteral("delete_files"));
-    add_hover(QStringLiteral("tags"), QStringLiteral("manage_tags"));
+    add_hover(QStringLiteral("archive"), UiAction::ArchiveFiles);
+    add_hover(QStringLiteral("inbox"), UiAction::InboxFiles);
+    add_hover(QStringLiteral("delete"), UiAction::DeleteFiles);
+    add_hover(QStringLiteral("tags"), UiAction::ManageTags);
 
     auto *notes_button = new QPushButton(QStringLiteral("notes"), hover_frame);
     notes_button->setAutoDefault(false);
@@ -208,7 +208,7 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const View
     connect(manage, &QPushButton::clicked, this, [this]() {
         const QByteArray page_bytes = page_id.toUtf8();
         const QByteArray hash_bytes = hash.toUtf8();
-        app_action(*main, rust::Str("manage_tags", 11), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
+        app_action(*main, UiAction::ManageTags, rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
     });
     connect(close_button, &QPushButton::clicked, this, [this]() { QWidget::close(); });
 
@@ -241,25 +241,25 @@ HydrusViewerWindow::HydrusViewerWindow(HydrusMainWindow *main_window, const View
     bind_shortcut(QStringLiteral("M"), [this]() {
         const QByteArray page_bytes = page_id.toUtf8();
         const QByteArray hash_bytes = hash.toUtf8();
-        app_action(*main, rust::Str("manage_tags", 11), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
+        app_action(*main, UiAction::ManageTags, rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
     });
 
     bind_shortcut(QStringLiteral("A"), [this]() {
         const QByteArray page_bytes = page_id.toUtf8();
         const QByteArray hash_bytes = hash.toUtf8();
-        app_action(*main, rust::Str("archive_files", 13), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
+        app_action(*main, UiAction::ArchiveFiles, rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
     });
 
     bind_shortcut(QStringLiteral("I"), [this]() {
         const QByteArray page_bytes = page_id.toUtf8();
         const QByteArray hash_bytes = hash.toUtf8();
-        app_action(*main, rust::Str("inbox_files", 11), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
+        app_action(*main, UiAction::InboxFiles, rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
     });
 
     bind_shortcut(QStringLiteral("Delete"), [this]() {
         const QByteArray page_bytes = page_id.toUtf8();
         const QByteArray hash_bytes = hash.toUtf8();
-        app_action(*main, rust::Str("delete_files", 12), rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
+        app_action(*main, UiAction::DeleteFiles, rust::Str(page_bytes.constData(), page_bytes.size()), rust::Str(hash_bytes.constData(), hash_bytes.size()));
     });
 
     update_state(state);

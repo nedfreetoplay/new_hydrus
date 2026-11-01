@@ -1,8 +1,7 @@
-#include "downloader_page.hpp"
 
 // WS-15.1.2c: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QAction>
@@ -110,20 +109,20 @@ void HydrusDownloaderPage::build_gallery_panel(QVBoxLayout *main_layout) {
         main_layout->addWidget(icon_row);
 
         connect(highlight_button, &QToolButton::clicked, this, [this]() {
-            main->notify(QStringLiteral("downloader_open_results"), id);
+            main->notify(UiAction::DownloaderOpenResults, id);
         });
         connect(clear_highlight_button, &QToolButton::clicked, this, [this]() {
-            main->notify(QStringLiteral("downloader_clear"), id);
+            main->notify(UiAction::DownloaderClear, id);
         });
         connect(files_pause, &QToolButton::clicked, this, [this]() {
-            main->notify(QStringLiteral("downloader_pause"), id);
+            main->notify(UiAction::DownloaderPause, id);
         });
         connect(search_pause, &QToolButton::clicked, this, [this]() {
-            main->notify(QStringLiteral("downloader_pause"), id);
+            main->notify(UiAction::DownloaderPause, id);
         });
         connect(retry_button, &QToolButton::clicked, this, [this]() { start(); });
         connect(remove_button, &QToolButton::clicked, this, [this]() {
-            main->notify(QStringLiteral("downloader_clear"), id);
+            main->notify(UiAction::DownloaderClear, id);
         });
         connect(queue, &QTableWidget::cellDoubleClicked, this, [this](int, int) { start(); });
 
@@ -160,13 +159,13 @@ void HydrusDownloaderPage::build_gallery_panel(QVBoxLayout *main_layout) {
             menu->setAttribute(Qt::WA_DeleteOnClose);
             menu->addAction(QStringLiteral("start query"), this, [this]() { start(); });
             menu->addAction(QStringLiteral("clear finished"), this, [this]() {
-                main->notify(QStringLiteral("downloader_clear"), id);
+                main->notify(UiAction::DownloaderClear, id);
             });
             menu->addAction(QStringLiteral("file seed cache..."), this, [this]() {
-                main->notify(QStringLiteral("file_seed_cache"), id);
+                main->notify(UiAction::FileSeedCache, id);
             });
             menu->addAction(QStringLiteral("gallery log..."), this, [this]() {
-                main->notify(QStringLiteral("gallery_seed_log"), id);
+                main->notify(UiAction::GallerySeedLog, id);
             });
             menu->popup(query_cog->mapToGlobal(QPoint(0, query_cog->height())));
         });
@@ -187,7 +186,7 @@ void HydrusDownloaderPage::build_gallery_panel(QVBoxLayout *main_layout) {
                 site->setCurrentIndex(0);
                 gug_button->setText(QStringLiteral("no downloader set"));
                 url->clear();
-                main->notify(QStringLiteral("downloader_set_site"), id, QString());
+                main->notify(UiAction::DownloaderSetSite, id, QString());
             });
 
             for (int index = 1; index < site->count(); ++index) {
@@ -198,8 +197,7 @@ void HydrusDownloaderPage::build_gallery_panel(QVBoxLayout *main_layout) {
                     site->setCurrentIndex(index);
                     gug_button->setText(title);
                     url->setText(site->itemData(index, Qt::UserRole + 1).toString());
-                    main->notify(
-                        QStringLiteral("downloader_set_site"),
+                    main->notify(UiAction::DownloaderSetSite,
                         id,
                         site->itemData(index).toString());
                 });
@@ -335,28 +333,28 @@ void HydrusDownloaderPage::build_watcher_panel(QVBoxLayout *main_layout) {
             watcher_table->clearSelection();
         });
         connect(watcher_files_pause, &QToolButton::clicked, this, [this]() {
-            main->notify(QStringLiteral("downloader_pause"), id);
+            main->notify(UiAction::DownloaderPause, id);
         });
         connect(watcher_check_pause, &QToolButton::clicked, this, [this]() {
-            main->notify(QStringLiteral("downloader_pause"), id);
+            main->notify(UiAction::DownloaderPause, id);
         });
         connect(watcher_retry, &QToolButton::clicked, this, [this]() {
             auto *menu = new QMenu(this);
             menu->setAttribute(Qt::WA_DeleteOnClose);
             menu->addAction(QStringLiteral("retry failed"), this, [this]() {
-                main->notify(QStringLiteral("downloader_retry"), id);
+                main->notify(UiAction::DownloaderRetry, id);
             });
             menu->popup(
                 watcher_retry->mapToGlobal(QPoint(0, watcher_retry->height())));
         });
         connect(watcher_trash, &QToolButton::clicked, this, [this]() {
-            main->notify(QStringLiteral("watcher_remove"), id);
+            main->notify(UiAction::WatcherRemove, id);
         });
         connect(watcher_url, &QLineEdit::returnPressed, this, [this]() {
             const QString text = watcher_url->text().trimmed();
 
             if (!text.isEmpty()) {
-                main->notify(QStringLiteral("watcher_add_url"), id, text);
+                main->notify(UiAction::WatcherAddUrl, id, text);
                 watcher_url->clear();
             }
         });
@@ -368,12 +366,12 @@ void HydrusDownloaderPage::build_watcher_panel(QVBoxLayout *main_layout) {
                                                      Qt::SkipEmptyParts);
 
                 if (!lines.isEmpty()) {
-                    main->notify(QStringLiteral("watcher_add_url"), id, lines.first().trimmed());
+                    main->notify(UiAction::WatcherAddUrl, id, lines.first().trimmed());
                 }
             }
         });
         connect(checker_options, &QPushButton::clicked, this, [this]() {
-            main->notify(QStringLiteral("watcher_checker_options"), id);
+            main->notify(UiAction::WatcherCheckerOptions, id);
         });
     }
 }
@@ -429,7 +427,7 @@ void HydrusDownloaderPage::build_highlight_panel(QVBoxLayout *sidebar_layout, co
                                       &file_cog,
                                       QStringLiteral("pause/play files"),
                                       QStringLiteral("file"),
-                                      QStringLiteral("file_seed_cache"));
+                                      UiAction::FileSeedCache);
 
         search_box = make_status_box(highlight_content,
                                      highlight_layout,
@@ -446,7 +444,7 @@ void HydrusDownloaderPage::build_highlight_panel(QVBoxLayout *sidebar_layout, co
                                      QStringLiteral("pause/play search"),
                                      gallery ? QStringLiteral("search")
                                              : QStringLiteral("check"),
-                                     QStringLiteral("gallery_seed_log"));
+                                     UiAction::GallerySeedLog);
 
         if (gallery) {
             highlight_limit_row = new QWidget(highlight_content);
@@ -483,7 +481,7 @@ void HydrusDownloaderPage::build_highlight_panel(QVBoxLayout *sidebar_layout, co
         highlight_layout->addWidget(highlight_import_options);
 
         connect(highlight_import_options, &QPushButton::clicked, this, [this]() {
-            main->notify(QStringLiteral("downloader_import_options"), id);
+            main->notify(UiAction::DownloaderImportOptions, id);
         });
         }
     }

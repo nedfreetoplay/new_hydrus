@@ -1,8 +1,7 @@
-#include "orphan_files.hpp"
 
 // WS-15.1.3c2: clear orphan files dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QDialog>
@@ -73,7 +72,7 @@ HydrusOrphanFilesDialog::HydrusOrphanFilesDialog(HydrusMainWindow *main_window, 
     layout->addLayout(buttons);
 
     connect(rescan, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("orphan_files_scan"));
+        main->notify(UiAction::OrphanFilesScan);
     });
     connect(delete_selected_button, &QPushButton::clicked, this, [this]() { delete_selected(false); });
     connect(delete_all_button, &QPushButton::clicked, this, [this]() { delete_selected(true); });
@@ -163,7 +162,7 @@ void HydrusOrphanFilesDialog::delete_selected(bool all) {
 
     QJsonObject payload;
     payload.insert(QStringLiteral("paths"), QJsonArray::fromStringList(paths));
-    main->notify(QStringLiteral("orphan_files_delete"), QString(), json_payload(payload));
+    main->notify(UiAction::OrphanFilesDelete, QString(), json_payload(payload));
 }
 
 void HydrusOrphanFilesDialog::move_selected(bool all) {
@@ -186,7 +185,7 @@ void HydrusOrphanFilesDialog::move_selected(bool all) {
     QJsonObject payload;
     payload.insert(QStringLiteral("paths"), QJsonArray::fromStringList(paths));
     payload.insert(QStringLiteral("target"), directory);
-    main->notify(QStringLiteral("orphan_files_move"), QString(), json_payload(payload));
+    main->notify(UiAction::OrphanFilesMove, QString(), json_payload(payload));
 }
 
 void HydrusMainWindow::show_orphan_files(const QJsonObject &state) {

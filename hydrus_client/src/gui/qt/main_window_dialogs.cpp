@@ -1,4 +1,4 @@
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 
 // WS-15.1.3b: HydrusMainWindow small dialog openers moved verbatim from bridge.cpp (move-only split).
 
@@ -21,7 +21,7 @@ void HydrusMainWindow::prompt_url() {
         &ok);
 
     if (ok && !url.isEmpty()) {
-        notify(QStringLiteral("download_url"), QString(), url);
+        notify(UiAction::DownloadUrl, QString(), url);
     }
 }
 

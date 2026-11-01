@@ -1,8 +1,7 @@
-#include "export_folder.hpp"
 
 // WS-15.1.3b: sidecar exporting section of the edit export folder dialog, layout layer split from export_folder_editor.cpp; logic and texts unchanged.
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QCheckBox>
@@ -115,7 +114,7 @@ void build_export_sidecar_section(
     QObject::connect(test_examples, &QPushButton::clicked, dialog, [main, query]() {
         QJsonObject payload;
         payload.insert(QStringLiteral("query"), query->text().trimmed());
-        main->notify(QStringLiteral("export_folder_test_examples"), QString(), json_payload(payload));
+        main->notify(UiAction::ExportFolderTestExamples, QString(), json_payload(payload));
     });
     vbox->addWidget(sidecar_box);
 }

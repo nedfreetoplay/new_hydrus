@@ -1,4 +1,4 @@
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 
 #include "support/support.hpp"
 
@@ -89,23 +89,23 @@ HydrusExportFoldersDialog::HydrusExportFoldersDialog(
     layout->addLayout(bottom);
 
     connect(add, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("export_folder_edit"), QString(), QString());
+        main->notify(UiAction::ExportFolderEdit, QString(), QString());
     });
     connect(edit_button, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("export_folder_edit"));
+        with_selected(UiAction::ExportFolderEdit);
     });
     connect(delete_button, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("export_folder_remove"));
+        with_selected(UiAction::ExportFolderRemove);
     });
     connect(table, &QTableWidget::cellDoubleClicked, this, [this](int, int) {
-        with_selected(QStringLiteral("export_folder_edit"));
+        with_selected(UiAction::ExportFolderEdit);
     });
     connect(table, &QTableWidget::itemSelectionChanged, this, [this]() {
         refresh_buttons();
     });
     auto *delete_shortcut = new QShortcut(QKeySequence::Delete, table);
     connect(delete_shortcut, &QShortcut::activated, this, [this]() {
-        with_selected(QStringLiteral("export_folder_remove"));
+        with_selected(UiAction::ExportFolderRemove);
     });
     connect(apply, &QPushButton::clicked, this, &QDialog::close);
     connect(cancel, &QPushButton::clicked, this, &QDialog::close);
@@ -177,10 +177,10 @@ void HydrusExportFoldersDialog::refresh_buttons() {
     delete_button->setEnabled(selected >= 1);
 }
 
-void HydrusExportFoldersDialog::with_selected(const QString &action) {
+void HydrusExportFoldersDialog::with_selected(UiAction action) {
     const QModelIndexList rows = table->selectionModel()->selectedRows();
 
-    if (action == QStringLiteral("export_folder_edit") && rows.size() != 1) {
+    if (action == UiAction::ExportFolderEdit && rows.size() != 1) {
         return;
     }
 
@@ -268,14 +268,14 @@ HydrusExportFoldersPage::HydrusExportFoldersPage(HydrusMainWindow *main_window, 
     layout->addLayout(buttons);
 
     connect(add, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("export_folder_edit"), id);
+        main->notify(UiAction::ExportFolderEdit, id);
     });
-    connect(edit, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("export_folder_edit")); });
-    connect(run, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("export_folder_run")); });
-    connect(review, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("export_folder_review")); });
-    connect(toggle, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("export_folder_toggle")); });
-    connect(reveal, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("export_folder_reveal")); });
-    connect(remove, &QPushButton::clicked, this, [this]() { with_selected(QStringLiteral("export_folder_remove")); });
+    connect(edit, &QPushButton::clicked, this, [this]() { with_selected(UiAction::ExportFolderEdit); });
+    connect(run, &QPushButton::clicked, this, [this]() { with_selected(UiAction::ExportFolderRun); });
+    connect(review, &QPushButton::clicked, this, [this]() { with_selected(UiAction::ExportFolderReview); });
+    connect(toggle, &QPushButton::clicked, this, [this]() { with_selected(UiAction::ExportFolderToggle); });
+    connect(reveal, &QPushButton::clicked, this, [this]() { with_selected(UiAction::ExportFolderReveal); });
+    connect(remove, &QPushButton::clicked, this, [this]() { with_selected(UiAction::ExportFolderRemove); });
 
     update_state(state);
 }
@@ -284,7 +284,7 @@ const QString &HydrusExportFoldersPage::page_id() const {
     return id;
 }
 
-void HydrusExportFoldersPage::with_selected(const QString &action) {
+void HydrusExportFoldersPage::with_selected(UiAction action) {
     const int row = table->currentRow();
 
     if (row < 0 || table->item(row, 0) == nullptr) {

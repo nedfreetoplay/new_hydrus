@@ -1,8 +1,7 @@
-#include "auto_resolution.hpp"
 
 // WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QApplication>
@@ -249,7 +248,7 @@ void HydrusDuplicateMergeOptionsDialog::save() {
         QJsonObject payload;
         payload.insert(QStringLiteral("action"), key);
         payload.insert(QStringLiteral("options"), read_duplicate_merge_page(*page));
-        main->notify(QStringLiteral("duplicates_merge_options"), QString(), json_payload(payload));
+        main->notify(UiAction::DuplicatesMergeOptions, QString(), json_payload(payload));
     }
 
     close();

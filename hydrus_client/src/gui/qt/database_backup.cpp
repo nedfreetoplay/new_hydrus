@@ -1,8 +1,7 @@
-#include "database_backup.hpp"
 
 // WS-15.1.3c2: database backup dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QDialog>
@@ -62,7 +61,7 @@ HydrusDatabaseBackupDialog::HydrusDatabaseBackupDialog(HydrusMainWindow *main_wi
         if (QMessageBox::question(this, QStringLiteral("database backup"),
                                   QStringLiteral("Back up the database now?"))
             == QMessageBox::Yes) {
-            main->notify(QStringLiteral("db_backup_run"));
+            main->notify(UiAction::DbBackupRun);
         }
     });
     connect(close, &QPushButton::clicked, this, &QDialog::close);
@@ -88,7 +87,7 @@ void HydrusDatabaseBackupDialog::choose_path() {
         QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
 
     if (!directory.isEmpty()) {
-        main->notify(QStringLiteral("db_backup_set_path"), QString(), directory);
+        main->notify(UiAction::DbBackupSetPath, QString(), directory);
     }
 }
 

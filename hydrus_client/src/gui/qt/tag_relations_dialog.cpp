@@ -1,8 +1,7 @@
-#include "tag_relations_dialog.hpp"
 
 // WS-15.1.3c1: tag relations dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QComboBox>
@@ -197,7 +196,7 @@ void HydrusTagRelationsDialog::add_relation() {
     payload.insert(QStringLiteral("first"), first->text().trimmed());
     payload.insert(QStringLiteral("second"), second->text().trimmed());
 
-    main->notify(QStringLiteral("tag_relations_add"), QString(), json_payload(payload));
+    main->notify(UiAction::TagRelationsAdd, QString(), json_payload(payload));
 }
 
 void HydrusTagRelationsDialog::remove_selected() {
@@ -214,7 +213,7 @@ void HydrusTagRelationsDialog::remove_selected() {
     payload.insert(QStringLiteral("first"), table->item(row, 0)->data(Qt::UserRole).toString());
     payload.insert(QStringLiteral("second"), table->item(row, 1)->data(Qt::UserRole).toString());
 
-    main->notify(QStringLiteral("tag_relations_remove"), QString(), json_payload(payload));
+    main->notify(UiAction::TagRelationsRemove, QString(), json_payload(payload));
 }
 
 void HydrusMainWindow::show_tag_relations(const QJsonObject &state) {

@@ -1,4 +1,4 @@
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 
 #include "support/support.hpp"
 
@@ -186,81 +186,81 @@ HydrusSubscriptionsDialog::HydrusSubscriptionsDialog(
 
     connect(add, &QPushButton::clicked, this, [this]() { add_subscription(); });
     connect(edit_button, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("subscription_edit"));
+        with_selected(UiAction::SubscriptionEdit);
     });
     connect(remove, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("subscription_delete"));
+        with_selected(UiAction::SubscriptionDelete);
     });
     connect(export_button, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("notify"),
+        main->notify(UiAction::Notify,
                      QString(),
                      QStringLiteral("subscription export is not implemented yet"));
     });
     connect(import_button, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("notify"),
+        main->notify(UiAction::Notify,
                      QString(),
                      QStringLiteral("subscription import is not implemented yet"));
     });
     connect(duplicate, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("subscription_duplicate"));
+        with_selected(UiAction::SubscriptionDuplicate);
     });
     connect(merge, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("notify"),
+        main->notify(UiAction::Notify,
                      QString(),
                      QStringLiteral("nothing to merge: subscriptions already have one downloader"));
     });
     connect(separate, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("notify"),
+        main->notify(UiAction::Notify,
                      QString(),
                      QStringLiteral("this subscription has only one query"));
     });
     connect(deduplicate, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("notify"),
+        main->notify(UiAction::Notify,
                      QString(),
                      QStringLiteral("no duplicate queries to fix"));
     });
     connect(lowercase, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("subscription_lowercase_queries"));
+        with_selected(UiAction::SubscriptionLowercaseQueries);
     });
     connect(pause_button, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("subscription_toggle"));
+        with_selected(UiAction::SubscriptionToggle);
     });
     connect(retry, &QToolButton::clicked, this, [this, retry]() {
         auto *menu = new QMenu(this);
         menu->setAttribute(Qt::WA_DeleteOnClose);
         menu->addAction(QStringLiteral("retry ignored"), this, [this]() {
-            main->notify(QStringLiteral("notify"),
+            main->notify(UiAction::Notify,
                          QString(),
                          QStringLiteral("there are no ignored files to retry"));
         });
         menu->addAction(QStringLiteral("retry failed"), this, [this]() {
-            main->notify(QStringLiteral("notify"),
+            main->notify(UiAction::Notify,
                          QString(),
                          QStringLiteral("there are no failed files to retry"));
         });
         menu->popup(retry->mapToGlobal(QPoint(0, retry->height())));
     });
     connect(scrub, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("subscription_scrub_delays"));
+        with_selected(UiAction::SubscriptionScrubDelays);
     });
     connect(check_now, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("subscription_check"));
+        with_selected(UiAction::SubscriptionCheck);
     });
     connect(reset_button, &QPushButton::clicked, this, [this]() {
-        with_selected(QStringLiteral("subscription_reset"));
+        with_selected(UiAction::SubscriptionReset);
     });
     connect(select_button, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("notify"),
+        main->notify(UiAction::Notify,
                      QString(),
                      QStringLiteral("select subscriptions is not implemented yet"));
     });
     connect(overwrite_downloader, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("notify"),
+        main->notify(UiAction::Notify,
                      QString(),
                      QStringLiteral("overwrite downloader is not implemented yet"));
     });
     connect(overwrite_checker, &QPushButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("notify"),
+        main->notify(UiAction::Notify,
                      QString(),
                      QStringLiteral("overwrite checker options is not implemented yet"));
     });
@@ -300,7 +300,7 @@ HydrusSubscriptionsDialog::HydrusSubscriptionsDialog(
         menu->popup(paste_button->mapToGlobal(QPoint(0, paste_button->height())));
     });
     connect(favourites, &QToolButton::clicked, this, [this]() {
-        main->notify(QStringLiteral("notify"),
+        main->notify(UiAction::Notify,
                      QString(),
                      QStringLiteral("import options favourites are not implemented yet"));
     });
@@ -310,7 +310,7 @@ HydrusSubscriptionsDialog::HydrusSubscriptionsDialog(
     connect(apply, &QPushButton::clicked, this, &QDialog::close);
     connect(cancel, &QPushButton::clicked, this, &QDialog::close);
     connect(table, &QTableWidget::cellDoubleClicked, this, [this](int, int) {
-        with_selected(QStringLiteral("subscription_edit"));
+        with_selected(UiAction::SubscriptionEdit);
     });
     connect(table, &QTableWidget::itemSelectionChanged, this, [this]() { refresh_buttons(); });
 
@@ -395,7 +395,7 @@ QStringList HydrusSubscriptionsDialog::selected_names() const {
     return names;
 }
 
-void HydrusSubscriptionsDialog::with_selected(const QString &action) {
+void HydrusSubscriptionsDialog::with_selected(UiAction action) {
     const QStringList names = selected_names();
 
     for (const QString &name : names) {
@@ -408,8 +408,7 @@ void HydrusSubscriptionsDialog::import_options_action(const QString &action) {
 
     for (const QString &name : names) {
         if (action == QStringLiteral("clear")) {
-            main->notify(
-                QStringLiteral("subscription_import_options_clear"), QString(), name);
+            main->notify(UiAction::SubscriptionImportOptionsClear, QString(), name);
             continue;
         }
 
@@ -423,7 +422,7 @@ void HydrusSubscriptionsDialog::import_options_action(const QString &action) {
         QJsonObject payload;
         payload.insert(QStringLiteral("target"), name);
         payload.insert(QStringLiteral("container"), document.object());
-        main->notify(QStringLiteral("subscription_import_options_save"),
+        main->notify(UiAction::SubscriptionImportOptionsSave,
                      QString(),
                      json_payload(payload));
     }
@@ -487,7 +486,7 @@ void HydrusSubscriptionsDialog::add_subscription() {
     payload.insert(QStringLiteral("filter"), filter->text());
     payload.insert(QStringLiteral("period"), period->value());
 
-    main->notify(QStringLiteral("subscription_add"), QString(), json_payload(payload));
+    main->notify(UiAction::SubscriptionAdd, QString(), json_payload(payload));
 }
 
 

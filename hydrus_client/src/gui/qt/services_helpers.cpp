@@ -1,8 +1,7 @@
-#include "services.hpp"
 
 // WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QApplication>
@@ -196,7 +195,7 @@ void build_service_editor(HydrusMainWindow *main, QWidget *parent, const QJsonOb
     }
 
     payload.insert(QStringLiteral("dictionary"), next_dictionary);
-    main->notify(QStringLiteral("service_save"), QString(), json_payload(payload));
+    main->notify(UiAction::ServiceSave, QString(), json_payload(payload));
 }
 
 QString cell_value(QTableWidget *table, int row, int column) {

@@ -10,6 +10,7 @@ class QCheckBox;
 class QLabel;
 class QTableWidget;
 class HydrusMainWindow;
+enum class UiAction : std::int32_t;
 
 // Remap missing media/thumbnail subfolder roots.
 class HydrusRepairFileLocationsDialog : public QDialog {
@@ -20,7 +21,7 @@ public:
 
 private:
     void rebuild();
-    void send(const QString &action, const QJsonObject &payload = QJsonObject());
+    void send(UiAction action, const QJsonObject &payload = QJsonObject());
     QStringList selected_prefixes() const;
 
     HydrusMainWindow *main = nullptr;

@@ -1,8 +1,7 @@
-#include "query_page_sidebar.hpp"
 
 // WS-15.1.2b: query-page results, autocomplete and progress handling moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QColor>
@@ -75,7 +74,7 @@ void HydrusQueryPage::request_autocomplete() {
         return;
     }
 
-    main->notify(QStringLiteral("autocomplete"), id, search->text());
+    main->notify(UiAction::Autocomplete, id, search->text());
 }
 
 bool HydrusQueryPage::eventFilter(QObject *watched, QEvent *event) {

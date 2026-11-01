@@ -1,6 +1,6 @@
 // WS-15.1.3c2: export folder review dialog moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QDialog>
@@ -145,7 +145,7 @@ void HydrusMainWindow::show_export_review(const QJsonObject &state) {
         QJsonObject payload;
         payload.insert(QStringLiteral("name"), name);
         payload.insert(QStringLiteral("hashes"), hashes);
-        notify(QStringLiteral("export_folder_run"), active_page, json_payload(payload));
+        notify(UiAction::ExportFolderRun, active_page, json_payload(payload));
         dialog.accept();
     });
 

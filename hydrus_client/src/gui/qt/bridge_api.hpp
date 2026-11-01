@@ -9,6 +9,7 @@
 class QApplication;
 class QSplashScreen;
 class HydrusMainWindow;
+enum class UiAction : std::int32_t;
 
 // WS-15.2.1: typed seams; the structs are forward-declared here and owned by
 // Rust (api.rs, generated <hydrus_client/src/gui/qt/api.cxx.h>).
@@ -95,13 +96,13 @@ void hydrus_show_page_manager(HydrusMainWindow &window, const PageTree &tree);
 void hydrus_show_command_palette(HydrusMainWindow &window);
 void hydrus_prompt_text(
     HydrusMainWindow &window,
-    rust::Str action,
+    UiAction action,
     rust::Str title,
     rust::Str label,
     rust::Str initial);
 void hydrus_confirm_action(
     HydrusMainWindow &window,
-    rust::Str action,
+    UiAction action,
     rust::Str target,
     rust::Str title,
     rust::Str text);
@@ -139,7 +140,7 @@ void hydrus_update_network(HydrusMainWindow &window, rust::Str json);
 void hydrus_start_tick(HydrusMainWindow &window);
 void hydrus_defer_action(
     HydrusMainWindow &window,
-    rust::Str action,
+    UiAction action,
     rust::Str target,
     rust::Str payload,
     int delay_ms);
@@ -159,7 +160,7 @@ void qapp_quit();
 // Implemented in Rust (see bridge.rs / gui::app).
 void app_action(
     HydrusMainWindow &window,
-    rust::Str action,
+    UiAction action,
     rust::Str target,
     rust::Str payload) noexcept;
 
@@ -227,3 +228,6 @@ rust::String hydrus_validate_export_phrase(rust::Str phrase) noexcept;
 
 // Implemented in Rust: resolves the vendored static/ asset directory.
 rust::String hydrus_static_dir() noexcept;
+
+// Implemented in Rust: maps an action string to UiAction.
+UiAction ui_action_from_str(rust::Str action) noexcept;

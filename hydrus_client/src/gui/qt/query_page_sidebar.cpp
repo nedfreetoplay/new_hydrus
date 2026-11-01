@@ -1,11 +1,8 @@
-#include "query_page_sidebar.hpp"
 
 // WS-15.1.2b: query-page construction moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
-#include "canvas.hpp"
-#include "thumbnail_grid.hpp"
 
 #include <QAction>
 #include <QComboBox>
@@ -294,7 +291,7 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
         location->setText(value);
 
         if (!main->building) {
-            main->notify(QStringLiteral("set_location"), id, value);
+            main->notify(UiAction::SetLocation, id, value);
         }
     };
 
@@ -319,7 +316,7 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
         tag_service->setText(label);
 
         if (!main->building) {
-            main->notify(QStringLiteral("set_tag_service"), id, tag_service_value);
+            main->notify(UiAction::SetTagService, id, tag_service_value);
         }
     };
 
@@ -374,7 +371,7 @@ HydrusQueryPage::HydrusQueryPage(HydrusMainWindow *main_window, const QString &p
         const QByteArray query_bytes = search->text().toUtf8();
         app_action(
             *main,
-            rust::Str("search", 6),
+            UiAction::Search,
             rust::Str(page_bytes.constData(), page_bytes.size()),
             rust::Str(query_bytes.constData(), query_bytes.size()));
     };

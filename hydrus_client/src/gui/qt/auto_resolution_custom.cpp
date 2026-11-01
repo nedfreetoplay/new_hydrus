@@ -1,8 +1,7 @@
-#include "auto_resolution.hpp"
 
 // WS-15.1.3a: moved verbatim from bridge.cpp (move-only split).
 
-#include "bridge.hpp"
+#include <hydrus_client/src/gui/qt/api.cxx.h>
 #include "support/support.hpp"
 
 #include <QApplication>
@@ -143,8 +142,7 @@ void HydrusDuplicateCustomActionDialog::apply() {
     payload.insert(QStringLiteral("better"), read_duplicate_merge_page(better));
     payload.insert(QStringLiteral("same"), read_duplicate_merge_page(same));
 
-    main->notify(
-        QStringLiteral("duplicates_custom"),
+    main->notify(UiAction::DuplicatesCustom,
         data.value(QStringLiteral("page_id")).toString(),
         json_payload(payload));
 

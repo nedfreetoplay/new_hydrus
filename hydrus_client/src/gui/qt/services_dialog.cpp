@@ -34,7 +34,7 @@
 #include <QVBoxLayout>
 #include <algorithm>
 
-HydrusServicesDialog::HydrusServicesDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+HydrusServicesDialog::HydrusServicesDialog(HydrusMainWindow *main_window, const ServicesDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("manage services"));
     setObjectName(QStringLiteral("hydrus_services_dialog"));
@@ -224,7 +224,6 @@ HydrusServicesDialog::HydrusServicesDialog(HydrusMainWindow *main_window, const 
     connect(update_period, &QPushButton::clicked, this, [this]() { remote_service_action(); });
     connect(nullification_period, &QPushButton::clicked, this, [this]() { remote_service_action(); });
     connect(info, &QPushButton::clicked, this, [this]() {
-        const QJsonObject admin = data.value(QStringLiteral("admin")).toObject();
         QDialog dialog(this);
         dialog.setWindowTitle(QStringLiteral("service review"));
         dialog.resize(720, 520);
@@ -233,8 +232,10 @@ HydrusServicesDialog::HydrusServicesDialog(HydrusMainWindow *main_window, const 
         text->setReadOnly(true);
 
         QJsonObject review;
-        review.insert(QStringLiteral("options"), admin.value(QStringLiteral("options")));
-        review.insert(QStringLiteral("service_info"), admin.value(QStringLiteral("service_info")));
+        review.insert(QStringLiteral("options"),
+                      QJsonDocument::fromJson(admin_options_json.toUtf8()).object());
+        review.insert(QStringLiteral("service_info"),
+                      QJsonDocument::fromJson(admin_service_info_json.toUtf8()).object());
         text->setPlainText(QString::fromUtf8(
             QJsonDocument(review).toJson(QJsonDocument::Indented)));
 
@@ -350,90 +351,118 @@ HydrusServicesDialog::HydrusServicesDialog(HydrusMainWindow *main_window, const 
     }
 }
 
-void HydrusServicesDialog::set_state(const QJsonObject &state) {
-    data = state;
+void HydrusServicesDialog::set_state(const ServicesDialogState &state) {
+    type_infos.clear();
+    local_services.clear();
+    remote_service_infos.clear();
+    account_infos.clear();
+    login_infos.clear();
+    server_account_types.clear();
 
-    const QJsonArray services = state.value(QStringLiteral("services")).toArray();
-    table->setRowCount(services.size());
+    for (const ServiceTypeRow &entry : state.types) {
+        type_infos.push_back({to_qstring(entry.label), entry.value, to_qstring(entry.family)});
+    }
 
-    for (int index = 0; index < services.size(); ++index) {
-        const QJsonObject service = services.at(index).toObject();
+    for (const ServiceRow &entry : state.services) {
+        local_services.push_back({to_qstring(entry.key),
+                                  to_qstring(entry.name),
+                                  to_qstring(entry.type_short),
+                                  entry.type_int,
+                                  to_qstring(entry.host),
+                                  entry.port,
+                                  to_qstring(entry.access_key),
+                                  entry.has_update_period,
+                                  entry.update_period,
+                                  entry.has_nullify_period,
+                                  entry.nullify_period,
+                                  entry.max_storage,
+                                  entry.log_uploader_ips});
+    }
+
+    for (const RemoteServiceRow &entry : state.remote_services) {
+        remote_service_infos.push_back({to_qstring(entry.key),
+                                        to_qstring(entry.name),
+                                        to_qstring(entry.type_name),
+                                        entry.port,
+                                        to_qstring(entry.access_key)});
+    }
+
+    for (const ServiceAccountRow &entry : state.accounts) {
+        account_infos.push_back(
+            {to_qstring(entry.key), to_qstring(entry.type_title), to_qstring(entry.message)});
+    }
+
+    for (const LoginRow &entry : state.logins) {
+        login_infos.push_back({to_qstring(entry.domain),
+                               to_qstring(entry.username),
+                               to_qstring(entry.password),
+                               to_qstring(entry.access_key)});
+    }
+
+    for (const AccountTypeRef &entry : state.account_types) {
+        server_account_types.push_back({to_qstring(entry.key), to_qstring(entry.title)});
+    }
+
+    admin_options_json = to_qstring(state.admin.options_json);
+    admin_service_info_json = to_qstring(state.admin.service_info_json);
+
+    table->setRowCount(static_cast<int>(state.services.size()));
+
+    for (size_t index = 0; index < state.services.size(); ++index) {
+        const ServiceRow &service = state.services[index];
+        const int row = static_cast<int>(index);
 
         for (int column = 0; column < 5; ++column) {
-            if (table->item(index, column) == nullptr) {
-                table->setItem(index, column, new QTableWidgetItem());
+            if (table->item(row, column) == nullptr) {
+                table->setItem(row, column, new QTableWidgetItem());
             }
         }
 
-        const QJsonObject dictionary = service.value(QStringLiteral("dictionary")).toObject();
+        auto *name_item = table->item(row, 0);
+        name_item->setText(to_qstring(service.name));
+        name_item->setData(Qt::UserRole, row);
+        name_item->setData(Qt::UserRole + 1, to_qstring(service.key));
 
-        auto *name_item = table->item(index, 0);
-        name_item->setText(service.value(QStringLiteral("name")).toString());
-        name_item->setData(Qt::UserRole, service);
-        name_item->setData(Qt::UserRole + 1, service.value(QStringLiteral("key")).toString());
-
-        if (service.value(QStringLiteral("builtin")).toBool()) {
+        if (service.builtin) {
             name_item->setForeground(QColor(120, 150, 190));
         } else {
             name_item->setForeground(QBrush());
         }
 
-        table->item(index, 1)->setText(service.value(QStringLiteral("type_short")).toString());
-        table->item(index, 2)->setText(service.value(QStringLiteral("key")).toString());
-        table->item(index, 3)->setText(dictionary.contains(QStringLiteral("port"))
-                                            ? QString::number(dictionary.value(QStringLiteral("port")).toInt())
-                                            : QStringLiteral("-"));
-
-        QString summary = QStringLiteral("-");
-
-        if (!dictionary.isEmpty()) {
-            summary = QStringLiteral("%1:%2")
-                          .arg(dictionary.value(QStringLiteral("host")).toString())
-                          .arg(dictionary.value(QStringLiteral("port")).toInt());
-
-            if (dictionary.contains(QStringLiteral("update_period"))) {
-                summary += QStringLiteral(" | update every %1 s")
-                               .arg(dictionary.value(QStringLiteral("update_period")).toInt());
-            }
-
-            if (dictionary.contains(QStringLiteral("nullification_period"))) {
-                summary += QStringLiteral(" | nullify every %1 s")
-                               .arg(dictionary.value(QStringLiteral("nullification_period")).toInt());
-            }
-        }
-
-        table->item(index, 4)->setText(summary);
+        table->item(row, 1)->setText(to_qstring(service.type_short));
+        table->item(row, 2)->setText(to_qstring(service.key));
+        table->item(row, 3)->setText(to_qstring(service.port_text));
+        table->item(row, 4)->setText(to_qstring(service.settings_summary));
     }
 
     table->resizeRowsToContents();
 
-    const QJsonObject admin = state.value(QStringLiteral("admin")).toObject();
-    admin_address->setText(admin.value(QStringLiteral("address")).toString());
-    admin_key->setText(admin.value(QStringLiteral("access_key")).toString());
-    admin_status->setText(admin.value(QStringLiteral("status")).toString());
+    admin_address->setText(to_qstring(state.admin_address));
+    admin_key->setText(to_qstring(state.admin_access_key));
+    admin_status->setText(to_qstring(state.admin_status));
 
-    const QJsonArray remote = admin.value(QStringLiteral("services")).toArray();
-    remote_services->setRowCount(remote.size());
+    remote_services->setRowCount(static_cast<int>(state.remote_services.size()));
 
-    for (int index = 0; index < remote.size(); ++index) {
-        const QJsonObject service = remote.at(index).toObject();
+    for (size_t index = 0; index < state.remote_services.size(); ++index) {
+        const RemoteServiceRow &service = state.remote_services[index];
+        const int row = static_cast<int>(index);
 
         for (int column = 0; column < 5; ++column) {
-            if (remote_services->item(index, column) == nullptr) {
-                remote_services->setItem(index, column, new QTableWidgetItem());
+            if (remote_services->item(row, column) == nullptr) {
+                remote_services->setItem(row, column, new QTableWidgetItem());
             }
         }
 
-        auto *name_item = remote_services->item(index, 0);
-        name_item->setText(service.value(QStringLiteral("name")).toString());
-        name_item->setData(Qt::UserRole, service);
-        remote_services->item(index, 1)->setText(service.value(QStringLiteral("type")).toString());
-        remote_services->item(index, 2)->setText(QString::number(service.value(QStringLiteral("port")).toInt()));
-        remote_services->item(index, 3)->setText(service.value(QStringLiteral("key")).toString());
-        remote_services->item(index, 4)->setText(service.value(QStringLiteral("access_key")).toString());
+        auto *name_item = remote_services->item(row, 0);
+        name_item->setText(to_qstring(service.name));
+        name_item->setData(Qt::UserRole, row);
+        remote_services->item(row, 1)->setText(to_qstring(service.type_name));
+        remote_services->item(row, 2)->setText(QString::number(service.port));
+        remote_services->item(row, 3)->setText(to_qstring(service.key));
+        remote_services->item(row, 4)->setText(to_qstring(service.access_key));
 
-        if (service.value(QStringLiteral("selected")).toBool()) {
-            remote_services->selectRow(index);
+        if (service.selected) {
+            remote_services->selectRow(row);
         }
     }
 
@@ -441,75 +470,66 @@ void HydrusServicesDialog::set_state(const QJsonObject &state) {
 
     if (!opened_account_types
         && qEnvironmentVariableIsSet("HYDRUS_QT_SERVICES_ACCOUNT_TYPES")
-        && remote_services->rowCount() > 0) {
+        && remote_services->rowCount() > 0 && !state.remote_services.empty()) {
         opened_account_types = true;
-        const QJsonObject first = remote_services->item(0, 0)->data(Qt::UserRole).toJsonObject();
-        const QString key = first.value(QStringLiteral("key")).toString();
+        const RemoteServiceRow &first = state.remote_services[0];
         remote_services->selectRow(0);
 
         QJsonObject select;
         select.insert(QStringLiteral("action"), QStringLiteral("select"));
-        select.insert(QStringLiteral("service_key"), key);
+        select.insert(QStringLiteral("service_key"), to_qstring(first.key));
         select.insert(QStringLiteral("access_key"),
-                      first.value(QStringLiteral("access_key")).toString().isEmpty()
+                      to_qstring(first.access_key).isEmpty()
                           ? admin_key->text().trimmed()
-                          : first.value(QStringLiteral("access_key")).toString());
+                          : to_qstring(first.access_key));
         main->notify(UiAction::AdminServiceAction, QString(), json_payload(select));
-        main->notify(UiAction::AccountTypesOpen, QString(), key);
+        main->notify(UiAction::AccountTypesOpen, QString(), to_qstring(first.key));
     }
 
-    const QJsonArray account_list = admin.value(QStringLiteral("accounts")).toArray();
-    accounts->setRowCount(account_list.size());
+    accounts->setRowCount(static_cast<int>(state.accounts.size()));
 
-    for (int index = 0; index < account_list.size(); ++index) {
-        const QJsonObject account = account_list.at(index).toObject();
+    for (size_t index = 0; index < state.accounts.size(); ++index) {
+        const ServiceAccountRow &account = state.accounts[index];
+        const int row = static_cast<int>(index);
 
         for (int column = 0; column < 6; ++column) {
-            if (accounts->item(index, column) == nullptr) {
-                accounts->setItem(index, column, new QTableWidgetItem());
+            if (accounts->item(row, column) == nullptr) {
+                accounts->setItem(row, column, new QTableWidgetItem());
             }
         }
 
-        auto *key_item = accounts->item(index, 0);
-        key_item->setText(account.value(QStringLiteral("key")).toString());
-        key_item->setData(Qt::UserRole, account);
+        auto *key_item = accounts->item(row, 0);
+        key_item->setText(to_qstring(account.key));
+        key_item->setData(Qt::UserRole, row);
 
-        const QJsonValue expires = account.value(QStringLiteral("expires"));
-        accounts->item(index, 1)->setText(account.value(QStringLiteral("type")).toString());
-        accounts->item(index, 2)->setText(QString::number(account.value(QStringLiteral("created")).toInt()));
-        accounts->item(index, 3)->setText(expires.isNull() ? QStringLiteral("never")
-                                                           : QString::number(expires.toInt()));
-        accounts->item(index, 4)->setText(account.value(QStringLiteral("banned")).toBool()
-                                              ? account.value(QStringLiteral("banned_reason")).toString()
-                                              : QStringLiteral("-"));
-        accounts->item(index, 5)->setText(account.value(QStringLiteral("message")).toString());
+        accounts->item(row, 1)->setText(to_qstring(account.type_title));
+        accounts->item(row, 2)->setText(to_qstring(account.created_text));
+        accounts->item(row, 3)->setText(to_qstring(account.expires_text));
+        accounts->item(row, 4)->setText(to_qstring(account.banned_text));
+        accounts->item(row, 5)->setText(to_qstring(account.message));
     }
 
     accounts->resizeRowsToContents();
 
-    const QJsonArray login_list = state.value(QStringLiteral("logins")).toArray();
-    logins->setRowCount(login_list.size());
+    logins->setRowCount(static_cast<int>(state.logins.size()));
 
-    for (int index = 0; index < login_list.size(); ++index) {
-        const QJsonObject login = login_list.at(index).toObject();
+    for (size_t index = 0; index < state.logins.size(); ++index) {
+        const LoginRow &login = state.logins[index];
+        const int row = static_cast<int>(index);
 
         for (int column = 0; column < 5; ++column) {
-            if (logins->item(index, column) == nullptr) {
-                logins->setItem(index, column, new QTableWidgetItem());
+            if (logins->item(row, column) == nullptr) {
+                logins->setItem(row, column, new QTableWidgetItem());
             }
         }
 
-        auto *domain_item = logins->item(index, 0);
-        domain_item->setText(login.value(QStringLiteral("domain")).toString());
-        domain_item->setData(Qt::UserRole, login);
-        logins->item(index, 1)->setText(login.value(QStringLiteral("username")).toString());
-        logins->item(index, 2)->setText(login.value(QStringLiteral("password")).toString().isEmpty()
-                                            ? QStringLiteral("-")
-                                            : QStringLiteral("********"));
-        logins->item(index, 3)->setText(login.value(QStringLiteral("access_key")).toString());
-        const QJsonValue expires = login.value(QStringLiteral("expires"));
-        logins->item(index, 4)->setText(expires.isNull() ? QStringLiteral("never")
-                                                         : QString::number(expires.toInt()));
+        auto *domain_item = logins->item(row, 0);
+        domain_item->setText(to_qstring(login.domain));
+        domain_item->setData(Qt::UserRole, row);
+        logins->item(row, 1)->setText(to_qstring(login.username));
+        logins->item(row, 2)->setText(to_qstring(login.password_display));
+        logins->item(row, 3)->setText(to_qstring(login.access_key));
+        logins->item(row, 4)->setText(to_qstring(login.expires_text));
     }
 
     logins->resizeRowsToContents();

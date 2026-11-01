@@ -115,41 +115,37 @@ void HydrusMainWindow::update_duplicate_review(const DuplicateReviewDialogState 
 // is still JSON, but the metadata panel takes a typed MetadataState).
 
 void HydrusMainWindow::show_services(const ServicesDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (services_dialog == nullptr) {
-        services_dialog = new HydrusServicesDialog(this, state, this);
+        services_dialog = new HydrusServicesDialog(this, typed, this);
         connect(services_dialog, &QObject::destroyed, this, [this]() { services_dialog = nullptr; });
         services_dialog->show();
     } else {
-        services_dialog->set_state(state);
+        services_dialog->set_state(typed);
         services_dialog->raise();
         services_dialog->activateWindow();
     }
 }
 
 void HydrusMainWindow::update_services(const ServicesDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (services_dialog != nullptr) {
-        services_dialog->set_state(state);
+        services_dialog->set_state(typed);
     }
 }
 
 void HydrusMainWindow::show_network(const NetworkDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (network_dialog == nullptr) {
-        network_dialog = new HydrusNetworkDialog(this, state, this);
+        network_dialog = new HydrusNetworkDialog(this, typed, this);
         connect(network_dialog, &QObject::destroyed, this, [this]() { network_dialog = nullptr; });
         network_dialog->show();
     } else {
-        network_dialog->set_state(state);
+        network_dialog->set_state(typed);
         network_dialog->raise();
         network_dialog->activateWindow();
     }
 }
 
 void HydrusMainWindow::update_network(const NetworkDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (network_dialog != nullptr) {
-        network_dialog->set_state(state);
+        network_dialog->set_state(typed);
     }
 }

@@ -23,20 +23,8 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-QString api_permission_slice_display(const QString &slice) {
-    if (slice.isEmpty()) {
-        return QStringLiteral("*");
-    }
-
-    if (slice == QStringLiteral(":")) {
-        return QStringLiteral("*:*");
-    }
-
-    return slice;
-}
-
-void show_api_permission_editor(HydrusMainWindow *main, QWidget *parent, const QJsonObject &data, const QJsonObject &entry) {
-    const QString original = entry.value(QStringLiteral("access_key")).toString();
+void show_api_permission_editor(HydrusMainWindow *main, QWidget *parent, const std::vector<ApiAvailablePermissionInfo> &available, const ApiPermissionInfo *entry) {
+    const QString original = entry == nullptr ? QString() : entry->access_key;
 
     QDialog dialog(parent);
     dialog.setWindowTitle(original.isEmpty() ? QStringLiteral("add api permissions")
@@ -47,7 +35,7 @@ void show_api_permission_editor(HydrusMainWindow *main, QWidget *parent, const Q
     auto *layout = new QVBoxLayout(&dialog);
     auto *form = new QFormLayout();
 
-    auto *name = new QLineEdit(entry.value(QStringLiteral("name")).toString(), &dialog);
+    auto *name = new QLineEdit(entry == nullptr ? QString() : entry->name, &dialog);
     auto *access_key = new QLineEdit(original, &dialog);
     access_key->setReadOnly(true);
     auto *generate = new QPushButton(QStringLiteral("generate new key"), &dialog);
@@ -71,27 +59,25 @@ void show_api_permission_editor(HydrusMainWindow *main, QWidget *parent, const Q
     });
 
     auto *permits_everything = new QCheckBox(QStringLiteral("permits everything"), &dialog);
-    permits_everything->setChecked(entry.value(QStringLiteral("permits_everything")).toBool(true));
+    permits_everything->setChecked(entry == nullptr ? true : entry->permits_everything);
     layout->addWidget(permits_everything);
 
     auto *permission_list = new QListWidget(&dialog);
     permission_list->setObjectName(QStringLiteral("api_permission_list"));
 
-    QJsonArray existing_permissions = entry.value(QStringLiteral("basic_permissions")).toArray();
     QSet<int> checked_permissions;
 
-    for (const QJsonValue &value : existing_permissions) {
-        checked_permissions.insert(value.toInt());
+    if (entry != nullptr) {
+        for (int value : entry->basic_permissions) {
+            checked_permissions.insert(value);
+        }
     }
 
-    for (const QJsonValue &value : data.value(QStringLiteral("available_permissions")).toArray()) {
-        const QJsonObject permission = value.toObject();
-        auto *item = new QListWidgetItem(permission.value(QStringLiteral("label")).toString(), permission_list);
-        item->setData(Qt::UserRole, permission.value(QStringLiteral("value")).toInt());
+    for (const ApiAvailablePermissionInfo &permission : available) {
+        auto *item = new QListWidgetItem(permission.label, permission_list);
+        item->setData(Qt::UserRole, permission.value);
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-        item->setCheckState(checked_permissions.contains(permission.value(QStringLiteral("value")).toInt())
-                                ? Qt::Checked
-                                : Qt::Unchecked);
+        item->setCheckState(checked_permissions.contains(permission.value) ? Qt::Checked : Qt::Unchecked);
     }
 
     layout->addWidget(new QLabel(QStringLiteral("basic permissions"), &dialog));
@@ -106,19 +92,13 @@ void show_api_permission_editor(HydrusMainWindow *main, QWidget *parent, const Q
     QStringList whitelist_lines;
     QStringList blacklist_lines;
 
-    for (const QJsonValue &value : entry.value(QStringLiteral("search_tag_filter")).toArray()) {
-        const QJsonArray pair = value.toArray();
-
-        if (pair.size() != 2) {
-            continue;
-        }
-
-        const QString display = api_permission_slice_display(pair.at(0).toString());
-
-        if (pair.at(1).toString() == QStringLiteral("whitelist")) {
-            whitelist_lines.append(display);
-        } else {
-            blacklist_lines.append(display);
+    if (entry != nullptr) {
+        for (const ApiPermissionRuleInfo &rule : entry->rules) {
+            if (rule.rule == QStringLiteral("whitelist")) {
+                whitelist_lines.append(rule.display);
+            } else {
+                blacklist_lines.append(rule.display);
+            }
         }
     }
 
@@ -208,7 +188,7 @@ void show_api_permission_editor(HydrusMainWindow *main, QWidget *parent, const Q
     main->notify(UiAction::ApiPermissionsSave, QString(), json_payload(payload));
 }
 
-HydrusApiPermissionsDialog::HydrusApiPermissionsDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+HydrusApiPermissionsDialog::HydrusApiPermissionsDialog(HydrusMainWindow *main_window, const ApiPermissionsDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("client api permissions"));
     setObjectName(QStringLiteral("hydrus_api_permissions_dialog"));
@@ -277,90 +257,120 @@ HydrusApiPermissionsDialog::HydrusApiPermissionsDialog(HydrusMainWindow *main_wi
     }
 }
 
-void HydrusApiPermissionsDialog::set_state(const QJsonObject &state) {
-    data = state;
-    status->setText(QStringLiteral("api: %1").arg(state.value(QStringLiteral("api_status")).toString()));
+void HydrusApiPermissionsDialog::set_state(const ApiPermissionsDialogState &state) {
+    permission_infos.clear();
+    available_infos.clear();
 
-    const QJsonArray permissions = state.value(QStringLiteral("permissions")).toArray();
-    table->setRowCount(permissions.size());
+    for (const ApiAvailablePermission &entry : state.available) {
+        available_infos.push_back({entry.value, to_qstring(entry.label)});
+    }
 
-    for (int index = 0; index < permissions.size(); ++index) {
-        const QJsonObject entry = permissions.at(index).toObject();
+    for (const ApiPermissionRow &entry : state.rows) {
+        ApiPermissionInfo info;
+        info.name = to_qstring(entry.name);
+        info.access_key = to_qstring(entry.access_key);
+        info.summary = to_qstring(entry.summary);
+        info.permits_everything = entry.permits_everything;
+
+        for (int value : entry.basic_permissions) {
+            info.basic_permissions.push_back(value);
+        }
+
+        for (const ApiPermissionRule &rule : entry.rules) {
+            info.rules.push_back(
+                {to_qstring(rule.slice), to_qstring(rule.display), to_qstring(rule.rule)});
+        }
+
+        permission_infos.push_back(std::move(info));
+    }
+
+    status->setText(to_qstring(state.status));
+
+    table->setRowCount(static_cast<int>(permission_infos.size()));
+
+    for (size_t index = 0; index < permission_infos.size(); ++index) {
+        const ApiPermissionInfo &entry = permission_infos[index];
+        const int row = static_cast<int>(index);
 
         for (int column = 0; column < 3; ++column) {
-            if (table->item(index, column) == nullptr) {
-                table->setItem(index, column, new QTableWidgetItem());
+            if (table->item(row, column) == nullptr) {
+                table->setItem(row, column, new QTableWidgetItem());
             }
         }
 
-        auto *name_item = table->item(index, 0);
-        name_item->setText(entry.value(QStringLiteral("name")).toString());
-        name_item->setData(Qt::UserRole, entry);
-        table->item(index, 1)->setText(entry.value(QStringLiteral("access_key")).toString());
-        table->item(index, 2)->setText(entry.value(QStringLiteral("summary")).toString());
+        auto *name_item = table->item(row, 0);
+        name_item->setText(entry.name);
+        name_item->setData(Qt::UserRole, row);
+        table->item(row, 1)->setText(entry.access_key);
+        table->item(row, 2)->setText(entry.summary);
     }
 
     table->resizeRowsToContents();
 }
 
-QJsonObject HydrusApiPermissionsDialog::selected_entry() const {
+int HydrusApiPermissionsDialog::selected_index() const {
     const int row = table->currentRow();
 
     if (row < 0 || table->item(row, 0) == nullptr) {
-        return {};
+        return -1;
     }
 
-    return table->item(row, 0)->data(Qt::UserRole).toJsonObject();
+    const int index = table->item(row, 0)->data(Qt::UserRole).toInt();
+
+    if (index < 0 || index >= static_cast<int>(permission_infos.size())) {
+        return -1;
+    }
+
+    return index;
 }
 
 void HydrusApiPermissionsDialog::add_entry() {
-    show_api_permission_editor(main, this, data, QJsonObject());
+    show_api_permission_editor(main, this, available_infos, nullptr);
 }
 
 void HydrusApiPermissionsDialog::edit_selected() {
-    const QJsonObject entry = selected_entry();
+    const int index = selected_index();
 
-    if (!entry.isEmpty()) {
-        show_api_permission_editor(main, this, data, entry);
+    if (index >= 0) {
+        show_api_permission_editor(main, this, available_infos, &permission_infos[static_cast<size_t>(index)]);
     }
 }
 
 void HydrusApiPermissionsDialog::delete_selected() {
-    const QJsonObject entry = selected_entry();
+    const int index = selected_index();
 
-    if (entry.isEmpty()) {
+    if (index < 0) {
         return;
     }
+
+    const ApiPermissionInfo &entry = permission_infos[static_cast<size_t>(index)];
 
     if (QMessageBox::question(
             this,
             QStringLiteral("delete access key"),
             QStringLiteral("Delete '%1'? Anything using that key will lose access.")
-                .arg(entry.value(QStringLiteral("name")).toString()))
+                .arg(entry.name))
         != QMessageBox::Yes) {
         return;
     }
 
-    main->notify(UiAction::ApiPermissionsDelete, QString(),
-                 entry.value(QStringLiteral("access_key")).toString());
+    main->notify(UiAction::ApiPermissionsDelete, QString(), entry.access_key);
 }
 
 void HydrusMainWindow::show_api_permissions(const ApiPermissionsDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (api_permissions_dialog == nullptr) {
-        api_permissions_dialog = new HydrusApiPermissionsDialog(this, state, this);
+        api_permissions_dialog = new HydrusApiPermissionsDialog(this, typed, this);
         connect(api_permissions_dialog, &QObject::destroyed, this, [this]() { api_permissions_dialog = nullptr; });
         api_permissions_dialog->show();
     } else {
-        api_permissions_dialog->set_state(state);
+        api_permissions_dialog->set_state(typed);
         api_permissions_dialog->raise();
         api_permissions_dialog->activateWindow();
     }
 }
 
 void HydrusMainWindow::update_api_permissions(const ApiPermissionsDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (api_permissions_dialog != nullptr) {
-        api_permissions_dialog->set_state(state);
+        api_permissions_dialog->set_state(typed);
     }
 }

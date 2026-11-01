@@ -34,7 +34,7 @@
 #include <QVBoxLayout>
 #include <algorithm>
 
-HydrusNetworkDialog::HydrusNetworkDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+HydrusNetworkDialog::HydrusNetworkDialog(HydrusMainWindow *main_window, const NetworkDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("manage network"));
     setObjectName(QStringLiteral("hydrus_network_dialog"));
@@ -206,108 +206,114 @@ HydrusNetworkDialog::HydrusNetworkDialog(HydrusMainWindow *main_window, const QJ
     set_state(state);
 }
 
-void HydrusNetworkDialog::set_state(const QJsonObject &state) {
-    data = state;
-    const QJsonObject options = state.value(QStringLiteral("options")).toObject();
+void HydrusNetworkDialog::set_state(const NetworkDialogState &state) {
+    url_class_infos.clear();
+    url_type_infos.clear();
 
-    http_proxy->setText(options.value(QStringLiteral("http_proxy")).toString());
-    https_proxy->setText(options.value(QStringLiteral("https_proxy")).toString());
-    no_proxy->setText(options.value(QStringLiteral("no_proxy")).toString());
-    timeout->setValue(options.value(QStringLiteral("network_timeout")).toInt(10));
-    max_jobs->setValue(options.value(QStringLiteral("max_network_jobs")).toInt(15));
-    max_jobs_domain->setValue(options.value(QStringLiteral("max_network_jobs_per_domain")).toInt(3));
+    for (const NetworkUrlClassRow &entry : state.url_classes) {
+        url_class_infos.push_back({to_qstring(entry.name),
+                                   entry.url_type,
+                                   to_qstring(entry.preferred_scheme),
+                                   to_qstring(entry.netloc),
+                                   to_qstring(entry.components_text),
+                                   to_qstring(entry.parameters_text),
+                                   entry.match_subdomains,
+                                   entry.keep_matched_subdomains,
+                                   entry.can_produce_multiple_files,
+                                   entry.should_be_associated_with_files,
+                                   to_qstring(entry.example_url)});
+    }
 
-    api_enabled->setChecked(options.value(QStringLiteral("api_enabled")).toBool());
-    api_port->setValue(options.value(QStringLiteral("api_port")).toInt(45869));
-    api_key->setText(options.value(QStringLiteral("api_access_key")).toString());
-    api_status->setText(state.value(QStringLiteral("api_status")).toString());
+    for (const UrlTypeRow &entry : state.url_types) {
+        url_type_infos.push_back({entry.value, to_qstring(entry.label)});
+    }
+
+    http_proxy->setText(to_qstring(state.http_proxy));
+    https_proxy->setText(to_qstring(state.https_proxy));
+    no_proxy->setText(to_qstring(state.no_proxy));
+    timeout->setValue(state.network_timeout);
+    max_jobs->setValue(state.max_network_jobs);
+    max_jobs_domain->setValue(state.max_network_jobs_per_domain);
+
+    api_enabled->setChecked(state.api_enabled);
+    api_port->setValue(state.api_port);
+    api_key->setText(to_qstring(state.api_access_key));
+    api_status->setText(to_qstring(state.api_status));
 
     QSignalBlocker blocker(paused);
-    paused->setChecked(state.value(QStringLiteral("paused")).toBool());
+    paused->setChecked(state.paused);
 
-    const QJsonArray header_values = state.value(QStringLiteral("headers")).toArray();
-    headers->setRowCount(header_values.size());
+    headers->setRowCount(static_cast<int>(state.headers.size()));
 
-    for (int index = 0; index < header_values.size(); ++index) {
-        const QJsonObject header = header_values.at(index).toObject();
+    for (size_t index = 0; index < state.headers.size(); ++index) {
+        const NetworkHeaderRow &header = state.headers[index];
+        const int row = static_cast<int>(index);
 
-        if (headers->item(index, 0) == nullptr) {
-            headers->setItem(index, 0, new QTableWidgetItem());
-            headers->setItem(index, 1, new QTableWidgetItem());
+        if (headers->item(row, 0) == nullptr) {
+            headers->setItem(row, 0, new QTableWidgetItem());
+            headers->setItem(row, 1, new QTableWidgetItem());
         }
 
-        headers->item(index, 0)->setText(header.value(QStringLiteral("name")).toString());
-        headers->item(index, 1)->setText(header.value(QStringLiteral("value")).toString());
+        headers->item(row, 0)->setText(to_qstring(header.name));
+        headers->item(row, 1)->setText(to_qstring(header.value));
     }
 
-    const QJsonArray classes = state.value(QStringLiteral("url_classes")).toArray();
-    url_classes->setRowCount(classes.size());
+    url_classes->setRowCount(static_cast<int>(state.url_classes.size()));
 
-    for (int index = 0; index < classes.size(); ++index) {
-        const QJsonObject entry = classes.at(index).toObject();
+    for (size_t index = 0; index < state.url_classes.size(); ++index) {
+        const NetworkUrlClassRow &entry = state.url_classes[index];
+        const int row = static_cast<int>(index);
 
         for (int column = 0; column < 4; ++column) {
-            if (url_classes->item(index, column) == nullptr) {
-                url_classes->setItem(index, column, new QTableWidgetItem());
+            if (url_classes->item(row, column) == nullptr) {
+                url_classes->setItem(row, column, new QTableWidgetItem());
             }
         }
 
-        url_classes->item(index, 0)->setText(entry.value(QStringLiteral("name")).toString());
-        url_classes->item(index, 0)->setData(Qt::UserRole, entry.value(QStringLiteral("name")).toString());
-        url_classes->item(index, 1)->setText(entry.value(QStringLiteral("url_type_name")).toString());
-        url_classes->item(index, 2)->setText(entry.value(QStringLiteral("netloc")).toString());
-        url_classes->item(index, 3)->setText(json_to_strings(entry.value(QStringLiteral("components")).toArray()).join(QStringLiteral("/")));
+        url_classes->item(row, 0)->setText(to_qstring(entry.name));
+        url_classes->item(row, 0)->setData(Qt::UserRole, row);
+        url_classes->item(row, 1)->setText(to_qstring(entry.url_type_name));
+        url_classes->item(row, 2)->setText(to_qstring(entry.netloc));
+        url_classes->item(row, 3)->setText(to_qstring(entry.components_text));
     }
 
-    const QJsonArray pool_values = state.value(QStringLiteral("download_pools")).toArray();
-    pools->setRowCount(pool_values.size());
+    pools->setRowCount(static_cast<int>(state.download_pools.size()));
 
-    for (int index = 0; index < pool_values.size(); ++index) {
-        const QJsonObject entry = pool_values.at(index).toObject();
+    for (size_t index = 0; index < state.download_pools.size(); ++index) {
+        const NetworkPoolRow &entry = state.download_pools[index];
+        const int row = static_cast<int>(index);
 
         for (int column = 0; column < 2; ++column) {
-            if (pools->item(index, column) == nullptr) {
-                pools->setItem(index, column, new QTableWidgetItem());
+            if (pools->item(row, column) == nullptr) {
+                pools->setItem(row, column, new QTableWidgetItem());
             }
         }
 
-        pools->item(index, 0)->setText(entry.value(QStringLiteral("domain")).toString());
-        pools->item(index, 0)->setData(Qt::UserRole, entry.value(QStringLiteral("domain")).toString());
-        pools->item(index, 1)->setText(QString::number(entry.value(QStringLiteral("limit")).toInt()));
+        pools->item(row, 0)->setText(to_qstring(entry.domain));
+        pools->item(row, 0)->setData(Qt::UserRole, row);
+        pools->item(row, 1)->setText(to_qstring(entry.limit_text));
     }
 
-    const QJsonArray rules = state.value(QStringLiteral("bandwidth_rules")).toArray();
-    bandwidth_rules->setRowCount(rules.size());
+    bandwidth_rules->setRowCount(static_cast<int>(state.bandwidth_rules.size()));
 
-    for (int index = 0; index < rules.size(); ++index) {
-        const QJsonObject entry = rules.at(index).toObject();
+    for (size_t index = 0; index < state.bandwidth_rules.size(); ++index) {
+        const NetworkBandwidthRow &entry = state.bandwidth_rules[index];
+        const int row = static_cast<int>(index);
 
         for (int column = 0; column < 5; ++column) {
-            if (bandwidth_rules->item(index, column) == nullptr) {
-                bandwidth_rules->setItem(index, column, new QTableWidgetItem());
+            if (bandwidth_rules->item(row, column) == nullptr) {
+                bandwidth_rules->setItem(row, column, new QTableWidgetItem());
             }
         }
 
-        const QString context_type = entry.value(QStringLiteral("context_type")).toString();
-        const QString context = entry.value(QStringLiteral("context")).toString();
-        const QString bandwidth_type = entry.value(QStringLiteral("bandwidth_type")).toString();
-        const QJsonValue period_value = entry.value(QStringLiteral("time_delta"));
-        const qint64 max_value = entry.value(QStringLiteral("max_allowed")).toVariant().toLongLong();
-
-        bandwidth_rules->item(index, 0)->setText(context_type);
-        bandwidth_rules->item(index, 0)->setData(Qt::UserRole, context_type);
-        bandwidth_rules->item(index, 1)->setText(context);
-        bandwidth_rules->item(index, 1)->setData(Qt::UserRole, context);
-        bandwidth_rules->item(index, 2)->setText(bandwidth_type);
-        bandwidth_rules->item(index, 2)->setData(Qt::UserRole, bandwidth_type);
-        bandwidth_rules->item(index, 3)->setText(
-            period_value.isNull() || period_value.toInt() <= 0
-                ? QStringLiteral("month")
-                : QStringLiteral("%1 s").arg(period_value.toInt()));
-        bandwidth_rules->item(index, 4)->setText(
-            bandwidth_type == QStringLiteral("data")
-                ? QStringLiteral("%1 MB").arg(max_value / (1024 * 1024))
-                : QString::number(max_value));
+        bandwidth_rules->item(row, 0)->setText(to_qstring(entry.context_type));
+        bandwidth_rules->item(row, 0)->setData(Qt::UserRole, row);
+        bandwidth_rules->item(row, 1)->setText(to_qstring(entry.context));
+        bandwidth_rules->item(row, 1)->setData(Qt::UserRole, row);
+        bandwidth_rules->item(row, 2)->setText(to_qstring(entry.bandwidth_type));
+        bandwidth_rules->item(row, 2)->setData(Qt::UserRole, row);
+        bandwidth_rules->item(row, 3)->setText(to_qstring(entry.period_text));
+        bandwidth_rules->item(row, 4)->setText(to_qstring(entry.maximum_text));
     }
 
     headers->resizeRowsToContents();

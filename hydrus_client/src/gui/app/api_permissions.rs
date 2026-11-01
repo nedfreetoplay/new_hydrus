@@ -6,62 +6,99 @@
 
 use std::collections::BTreeSet;
 
-use serde_json::{json, Value};
+use serde_json::Value;
 
 use crate::api::{load_permissions, ApiPermissions, ALLOWED_PERMISSIONS};
 
 use super::{render, services, tag_filter, AppState, UiCommand};
 
-pub fn permissions_json(state: &AppState) -> String {
+/// R2: dialog spelling of a tag slice (`*` for all unnamespaced tags,
+/// `*:*` for all namespaced ones, the slice otherwise). Mirrors the C++
+/// `api_permission_slice_display` it replaces.
+pub fn permission_slice_display(slice: &str) -> String {
+    if slice.is_empty() {
+        "*".to_string()
+    } else if slice == ":" {
+        "*:*".to_string()
+    } else {
+        slice.to_string()
+    }
+}
+
+/// R2: permission summary of one API access key row.
+pub fn permission_summary(entry: &ApiPermissions) -> String {
+    if entry.permits_everything {
+        return "permits everything".to_string();
+    }
+
+    let labels: Vec<&str> = ALLOWED_PERMISSIONS
+        .iter()
+        .filter(|(value, _)| entry.has_permission(*value))
+        .map(|(_, label)| *label)
+        .collect();
+
+    if labels.is_empty() {
+        "no permissions".to_string()
+    } else {
+        labels.join(", ")
+    }
+}
+
+pub fn permissions_state(state: &AppState) -> crate::gui::qt::api::ffi::ApiPermissionsDialogState {
+    use crate::gui::qt::api::ffi::{
+        ApiAvailablePermission, ApiPermissionRow, ApiPermissionRule, ApiPermissionsDialogState,
+    };
+
     let permissions = load_permissions(&state.controller.api_permissions_path());
 
-    let entries: Vec<Value> = permissions
+    let rows: Vec<ApiPermissionRow> = permissions
         .iter()
         .map(|entry| {
-            let filter = entry.tag_filter();
-            let summary = if entry.permits_everything {
-                "permits everything".to_string()
-            } else {
-                let labels: Vec<&str> = ALLOWED_PERMISSIONS
-                    .iter()
-                    .filter(|(value, _)| entry.has_permission(*value))
-                    .map(|(_, label)| *label)
-                    .collect();
+            let rules: Vec<ApiPermissionRule> = entry
+                .search_tag_filter
+                .iter()
+                .map(|(slice, rule)| ApiPermissionRule {
+                    slice: slice.clone(),
+                    display: permission_slice_display(slice),
+                    rule: rule.clone(),
+                })
+                .collect();
 
-                if labels.is_empty() {
-                    "no permissions".to_string()
-                } else {
-                    labels.join(", ")
-                }
-            };
-
-            json!({
-                "name": entry.name,
-                "access_key": entry.access_key,
-                "permits_everything": entry.permits_everything,
-                "basic_permissions": entry.basic_permissions,
-                "search_tag_filter": entry.search_tag_filter,
-                "tag_filter_display": filter.to_permitted_string(),
-                "summary": summary,
-            })
+            ApiPermissionRow {
+                name: entry.name.clone(),
+                access_key: entry.access_key.clone(),
+                summary: permission_summary(entry),
+                permits_everything: entry.permits_everything,
+                basic_permissions: entry.basic_permissions.iter().map(|value| i32::from(*value)).collect(),
+                rules,
+                ..Default::default()
+            }
         })
         .collect();
 
-    let permissions_available: Vec<Value> = ALLOWED_PERMISSIONS
+    let available: Vec<ApiAvailablePermission> = ALLOWED_PERMISSIONS
         .iter()
-        .map(|(value, label)| json!({"value": value, "label": label}))
+        .map(|(value, label)| ApiAvailablePermission {
+            value: i32::from(*value),
+            label: label.to_string(),
+        })
         .collect();
 
-    json!({
-        "permissions": entries,
-        "available_permissions": permissions_available,
-        "api_status": state.controller.api_status().unwrap_or_else(|| "stopped".to_string()),
-    })
-    .to_string()
+    let api_status = state
+        .controller
+        .api_status()
+        .unwrap_or_else(|| "stopped".to_string());
+
+    ApiPermissionsDialogState {
+        api_status: api_status.clone(),
+        status: format!("api: {api_status}"),
+        rows,
+        available,
+    }
 }
 
 pub fn open(state: &AppState) -> Vec<UiCommand> {
-    vec![UiCommand::ApiPermissionsDialog(crate::gui::qt::api::ffi::ApiPermissionsDialogState { json: permissions_json(state) })]
+    vec![UiCommand::ApiPermissionsDialog(permissions_state(state))]
 }
 
 pub fn save(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
@@ -214,7 +251,7 @@ pub fn delete(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
 
 fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
-        UiCommand::UpdateApiPermissions(crate::gui::qt::api::ffi::ApiPermissionsDialogState { json: permissions_json(state) }),
+        UiCommand::UpdateApiPermissions(permissions_state(state)),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
@@ -224,7 +261,7 @@ fn updated(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
 fn notify(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     let mut commands = vec![UiCommand::NotifyMessage(message.into())];
     commands.extend([
-        UiCommand::UpdateApiPermissions(crate::gui::qt::api::ffi::ApiPermissionsDialogState { json: permissions_json(state) }),
+        UiCommand::UpdateApiPermissions(permissions_state(state)),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
     ]);
@@ -243,6 +280,8 @@ pub fn new_access_key() -> String {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+
+    use serde_json::json;
 
     use super::*;
     use crate::gui::app::AppState;
@@ -286,6 +325,41 @@ mod tests {
     }
 
     #[test]
+    fn api_permission_cell_texts() {
+        assert_eq!(permission_slice_display(""), "*");
+        assert_eq!(permission_slice_display(":"), "*:*");
+        assert_eq!(permission_slice_display("character:"), "character:");
+
+        let everything = ApiPermissions {
+            name: "all".to_string(),
+            access_key: "k".to_string(),
+            permits_everything: true,
+            basic_permissions: vec![],
+            search_tag_filter: vec![],
+        };
+        assert_eq!(permission_summary(&everything), "permits everything");
+
+        let none = ApiPermissions {
+            permits_everything: false,
+            ..everything.clone()
+        };
+        assert_eq!(permission_summary(&none), "no permissions");
+
+        let some = ApiPermissions {
+            permits_everything: false,
+            basic_permissions: vec![3, 2],
+            ..everything.clone()
+        };
+        let summary = permission_summary(&some);
+        let expected: Vec<&str> = ALLOWED_PERMISSIONS
+            .iter()
+            .filter(|(value, _)| *value == 3 || *value == 2)
+            .map(|(_, label)| *label)
+            .collect();
+        assert_eq!(summary, expected.join(", "));
+    }
+
+    #[test]
     fn saving_and_deleting_an_access_key_persists_the_file() {
         let directory = temp_directory("save");
         let mut state = test_state(&directory);
@@ -304,12 +378,11 @@ mod tests {
         assert!(!loaded[0].permits_everything);
 
         let opened = open(&state);
-        let json = match opened.first() {
-            Some(UiCommand::ApiPermissionsDialog(state)) => state.json.clone(),
+        let name = match opened.first() {
+            Some(UiCommand::ApiPermissionsDialog(state)) => state.rows[0].name.clone(),
             other => panic!("unexpected command: {other:?}"),
         };
-        let value: Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(value["permissions"][0]["name"], "reader");
+        assert_eq!(name, "reader");
 
         delete(&mut state, &key);
         assert!(load_permissions(&state.controller.api_permissions_path()).is_empty());

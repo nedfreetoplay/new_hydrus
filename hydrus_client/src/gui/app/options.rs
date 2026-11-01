@@ -823,89 +823,144 @@ pub fn apply_options(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     commands
 }
 
-pub fn network_json(state: &AppState) -> String {
+/// R2: bandwidth rule period cell (`month` for a zero/null period, `N s`).
+pub fn bandwidth_period_text(time_delta: Option<i64>) -> String {
+    match time_delta {
+        None | Some(0) => "month".to_string(),
+        Some(period) => format!("{period} s"),
+    }
+}
+
+/// R2: bandwidth rule maximum cell (`N MB` for data rules, raw count else).
+pub fn bandwidth_maximum_text(bandwidth_type: &str, max_allowed: i64) -> String {
+    if bandwidth_type == "data" {
+        format!("{} MB", max_allowed / (1024 * 1024))
+    } else {
+        max_allowed.to_string()
+    }
+}
+
+/// R2: URL class path cell (components joined with `/`).
+pub fn url_class_path_text(components: &[String]) -> String {
+    components.join("/")
+}
+
+pub fn network_state(state: &AppState) -> crate::gui::qt::api::ffi::NetworkDialogState {
+    use crate::gui::qt::api::ffi::{
+        NetworkBandwidthRow, NetworkDialogState, NetworkHeaderRow, NetworkPoolRow,
+        NetworkUrlClassRow, UrlTypeRow,
+    };
+
     let controller = &state.controller;
     let options = controller.options();
     let domain_manager = controller.domain_manager().read().unwrap();
 
-    let headers: Vec<Value> = domain_manager
+    let headers: Vec<NetworkHeaderRow> = domain_manager
         .get_custom_headers()
         .iter()
-        .map(|(name, header)| {
-            json!({
-                "name": name,
-                "value": header.value,
-                "approved": header.approved,
-                "note": header.note,
-            })
+        .map(|(name, header)| NetworkHeaderRow {
+            name: name.clone(),
+            value: header.value.clone(),
         })
         .collect();
 
-    let url_classes: Vec<Value> = domain_manager
+    let url_classes: Vec<NetworkUrlClassRow> = domain_manager
         .get_url_classes()
         .iter()
         .map(|class| {
-            json!({
-                "name": class.name,
-                "url_type": class.url_type,
-                "url_type_name": crate::networking::client_networking_url_class::url_type_name(class.url_type),
-                "preferred_scheme": class.preferred_scheme.clone().unwrap_or_default(),
-                "netloc": class.netloc,
-                "match_subdomains": class.match_subdomains,
-                "keep_matched_subdomains": class.keep_matched_subdomains,
-                "components": class.path_components.iter().map(|component| match component {
+            let components: Vec<String> = class
+                .path_components
+                .iter()
+                .map(|component| match component {
                     PathComponent::Fixed(value) => value.clone(),
                     PathComponent::Variable { name, .. } => format!("{{{name}}}"),
-                }).collect::<Vec<_>>(),
-                "parameters": class.parameters.iter().map(|(name, value)| match value {
-                    Some(value) => format!("{name}={value}"),
-                    None => name.clone(),
-                }).collect::<Vec<_>>().join("\n"),
-                "can_produce_multiple_files": class.can_produce_multiple_files,
-                "should_be_associated_with_files": class.should_be_associated_with_files,
-                "example_url": class.example_url,
-            })
+                })
+                .collect();
+
+            NetworkUrlClassRow {
+                name: class.name.clone(),
+                url_type_name: crate::networking::client_networking_url_class::url_type_name(
+                    class.url_type,
+                )
+                .to_string(),
+                netloc: class.netloc.clone(),
+                components_text: url_class_path_text(&components),
+                url_type: class.url_type as i32,
+                preferred_scheme: class.preferred_scheme.clone().unwrap_or_default(),
+                match_subdomains: class.match_subdomains,
+                keep_matched_subdomains: class.keep_matched_subdomains,
+                parameters_text: class
+                    .parameters
+                    .iter()
+                    .map(|(name, value)| match value {
+                        Some(value) => format!("{name}={value}"),
+                        None => name.clone(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                can_produce_multiple_files: class.can_produce_multiple_files,
+                should_be_associated_with_files: class.should_be_associated_with_files,
+                example_url: class.example_url.clone(),
+            }
         })
         .collect();
 
     let pools = controller.download_pool_settings();
-    let domain_limits: Vec<Value> = pools
+    let download_pools: Vec<NetworkPoolRow> = pools
         .domain_limits
         .iter()
-        .map(|(domain, limit)| json!({"domain": domain, "limit": limit}))
+        .map(|(domain, limit)| NetworkPoolRow {
+            domain: domain.clone(),
+            limit_text: limit.to_string(),
+        })
         .collect();
-    let bandwidth_rules = controller.bandwidth_rule_entries();
+    let bandwidth_rules: Vec<NetworkBandwidthRow> = controller
+        .bandwidth_rule_entries()
+        .iter()
+        .map(|rule| NetworkBandwidthRow {
+            context_type: rule.context_type.clone(),
+            context: rule.context.clone(),
+            bandwidth_type: rule.bandwidth_type.clone(),
+            period_text: bandwidth_period_text(rule.time_delta),
+            maximum_text: bandwidth_maximum_text(&rule.bandwidth_type, rule.max_allowed),
+        })
+        .collect();
 
-    json!({
-        "options": {
-            "http_proxy": options.get_noneable_string("http_proxy"),
-            "https_proxy": options.get_noneable_string("https_proxy"),
-            "no_proxy": options.get_noneable_string("no_proxy"),
-            "network_timeout": options.get_integer("network_timeout"),
-            "max_network_jobs": options.get_integer("max_network_jobs"),
-            "max_network_jobs_per_domain": options.get_integer("max_network_jobs_per_domain"),
-            "api_enabled": options.get_boolean("api_enabled"),
-            "api_port": options.get_integer("api_port"),
-            "api_access_key": options.get_string("api_access_key"),
-        },
-        "paused": controller.network_paused(),
-        "api_status": controller.api_status().unwrap_or_else(|| "stopped".to_string()),
-        "headers": headers,
-        "url_classes": url_classes,
-        "url_types": [
-            {"value": 0, "label": "post url"},
-            {"value": 1, "label": "api/redirect url"},
-            {"value": 2, "label": "file url"},
-            {"value": 3, "label": "gallery url"},
-            {"value": 4, "label": "watchable url"},
-            {"value": 5, "label": "unknown url"},
-            {"value": 7, "label": "downloadable/pursuable url"},
-            {"value": 9, "label": "sub-gallery url"}
-        ],
-        "download_pools": domain_limits,
-        "bandwidth_rules": bandwidth_rules,
-    })
-    .to_string()
+    NetworkDialogState {
+        http_proxy: options.get_noneable_string("http_proxy").unwrap_or_default(),
+        https_proxy: options.get_noneable_string("https_proxy").unwrap_or_default(),
+        no_proxy: options.get_noneable_string("no_proxy").unwrap_or_default(),
+        network_timeout: options.get_integer("network_timeout") as i32,
+        max_network_jobs: options.get_integer("max_network_jobs") as i32,
+        max_network_jobs_per_domain: options.get_integer("max_network_jobs_per_domain") as i32,
+        api_enabled: options.get_boolean("api_enabled"),
+        api_port: options.get_integer("api_port") as i32,
+        api_access_key: options.get_string("api_access_key"),
+        api_status: controller
+            .api_status()
+            .unwrap_or_else(|| "stopped".to_string()),
+        paused: controller.network_paused(),
+        headers,
+        url_classes,
+        url_types: [
+            (0, "post url"),
+            (1, "api/redirect url"),
+            (2, "file url"),
+            (3, "gallery url"),
+            (4, "watchable url"),
+            (5, "unknown url"),
+            (7, "downloadable/pursuable url"),
+            (9, "sub-gallery url"),
+        ]
+        .into_iter()
+        .map(|(value, label)| UrlTypeRow {
+            value,
+            label: label.to_string(),
+        })
+        .collect(),
+        download_pools,
+        bandwidth_rules,
+    }
 }
 
 pub fn network_action(state: &mut AppState, action: ffi::UiAction, payload: &str) -> Vec<UiCommand> {
@@ -1181,7 +1236,7 @@ pub fn network_action(state: &mut AppState, action: ffi::UiAction, payload: &str
 
 fn network_commands(state: &AppState) -> Vec<UiCommand> {
     vec![
-        UiCommand::NetworkDialog(crate::gui::qt::api::ffi::NetworkDialogState { json: network_json(state) }),
+        UiCommand::NetworkDialog(network_state(state)),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(state.message.clone()),
@@ -1326,6 +1381,16 @@ mod tests {
     fn general_help_lookup() {
         assert!(general_help("always_loop_gifs").contains("GIF"));
         assert_eq!(general_help("missing"), "");
+    }
+
+    #[test]
+    fn bandwidth_cell_texts() {
+        assert_eq!(bandwidth_period_text(None), "month");
+        assert_eq!(bandwidth_period_text(Some(0)), "month");
+        assert_eq!(bandwidth_period_text(Some(60)), "60 s");
+        assert_eq!(bandwidth_maximum_text("data", 2 * 1024 * 1024), "2 MB");
+        assert_eq!(bandwidth_maximum_text("requests", 7), "7");
+        assert_eq!(url_class_path_text(&["a".to_string(), "b".to_string()]), "a/b");
     }
 
     #[test]

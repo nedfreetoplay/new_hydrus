@@ -122,37 +122,145 @@ pub(super) fn hex_encode(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-pub fn services_json(state: &AppState) -> String {
+/// R2: `port_text` for the services table (`-` when the dictionary has no
+/// port, the decimal port otherwise).
+pub fn service_port_text(dictionary: &Value) -> String {
+    dictionary
+        .get("port")
+        .and_then(Value::as_i64)
+        .map(|port| port.to_string())
+        .unwrap_or_else(|| "-".to_string())
+}
+
+/// R2: settings summary of a local service (`-` for an empty dictionary,
+/// `host:port` plus `update every N s` / `nullify every N s` suffixes).
+pub fn service_settings_summary(dictionary: &Value) -> String {
+    if dictionary.as_object().map_or(true, |map| map.is_empty()) {
+        return "-".to_string();
+    }
+
+    let mut summary = format!(
+        "{}:{}",
+        dictionary
+            .get("host")
+            .and_then(Value::as_str)
+            .unwrap_or_default(),
+        dictionary.get("port").and_then(Value::as_i64).unwrap_or(0)
+    );
+
+    if let Some(period) = dictionary.get("update_period").and_then(Value::as_i64) {
+        summary += &format!(" | update every {period} s");
+    }
+
+    if let Some(period) = dictionary
+        .get("nullification_period")
+        .and_then(Value::as_i64)
+    {
+        summary += &format!(" | nullify every {period} s");
+    }
+
+    summary
+}
+
+/// R2: `never` for a null expiry, the decimal epoch otherwise.
+pub fn expiry_text(value: &Value) -> String {
+    if value.is_null() {
+        return "never".to_string();
+    }
+
+    value
+        .as_i64()
+        .map(|expiry| expiry.to_string())
+        .unwrap_or_else(|| "never".to_string())
+}
+
+/// R2: banned cell text (`-` when not banned, the reason otherwise).
+pub fn banned_text(banned: bool, reason: &str) -> String {
+    if banned {
+        reason.to_string()
+    } else {
+        "-".to_string()
+    }
+}
+
+/// R2: masked password cell text (`-` when empty, stars otherwise).
+pub fn password_display(password: &str) -> String {
+    if password.is_empty() {
+        "-".to_string()
+    } else {
+        "********".to_string()
+    }
+}
+
+pub fn services_state(state: &AppState) -> crate::gui::qt::api::ffi::ServicesDialogState {
+    use crate::gui::qt::api::ffi::{
+        LoginRow, RemoteServiceRow, ServiceAccountRow, ServiceRow, ServiceTypeRow,
+        ServicesDialogState,
+    };
+
     let manager = state.controller.services();
 
-    let services: Vec<Value> = manager
+    let services: Vec<ServiceRow> = manager
         .get_services(None)
         .into_iter()
         .map(|service| {
             let dictionary = service_dictionary(service);
+            let port = dictionary.get("port").and_then(Value::as_i64).unwrap_or(0);
 
-            json!({
-                "service_id": service.service_id,
-                "key": hex_encode(&service.service_key),
-                "name": service.name,
-                "type": service.service_type.as_str(),
-                "type_short": service.service_type.short_str(),
-                "type_int": service.service_type.as_int(),
-                "builtin": matches!(service.name.as_str(), "my files" | "local tags" | "trash"),
-                "dictionary": dictionary,
-            })
+            ServiceRow {
+                key: hex_encode(&service.service_key),
+                name: service.name.clone(),
+                type_short: service.service_type.short_str().to_string(),
+                port_text: service_port_text(&dictionary),
+                settings_summary: service_settings_summary(&dictionary),
+                builtin: matches!(service.name.as_str(), "my files" | "local tags" | "trash"),
+                type_int: service.service_type.as_int() as i32,
+                host: dictionary
+                    .get("host")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                port: i32::try_from(port).unwrap_or(0),
+                access_key: dictionary
+                    .get("access_key")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_string(),
+                has_update_period: dictionary.get("update_period").and_then(Value::as_i64).is_some(),
+                update_period: i32::try_from(
+                    dictionary.get("update_period").and_then(Value::as_i64).unwrap_or(86400),
+                )
+                .unwrap_or(86400),
+                has_nullify_period: dictionary
+                    .get("nullification_period")
+                    .and_then(Value::as_i64)
+                    .is_some(),
+                nullify_period: i32::try_from(
+                    dictionary
+                        .get("nullification_period")
+                        .and_then(Value::as_i64)
+                        .unwrap_or(90 * 86400),
+                )
+                .unwrap_or(90 * 86400),
+                max_storage: i32::try_from(
+                    dictionary.get("max_storage").and_then(Value::as_i64).unwrap_or(0),
+                )
+                .unwrap_or(0),
+                log_uploader_ips: dictionary
+                    .get("log_uploader_ips")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false),
+            }
         })
         .collect();
 
-    let types: Vec<Value> = service_types()
+    let types: Vec<ServiceTypeRow> = service_types()
         .into_iter()
-        .map(|(service_type, family)| {
-            json!({
-                "label": service_type.as_str(),
-                "short": service_type.short_str(),
-                "value": service_type.as_int(),
-                "family": family,
-            })
+        .map(|(service_type, family)| ServiceTypeRow {
+            label: service_type.as_str().to_string(),
+            short_name: service_type.short_str().to_string(),
+            value: service_type.as_int() as i32,
+            family: family.to_string(),
         })
         .collect();
 
@@ -161,80 +269,74 @@ pub fn services_json(state: &AppState) -> String {
         .services
         .sort_by(|left, right| left.name.cmp(&right.name));
 
-    let admin_services: Vec<Value> = admin
+    let remote_services: Vec<RemoteServiceRow> = admin
         .services
         .iter()
-        .map(|service| {
-            json!({
-                "key": service.key,
-                "name": service.name,
-                "type": service.type_name,
-                "type_int": service.type_int,
-                "port": service.port,
-                "access_key": admin.service_keys.get(&service.key).cloned().unwrap_or_default(),
-                "selected": admin.selected_service == service.key,
-            })
+        .map(|service| RemoteServiceRow {
+            key: service.key.clone(),
+            name: service.name.clone(),
+            type_name: service.type_name.clone(),
+            port: i32::from(service.port),
+            access_key: admin.service_keys.get(&service.key).cloned().unwrap_or_default(),
+            selected: admin.selected_service == service.key,
         })
         .collect();
 
-    let accounts: Vec<Value> = admin
+    let accounts: Vec<ServiceAccountRow> = admin
         .accounts
         .iter()
-        .map(|account| {
-            json!({
-                "key": account.key,
-                "type_key": account.type_key,
-                "type": account.type_title,
-                "created": account.created,
-                "expires": account.expires,
-                "banned": account.banned,
-                "banned_reason": account.banned_reason,
-                "message": account.message,
-            })
+        .map(|account| ServiceAccountRow {
+            key: account.key.clone(),
+            type_title: account.type_title.clone(),
+            created_text: account.created.to_string(),
+            expires_text: account
+                .expires
+                .map(|expires| expires.to_string())
+                .unwrap_or_else(|| "never".to_string()),
+            banned_text: banned_text(account.banned, &account.banned_reason),
+            message: account.message.clone(),
         })
         .collect();
 
-    let account_types: Vec<Value> = admin
-        .account_types
-        .iter()
-        .map(|account_type| {
-            json!({
-                "key": account_type.key,
-                "title": account_type.title,
-            })
-        })
-        .collect();
-
-    let logins: Vec<Value> = logins_of(state)
+    let logins: Vec<LoginRow> = logins_of(state)
         .into_iter()
-        .map(|login| {
-            json!({
-                "domain": login.domain,
-                "username": login.username,
-                "password": login.password,
-                "access_key": login.access_key,
-                "expires": login.expires,
-            })
+        .map(|login| LoginRow {
+            domain: login.domain.clone(),
+            username: login.username.clone(),
+            password_display: password_display(&login.password),
+            password: login.password.clone(),
+            access_key: login.access_key.clone(),
+            expires_text: login
+                .expires
+                .map(|expires| expires.to_string())
+                .unwrap_or_else(|| "never".to_string()),
         })
         .collect();
 
-    json!({
-        "services": services,
-        "types": types,
-        "logins": logins,
-        "admin": {
-            "address": admin.address,
-            "access_key": admin.access_key,
-            "status": admin.status,
-            "selected_service": admin.selected_service,
-            "services": admin_services,
-            "accounts": accounts,
-            "account_types": account_types,
-            "options": admin.options,
-            "service_info": admin.service_info,
+    ServicesDialogState {
+        services,
+        types,
+        admin_address: admin.address.clone(),
+        admin_access_key: admin.access_key.clone(),
+        admin_status: admin.status.clone(),
+        admin: crate::gui::qt::api::ffi::AdminBlobs {
+            options_json: admin.options.to_string(),
+            service_info_json: admin.service_info.to_string(),
         },
-    })
-    .to_string()
+        remote_services,
+        accounts,
+        logins,
+        account_types: admin
+            .account_types
+            .iter()
+            .map(|account_type| {
+                crate::gui::qt::api::ffi::AccountTypeRef {
+                    key: account_type.key.clone(),
+                    title: account_type.title.clone(),
+                }
+            })
+            .collect(),
+    }
 }
 
 fn service_types() -> Vec<(ServiceType, &'static str)> {
@@ -778,22 +880,48 @@ fn selected_client(state: &AppState) -> Result<HydrusServiceClient, String> {
         .map(|client| client.with_port(service.port))
 }
 
-pub fn account_types_json(state: &AppState) -> String {
+/// R2: auto-creation cell text (`disabled` for zero accounts,
+/// `N / M s` otherwise).
+pub fn auto_creation_text(accounts: i64, time_delta: i64) -> String {
+    if accounts == 0 {
+        "disabled".to_string()
+    } else {
+        format!("{accounts} / {time_delta} s")
+    }
+}
+
+pub fn account_types_state(state: &AppState) -> crate::gui::qt::api::ffi::AccountTypesDialogState {
+    use crate::gui::qt::api::ffi::{
+        AccountPermissionAction, AccountPermissionGroup, AccountPermissionPair, AccountTypeRow,
+        AccountTypesDialogState,
+    };
+
     let mut types: Vec<&RemoteAccountType> = state.admin.account_types.iter().collect();
     types.sort_by(|left, right| left.title.to_lowercase().cmp(&right.title.to_lowercase()));
 
-    let entries: Vec<Value> = types
+    let rows: Vec<AccountTypeRow> = types
         .iter()
-        .map(|account_type| {
-            json!({
-                "key": account_type.key,
-                "title": account_type.title,
-                "permissions": account_type.permissions,
-                "auto_create_accounts": account_type.auto_create.0,
-                "auto_create_time_delta": account_type.auto_create.1,
-                "is_null": account_type.is_null,
-                "summary": permission_summary(account_type),
-            })
+        .map(|account_type| AccountTypeRow {
+            key: account_type.key.clone(),
+            title: account_type.title.clone(),
+            summary: permission_summary(account_type),
+            auto_creation_text: auto_creation_text(
+                account_type.auto_create.0,
+                account_type.auto_create.1,
+            ),
+            is_null: account_type.is_null,
+            permissions: account_type
+                .permissions
+                .iter()
+                .map(|(content_type, action)| AccountPermissionPair {
+                    content_type: i32::from(*content_type),
+                    action: action.map_or(-1, |action| i32::from(action)),
+                    has_action: action.is_some(),
+                })
+                .collect(),
+            auto_create_accounts: account_type.auto_create.0,
+            auto_create_time_delta: account_type.auto_create.1,
+            ..Default::default()
         })
         .collect();
 
@@ -801,44 +929,43 @@ pub fn account_types_json(state: &AppState) -> String {
         .and_then(|service| u16::try_from(service.type_int).ok())
         .and_then(ServiceType::try_from_int);
 
-    let possible: Vec<Value> = service_type
+    let possible: Vec<AccountPermissionGroup> = service_type
         .map(|service_type| {
             hydrus_core::networking::hydrus_network::get_possible_permissions(service_type)
                 .into_iter()
                 .map(|(content_type, actions)| {
-                    let actions: Vec<Value> = actions
+                    let options: Vec<AccountPermissionAction> = actions
                         .into_iter()
-                        .map(|action| {
-                            json!({
-                                "value": action.map(|action| action.as_int()),
-                                "label": action
-                                    .and_then(|action| {
-                                        hydrus_core::hydrus_constants::permission_pair_description(
-                                            content_type,
-                                            Some(action),
-                                        )
-                                    })
-                                    .unwrap_or("no permission"),
-                            })
+                        .map(|action| AccountPermissionAction {
+                            value: action.map_or(-1, |action| i32::from(action.as_int())),
+                            has_value: action.is_some(),
+                            label: action
+                                .and_then(|action| {
+                                    hydrus_core::hydrus_constants::permission_pair_description(
+                                        content_type,
+                                        Some(action),
+                                    )
+                                })
+                                .unwrap_or("no permission")
+                                .to_string(),
                         })
                         .collect();
 
-                    json!({
-                        "content_type": content_type.as_int(),
-                        "label": content_type.as_str(),
-                        "actions": actions,
-                    })
+                    AccountPermissionGroup {
+                        content_type: i32::from(content_type.as_int()),
+                        label: content_type.as_str().to_string(),
+                        actions: options,
+                    }
                 })
                 .collect()
         })
         .unwrap_or_default();
 
-    json!({
-        "service_key": state.admin.selected_service,
-        "types": entries,
-        "possible": possible,
-    })
-    .to_string()
+    AccountTypesDialogState {
+        service_key: state.admin.selected_service.clone(),
+        rows,
+        possible,
+    }
 }
 
 fn permission_summary(account_type: &RemoteAccountType) -> String {
@@ -880,7 +1007,7 @@ pub fn open_account_types(state: &mut AppState, _payload: &str) -> Vec<UiCommand
             state.admin.status = format!("{} account type(s)", state.admin.account_types.len());
             service_commands(state, state.admin.status.clone())
                 .into_iter()
-                .chain([UiCommand::AccountTypesDialog(crate::gui::qt::api::ffi::AccountTypesDialogState { json: account_types_json(state) })])
+                .chain([UiCommand::AccountTypesDialog(account_types_state(state))])
                 .collect()
         }
         Err(error) => service_commands(state, format!("server error: {error}")),
@@ -980,7 +1107,7 @@ pub fn save_account_type(state: &mut AppState, payload: &str) -> Vec<UiCommand> 
             refresh_account_types(state);
             service_commands(state, state.admin.status.clone())
                 .into_iter()
-                .chain([UiCommand::UpdateAccountTypes(crate::gui::qt::api::ffi::AccountTypesDialogState { json: account_types_json(state) })])
+                .chain([UiCommand::UpdateAccountTypes(account_types_state(state))])
                 .collect()
         }
         Err(error) => service_commands(state, format!("server error: {error}")),
@@ -1041,7 +1168,7 @@ pub fn delete_account_type(state: &mut AppState, payload: &str) -> Vec<UiCommand
             refresh_account_types(state);
             service_commands(state, state.admin.status.clone())
                 .into_iter()
-                .chain([UiCommand::UpdateAccountTypes(crate::gui::qt::api::ffi::AccountTypesDialogState { json: account_types_json(state) })])
+                .chain([UiCommand::UpdateAccountTypes(account_types_state(state))])
                 .collect()
         }
         Err(error) => service_commands(state, format!("server error: {error}")),
@@ -1152,7 +1279,7 @@ fn refresh_admin(state: &mut AppState) {
 
 fn service_commands(state: &AppState, message: impl Into<String>) -> Vec<UiCommand> {
     vec![
-        UiCommand::UpdateServices(crate::gui::qt::api::ffi::ServicesDialogState { json: services_json(state) }),
+        UiCommand::UpdateServices(services_state(state)),
         UiCommand::Menus(render::menus(state)),
         UiCommand::Status(render::status(state)),
         UiCommand::NotifyMessage(message.into()),
@@ -1424,7 +1551,7 @@ mod tests {
         let commands = admin_connect(&mut state, &connect);
         assert!(matches!(
             commands.first(),
-            Some(UiCommand::UpdateServices(crate::gui::qt::api::ffi::ServicesDialogState { json: _ }))
+            Some(UiCommand::UpdateServices(_))
         ));
         assert_eq!(state.admin.services.len(), 1, "{}", state.admin.status);
         assert_eq!(state.admin.services[0].name, "server admin");
@@ -1560,6 +1687,31 @@ mod tests {
         assert!(types
             .iter()
             .any(|(service_type, _)| *service_type == ServiceType::ServerAdmin));
+    }
+
+    #[test]
+    fn service_cell_texts() {
+        assert_eq!(service_port_text(&json!({})), "-");
+        assert_eq!(service_port_text(&json!({"port": 45871})), "45871");
+        assert_eq!(service_settings_summary(&json!({})), "-");
+        assert_eq!(
+            service_settings_summary(&json!({"host": "127.0.0.1", "port": 45871})),
+            "127.0.0.1:45871"
+        );
+        assert_eq!(
+            service_settings_summary(
+                &json!({"host": "h", "port": 1, "update_period": 60, "nullification_period": 90})
+            ),
+            "h:1 | update every 60 s | nullify every 90 s"
+        );
+        assert_eq!(expiry_text(&Value::Null), "never");
+        assert_eq!(expiry_text(&json!(42)), "42");
+        assert_eq!(banned_text(false, "spam"), "-");
+        assert_eq!(banned_text(true, "spam"), "spam");
+        assert_eq!(password_display(""), "-");
+        assert_eq!(password_display("secret"), "********");
+        assert_eq!(auto_creation_text(0, 86400), "disabled");
+        assert_eq!(auto_creation_text(5, 60), "5 / 60 s");
     }
 
     #[test]

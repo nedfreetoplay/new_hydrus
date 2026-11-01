@@ -2497,7 +2497,7 @@ impl AppState {
             }
             ffi::UiAction::Options => vec![UiCommand::OptionsDialog(crate::gui::qt::api::ffi::OptionsDialogState { json: options::options_json(self) })],
             ffi::UiAction::OptionsApply => options::apply_options(self, payload),
-            ffi::UiAction::ManageServices => vec![UiCommand::ServicesDialog(crate::gui::qt::api::ffi::ServicesDialogState { json: services::services_json(self) })],
+            ffi::UiAction::ManageServices => vec![UiCommand::ServicesDialog(services::services_state(self))],
             ffi::UiAction::ApiPermissions => api_permissions::open(self),
             ffi::UiAction::ApiPermissionsSave => api_permissions::save(self, payload),
             ffi::UiAction::ApiPermissionsDelete => api_permissions::delete(self, payload),
@@ -2515,7 +2515,7 @@ impl AppState {
             ffi::UiAction::AccountTypeSave => services::save_account_type(self, payload),
             ffi::UiAction::AccountTypeDelete => services::delete_account_type(self, payload),
             ffi::UiAction::ServiceAdd | ffi::UiAction::ServiceRename => services::save_service(self, payload),
-            ffi::UiAction::OptionsNetwork => vec![UiCommand::NetworkDialog(crate::gui::qt::api::ffi::NetworkDialogState { json: options::network_json(self) })],
+            ffi::UiAction::OptionsNetwork => vec![UiCommand::NetworkDialog(options::network_state(self))],
             ffi::UiAction::NetworkHeaderAdd
             | ffi::UiAction::NetworkHeaderRemove
             | ffi::UiAction::NetworkPause

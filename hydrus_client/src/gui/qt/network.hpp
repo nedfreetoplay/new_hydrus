@@ -6,6 +6,8 @@
 #include <QJsonObject>
 #include <QString>
 
+#include <vector>
+
 class QCheckBox;
 class QLabel;
 class QLineEdit;
@@ -13,11 +15,34 @@ class QSpinBox;
 class QTableWidget;
 class HydrusMainWindow;
 
+struct NetworkDialogState;
+struct NetworkUrlClassRow;
+struct UrlTypeRow;
+
+struct NetworkUrlClassInfo {
+    QString name;
+    int url_type = 0;
+    QString preferred_scheme;
+    QString netloc;
+    QString components_text;
+    QString parameters_text;
+    bool match_subdomains = false;
+    bool keep_matched_subdomains = false;
+    bool can_produce_multiple_files = false;
+    bool should_be_associated_with_files = true;
+    QString example_url;
+};
+
+struct NetworkUrlTypeInfo {
+    int value = 0;
+    QString label;
+};
+
 class HydrusNetworkDialog : public QDialog {
 public:
-    explicit HydrusNetworkDialog(HydrusMainWindow *main, const QJsonObject &state, QWidget *parent = nullptr);
+    explicit HydrusNetworkDialog(HydrusMainWindow *main, const NetworkDialogState &state, QWidget *parent = nullptr);
 
-    void set_state(const QJsonObject &state);
+    void set_state(const NetworkDialogState &state);
 
 private:
     void save();
@@ -32,7 +57,8 @@ private:
     void remove_bandwidth_rule();
 
     HydrusMainWindow *main = nullptr;
-    QJsonObject data;
+    std::vector<NetworkUrlClassInfo> url_class_infos;
+    std::vector<NetworkUrlTypeInfo> url_type_infos;
     QLineEdit *http_proxy = nullptr;
     QLineEdit *https_proxy = nullptr;
     QLineEdit *no_proxy = nullptr;

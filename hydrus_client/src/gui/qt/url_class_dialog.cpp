@@ -10,6 +10,7 @@
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QJsonObject>
 #include <QJsonValue>
 #include <QLabel>
 #include <QLineEdit>
@@ -20,8 +21,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-HydrusUrlClassDialog::HydrusUrlClassDialog(const QJsonObject &entry, const QJsonArray &types, QWidget *parent)
-    : QDialog(parent), data(entry) {
+HydrusUrlClassDialog::HydrusUrlClassDialog(const NetworkUrlClassInfo &entry, const std::vector<NetworkUrlTypeInfo> &types, QWidget *parent)
+    : QDialog(parent), original(entry.name) {
     setWindowTitle(QStringLiteral("url class"));
     resize(620, 560);
 
@@ -43,9 +44,8 @@ HydrusUrlClassDialog::HydrusUrlClassDialog(const QJsonObject &entry, const QJson
     associate = new QCheckBox(QStringLiteral("associate with files"), this);
     associate->setChecked(true);
 
-    for (const QJsonValue &value : types) {
-        const QJsonObject item = value.toObject();
-        type->addItem(item.value(QStringLiteral("label")).toString(), item.value(QStringLiteral("value")).toInt());
+    for (const NetworkUrlTypeInfo &value : types) {
+        type->addItem(value.label, value.value);
     }
 
     form->addRow(QStringLiteral("name"), name);
@@ -81,21 +81,21 @@ HydrusUrlClassDialog::HydrusUrlClassDialog(const QJsonObject &entry, const QJson
     connect(test_button, &QPushButton::clicked, this, [this]() { run_test(); });
     layout->addWidget(buttons);
 
-    name->setText(data.value(QStringLiteral("name")).toString());
-    scheme->setText(data.value(QStringLiteral("preferred_scheme")).toString());
+    name->setText(entry.name);
+    scheme->setText(entry.preferred_scheme);
     if (scheme->text().isEmpty()) {
         scheme->setText(QStringLiteral("https"));
     }
-    netloc->setText(data.value(QStringLiteral("netloc")).toString());
-    path->setText(json_to_strings(data.value(QStringLiteral("components")).toArray()).join(QStringLiteral("/")));
-    parameters->setPlainText(data.value(QStringLiteral("parameters")).toString());
-    example->setText(data.value(QStringLiteral("example_url")).toString());
-    match_subdomains->setChecked(data.value(QStringLiteral("match_subdomains")).toBool());
-    keep_subdomains->setChecked(data.value(QStringLiteral("keep_matched_subdomains")).toBool());
-    multiple->setChecked(data.value(QStringLiteral("can_produce_multiple_files")).toBool());
-    associate->setChecked(data.value(QStringLiteral("should_be_associated_with_files")).toBool(true));
+    netloc->setText(entry.netloc);
+    path->setText(entry.components_text);
+    parameters->setPlainText(entry.parameters_text);
+    example->setText(entry.example_url);
+    match_subdomains->setChecked(entry.match_subdomains);
+    keep_subdomains->setChecked(entry.keep_matched_subdomains);
+    multiple->setChecked(entry.can_produce_multiple_files);
+    associate->setChecked(entry.should_be_associated_with_files);
 
-    const int index = type->findData(data.value(QStringLiteral("url_type")).toInt(0));
+    const int index = type->findData(entry.url_type);
     if (index >= 0) {
         type->setCurrentIndex(index);
     }
@@ -103,7 +103,7 @@ HydrusUrlClassDialog::HydrusUrlClassDialog(const QJsonObject &entry, const QJson
 
 QJsonObject HydrusUrlClassDialog::payload() const {
     QJsonObject value;
-    value.insert(QStringLiteral("original"), data.value(QStringLiteral("name")).toString());
+    value.insert(QStringLiteral("original"), original);
     value.insert(QStringLiteral("name"), name->text().trimmed());
     value.insert(QStringLiteral("url_type"), type->currentData().toInt());
     value.insert(QStringLiteral("preferred_scheme"), scheme->text().trimmed());

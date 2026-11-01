@@ -74,7 +74,8 @@ void HydrusNetworkDialog::remove_header() {
 }
 
 void HydrusNetworkDialog::add_url_class() {
-    HydrusUrlClassDialog dialog(QJsonObject(), data.value(QStringLiteral("url_types")).toArray(), this);
+    NetworkUrlClassInfo empty;
+    HydrusUrlClassDialog dialog(empty, url_type_infos, this);
 
     if (dialog.exec() != QDialog::Accepted) {
         return;
@@ -91,16 +92,12 @@ void HydrusNetworkDialog::add_url_class() {
 
 void HydrusNetworkDialog::edit_url_class() {
     const int row = url_classes->currentRow();
-    const QJsonArray classes = data.value(QStringLiteral("url_classes")).toArray();
 
-    if (row < 0 || row >= classes.size()) {
+    if (row < 0 || row >= static_cast<int>(url_class_infos.size())) {
         return;
     }
 
-    HydrusUrlClassDialog dialog(
-        classes.at(row).toObject(),
-        data.value(QStringLiteral("url_types")).toArray(),
-        this);
+    HydrusUrlClassDialog dialog(url_class_infos[static_cast<size_t>(row)], url_type_infos, this);
 
     if (dialog.exec() != QDialog::Accepted) {
         return;
@@ -160,7 +157,7 @@ void HydrusNetworkDialog::remove_pool() {
     }
 
     QJsonObject payload;
-    payload.insert(QStringLiteral("domain"), pools->item(row, 0)->data(Qt::UserRole).toString());
+    payload.insert(QStringLiteral("domain"), pools->item(row, 0)->text());
     main->notify(UiAction::NetworkPoolRemove, QString(), json_payload(payload));
 }
 
@@ -241,9 +238,9 @@ void HydrusNetworkDialog::remove_bandwidth_rule() {
     }
 
     QJsonObject payload;
-    payload.insert(QStringLiteral("context_type"), bandwidth_rules->item(row, 0)->data(Qt::UserRole).toString());
-    payload.insert(QStringLiteral("context"), bandwidth_rules->item(row, 1)->data(Qt::UserRole).toString());
-    payload.insert(QStringLiteral("bandwidth_type"), bandwidth_rules->item(row, 2)->data(Qt::UserRole).toString());
+    payload.insert(QStringLiteral("context_type"), bandwidth_rules->item(row, 0)->text());
+    payload.insert(QStringLiteral("context"), bandwidth_rules->item(row, 1)->text());
+    payload.insert(QStringLiteral("bandwidth_type"), bandwidth_rules->item(row, 2)->text());
 
     main->notify(UiAction::NetworkRuleRemove, QString(), json_payload(payload));
 }

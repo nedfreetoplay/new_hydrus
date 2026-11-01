@@ -971,28 +971,264 @@ pub(crate) mod ffi {
         json: String,
     }
 
-    /// Services dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// Services dialog contents (WS-15.2.4b). All cell texts are formatted
+    /// in Rust; C++ only assigns them. `port_text`/`settings_summary` replace
+    /// the old dictionary formatting, `*` texts replace JSON nulls.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ServiceRow {
+        key: String,
+        name: String,
+        type_short: String,
+        port_text: String,
+        settings_summary: String,
+        builtin: bool,
+        type_int: i32,
+        host: String,
+        port: i32,
+        access_key: String,
+        has_update_period: bool,
+        update_period: i32,
+        has_nullify_period: bool,
+        nullify_period: i32,
+        max_storage: i32,
+        log_uploader_ips: bool,
+    }
+
+    /// One service-type entry for the service editor picker (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ServiceTypeRow {
+        label: String,
+        short_name: String,
+        value: i32,
+        family: String,
+    }
+
+    /// One remote server service row (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct RemoteServiceRow {
+        key: String,
+        name: String,
+        type_name: String,
+        port: i32,
+        access_key: String,
+        selected: bool,
+    }
+
+    /// One account row of the services server tab (WS-15.2.4b).
+    /// `created_text`/`expires_text`/`banned_text` are formatted in Rust.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ServiceAccountRow {
+        key: String,
+        type_title: String,
+        created_text: String,
+        expires_text: String,
+        banned_text: String,
+        message: String,
+    }
+
+    /// One saved login row (WS-15.2.4b). `password_display` is `-` or
+    /// `********`; `expires_text` is `never` or the epoch number.
+    /// `password` stays typed (never masked in transit) so the credentials
+    /// editor can pre-fill it.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct LoginRow {
+        domain: String,
+        username: String,
+        password: String,
+        password_display: String,
+        access_key: String,
+        expires_text: String,
+    }
+
+    /// One account type reference for the admin account action (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct AccountTypeRef {
+        key: String,
+        title: String,
+    }
+
+    /// Services dialog contents (WS-15.2.4b).
+    /// Arbitrary server blobs shown verbatim in the service review dialog
+    /// (WS-15.2.4b). The schema comes from the server, so it stays JSON;
+    /// every fixed field of the dialog is typed above (R1 exception).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct AdminBlobs {
+        options_json: String,
+        service_info_json: String,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct ServicesDialogState {
-        json: String,
+        services: Vec<ServiceRow>,
+        types: Vec<ServiceTypeRow>,
+        admin_address: String,
+        admin_access_key: String,
+        admin_status: String,
+        admin: AdminBlobs,
+        remote_services: Vec<RemoteServiceRow>,
+        accounts: Vec<ServiceAccountRow>,
+        logins: Vec<LoginRow>,
+        account_types: Vec<AccountTypeRef>,
     }
 
-    /// Network dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// One URL type entry for the URL class editor picker (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct UrlTypeRow {
+        value: i32,
+        label: String,
+    }
+
+    /// One `name`/`value` header row (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct NetworkHeaderRow {
+        name: String,
+        value: String,
+    }
+
+    /// One URL class row (WS-15.2.4b). `components_text` joins the path
+    /// components with `/`; formatting happens in Rust. The editor fields
+    /// (`url_type`, `preferred_scheme`, ...) travel typed as well so the
+    /// edit dialog needs no JSON.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct NetworkUrlClassRow {
+        name: String,
+        url_type_name: String,
+        netloc: String,
+        components_text: String,
+        url_type: i32,
+        preferred_scheme: String,
+        match_subdomains: bool,
+        keep_matched_subdomains: bool,
+        parameters_text: String,
+        can_produce_multiple_files: bool,
+        should_be_associated_with_files: bool,
+        example_url: String,
+    }
+
+    /// One download pool row (WS-15.2.4b). `limit_text` is the decimal limit.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct NetworkPoolRow {
+        domain: String,
+        limit_text: String,
+    }
+
+    /// One bandwidth rule row (WS-15.2.4b). `period_text` is `month` or
+    /// `N s`; `maximum_text` is `N MB` for data rules or the raw count.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct NetworkBandwidthRow {
+        context_type: String,
+        context: String,
+        bandwidth_type: String,
+        period_text: String,
+        maximum_text: String,
+    }
+
+    /// Network dialog contents (WS-15.2.4b). All option scalars and cell
+    /// texts are formatted in Rust; C++ only assigns widgets.
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct NetworkDialogState {
-        json: String,
+        http_proxy: String,
+        https_proxy: String,
+        no_proxy: String,
+        network_timeout: i32,
+        max_network_jobs: i32,
+        max_network_jobs_per_domain: i32,
+        api_enabled: bool,
+        api_port: i32,
+        api_access_key: String,
+        api_status: String,
+        paused: bool,
+        headers: Vec<NetworkHeaderRow>,
+        url_classes: Vec<NetworkUrlClassRow>,
+        url_types: Vec<UrlTypeRow>,
+        download_pools: Vec<NetworkPoolRow>,
+        bandwidth_rules: Vec<NetworkBandwidthRow>,
     }
 
-    /// Account types dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// One permission pair of an account type (WS-15.2.4b). `has_action`
+    /// replaces the JSON null (no permission set for the content type).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct AccountPermissionPair {
+        content_type: i32,
+        action: i32,
+        has_action: bool,
+    }
+
+    /// One selectable action of a permission group (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct AccountPermissionAction {
+        value: i32,
+        has_value: bool,
+        label: String,
+    }
+
+    /// One content-type group of the account type editor (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct AccountPermissionGroup {
+        content_type: i32,
+        label: String,
+        actions: Vec<AccountPermissionAction>,
+    }
+
+    /// One account type row (WS-15.2.4b). `summary` (permission labels) and
+    /// `auto_creation_text` (`disabled` or `N / M s`) are formatted in Rust.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct AccountTypeRow {
+        key: String,
+        title: String,
+        summary: String,
+        auto_creation_text: String,
+        is_null: bool,
+        permissions: Vec<AccountPermissionPair>,
+        auto_create_accounts: i64,
+        auto_create_time_delta: i64,
+    }
+
+    /// Account types dialog contents (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct AccountTypesDialogState {
-        json: String,
+        service_key: String,
+        rows: Vec<AccountTypeRow>,
+        possible: Vec<AccountPermissionGroup>,
     }
 
-    /// API permissions dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// One API permission rule (WS-15.2.4b). `slice` is the stored slice
+    /// (empty = all unnamespaced, `:` = all namespaced), `display` its
+    /// dialog spelling (`*`, `*:*`), `rule` either `whitelist`/`blacklist`.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ApiPermissionRule {
+        slice: String,
+        display: String,
+        rule: String,
+    }
+
+    /// One API access key row (WS-15.2.4b). `summary` (`permits everything` /
+    /// labels / `no permissions`) is formatted in Rust.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ApiPermissionRow {
+        name: String,
+        access_key: String,
+        summary: String,
+        permits_everything: bool,
+        basic_permissions: Vec<i32>,
+        rules: Vec<ApiPermissionRule>,
+    }
+
+    /// One available basic permission of the editor checklist (WS-15.2.4b).
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ApiAvailablePermission {
+        value: i32,
+        label: String,
+    }
+
+    /// API permissions dialog contents (WS-15.2.4b). `status` is the ready
+    /// `api: ...` line; C++ only assigns it.
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct ApiPermissionsDialogState {
-        json: String,
+        api_status: String,
+        status: String,
+        rows: Vec<ApiPermissionRow>,
+        available: Vec<ApiAvailablePermission>,
     }
 
     /// Tag filter dialog contents (WS-15.2.4b).
@@ -1195,8 +1431,14 @@ pub(crate) mod ffi {
         paths: Vec<LocalImportPathRow>,
     }
 
-    /// Local import tagging dialog contents (WS-15.2.2d).
-    #[derive(Clone, Debug, PartialEq)]
+    /// Local import tagging dialog contents (WS-15.2.4b).
+    ///
+    /// R1 exception: the dialog edits arbitrarily nested
+    /// `FilenameTaggingOptions` (regex lists, per-service dicts) through the
+    /// shared options editor, whose schema is not fixed. The typed part
+    /// (`tag_services`, `example_path`, `import_after_save`) travels typed;
+    /// only the free-form rules stay JSON.
+    #[derive(Clone, Debug, PartialEq, Default)]
     struct LocalImportTaggingDialogState {
         json: String,
     }

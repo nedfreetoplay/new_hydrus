@@ -21,9 +21,9 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-void show_account_type_editor(HydrusMainWindow *main, QWidget *parent, const QJsonObject &data, const QJsonObject &entry) {
-    const bool adding = entry.isEmpty();
-    const QString key = entry.value(QStringLiteral("key")).toString();
+void show_account_type_editor(HydrusMainWindow *main, QWidget *parent, const std::vector<AccountPermissionGroupInfo> &possible, const AccountTypeInfo *entry) {
+    const bool adding = entry == nullptr;
+    const QString key = adding ? QString() : entry->key;
 
     QDialog dialog(parent);
     dialog.setWindowTitle(adding ? QStringLiteral("add account type") : QStringLiteral("edit account type"));
@@ -33,15 +33,15 @@ void show_account_type_editor(HydrusMainWindow *main, QWidget *parent, const QJs
     auto *layout = new QVBoxLayout(&dialog);
     auto *form = new QFormLayout();
 
-    auto *title = new QLineEdit(entry.value(QStringLiteral("title")).toString(), &dialog);
+    auto *title = new QLineEdit(adding ? QString() : entry->title, &dialog);
     form->addRow(QStringLiteral("title"), title);
 
     auto *accounts = new QSpinBox(&dialog);
     accounts->setRange(0, 1000000);
-    accounts->setValue(entry.value(QStringLiteral("auto_create_accounts")).toInt(0));
+    accounts->setValue(adding ? 0 : entry->auto_create_accounts);
     auto *time_delta = new QSpinBox(&dialog);
     time_delta->setRange(60, 365 * 86400);
-    time_delta->setValue(entry.value(QStringLiteral("auto_create_time_delta")).toInt(86400));
+    time_delta->setValue(adding ? 86400 : entry->auto_create_time_delta);
     time_delta->setSuffix(QStringLiteral(" s"));
 
     auto *velocity_row = new QHBoxLayout();
@@ -52,39 +52,30 @@ void show_account_type_editor(HydrusMainWindow *main, QWidget *parent, const QJs
     layout->addLayout(form);
 
     QHash<int, QComboBox *> permission_controls;
-    QJsonArray entry_permissions = entry.value(QStringLiteral("permissions")).toArray();
     QHash<int, int> current_actions;
 
-    for (const QJsonValue &value : entry_permissions) {
-        const QJsonArray pair = value.toArray();
-
-        if (pair.size() == 2) {
-            current_actions.insert(pair.at(0).toInt(), pair.at(1).isNull() ? -1 : pair.at(1).toInt());
+    if (!adding) {
+        for (const AccountPermissionInfo &pair : entry->permissions) {
+            current_actions.insert(pair.content_type, pair.has_action ? pair.action : -1);
         }
     }
 
     auto *permissions_box = new QGroupBox(QStringLiteral("permissions"), &dialog);
     auto *permissions_form = new QFormLayout(permissions_box);
 
-    for (const QJsonValue &value : data.value(QStringLiteral("possible")).toArray()) {
-        const QJsonObject content_type = value.toObject();
+    for (const AccountPermissionGroupInfo &content_type : possible) {
         auto *combo = new QComboBox(permissions_box);
-        combo->setObjectName(QStringLiteral("account_type_permission_%1")
-                                 .arg(content_type.value(QStringLiteral("content_type")).toInt()));
+        combo->setObjectName(QStringLiteral("account_type_permission_%1").arg(content_type.content_type));
 
-        for (const QJsonValue &action_value : content_type.value(QStringLiteral("actions")).toArray()) {
-            const QJsonObject action = action_value.toObject();
-            const QJsonValue action_number = action.value(QStringLiteral("value"));
-
-            combo->addItem(action.value(QStringLiteral("label")).toString(),
-                           action_number.isNull() ? -1 : action_number.toInt());
+        for (const AccountPermissionActionInfo &action : content_type.actions) {
+            combo->addItem(action.label, action.has_value ? action.value : -1);
         }
 
-        const int wanted = current_actions.value(content_type.value(QStringLiteral("content_type")).toInt(), -1);
+        const int wanted = current_actions.value(content_type.content_type, -1);
         const int index = combo->findData(wanted);
         combo->setCurrentIndex(index >= 0 ? index : 0);
-        permissions_form->addRow(content_type.value(QStringLiteral("label")).toString(), combo);
-        permission_controls.insert(content_type.value(QStringLiteral("content_type")).toInt(), combo);
+        permissions_form->addRow(content_type.label, combo);
+        permission_controls.insert(content_type.content_type, combo);
     }
 
     layout->addWidget(permissions_box, 1);
@@ -135,7 +126,7 @@ void show_account_type_editor(HydrusMainWindow *main, QWidget *parent, const QJs
     main->notify(UiAction::AccountTypeSave, QString(), json_payload(payload));
 }
 
-HydrusAccountTypesDialog::HydrusAccountTypesDialog(HydrusMainWindow *main_window, const QJsonObject &state, QWidget *parent)
+HydrusAccountTypesDialog::HydrusAccountTypesDialog(HydrusMainWindow *main_window, const AccountTypesDialogState &state, QWidget *parent)
     : QDialog(parent), main(main_window) {
     setWindowTitle(QStringLiteral("account types"));
     setObjectName(QStringLiteral("hydrus_account_types_dialog"));
@@ -190,9 +181,12 @@ HydrusAccountTypesDialog::HydrusAccountTypesDialog(HydrusMainWindow *main_window
         add_entry();
     } else if (!edit_key.isEmpty()) {
         for (int row = 0; row < table->rowCount(); ++row) {
-            if (table->item(row, 0) != nullptr
-                && table->item(row, 0)->data(Qt::UserRole).toJsonObject().value(QStringLiteral("key")).toString()
-                       == edit_key) {
+            const int index = table->item(row, 0) != nullptr
+                ? table->item(row, 0)->data(Qt::UserRole).toInt()
+                : -1;
+
+            if (index >= 0 && index < static_cast<int>(type_infos.size())
+                && type_infos[static_cast<size_t>(index)].key == edit_key) {
                 table->selectRow(row);
                 edit_selected();
                 break;
@@ -201,14 +195,44 @@ HydrusAccountTypesDialog::HydrusAccountTypesDialog(HydrusMainWindow *main_window
     }
 }
 
-void HydrusAccountTypesDialog::set_state(const QJsonObject &state) {
-    data = state;
+void HydrusAccountTypesDialog::set_state(const AccountTypesDialogState &state) {
+    type_infos.clear();
+    possible_infos.clear();
 
-    const QJsonArray types = state.value(QStringLiteral("types")).toArray();
-    table->setRowCount(types.size());
+    for (const AccountTypeRow &entry : state.rows) {
+        AccountTypeInfo info;
+        info.key = to_qstring(entry.key);
+        info.title = to_qstring(entry.title);
+        info.summary = to_qstring(entry.summary);
+        info.auto_creation_text = to_qstring(entry.auto_creation_text);
+        info.is_null = entry.is_null;
+        info.auto_create_accounts = entry.auto_create_accounts;
+        info.auto_create_time_delta = entry.auto_create_time_delta;
 
-    for (int index = 0; index < types.size(); ++index) {
-        const QJsonObject entry = types.at(index).toObject();
+        for (const AccountPermissionPair &pair : entry.permissions) {
+            info.permissions.push_back({pair.content_type, pair.action, pair.has_action});
+        }
+
+        type_infos.push_back(std::move(info));
+    }
+
+    for (const AccountPermissionGroup &group : state.possible) {
+        AccountPermissionGroupInfo info;
+        info.content_type = group.content_type;
+        info.label = to_qstring(group.label);
+
+        for (const AccountPermissionAction &action : group.actions) {
+            info.actions.push_back({action.value, action.has_value, to_qstring(action.label)});
+        }
+
+        possible_infos.push_back(std::move(info));
+    }
+
+    table->setRowCount(static_cast<int>(type_infos.size()));
+
+    for (size_t type_index = 0; type_index < type_infos.size(); ++type_index) {
+        const AccountTypeInfo &entry = type_infos[type_index];
+        const int index = static_cast<int>(type_index);
 
         for (int column = 0; column < 3; ++column) {
             if (table->item(index, column) == nullptr) {
@@ -217,62 +241,69 @@ void HydrusAccountTypesDialog::set_state(const QJsonObject &state) {
         }
 
         auto *title_item = table->item(index, 0);
-        title_item->setText(entry.value(QStringLiteral("title")).toString());
-        title_item->setData(Qt::UserRole, entry);
+        title_item->setText(entry.title);
+        title_item->setData(Qt::UserRole, index);
 
-        if (entry.value(QStringLiteral("is_null")).toBool()) {
+        if (entry.is_null) {
             title_item->setForeground(QColor(120, 150, 190));
         }
 
-        table->item(index, 1)->setText(entry.value(QStringLiteral("summary")).toString());
+        table->item(index, 1)->setText(entry.summary);
 
-        const int accounts = entry.value(QStringLiteral("auto_create_accounts")).toInt();
-        table->item(index, 2)->setText(accounts == 0
-                                           ? QStringLiteral("disabled")
-                                           : QStringLiteral("%1 / %2 s")
-                                                 .arg(accounts)
-                                                 .arg(entry.value(QStringLiteral("auto_create_time_delta")).toInt()));
+        table->item(index, 2)->setText(entry.auto_creation_text);
     }
 
     table->resizeRowsToContents();
 }
 
-QJsonObject HydrusAccountTypesDialog::selected_entry() const {
+int HydrusAccountTypesDialog::selected_index() const {
     const int row = table->currentRow();
 
     if (row < 0 || table->item(row, 0) == nullptr) {
-        return {};
+        return -1;
     }
 
-    return table->item(row, 0)->data(Qt::UserRole).toJsonObject();
+    const int index = table->item(row, 0)->data(Qt::UserRole).toInt();
+
+    if (index < 0 || index >= static_cast<int>(type_infos.size())) {
+        return -1;
+    }
+
+    return index;
 }
 
 void HydrusAccountTypesDialog::add_entry() {
-    show_account_type_editor(main, this, data, QJsonObject());
+    show_account_type_editor(main, this, possible_infos, nullptr);
 }
 
 void HydrusAccountTypesDialog::edit_selected() {
-    const QJsonObject entry = selected_entry();
+    const int index = selected_index();
 
-    if (!entry.isEmpty()) {
-        if (entry.value(QStringLiteral("is_null")).toBool()) {
-            QMessageBox::information(this, QStringLiteral("account type"),
-                                     QStringLiteral("The null account type cannot be edited."));
-            return;
-        }
-
-        show_account_type_editor(main, this, data, entry);
-    }
-}
-
-void HydrusAccountTypesDialog::delete_selected() {
-    const QJsonObject entry = selected_entry();
-
-    if (entry.isEmpty()) {
+    if (index < 0) {
         return;
     }
 
-    if (entry.value(QStringLiteral("is_null")).toBool()) {
+    const AccountTypeInfo &entry = type_infos[static_cast<size_t>(index)];
+
+    if (entry.is_null) {
+        QMessageBox::information(this, QStringLiteral("account type"),
+                                 QStringLiteral("The null account type cannot be edited."));
+        return;
+    }
+
+    show_account_type_editor(main, this, possible_infos, &entry);
+}
+
+void HydrusAccountTypesDialog::delete_selected() {
+    const int index = selected_index();
+
+    if (index < 0) {
+        return;
+    }
+
+    const AccountTypeInfo &entry = type_infos[static_cast<size_t>(index)];
+
+    if (entry.is_null) {
         QMessageBox::information(this, QStringLiteral("account type"),
                                  QStringLiteral("The null account type cannot be deleted."));
         return;
@@ -281,16 +312,13 @@ void HydrusAccountTypesDialog::delete_selected() {
     QStringList titles;
     QStringList keys;
 
-    for (const QJsonValue &value : data.value(QStringLiteral("types")).toArray()) {
-        const QJsonObject other = value.toObject();
-
-        if (other.value(QStringLiteral("key")).toString() == entry.value(QStringLiteral("key")).toString()
-            || other.value(QStringLiteral("is_null")).toBool()) {
+    for (const AccountTypeInfo &other : type_infos) {
+        if (other.key == entry.key || other.is_null) {
             continue;
         }
 
-        titles.append(other.value(QStringLiteral("title")).toString());
-        keys.append(other.value(QStringLiteral("key")).toString());
+        titles.append(other.title);
+        keys.append(other.key);
     }
 
     if (titles.isEmpty()) {
@@ -309,28 +337,26 @@ void HydrusAccountTypesDialog::delete_selected() {
     }
 
     QJsonObject payload;
-    payload.insert(QStringLiteral("account_type_key"), entry.value(QStringLiteral("key")));
+    payload.insert(QStringLiteral("account_type_key"), entry.key);
     payload.insert(QStringLiteral("replacement_account_type_key"), keys.at(titles.indexOf(title)));
 
     main->notify(UiAction::AccountTypeDelete, QString(), json_payload(payload));
 }
 
 void HydrusMainWindow::show_account_types(const AccountTypesDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (account_types_dialog == nullptr) {
-        account_types_dialog = new HydrusAccountTypesDialog(this, state, this);
+        account_types_dialog = new HydrusAccountTypesDialog(this, typed, this);
         connect(account_types_dialog, &QObject::destroyed, this, [this]() { account_types_dialog = nullptr; });
         account_types_dialog->show();
     } else {
-        account_types_dialog->set_state(state);
+        account_types_dialog->set_state(typed);
         account_types_dialog->raise();
         account_types_dialog->activateWindow();
     }
 }
 
 void HydrusMainWindow::update_account_types(const AccountTypesDialogState &typed) {
-    const QJsonObject state = QJsonDocument::fromJson(to_qstring(typed.json).toUtf8()).object();
     if (account_types_dialog != nullptr) {
-        account_types_dialog->set_state(state);
+        account_types_dialog->set_state(typed);
     }
 }

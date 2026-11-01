@@ -66,13 +66,14 @@ const JSON_PAYLOAD_ALLOWLIST: &[(&str, usize)] = &[
 /// another one. Keyed by `Struct.field`.
 const JSON_FIELD_ALLOWLIST: &[&str] = &[
     "SubscriptionDialogRow.import_options_json",
+    // WS-15.2.4b: arbitrary server blobs shown verbatim in the service review
+    // dialog; the schema comes from the server, so it stays JSON (R1 exception,
+    // like import_options_json above).
+    "AdminBlobs.options_json",
+    "AdminBlobs.service_info_json",
     "PageRow.state",
     "ImportOptionsDialogState.json",
     "OptionsDialogState.json",
-    "ServicesDialogState.json",
-    "NetworkDialogState.json",
-    "AccountTypesDialogState.json",
-    "ApiPermissionsDialogState.json",
     "LocalImportTaggingDialogState.json",
     "DuplicatesRulesDialogState.json",
     "DuplicatesMergeOptionsDialogState.json",

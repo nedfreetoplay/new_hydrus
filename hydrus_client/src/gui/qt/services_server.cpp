@@ -44,29 +44,32 @@ QString HydrusServicesDialog::selected_key() const {
     return cell_key(table, row);
 }
 
-QJsonObject HydrusServicesDialog::selected_remote_service() const {
+int HydrusServicesDialog::selected_remote_row() const {
     const int row = remote_services->currentRow();
 
-    if (row < 0 || remote_services->item(row, 0) == nullptr) {
-        return {};
+    if (row < 0 || row >= static_cast<int>(remote_service_infos.size())
+        || remote_services->item(row, 0) == nullptr) {
+        return -1;
     }
 
-    return remote_services->item(row, 0)->data(Qt::UserRole).toJsonObject();
+    return remote_services->item(row, 0)->data(Qt::UserRole).toInt();
 }
 
 QString HydrusServicesDialog::selected_remote_key() const {
-    const QJsonObject service = selected_remote_service();
+    const int row = selected_remote_row();
 
-    return service.value(QStringLiteral("key")).toString();
+    if (row < 0) {
+        return {};
+    }
+
+    return remote_service_infos[static_cast<size_t>(row)].key;
 }
 
 void HydrusServicesDialog::add_service() {
-    QJsonObject service;
-    service.insert(QStringLiteral("name"), QString());
-    service.insert(QStringLiteral("type_int"), 2);
-    service.insert(QStringLiteral("dictionary"), QJsonObject());
+    LocalServiceInfo service;
+    service.type_int = 2;
 
-    build_service_editor(main, this, data, service);
+    build_service_editor(main, this, type_infos, service, QString());
 }
 
 void HydrusServicesDialog::edit_selected() {
@@ -76,9 +79,14 @@ void HydrusServicesDialog::edit_selected() {
         return;
     }
 
-    QJsonObject service = table->item(row, 0)->data(Qt::UserRole).toJsonObject();
-    service.insert(QStringLiteral("original"), selected_key());
-    build_service_editor(main, this, data, service);
+    const int index = table->item(row, 0)->data(Qt::UserRole).toInt();
+
+    if (index < 0 || index >= static_cast<int>(local_services.size())) {
+        return;
+    }
+
+    build_service_editor(main, this, type_infos,
+                         local_services[static_cast<size_t>(index)], selected_key());
 }
 
 void HydrusServicesDialog::delete_selected() {
@@ -128,17 +136,16 @@ void HydrusServicesDialog::show_specifier() {
         list->clear();
         const QString wanted = type->currentData().toString();
 
-        for (const QJsonValue &entry : data.value(QStringLiteral("services")).toArray()) {
-            const QJsonObject service = entry.toObject();
-            const QString short_type = service.value(QStringLiteral("type_short")).toString();
+        for (const LocalServiceInfo &service : local_services) {
+            const QString short_type = service.type_short;
 
             const bool matches = wanted == QStringLiteral("ratings")
                 ? short_type.contains(QStringLiteral("rating"))
                 : short_type == wanted;
 
             if (matches) {
-                auto *item = new QListWidgetItem(service.value(QStringLiteral("name")).toString(), list);
-                item->setData(Qt::UserRole, service.value(QStringLiteral("key")).toString());
+                auto *item = new QListWidgetItem(service.name, list);
+                item->setData(Qt::UserRole, service.key);
             }
         }
 
@@ -170,24 +177,25 @@ void HydrusServicesDialog::show_specifier() {
 }
 
 void HydrusServicesDialog::edit_login() {
-    QJsonObject existing;
     const int row = logins->currentRow();
-
-    if (row >= 0 && logins->item(row, 0) != nullptr) {
-        existing = logins->item(row, 0)->data(Qt::UserRole).toJsonObject();
-    }
+    const bool has_row = row >= 0 && row < static_cast<int>(login_infos.size())
+        && logins->item(row, 0) != nullptr;
+    const int index = has_row ? logins->item(row, 0)->data(Qt::UserRole).toInt() : -1;
+    const ServiceLoginInfo *existing = (index >= 0 && index < static_cast<int>(login_infos.size()))
+        ? &login_infos[static_cast<size_t>(index)]
+        : nullptr;
 
     QDialog dialog(this);
-    dialog.setWindowTitle(existing.isEmpty() ? QStringLiteral("add credentials")
+    dialog.setWindowTitle(existing == nullptr ? QStringLiteral("add credentials")
                                              : QStringLiteral("edit credentials"));
     auto *layout = new QVBoxLayout(&dialog);
     auto *form = new QFormLayout();
 
-    auto *domain = new QLineEdit(existing.value(QStringLiteral("domain")).toString(), &dialog);
-    auto *username = new QLineEdit(existing.value(QStringLiteral("username")).toString(), &dialog);
-    auto *password = new QLineEdit(existing.value(QStringLiteral("password")).toString(), &dialog);
+    auto *domain = new QLineEdit(existing == nullptr ? QString() : existing->domain, &dialog);
+    auto *username = new QLineEdit(existing == nullptr ? QString() : existing->username, &dialog);
+    auto *password = new QLineEdit(existing == nullptr ? QString() : existing->password, &dialog);
     password->setEchoMode(QLineEdit::Password);
-    auto *access_key = new QLineEdit(existing.value(QStringLiteral("access_key")).toString(), &dialog);
+    auto *access_key = new QLineEdit(existing == nullptr ? QString() : existing->access_key, &dialog);
     auto *expires = new QSpinBox(&dialog);
     expires->setRange(0, 3650);
     expires->setSpecialValueText(QStringLiteral("never"));
@@ -326,20 +334,22 @@ void HydrusServicesDialog::add_remote_service() {
 }
 
 void HydrusServicesDialog::edit_remote_service() {
-    const QJsonObject service = selected_remote_service();
+    const int index = selected_remote_row();
 
-    if (service.isEmpty()) {
+    if (index < 0 || index >= static_cast<int>(remote_service_infos.size())) {
         return;
     }
+
+    const RemoteServiceInfo &service = remote_service_infos[static_cast<size_t>(index)];
 
     QDialog dialog(this);
     dialog.setWindowTitle(QStringLiteral("edit server service"));
     auto *layout = new QVBoxLayout(&dialog);
     auto *form = new QFormLayout();
-    auto *name = new QLineEdit(service.value(QStringLiteral("name")).toString(), &dialog);
+    auto *name = new QLineEdit(service.name, &dialog);
     auto *port = new QSpinBox(&dialog);
     port->setRange(1, 65535);
-    port->setValue(service.value(QStringLiteral("port")).toInt());
+    port->setValue(service.port);
     form->addRow(QStringLiteral("name"), name);
     form->addRow(QStringLiteral("port"), port);
     layout->addLayout(form);
@@ -362,7 +372,7 @@ void HydrusServicesDialog::edit_remote_service() {
     }
 
     QJsonObject payload;
-    payload.insert(QStringLiteral("service_key"), service.value(QStringLiteral("key")).toString());
+    payload.insert(QStringLiteral("service_key"), service.key);
     payload.insert(QStringLiteral("name"), name->text().trimmed());
     payload.insert(QStringLiteral("port"), port->value());
 
@@ -453,8 +463,16 @@ void HydrusServicesDialog::account_action() {
         return;
     }
 
-    const QJsonObject account = accounts->item(row, 0)->data(Qt::UserRole).toJsonObject();
-    const QString account_key = account.value(QStringLiteral("key")).toString();
+    const int account_index = (row >= 0 && accounts->item(row, 0) != nullptr)
+        ? accounts->item(row, 0)->data(Qt::UserRole).toInt()
+        : -1;
+
+    if (account_index < 0 || account_index >= static_cast<int>(account_infos.size())) {
+        return;
+    }
+
+    const ServiceAccountInfo &account = account_infos[static_cast<size_t>(account_index)];
+    const QString account_key = account.key;
     const QString text = button->text();
     QString action;
 
@@ -517,7 +535,7 @@ void HydrusServicesDialog::account_action() {
         bool ok = false;
         const QString message = QInputDialog::getText(
             this, QStringLiteral("account message"), QStringLiteral("message"),
-            QLineEdit::Normal, account.value(QStringLiteral("message")).toString(), &ok);
+            QLineEdit::Normal, account.message, &ok);
 
         if (!ok) {
             return;
@@ -525,14 +543,10 @@ void HydrusServicesDialog::account_action() {
 
         payload.insert(QStringLiteral("message"), message);
     } else if (action == QStringLiteral("account_type")) {
-        const QJsonArray types = data.value(QStringLiteral("admin"))
-                                     .toObject()
-                                     .value(QStringLiteral("account_types"))
-                                     .toArray();
         QStringList titles;
 
-        for (const QJsonValue &entry : types) {
-            titles.append(entry.toObject().value(QStringLiteral("title")).toString());
+        for (const ServerAccountTypeInfo &entry : server_account_types) {
+            titles.append(entry.title);
         }
 
         if (titles.isEmpty()) {
@@ -544,18 +558,15 @@ void HydrusServicesDialog::account_action() {
         bool ok = false;
         const QString title = QInputDialog::getItem(
             this, QStringLiteral("account type"), QStringLiteral("type"), titles,
-            titles.indexOf(account.value(QStringLiteral("type")).toString()), false, &ok);
+            titles.indexOf(account.type_title), false, &ok);
 
         if (!ok) {
             return;
         }
 
-        for (const QJsonValue &entry : types) {
-            const QJsonObject object = entry.toObject();
-
-            if (object.value(QStringLiteral("title")).toString() == title) {
-                payload.insert(QStringLiteral("account_type_key"),
-                               object.value(QStringLiteral("key")).toString());
+        for (const ServerAccountTypeInfo &entry : server_account_types) {
+            if (entry.title == title) {
+                payload.insert(QStringLiteral("account_type_key"), entry.key);
                 break;
             }
         }

@@ -34,26 +34,27 @@
 #include <QVBoxLayout>
 #include <algorithm>
 
-QJsonObject service_type_entry(const QJsonObject &data, int value) {
-    for (const QJsonValue &entry : data.value(QStringLiteral("types")).toArray()) {
-        const QJsonObject object = entry.toObject();
-
-        if (object.value(QStringLiteral("value")).toInt() == value) {
-            return object;
+QString service_type_label(const std::vector<ServiceTypeInfo> &types, int value) {
+    for (const ServiceTypeInfo &entry : types) {
+        if (entry.value == value) {
+            return entry.label;
         }
     }
 
     return {};
 }
 
-QString service_family(const QJsonObject &data, int value) {
-    return service_type_entry(data, value).value(QStringLiteral("family")).toString();
+QString service_family(const std::vector<ServiceTypeInfo> &types, int value) {
+    for (const ServiceTypeInfo &entry : types) {
+        if (entry.value == value) {
+            return entry.family;
+        }
+    }
+
+    return {};
 }
 
-void build_service_editor(HydrusMainWindow *main, QWidget *parent, const QJsonObject &data, const QJsonObject &service) {
-    const QString original = service.value(QStringLiteral("original")).toString();
-    const QJsonObject dictionary = service.value(QStringLiteral("dictionary")).toObject();
-
+void build_service_editor(HydrusMainWindow *main, QWidget *parent, const std::vector<ServiceTypeInfo> &types, const LocalServiceInfo &service, const QString &original) {
     QDialog dialog(parent);
     dialog.setWindowTitle(original.isEmpty() ? QStringLiteral("add service")
                                              : QStringLiteral("edit service"));
@@ -62,41 +63,39 @@ void build_service_editor(HydrusMainWindow *main, QWidget *parent, const QJsonOb
     auto *layout = new QVBoxLayout(&dialog);
     auto *form = new QFormLayout();
 
-    auto *name = new QLineEdit(service.value(QStringLiteral("name")).toString(), &dialog);
+    auto *name = new QLineEdit(service.name, &dialog);
     auto *type = new QComboBox(&dialog);
 
-    for (const QJsonValue &entry : data.value(QStringLiteral("types")).toArray()) {
-        const QJsonObject object = entry.toObject();
-        type->addItem(object.value(QStringLiteral("label")).toString(),
-                      object.value(QStringLiteral("value")).toInt());
+    for (const ServiceTypeInfo &entry : types) {
+        type->addItem(entry.label, entry.value);
     }
 
-    const int type_index = type->findData(service.value(QStringLiteral("type_int")).toInt());
+    const int type_index = type->findData(service.type_int);
     type->setCurrentIndex(type_index >= 0 ? type_index : 0);
 
-    auto *host = new QLineEdit(dictionary.value(QStringLiteral("host")).toString(), &dialog);
+    auto *host = new QLineEdit(service.host, &dialog);
     host->setPlaceholderText(QStringLiteral("127.0.0.1"));
     auto *port = new QSpinBox(&dialog);
     port->setRange(1, 65535);
-    port->setValue(dictionary.value(QStringLiteral("port")).toInt(45871));
-    auto *access_key = new QLineEdit(dictionary.value(QStringLiteral("access_key")).toString(), &dialog);
+    port->setValue(service.port > 0 ? service.port : 45871);
+    auto *access_key = new QLineEdit(service.access_key, &dialog);
     access_key->setPlaceholderText(QStringLiteral("hex access key from the server administrator"));
 
     auto *update_period = new QSpinBox(&dialog);
     update_period->setRange(0, 365 * 86400);
-    update_period->setValue(dictionary.value(QStringLiteral("update_period")).toInt(86400));
+    update_period->setValue(service.has_update_period ? service.update_period : 86400);
     update_period->setSuffix(QStringLiteral(" s"));
     auto *nullification_period = new QSpinBox(&dialog);
     nullification_period->setRange(0, 365 * 86400);
-    nullification_period->setValue(dictionary.value(QStringLiteral("nullification_period")).toInt(90 * 86400));
+    nullification_period->setValue(service.has_nullify_period ? service.nullify_period : 90 * 86400);
     nullification_period->setSuffix(QStringLiteral(" s"));
 
     auto *max_storage = new QSpinBox(&dialog);
     max_storage->setRange(0, 1000000000);
-    max_storage->setValue(dictionary.value(QStringLiteral("max_storage")).toInt());
+    max_storage->setValue(service.max_storage);
     max_storage->setSuffix(QStringLiteral(" MB"));
     auto *log_uploader_ips = new QCheckBox(QStringLiteral("log uploader IPs"), &dialog);
-    log_uploader_ips->setChecked(dictionary.value(QStringLiteral("log_uploader_ips")).toBool(false));
+    log_uploader_ips->setChecked(service.log_uploader_ips);
 
     form->addRow(QStringLiteral("name"), name);
     form->addRow(QStringLiteral("type"), type);
@@ -119,12 +118,9 @@ void build_service_editor(HydrusMainWindow *main, QWidget *parent, const QJsonOb
 
     auto sync_fields = [&]() {
         const int value = type->currentData().toInt();
-        const QString family = service_family(data, value);
+        const QString family = service_family(types, value);
         const bool remote = family == QStringLiteral("remote");
-        const bool repository = service_type_entry(data, value)
-                                    .value(QStringLiteral("label"))
-                                    .toString()
-                                    .contains(QStringLiteral("repository"));
+        const bool repository = service_type_label(types, value).contains(QStringLiteral("repository"));
 
         host->setEnabled(remote);
         port->setEnabled(remote);
@@ -147,7 +143,7 @@ void build_service_editor(HydrusMainWindow *main, QWidget *parent, const QJsonOb
             return;
         }
 
-        const QString family = service_family(data, type->currentData().toInt());
+        const QString family = service_family(types, type->currentData().toInt());
 
         if (family == QStringLiteral("remote") && access_key->text().trimmed().isEmpty()) {
             QMessageBox::warning(&dialog, QStringLiteral("service"),
@@ -174,7 +170,7 @@ void build_service_editor(HydrusMainWindow *main, QWidget *parent, const QJsonOb
     payload.insert(QStringLiteral("type_int"), type->currentData().toInt());
 
     QJsonObject next_dictionary;
-    const QString family = service_family(data, type->currentData().toInt());
+    const QString family = service_family(types, type->currentData().toInt());
     const bool repository = type->currentText().contains(QStringLiteral("repository"));
 
     if (family == QStringLiteral("remote")) {

@@ -74,6 +74,7 @@ pub fn file_seed_cache_state(state: &AppState, page_id: &str) -> SeedCacheState 
         .iter()
         .map(|item| SeedRow {
             status: item.status.as_str().to_string(),
+            color: super::status_texts::seed_status_color(item.status.as_str()),
             url: item.url.clone(),
             note: item.note.clone(),
             created: item.created,
@@ -97,6 +98,8 @@ pub fn file_seed_cache_state(state: &AppState, page_id: &str) -> SeedCacheState 
             waiting,
         ),
         failed: failed as i64,
+        headers: super::status_texts::seed_headers(),
+        retry_label: super::status_texts::seed_retry_label(failed as i64),
         status_filters: seed_filters(&[
             ("all", "all"),
             ("pending", "pending"),
@@ -119,6 +122,7 @@ pub fn gallery_seed_log_state(state: &AppState, page_id: &str) -> SeedCacheState
         .iter()
         .map(|seed| SeedRow {
             status: seed.status.clone(),
+            color: super::status_texts::seed_status_color(&seed.status),
             url: seed.url.clone(),
             note: seed.note.clone(),
             created: seed.created,
@@ -142,6 +146,8 @@ pub fn gallery_seed_log_state(state: &AppState, page_id: &str) -> SeedCacheState
             waiting,
         ),
         failed: failed as i64,
+        headers: super::status_texts::seed_headers(),
+        retry_label: super::status_texts::seed_retry_label(failed as i64),
         status_filters: seed_filters(&[
             ("all", "all"),
             ("pending", "pending"),

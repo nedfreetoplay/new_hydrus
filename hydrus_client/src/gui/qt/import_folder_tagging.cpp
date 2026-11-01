@@ -563,6 +563,6 @@ void build_import_folder_tagging_section(
 
     if (service_keys.isEmpty()) {
         add_tagging->setEnabled(false);
-        add_tagging->setToolTip(QStringLiteral("no local tag service exists yet"));
+        add_tagging->setToolTip(to_qstring(hydrus_no_local_tag_service_tooltip()));
     }
 }

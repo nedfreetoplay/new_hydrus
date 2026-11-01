@@ -260,14 +260,12 @@ void HydrusDownloaderPage::update_state(const DownloaderPageState &state) {
     if (start_button != nullptr) {
         start_button->setVisible(!gallery);
         start_button->setEnabled(!running);
-        start_button->setText(watcher ? QStringLiteral("check now") : QStringLiteral("start"));
+        start_button->setText(to_qstring(state.start_button_text));
     }
 
     if (auto_button != nullptr) {
         auto_button->setVisible(watcher);
-        auto_button->setText(
-            auto_watch ? QStringLiteral("automatic checks: on")
-                       : QStringLiteral("automatic checks: off"));
+        auto_button->setText(to_qstring(state.auto_button_text));
     }
 
     if (input != nullptr && !input->hasFocus()) {
@@ -324,9 +322,7 @@ void HydrusDownloaderPage::update_state(const DownloaderPageState &state) {
     }
 
     if (gug_button != nullptr && site != nullptr) {
-        gug_button->setText(
-            site->currentIndex() > 0 ? site->currentText()
-                                     : QStringLiteral("no downloader set"));
+        gug_button->setText(to_qstring(state.gug_button_text));
     }
 
     if (highlight_query != nullptr) {
@@ -334,10 +330,8 @@ void HydrusDownloaderPage::update_state(const DownloaderPageState &state) {
     }
 
     if (highlight_subject != nullptr) {
-        const QString subject_text = to_qstring(state.subject);
         highlight_subject->setVisible(!page_url.isEmpty());
-        highlight_subject->setText(
-            subject_text.isEmpty() ? QStringLiteral("no subject") : subject_text);
+        highlight_subject->setText(to_qstring(state.highlight_subject_text));
     }
 
     if (status_top != nullptr) {
@@ -349,11 +343,7 @@ void HydrusDownloaderPage::update_state(const DownloaderPageState &state) {
         watcher_table->setRowCount(page_url.isEmpty() ? 0 : 1);
 
         if (!page_url.isEmpty()) {
-            QString subject_text = to_qstring(state.subject);
-
-            if (subject_text.isEmpty()) {
-                subject_text = QStringLiteral("* unknown");
-            }
+            const QString subject_text = to_qstring(state.watcher_subject_text);
 
             const QStringList cells = {subject_text,
                                        to_qstring(state.files_status),
@@ -380,11 +370,7 @@ void HydrusDownloaderPage::update_state(const DownloaderPageState &state) {
         queue->setRowCount(has_query ? 1 : 0);
 
         if (has_query) {
-            QString source = QStringLiteral("unknown downloader");
-
-            if (site != nullptr && site->currentIndex() > 0) {
-                source = site->currentText();
-            }
+            const QString source = to_qstring(state.gallery_source_text);
 
             const QString query_text = page_query.isEmpty() ? page_url : page_query;
             const QStringList cells = {query_text,

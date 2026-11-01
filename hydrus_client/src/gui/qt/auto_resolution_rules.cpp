@@ -42,6 +42,8 @@ AutoRuleInfo to_rule_info(const AutoRuleRow &rule) {
     info.paused = rule.paused;
     info.operation_mode = to_qstring(rule.operation_mode);
     info.operation_label = to_qstring(rule.operation_label);
+    info.operation_display = to_qstring(rule.operation_display);
+    info.status_text = to_qstring(rule.status_text);
     info.max_pending_pairs = static_cast<int>(rule.max_pending_pairs);
     info.search_query = to_qstring(rule.search_query);
     info.search_mode = to_qstring(rule.search_mode);
@@ -198,10 +200,7 @@ void HydrusDuplicatesRulesDialog::set_state(const DuplicatesRulesDialogState &st
             }
         }
 
-        QString operation_label = rule.operation_label;
-        if (rule.paused) {
-            operation_label += QStringLiteral(" - paused");
-        }
+        const QString operation_label = rule.operation_display;
 
         table->item(row, 0)->setText(rule.name);
         table->item(row, 0)->setData(Qt::UserRole, row);
@@ -218,10 +217,7 @@ void HydrusDuplicatesRulesDialog::set_state(const DuplicatesRulesDialogState &st
     QSignalBlocker blocker(enabled);
     enabled->setChecked(state.enabled);
 
-    const int pending = static_cast<int>(state.pending);
-    setToolTip(to_qstring(state.pending_tooltip).isEmpty() && pending <= 0
-        ? QString()
-        : QStringLiteral("%1 pair(s) are waiting for review").arg(pending));
+    setToolTip(to_qstring(state.pending_tooltip));
 
     table->resizeRowsToContents();
 }

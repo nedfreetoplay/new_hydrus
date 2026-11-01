@@ -49,10 +49,14 @@ HydrusSeedCacheDialog::HydrusSeedCacheDialog(
 
     table = new QTableWidget(this);
     table->setObjectName(QStringLiteral("seed_cache_table"));
-    table->setColumnCount(5);
-    table->setHorizontalHeaderLabels({QStringLiteral("status"), QStringLiteral("seed"),
-                                      QStringLiteral("created"), QStringLiteral("modified"),
-                                      QStringLiteral("note")});
+    table->setColumnCount(static_cast<int>(state.headers.size()));
+    {
+        QStringList header_labels;
+        for (const rust::String &header : state.headers) {
+            header_labels << to_qstring(header);
+        }
+        table->setHorizontalHeaderLabels(header_labels);
+    }
     table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     table->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
@@ -121,6 +125,7 @@ HydrusSeedCacheDialog::HydrusSeedCacheDialog(
 void HydrusSeedCacheDialog::set_state(const SeedCacheState &state) {
     page_id = to_qstring(state.page);
     subtitle_text = to_qstring(state.subtitle);
+    retry_label_text = to_qstring(state.retry_label);
     failed_count = static_cast<int>(state.failed);
     statuses.clear();
     rows.clear();
@@ -131,6 +136,7 @@ void HydrusSeedCacheDialog::set_state(const SeedCacheState &state) {
 
     for (const SeedRow &seed : state.seeds) {
         rows.append({to_qstring(seed.status),
+                     to_qstring(seed.color),
                      to_qstring(seed.url),
                      to_qstring(seed.note),
                      seed.created,
@@ -194,12 +200,8 @@ void HydrusSeedCacheDialog::rebuild() {
 
         auto *status_item = new QTableWidgetItem(seed.status);
 
-        if (seed.status == QStringLiteral("error") || seed.status == QStringLiteral("failed")) {
-            status_item->setForeground(QColor(220, 110, 110));
-        } else if (seed.status == QStringLiteral("done") || seed.status == QStringLiteral("success")) {
-            status_item->setForeground(QColor(120, 190, 120));
-        } else if (seed.status == QStringLiteral("working")) {
-            status_item->setForeground(QColor(220, 200, 120));
+        if (!seed.color.isEmpty()) {
+            status_item->setForeground(QColor(seed.color));
         }
 
         table->setItem(row, 0, status_item);
@@ -226,8 +228,7 @@ void HydrusSeedCacheDialog::rebuild() {
     subtitle->setText(subtitle_text);
 
     const int failed = failed_count;
-    retry_button->setText(failed > 0 ? QStringLiteral("retry failed (%1)").arg(failed)
-                                     : QStringLiteral("retry failed"));
+    retry_button->setText(retry_label_text);
     retry_button->setEnabled(failed > 0 || !selected_urls().isEmpty());
 }
 

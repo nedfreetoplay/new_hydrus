@@ -163,7 +163,7 @@ void HydrusMetadataPanel::set_state(const MetadataState &metadata) {
     }
 
     if (services->count() == 0) {
-        services->addItem(QStringLiteral("no local tag service"), QString());
+        services->addItem(to_qstring(hydrus_no_local_tag_service_label()), QString());
     }
 
     if (!previous.isEmpty()) {

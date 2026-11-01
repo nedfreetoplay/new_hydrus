@@ -2001,6 +2001,11 @@ pub fn downloader_page_state(
         failed,
     );
     let now = hydrus_core::hydrus_time::get_now();
+    let site_title = gallery_sites()
+        .iter()
+        .find(|site| site.id == page.site)
+        .map(|site| site.title.clone())
+        .unwrap_or_default();
 
     DownloaderPageState {
         page_id: page.id.clone(),
@@ -2010,7 +2015,7 @@ pub fn downloader_page_state(
         query: page.query.clone(),
         site: page.site.clone(),
         subject: page.subject.clone(),
-        formula_name,
+        formula_name: formula_name.clone(),
         import_options_summary: import_options_summary.clone(),
         import_options_text: format!("import options ({import_options_summary})"),
         status: page.status.clone(),
@@ -2050,6 +2055,12 @@ pub fn downloader_page_state(
         queue_added_text: relative_added_text(page.last_check, now, ""),
         files_progress: progress_percent(queue_done, queue_count),
         search_progress: progress_percent(gallery_success + gallery_failed, gallery_total),
+        start_button_text: super::status_texts::start_button_text(watcher),
+        auto_button_text: super::status_texts::auto_button_text(page.auto_watch),
+        gug_button_text: super::status_texts::gug_button_text(&site_title),
+        highlight_subject_text: super::status_texts::highlight_subject_text(&page.subject),
+        watcher_subject_text: super::status_texts::watcher_subject_text(&page.subject),
+        gallery_source_text: super::status_texts::gallery_source_text(&site_title),
         running: page.running,
         paused: page.paused,
         auto_watch: page.auto_watch,
@@ -2278,12 +2289,18 @@ pub fn duplicates_page_state(
         media_count_status: crate::gui::app::duplicates::duplicates_media_count_status(
             page.pairs.len(),
         ),
+        auto_rules_empty_status: super::status_texts::auto_rules_empty_status(),
         auto_rules: rules
             .iter()
             .map(|rule| DuplicateRuleRow {
                 name: rule.name.clone(),
                 search_summary: rule.search_summary(),
                 paused: rule.paused,
+                status_text: if rule.paused {
+                    "paused".to_string()
+                } else {
+                    "running".to_string()
+                },
             })
             .collect(),
     }

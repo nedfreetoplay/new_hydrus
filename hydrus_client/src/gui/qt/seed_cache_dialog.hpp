@@ -18,6 +18,7 @@ struct SeedCacheState;
 // WS-15.2.3c: plain Qt copy of one typed seed row for table rebuilding.
 struct SeedRowData {
     QString status;
+    QString color;
     QString url;
     QString note;
     qint64 created = 0;
@@ -42,6 +43,7 @@ private:
     bool gallery = false;
     QString page_id;
     QString subtitle_text;
+    QString retry_label_text;
     int failed_count = 0;
     QVector<QPair<QString, QString>> statuses;
     QVector<SeedRowData> rows;

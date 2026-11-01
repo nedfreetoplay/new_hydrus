@@ -1490,6 +1490,15 @@ fn rule_row(rule: &AutoResolutionRule) -> crate::gui::qt::api::ffi::AutoRuleRow 
         name: rule.name.clone(),
         paused: rule.paused,
         operation_mode: rule.operation_mode.clone(),
+        operation_display: super::status_texts::operation_label_with_paused(
+            &operation_label,
+            rule.paused,
+        ),
+        status_text: if rule.paused {
+            "paused".to_string()
+        } else {
+            "running".to_string()
+        },
         operation_label,
         max_pending_pairs: rule.max_pending_pairs,
         search_query: rule.search_query.clone(),
@@ -1512,6 +1521,7 @@ pub fn rules_dialog_state(state: &AppState) -> crate::gui::qt::api::ffi::Duplica
         enabled: state.controller.options().get_boolean("duplicates_auto_resolution_enabled"),
         pending: pending as i64,
         pending_tooltip: pending_tooltip(pending),
+        auto_rules_empty_status: super::status_texts::auto_rules_empty_status(),
         rules: state.auto_rules.iter().map(rule_row).collect(),
         properties: vec![
             choice("mime", "mime / filetype"),

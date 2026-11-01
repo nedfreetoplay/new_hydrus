@@ -684,6 +684,12 @@ pub(crate) mod ffi {
         queue_added_text: String,
         files_progress: i32,
         search_progress: i32,
+        start_button_text: String,
+        auto_button_text: String,
+        gug_button_text: String,
+        highlight_subject_text: String,
+        watcher_subject_text: String,
+        gallery_source_text: String,
         running: bool,
         paused: bool,
         auto_watch: bool,
@@ -791,6 +797,7 @@ pub(crate) mod ffi {
         name: String,
         search_summary: String,
         paused: bool,
+        status_text: String,
     }
 
     /// Duplicates page contents (WS-15.2.3c). `has_pair` replaces the JSON
@@ -811,6 +818,7 @@ pub(crate) mod ffi {
         media: Vec<MediaItem>,
         media_empty_status: String,
         media_count_status: String,
+        auto_rules_empty_status: String,
         auto_rules: Vec<DuplicateRuleRow>,
     }
 
@@ -825,6 +833,7 @@ pub(crate) mod ffi {
     #[derive(Clone, Debug, PartialEq, Default)]
     struct SeedRow {
         status: String,
+        color: String,
         url: String,
         note: String,
         created: i64,
@@ -837,6 +846,8 @@ pub(crate) mod ffi {
         page: String,
         subtitle: String,
         failed: i64,
+        headers: Vec<String>,
+        retry_label: String,
         status_filters: Vec<SeedFilter>,
         seeds: Vec<SeedRow>,
     }
@@ -1605,6 +1616,8 @@ pub(crate) mod ffi {
         paused: bool,
         operation_mode: String,
         operation_label: String,
+        operation_display: String,
+        status_text: String,
         max_pending_pairs: i64,
         search_query: String,
         search_mode: String,
@@ -1624,6 +1637,7 @@ pub(crate) mod ffi {
         enabled: bool,
         pending: i64,
         pending_tooltip: String,
+        auto_rules_empty_status: String,
         rules: Vec<AutoRuleRow>,
         properties: Vec<DuplicateChoiceRow>,
         operators: Vec<DuplicateChoiceRow>,
@@ -2481,6 +2495,11 @@ pub(crate) mod ffi {
         );
         fn hydrus_validate_export_phrase(phrase: &str) -> String;
         fn hydrus_static_dir() -> String;
+        /// Thin typed getters for static status/empty-state text (WS-15.3.2a,
+        /// R2): C++ reads the Rust canonical string instead of duplicating
+        /// the literal.
+        fn hydrus_no_local_tag_service_tooltip() -> String;
+        fn hydrus_no_local_tag_service_label() -> String;
     }
 }
 
@@ -3274,6 +3293,14 @@ fn hydrus_static_dir() -> String {
     crate::gui::app::static_assets::resolve_static_dir()
         .map(|path| path.to_string_lossy().to_string())
         .unwrap_or_default()
+}
+
+fn hydrus_no_local_tag_service_tooltip() -> String {
+    crate::gui::app::status_texts::no_local_tag_service_tooltip()
+}
+
+fn hydrus_no_local_tag_service_label() -> String {
+    crate::gui::app::status_texts::no_local_tag_service_label()
 }
 
 fn action_from_str(action: &str) -> ffi::UiAction {

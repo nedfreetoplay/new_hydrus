@@ -639,6 +639,11 @@ rust::String hydrus_validate_export_phrase(rust::Str phrase) noexcept;
 // Implemented in Rust: resolves the vendored static/ asset directory.
 rust::String hydrus_static_dir() noexcept;
 
+// Implemented in Rust (WS-15.3.2a): canonical empty-state strings; C++ only
+// applies them, never duplicates the literals.
+rust::String hydrus_no_local_tag_service_tooltip() noexcept;
+rust::String hydrus_no_local_tag_service_label() noexcept;
+
 // Implemented in Rust: maps an action string to UiAction (data-driven seams).
 UiAction action_from_str(rust::Str action) noexcept;
 

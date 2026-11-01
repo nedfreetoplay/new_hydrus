@@ -63,6 +63,8 @@ struct AutoRuleInfo {
     bool paused = false;
     QString operation_mode;
     QString operation_label;
+    QString operation_display;
+    QString status_text;
     int max_pending_pairs = 500;
     QString search_query;
     QString search_mode;

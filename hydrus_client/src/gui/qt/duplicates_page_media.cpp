@@ -461,12 +461,12 @@ void HydrusDuplicatesPage::update_auto_resolution_rules(const DuplicatesRulesDia
         auto_rules_table->item(static_cast<int>(index), 0)->setText(to_qstring(rule.name));
         auto_rules_table->item(static_cast<int>(index), 1)->setText(to_qstring(rule.search_summary));
         auto_rules_table->item(static_cast<int>(index), 2)->setText(
-            rule.paused ? QStringLiteral("paused") : QStringLiteral("running"));
+            to_qstring(rule.status_text));
     }
 
     if (auto_rules_status != nullptr) {
         if (rules.empty()) {
-            auto_rules_status->setText(QStringLiteral("no auto-resolution rules yet"));
+            auto_rules_status->setText(to_qstring(state.auto_rules_empty_status));
             auto_rules_status->setVisible(true);
         } else {
             auto_rules_status->setVisible(false);
@@ -498,12 +498,12 @@ void HydrusDuplicatesPage::update_auto_resolution_rules(const DuplicatesPageStat
         auto_rules_table->item(static_cast<int>(index), 1)->setText(
             to_qstring(rule.search_summary));
         auto_rules_table->item(static_cast<int>(index), 2)->setText(
-            rule.paused ? QStringLiteral("paused") : QStringLiteral("running"));
+            to_qstring(rule.status_text));
     }
 
     if (auto_rules_status != nullptr) {
         if (rules.empty()) {
-            auto_rules_status->setText(QStringLiteral("no auto-resolution rules yet"));
+            auto_rules_status->setText(to_qstring(state.auto_rules_empty_status));
             auto_rules_status->setVisible(true);
         } else {
             auto_rules_status->setVisible(false);

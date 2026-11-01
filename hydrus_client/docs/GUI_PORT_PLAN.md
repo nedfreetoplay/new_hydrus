@@ -545,6 +545,20 @@ C++.
    Закрыто в WS-15.2.4c (партия services + network): 20 вызовов в 5 файлах —
    `network_tables.cpp` (9), `services_server.cpp` (8), `services_dialog.cpp`
    (1), `services_helpers.cpp` (1), `network_dialog.cpp` (1). Осталось 37.
+   Закрыто в WS-15.2.4c (партия tags + duplicates + subscriptions,
+   коммит ниже): 16 вызовов в 9 файлах — `tag_filter.cpp` (3),
+   `tag_relations_dialog.cpp` (2), `duplicates_page_media.cpp` (2),
+   `subscriptions_page.cpp` (2), `subscriptions_dialog.cpp` (2),
+   `seed_cache_dialog.cpp` (1), `downloader_page_state.cpp` (1),
+   `downloader_page_importers.cpp` (1), `auto_resolution_rule.cpp` (2).
+   Типизированы `app_tag_filter_test/save`, `app_purge_tags`,
+   `app_tag_relation_add/remove`, `app_duplicates_search_context/group_action/
+   batch_size`, `app_subscription_add/edit_save/import_options_save`,
+   `app_file/galley_seed_action`, `app_downloader_start/jobs_set`,
+   `app_duplicates_rule_preview/save`; селектор правила едет плоскими
+   `RuleComparatorRow` (unflatten в Rust с тестами), контейнер import options
+   подписки — один `container_json` (R1-исключение, как
+   `import_options_json`). Остался 21.
 
 ### 15.3 Чистая логика раскладки в Rust  `[ ]` P1
 

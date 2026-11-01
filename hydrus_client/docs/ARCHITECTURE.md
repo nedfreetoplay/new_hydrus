@@ -106,21 +106,38 @@ mouse-shortcut виджеты — за WS-13.13.
 ### Mouse shortcuts и контексты (WS-13.13)
 
 Контексты (`shortcut_names_sorted` в Python, у нас подмножество):
-`main_gui`, `media`, `thumbnails`, `media_viewer`, `preview_media_window`,
-`media_viewer_media_window`. Наследование: `thumbnails`/`media_viewer` →
-`media` → `main_gui`. Один именованный набор хранит keyboard-привязки и
+`main_gui`, `media`, `thumbnails`, `media_viewer`, `media_viewer_browser`,
+`preview_media_window`, `media_viewer_media_window`. Наследование:
+`thumbnails` → `media` → `main_gui`; `media_viewer_media_window` →
+`media_viewer_browser` → `media_viewer` → `media` → `main_gui` (окно видит
+файловые жесты browser-контекста, как ancestor lookup в Python).
+Дефолты — из Python `ClientDefaults.GetDefaultShortcuts()`: browser —
+wheel prev/next, right-release меню, left-double/middle закрыть viewer;
+viewer — ctrl+wheel zoom; drag нигде не биндится (пан — поведение canvas,
+не шорткат). Keyboard-наборы per-context (`KeySets`, ключ опций `key_sets`,
+`default_key_bindings`: browser — Up/Left/PageUp prev, Down/Right/PageDown
+next, Home/End first/last; thumbnails — Enter/Return открыть viewer) с тем же
+наследованием; резолв `KeySets::resolve` по нормализованным комбо.
+Один именованный набор хранит keyboard-привязки и
 mouse-жесты; mouse-строки живут в той же группе опций `shortcuts` под ключом
 `mouse_sets` (`{set, context, action, gestures}` — фиксированная схема, без
 R1-исключения). Текстовый формат жеста: `[ctrl+alt+shift+meta+]кнопка
 press|release|double|drag` (кнопки `left/right/middle/back/forward/task/
 scroll up/down/left/right`). Разбор/нормализация/валидация/конфликты/резолв
 (`resolve` идёт по контексту вверх) — чистые функции в `shortcut_sets.rs` с
-unit-тестами. Qt только доставляет событие: canvas (`media_viewer_media_window`)
-и сетка (`thumbnails`) строят текст жеста из `QMouseEvent`/`QWheelEvent` и
-спрашивают `hydrus_mouse_gesture_action(context, gesture)`; диалог показывает
+unit-тестами. Навигация вьюера (`viewer_nav`: next/previous/first/last) идёт
+через `query::neighbour` с wrap-границами Python
+(`MediaList._GetNext/_GetPrevious`); `open_new_page` сетки — новая
+fixed-страница с упорядоченным выделением (`open_selection_in_new_page_model`,
+как `ShowFilesInNewPage`), не дубликат. Qt только доставляет событие:
+viewer перехватывает wheel/double/middle/клавиши через
+`hydrus_mouse_gesture_action`/`hydrus_keyboard_action` (контекст
+`media_viewer_browser`), сетка — middle-press → `UiAction::OpenSelectionInNewPage`,
+Enter → viewer для текущего элемента; диалог показывает
 mouse-таблицу выбранного контекста и редактирует её теми же save/clear с вето
 конфликтов. Обратные швы — типизированные `app_shortcut_mouse_save`,
-`app_shortcut_context_open`, `hydrus_mouse_gesture_action` (R1).
+`app_shortcut_key_save`, `app_shortcut_context_open`,
+`hydrus_mouse_gesture_action`, `hydrus_keyboard_action` (R1).
 
 Граница cxx — один модуль `#[cxx::bridge] mod ffi` в `gui/qt/api.rs` с одним
 `include!("bridge.hpp")`: агрегатор подтягивает все заголовки, поэтому

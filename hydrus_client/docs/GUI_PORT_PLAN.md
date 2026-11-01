@@ -1209,12 +1209,16 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   импорт/экспорт файла `{name, bindings}` через QFileDialog с понятными
   ошибками, сохранение в опции сразу после изменения. Мультиконтекстная модель
   (WS-13.13): контексты `main_gui/media/thumbnails/media_viewer/
-  preview_media_window/media_viewer_media_window` с наследованием
-  `thumbnails/media_viewer -> media -> main_gui`; набор хранит keyboard-строки
-  и mouse-жесты (`mouse_sets` в той же группе опций), диалог переключает
-  контекст комбобоксом. Упрощение vs Python: keyboard-привязки пока одни на
-  набор (не per-context), mouse-виджеты — текстовые gesture-строки, а не
-  Python ShortcutControl. Раскладка диалога и набор действий совпадают с Python.
+  media_viewer_browser/preview_media_window/media_viewer_media_window` с
+  наследованием `thumbnails -> media -> main_gui` и `media_viewer_media_window
+  -> media_viewer_browser -> media_viewer -> media -> main_gui`; набор хранит
+  keyboard-строки главного контекста, mouse-жесты (`mouse_sets`) и per-context
+  keyboard-наборы (`key_sets`, все в той же группе опций), диалог переключает
+  контекст комбобоксом. Упрощение vs Python: редактирование keyboard-привязок
+  в диалоге пока только для главного набора (per-context сохранение
+  `app_shortcut_key_save` есть, UI нет); mouse-виджеты — текстовые
+  gesture-строки, а не Python ShortcutControl. Раскладка диалога и набор
+  действий совпадают с Python.
 - [~] 13.13 Mouse shortcuts и press/release/double-click/drag.
   Сделано: жесты `press/release/double/drag` + модификаторы ctrl/alt/shift/meta
   (`parse_mouse_gesture`, текст `<модификаторы+>кнопка тип`, кнопки
@@ -1224,11 +1228,23 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   Python, дефолты canvas (zoom/scroll/fullscreen/prev-next) и сетки
   (select/range/toggle/open/context menu) как в Python, canvas и thumbnail grid
   резолвят жест через Rust (`hydrus_mouse_gesture_action`) по активному набору
-  и цепочке контекстов. Остаток: release/drag парсятся и хранятся, но canvas
-  не различает их поведением (pan — всегда ScrollHandDrag); `previous/next
-  file` резолвятся, но навигацию вьюера не вызывают; `open_new_page` сетки
-  шлёт DuplicatePage; keyboard-привязки не разложены по контекстам; smoke
-  вручную не проводился (нет GUI-сессии).
+  и цепочке контекстов. WS-13.13-доделка: дефолты приведены к Python
+  `ClientDefaults.GetDefaultShortcuts()` (browser: wheel — prev/next,
+  right-release — меню, left-double/middle — закрыть viewer; viewer:
+  ctrl+wheel — zoom; drag нигде не биндится — пан canvas'а, не шорткат),
+  навигация вьюера идёт через `viewer_nav` с wrap-границами Python
+  (`MediaList._GetNext/_GetPrevious`, плюс first/last) — wheel, кнопки
+  prev/next, клавиши Up/Down/Left/Right/PageUp/PageDown/Home/End и жесты
+  реально листают коллекцию; `open_new_page` сетки открывает новую
+  fixed-страницу с упорядоченным выделением (`ShowFilesInNewPage`), а не
+  дубликат; keyboard-наборы per-context (`key_sets` в той же группе опций,
+  `default_key_bindings` для browser/thumbnails, наследование
+  media_window→browser→viewer→media→main_gui, резолв
+  `hydrus_keyboard_action`, Enter в сетке открывает viewer).
+  Остаток: редактирование per-context keyboard-привязок в диалоге manage
+  shortcuts (сохранение `app_shortcut_key_save` есть, UI нет — диалог правит
+  только главный набор); контекстное меню вьюера по right-release (жест
+  резолвится, меню нет); smoke вручную не проводился (нет GUI-сессии).
 - [ ] 13.14 Drag & drop страниц/вкладок/файлов между окнами.
 - [ ] 13.15 Colours/style/theming как в Hydrus.
 - [ ] 13.16 Полные меню: sessions, petitions, pending, services admin,

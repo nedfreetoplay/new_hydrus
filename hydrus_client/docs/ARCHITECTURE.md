@@ -304,6 +304,11 @@ WS-15.3.2a (статусы и empty-state, закрыт): перенесены �
 `gui/app/status_texts.rs`, перевод C++-копий — следующим заходом; № 6–8 —
 предикаты, едут в 15.3.2b. Следующим партиям эти номера не брать.
 
+WS-15.3.2b (предикаты, закрыт): перенесены № 6, 8–10, 25, 26, 28–31, 41–50
+в `gui/app/availability.rs` (21 геттер `hydrus_avail_*`, C++-условия удалены;
+новое поле шва `LocalImportReviewDialogState.good_count`). Остались: № 5, 7,
+19–24, 27, 38 (метрики → 15.3.2c), № 11, 36 (ячейки/сортировка → 15.3.2d).
+
 Итого: типизированы статус-бар/about/stats, меню/дерево/страницы, media/
 selection/viewer/metadata, downloader/subscriptions/seed cache, duplicates,
 page-команды, весь обратный канал `notify` (services, network, tags,

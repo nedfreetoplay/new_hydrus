@@ -645,9 +645,16 @@ WS-15.2 закрыт: `parse_object(` и `json_payload(` в `gui/qt` остал�
     Остались C++-копии: дефолты `add_rule`/`pretty` (#3–4, Rust-каноникал с
     тестами уже в `status_texts`), `QString::number(value)` редактора (#11),
     QDateTime-формат seed-таблицы (Qt-представление). Коммит a6e20a1.
-  - [ ] 15.3.2b Предикаты доступности/видимости (таблица № 9–10, 25–31, 41–50:
-    `max_pending`, kind-панели, edit/delete, file limit, видимость строк
-    downloader'а, дистанции, import/tagging).
+  - [x] 15.3.2b Предикаты доступности/видимости (таблица № 6, 8–10, 25, 26,
+    28–31, 41–50: `max_pending`, custom-табы, permission list, kind-панели,
+    edit/delete, file limit, видимость строк downloader'а, highlight,
+    start/auto-кнопки, дистанции, sort-порядок, периоды, move-назначения,
+    export-trash, `default:`-гварды, import/tagging). Закрыт: новый
+    `gui/app/availability.rs` (~30 чистых функций + 8 тестов, всего 765 unit);
+    21 тонкий геттер `hydrus_avail_*` в `api.rs` (объявления — новый
+    `gui/qt/avail.hpp`, `bridge_api.hpp` ужата 620→599); C++-дубли условий
+    удалены, новое поле шва `LocalImportReviewDialogState.good_count`
+    (продюсер `local_import.rs` через `local_import_can_import`).
   - [ ] 15.3.2c Метрики раскладки (таблица № 5, 7, 19–24, 38: ширины колонок
     gallery/watcher/export/import/review, кламп лимита, gauge-проценты).
   - [ ] 15.3.2d Сортировка/группировка и сводные ячейки (таблица № 11, 36:

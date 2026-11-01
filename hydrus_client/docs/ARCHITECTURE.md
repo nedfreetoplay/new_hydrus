@@ -87,6 +87,17 @@ duplicates/subscriptions, меню и данные вьюера. Никакой 
 действия `UiAction::ShortcutSets`/`ShortcutSetActivate`; C++ —
 `gui/qt/shortcuts_dialog.cpp` (диалог `manage shortcuts...` из меню
 `file -> shortcuts`, применение набора как `QShortcut` без перезапуска).
+Редактор: `create_set`/`duplicate_set_full`/`rename_set`/`delete_set`
+(дефолт `default` защищён — тексты Python), выбор активного с немедленным
+`ApplyShortcuts`, `save_binding` (запятая-список, empty = clear, вето
+дубликатов текстом Python), `import_text`/`export_text` (тот же
+`{name, bindings}`; ошибки `Could not parse that file!`/`Bad combos`/
+`no set name`/`no bindings`), persist в опции после каждого изменения.
+Типизированные reverse-швы: `app_shortcut_set_create/duplicate/rename/
+delete`, `app_shortcut_binding_save`, `app_shortcut_set_import`,
+`hydrus_shortcut_set_export` (без JSON-швов, R1). Упрощение vs Python:
+один набор главного окна; мультиконтекстные reserved/custom сеты и
+mouse-shortcut виджеты — за WS-13.13.
 Чтобы добавить новое действие: внести пару `(ключ, комбинации)` в
 `default_bindings()`, подпись в `action_label()`, ветку в C++
 `shortcut_action_for()`/`shortcut_fire()`, пункт меню в

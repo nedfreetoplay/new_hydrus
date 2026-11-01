@@ -47,6 +47,18 @@ QStringList json_to_strings(const QJsonArray &array) {
     return result;
 }
 
+rust::Vec<rust::String> to_rust_vec(const QStringList &list) {
+    rust::Vec<rust::String> result;
+    result.reserve(static_cast<size_t>(list.size()));
+
+    for (const QString &entry : list) {
+        const QByteArray bytes = entry.toUtf8();
+        result.push_back(rust::String(bytes.constData(), static_cast<size_t>(bytes.size())));
+    }
+
+    return result;
+}
+
 QByteArray json_bytes(const QJsonObject &object) {
     return QJsonDocument(object).toJson(QJsonDocument::Compact);
 }

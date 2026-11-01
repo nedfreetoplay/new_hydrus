@@ -1,4 +1,4 @@
-//! Application state and event handling for the real client GUI.
+﻿//! Application state and event handling for the real client GUI.
 
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -1584,6 +1584,173 @@ pub fn handle_network_rule_set(
     let commands = with_state_mut(|state| {
         crate::gui::app::options::network_rule_set_typed(
             state, context_type, context, bandwidth_type, time_delta, max_allowed,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+typed_handler!(handle_tag_filter_test(slices: Vec<String>, rules: Vec<String>, tag: &str) => crate::gui::app::tag_filter::test_typed);
+typed_handler!(handle_tag_filter_save(service_key: &str, slices: Vec<String>, rules: Vec<String>) => crate::gui::app::tag_filter::save_typed);
+typed_handler!(handle_purge_tags(service_key: &str, tags: Vec<String>, reason: &str) => crate::gui::app::tag_filter::purge_typed);
+typed_handler!(handle_tag_relation_add(relation: &str, service: &str, first: &str, second: &str) => crate::gui::app::tag_relations::add_typed);
+typed_handler!(handle_tag_relation_remove(relation: &str, service: &str, first: &str, second: &str) => crate::gui::app::tag_relations::remove_typed);
+typed_handler!(handle_duplicates_batch_size(page_id: &str, value: i64) => crate::gui::app::duplicates::batch_size_typed);
+typed_handler!(handle_subscription_import_options_save(name: &str, container_json: &str) => crate::gui::app::download::save_subscription_import_options_typed);
+typed_handler!(handle_file_seed_action(page: &str, action: &str, urls: Vec<String>) => crate::gui::app::seeds::file_seed_action_typed);
+typed_handler!(handle_gallery_seed_action(page: &str, action: &str, urls: Vec<String>) => crate::gui::app::seeds::gallery_seed_action_typed);
+typed_handler!(handle_downloader_jobs_set(page_id: &str, urls: Vec<String>, remove_missing: bool) => crate::gui::app::download::jobs_set_typed);
+
+pub fn handle_duplicates_search_context(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    query_1: &str,
+    location_1: &str,
+    query_2: &str,
+    location_2: &str,
+    dupe_search_type: &str,
+    pixel_dupes: &str,
+    max_distance: i64,
+    sort_type: &str,
+    sort_ascending: bool,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::duplicates::search_context_typed(
+            state, page_id, query_1, location_1, query_2, location_2, dupe_search_type,
+            pixel_dupes, max_distance, sort_type, sort_ascending,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+typed_handler!(handle_duplicates_group_action(page_id: &str, kind: &str, target: &str) => crate::gui::app::duplicates::group_action_typed);
+
+#[allow(clippy::too_many_arguments)]
+pub fn handle_subscription_add(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    name: &str,
+    url: &str,
+    query: &str,
+    site: &str,
+    filter: &str,
+    period: i64,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::download::add_subscription_typed(
+            state, page_id, name, url, query, site, filter, period,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn handle_subscription_edit_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    original: &str,
+    name: &str,
+    url: &str,
+    query: &str,
+    site: &str,
+    filter: &str,
+    period: i64,
+    paused: bool,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::download::save_subscription_dialog_typed(
+            state, page_id, original, name, url, query, site, filter, period, paused,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn handle_downloader_start(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    input: &str,
+    url: &str,
+    query: &str,
+    site: &str,
+    formula: &str,
+    subject: &str,
+    auto_watch: bool,
+    period: i64,
+    no_limit: bool,
+    file_limit: i64,
+    present: i64,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::download::start_typed(
+            state, page_id, input, url, query, site, formula, subject, auto_watch, period,
+            no_limit, file_limit, present,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn handle_duplicates_rule_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    name: &str,
+    paused: bool,
+    operation_mode: &str,
+    max_pending_pairs: i64,
+    search_query: &str,
+    search_mode: &str,
+    max_distance: i64,
+    selectors: Vec<ffi::RuleComparatorRow>,
+    action: &str,
+    delete_a: bool,
+    delete_b: bool,
+    original_name: &str,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::auto_resolution::save_rule_typed(
+            state, name, paused, operation_mode, max_pending_pairs, search_query, search_mode,
+            max_distance, selectors, action, delete_a, delete_b, original_name,
+        )
+    });
+    record_notifications(&commands);
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn handle_duplicates_rule_preview(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    name: &str,
+    paused: bool,
+    operation_mode: &str,
+    max_pending_pairs: i64,
+    search_query: &str,
+    search_mode: &str,
+    max_distance: i64,
+    selectors: Vec<ffi::RuleComparatorRow>,
+    action: &str,
+    delete_a: bool,
+    delete_b: bool,
+) {
+    let commands = with_state_mut(|state| {
+        crate::gui::app::auto_resolution::preview_rule_typed(
+            state, name, paused, operation_mode, max_pending_pairs, search_query, search_mode,
+            max_distance, selectors, action, delete_a, delete_b,
         )
     });
     record_notifications(&commands);

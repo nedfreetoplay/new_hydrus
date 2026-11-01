@@ -17,3 +17,5 @@ QJsonArray parse_array(rust::Str text);
 QStringList json_to_strings(const QJsonArray &array);
 QByteArray json_bytes(const QJsonObject &object);
 QString json_payload(const QJsonObject &object);
+// Typed reverse seam helper (WS-15.2.4c): QStringList to rust::Vec.
+rust::Vec<rust::String> to_rust_vec(const QStringList &list);

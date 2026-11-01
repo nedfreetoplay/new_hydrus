@@ -119,7 +119,6 @@ public:
     void set_preview(const DuplicatesRulePreviewState &preview);
 
 private:
-    QJsonObject rule_json() const;
     void refresh_comparators();
     void add_comparator();
     void add_group();

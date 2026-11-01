@@ -31,10 +31,6 @@ const JSON_PAYLOAD_ALLOWLIST: &[(&str, usize)] = &[
     ("src/gui/qt/auto_resolution_custom.cpp", 1),
     ("src/gui/qt/auto_resolution_merge.cpp", 1),
     ("src/gui/qt/auto_resolution_review.cpp", 2),
-    ("src/gui/qt/auto_resolution_rule.cpp", 2),
-    ("src/gui/qt/downloader_page_importers.cpp", 1),
-    ("src/gui/qt/downloader_page_state.cpp", 1),
-    ("src/gui/qt/duplicates_page_media.cpp", 2),
     ("src/gui/qt/export_folder_editor.cpp", 1),
     ("src/gui/qt/export_folder_sidecar.cpp", 1),
     ("src/gui/qt/export_review.cpp", 1),
@@ -46,11 +42,6 @@ const JSON_PAYLOAD_ALLOWLIST: &[(&str, usize)] = &[
     ("src/gui/qt/options_dialog.cpp", 1),
     ("src/gui/qt/orphan_files.cpp", 2),
     ("src/gui/qt/repair_locations.cpp", 1),
-    ("src/gui/qt/seed_cache_dialog.cpp", 1),
-    ("src/gui/qt/subscriptions_dialog.cpp", 2),
-    ("src/gui/qt/subscriptions_page.cpp", 2),
-    ("src/gui/qt/tag_filter.cpp", 3),
-    ("src/gui/qt/tag_relations_dialog.cpp", 2),
 ];
 
 /// `api.rs` structs that are still a typed envelope around one JSON blob
@@ -71,7 +62,12 @@ const JSON_FIELD_ALLOWLIST: &[&str] = &[
 ];
 
 /// cxx functions that still take a `json: &str` argument (WS-15.2 debt).
-const JSON_ARG_ALLOWLIST: &[&str] = &["hydrus_set_tag_suggestions"];
+const JSON_ARG_ALLOWLIST: &[&str] = &[
+    "hydrus_set_tag_suggestions",
+    // WS-15.2.4c: the arbitrary nested import options dict pasted from the
+    // clipboard (same R1 exception as `SubscriptionDialogRow.import_options_json`).
+    "app_subscription_import_options_save",
+];
 
 fn read(path: &Path) -> String {
     std::fs::read_to_string(path)

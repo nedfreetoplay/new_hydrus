@@ -120,18 +120,36 @@ pub fn save(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         .trim()
         .to_string();
 
-    let Some(target) = resolve(state, &key) else {
+    let rules = match parse_rules(&value) {
+        Ok(rules) => rules,
+        Err(error) => return notify(state, error),
+    };
+
+    save_rules_for(state, &key, &rules)
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes rule slices and kinds as
+/// parallel lists instead of a JSON payload.
+pub fn save_typed(
+    state: &mut AppState,
+    service_key: &str,
+    slices: Vec<String>,
+    rules: Vec<String>,
+) -> Vec<UiCommand> {
+    match zip_rules(&slices, &rules) {
+        Ok(zipped) => save_rules_for(state, service_key.trim(), &zipped),
+        Err(error) => notify(state, error),
+    }
+}
+
+fn save_rules_for(state: &mut AppState, key: &str, rules: &[(String, String)]) -> Vec<UiCommand> {
+    let Some(target) = resolve(state, key) else {
         return notify(state, "service is missing");
     };
 
     if !target.is_tag_service() {
         return notify(state, format!("'{}' is not a tag service", target.name()));
     }
-
-    let rules = match parse_rules(&value) {
-        Ok(rules) => rules,
-        Err(error) => return notify(state, error),
-    };
 
     if target.is_remote() {
         let client = match remote_client(state, &target) {
@@ -184,6 +202,25 @@ pub fn test(state: &AppState, payload: &str) -> Vec<UiCommand> {
         Err(error) => return notify(state, error),
     };
 
+    test_rules_for(state, &rules, tag)
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes rule slices and kinds as
+/// parallel lists plus the tag to test instead of a JSON payload.
+pub fn test_typed(
+    state: &AppState,
+    slices: Vec<String>,
+    rules: Vec<String>,
+    tag: &str,
+) -> Vec<UiCommand> {
+    match zip_rules(&slices, &rules) {
+        Ok(zipped) => test_rules_for(state, &zipped, tag.trim()),
+        Err(error) => notify(state, error),
+    }
+}
+
+fn test_rules_for(state: &AppState, rules: &[(String, String)], tag: &str) -> Vec<UiCommand> {
+
     if tag.is_empty() {
         return notify(state, "enter a tag to test");
     }
@@ -209,8 +246,29 @@ pub fn purge(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         .unwrap_or_default()
         .trim()
         .to_string();
+    let tags: Vec<String> = value
+        .get("tags")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
 
-    let Some(Target::Local(service)) = resolve(state, &key) else {
+    purge_tags_for(state, &key, &tags, value.get("reason").and_then(Value::as_str).unwrap_or_default())
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the tag list directly
+/// instead of a JSON payload.
+pub fn purge_typed(state: &mut AppState, service_key: &str, tags: Vec<String>, reason: &str) -> Vec<UiCommand> {
+    purge_tags_for(state, service_key.trim(), &tags, reason)
+}
+
+fn purge_tags_for(state: &mut AppState, key: &str, tags: &[String], reason: &str) -> Vec<UiCommand> {
+    let Some(Target::Local(service)) = resolve(state, key) else {
         return notify(
             state,
             "purging is only available for local tag services in this build",
@@ -224,12 +282,12 @@ pub fn purge(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         );
     }
 
-    let Some(tags) = value.get("tags").and_then(Value::as_array) else {
+    let Some(tags) = (!tags.is_empty()).then_some(tags) else {
         return notify(state, "enter tags to purge");
     };
 
     let cleaned =
-        match hydrus_tags::clean_tags(tags.iter().filter_map(Value::as_str).map(str::to_string)) {
+        match hydrus_tags::clean_tags(tags.iter().map(|tag| tag.to_string())) {
             Ok(tags) => tags,
             Err(error) => return notify(state, format!("could not parse the tags: {error}")),
         };
@@ -274,12 +332,7 @@ pub fn purge(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         }
     }
 
-    let reason = value
-        .get("reason")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .trim()
-        .to_string();
+    let reason = reason.trim();
 
     let mut message = format!(
         "purged {} tag(s) from '{}', removing {} mapping(s)",
@@ -429,6 +482,26 @@ pub(super) fn parse_rules(value: &Value) -> Result<Vec<(String, String)>, String
     }
 
     Ok(rules)
+}
+
+fn zip_rules(slices: &[String], rules: &[String]) -> Result<Vec<(String, String)>, String> {
+    if slices.len() != rules.len() {
+        return Err("the tag filter rules are out of sync".to_string());
+    }
+
+    let mut zipped = Vec::with_capacity(slices.len());
+
+    for (slice, rule) in slices.iter().zip(rules.iter()) {
+        let (slice, rule) = (slice.trim(), rule.trim());
+
+        if rule != "whitelist" && rule != "blacklist" {
+            return Err(format!("'{rule}' is not a tag filter rule"));
+        }
+
+        zipped.push((slice.to_string(), rule.to_string()));
+    }
+
+    Ok(zipped)
 }
 
 pub(super) fn filter_from_rules(rules: &[(String, String)]) -> TagFilter {
@@ -595,6 +668,16 @@ mod tests {
         let value = json!({"rules": [{"slice": "x", "rule": "maybe"}]});
 
         assert!(parse_rules(&value).is_err());
+        assert!(zip_rules(&["x".to_string()], &["maybe".to_string()]).is_err());
+        assert!(zip_rules(&["x".to_string()], &[]).is_err());
+        assert_eq!(
+            zip_rules(
+                &[" character: ".to_string()],
+                &["whitelist".to_string()]
+            )
+            .unwrap(),
+            vec![("character:".to_string(), "whitelist".to_string())]
+        );
     }
 
     #[test]

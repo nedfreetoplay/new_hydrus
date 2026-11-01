@@ -96,30 +96,54 @@ pub fn action(state: &mut AppState, payload: &str, add: bool) -> Vec<UiCommand> 
         )];
     };
 
-    let Some(relation) = value
+    let relation = value
         .get("relation")
         .and_then(Value::as_str)
-        .and_then(relation_from_name)
-    else {
+        .unwrap_or_default();
+    let first = value
+        .get("first")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let second = value
+        .get("second")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let service = value
+        .get("service")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+
+    action_typed(state, relation, service, first, second, add)
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the relation fields directly
+/// instead of a JSON payload.
+pub fn add_typed(state: &mut AppState, relation: &str, service: &str, first: &str, second: &str) -> Vec<UiCommand> {
+    action_typed(state, relation, service, first, second, true)
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the relation fields directly
+/// instead of a JSON payload.
+pub fn remove_typed(state: &mut AppState, relation: &str, service: &str, first: &str, second: &str) -> Vec<UiCommand> {
+    action_typed(state, relation, service, first, second, false)
+}
+
+pub fn action_typed(
+    state: &mut AppState,
+    relation: &str,
+    service: &str,
+    first: &str,
+    second: &str,
+    add: bool,
+) -> Vec<UiCommand> {
+    let Some(relation) = relation_from_name(relation) else {
         return vec![UiCommand::NotifyMessage(
             "tag relation type is missing".to_string(),
         )];
     };
 
-    let first = value
-        .get("first")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .trim();
-    let second = value
-        .get("second")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .trim();
-    let service = value
-        .get("service")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
+    let first = first.trim();
+    let second = second.trim();
 
     if first.is_empty() || second.is_empty() {
         return vec![UiCommand::NotifyMessage(

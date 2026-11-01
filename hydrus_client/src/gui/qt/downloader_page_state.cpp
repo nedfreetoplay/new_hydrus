@@ -49,64 +49,98 @@ void HydrusDownloaderPage::start() {
         return;
     }
 
-    QJsonObject payload;
+    // Presence bits mirror download::START_FIELD_* in Rust: C++ only sends
+    // the widgets its page kind owns; missing fields fall back to stored
+    // page values, like the omitted JSON keys before.
+    int64_t present = 0;
+    QString input_value;
+    QString url_value;
+    QString query_value;
+    QString site_value;
+    QString formula_value;
+    QString subject_value;
+    int64_t period_value = 0;
 
     if (input != nullptr) {
-        payload.insert(QStringLiteral("input"), input->toPlainText());
+        input_value = input->toPlainText();
+        present |= 0x01;
     }
 
     if (url_input != nullptr) {
-        payload.insert(QStringLiteral("input"), url_input->text());
+        input_value = url_input->text();
+        present |= 0x01;
     }
 
     if (simple_url != nullptr) {
-        payload.insert(QStringLiteral("input"), simple_url->text());
+        input_value = simple_url->text();
+        present |= 0x01;
     }
 
     if (simple_formula != nullptr) {
-        payload.insert(QStringLiteral("formula"), simple_formula->currentText());
+        formula_value = simple_formula->currentText();
+        present |= 0x10;
     }
 
     if (url != nullptr) {
-        payload.insert(QStringLiteral("url"), url->text());
+        url_value = url->text();
+        present |= 0x02;
     }
 
     if (query != nullptr) {
-        payload.insert(QStringLiteral("query"), query->text());
+        query_value = query->text();
+        present |= 0x04;
     }
 
     if (site != nullptr) {
-        payload.insert(QStringLiteral("site"), site->currentData().toString());
+        site_value = site->currentData().toString();
+        present |= 0x08;
     }
 
     if (subject != nullptr) {
-        payload.insert(QStringLiteral("subject"), subject->text());
+        subject_value = subject->text();
+        present |= 0x20;
     }
 
     if (period != nullptr) {
-        payload.insert(QStringLiteral("period"), period->value());
+        period_value = static_cast<int64_t>(period->value());
+        present |= 0x40;
     }
 
-    payload.insert(
-        QStringLiteral("auto"),
-        auto_button != nullptr && auto_button->text().endsWith(QStringLiteral("on")));
+    const bool auto_watch = auto_button != nullptr && auto_button->text().endsWith(QStringLiteral("on"));
 
     const bool unlimited = no_limit != nullptr && no_limit->isChecked();
     const int limit = file_limit != nullptr ? file_limit->value() : 2000;
-    payload.insert(QStringLiteral("no_limit"), unlimited);
-    payload.insert(QStringLiteral("file_limit"), unlimited ? 0 : limit);
 
     if (gallery && url != nullptr && url->text().isEmpty() && site != nullptr
         && site->currentIndex() > 0) {
-        payload.insert(
-            QStringLiteral("url"),
-            site->itemData(site->currentIndex(), Qt::UserRole + 1).toString());
+        url_value = site->itemData(site->currentIndex(), Qt::UserRole + 1).toString();
+        present |= 0x02;
     }
 
-    const UiAction action =
-        kind == QStringLiteral("watcher") ? UiAction::WatcherCheck
-                                          : UiAction::DownloaderStart;
-    main->notify(action, id, json_payload(payload));
+    const QByteArray id_bytes = id.toUtf8();
+    const QByteArray input_bytes = input_value.toUtf8();
+    const QByteArray url_bytes = url_value.toUtf8();
+    const QByteArray query_bytes = query_value.toUtf8();
+    const QByteArray site_bytes = site_value.toUtf8();
+    const QByteArray formula_bytes = formula_value.toUtf8();
+    const QByteArray subject_bytes = subject_value.toUtf8();
+
+    // WatcherCheck and DownloaderStart both route to download::start in
+    // Rust; the watcher path only differs in which widgets are present.
+    app_downloader_start(
+        *main,
+        rust::Str(id_bytes.constData(), id_bytes.size()),
+        rust::Str(input_bytes.constData(), input_bytes.size()),
+        rust::Str(url_bytes.constData(), url_bytes.size()),
+        rust::Str(query_bytes.constData(), query_bytes.size()),
+        rust::Str(site_bytes.constData(), site_bytes.size()),
+        rust::Str(formula_bytes.constData(), formula_bytes.size()),
+        rust::Str(subject_bytes.constData(), subject_bytes.size()),
+        auto_watch,
+        period_value,
+        unlimited,
+        unlimited ? 0 : static_cast<int64_t>(limit),
+        present);
 }
 
 void HydrusDownloaderPage::fill_sites(const rust::Vec<GallerySite> &value) {

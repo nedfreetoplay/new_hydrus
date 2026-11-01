@@ -422,12 +422,12 @@ void HydrusSubscriptionsDialog::import_options_action(const QString &action) {
             continue;
         }
 
-        QJsonObject payload;
-        payload.insert(QStringLiteral("target"), name);
-        payload.insert(QStringLiteral("container"), document.object());
-        main->notify(UiAction::SubscriptionImportOptionsSave,
-                     QString(),
-                     json_payload(payload));
+        const QByteArray name_bytes = name.toUtf8();
+        const QByteArray container_bytes = QString::fromUtf8(document.toJson(QJsonDocument::Compact)).toUtf8();
+        app_subscription_import_options_save(
+            *main,
+            rust::Str(name_bytes.constData(), name_bytes.size()),
+            rust::Str(container_bytes.constData(), container_bytes.size()));
     }
 }
 
@@ -479,15 +479,20 @@ void HydrusSubscriptionsDialog::add_subscription() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("name"), name->text());
-    payload.insert(QStringLiteral("url"), url->text());
-    payload.insert(QStringLiteral("query"), query->text());
-    payload.insert(QStringLiteral("site"), site->currentData().toString());
-    payload.insert(QStringLiteral("filter"), filter->text());
-    payload.insert(QStringLiteral("period"), period->value());
-
-    main->notify(UiAction::SubscriptionAdd, QString(), json_payload(payload));
+    const QByteArray name_bytes = name->text().toUtf8();
+    const QByteArray url_bytes = url->text().toUtf8();
+    const QByteArray query_bytes = query->text().toUtf8();
+    const QByteArray site_bytes = site->currentData().toString().toUtf8();
+    const QByteArray filter_bytes = filter->text().toUtf8();
+    app_subscription_add(
+        *main,
+        rust::Str("", 0),
+        rust::Str(name_bytes.constData(), name_bytes.size()),
+        rust::Str(url_bytes.constData(), url_bytes.size()),
+        rust::Str(query_bytes.constData(), query_bytes.size()),
+        rust::Str(site_bytes.constData(), site_bytes.size()),
+        rust::Str(filter_bytes.constData(), filter_bytes.size()),
+        static_cast<int64_t>(period->value()));
 }
 
 

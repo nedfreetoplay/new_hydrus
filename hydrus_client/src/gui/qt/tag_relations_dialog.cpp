@@ -195,13 +195,16 @@ void HydrusTagRelationsDialog::add_relation() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("relation"), relation);
-    payload.insert(QStringLiteral("service"), services->currentData().toString());
-    payload.insert(QStringLiteral("first"), first->text().trimmed());
-    payload.insert(QStringLiteral("second"), second->text().trimmed());
-
-    main->notify(UiAction::TagRelationsAdd, QString(), json_payload(payload));
+    const QByteArray relation_bytes = relation.toUtf8();
+    const QByteArray service_bytes = services->currentData().toString().toUtf8();
+    const QByteArray first_bytes = first->text().trimmed().toUtf8();
+    const QByteArray second_bytes = second->text().trimmed().toUtf8();
+    app_tag_relation_add(
+        *main,
+        rust::Str(relation_bytes.constData(), relation_bytes.size()),
+        rust::Str(service_bytes.constData(), service_bytes.size()),
+        rust::Str(first_bytes.constData(), first_bytes.size()),
+        rust::Str(second_bytes.constData(), second_bytes.size()));
 }
 
 void HydrusTagRelationsDialog::remove_selected() {
@@ -212,13 +215,17 @@ void HydrusTagRelationsDialog::remove_selected() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("relation"), current_relation());
-    payload.insert(QStringLiteral("service"), services->currentData().toString());
-    payload.insert(QStringLiteral("first"), table->item(row, 0)->data(Qt::UserRole).toString());
-    payload.insert(QStringLiteral("second"), table->item(row, 1)->data(Qt::UserRole).toString());
-
-    main->notify(UiAction::TagRelationsRemove, QString(), json_payload(payload));
+    const QString relation = current_relation();
+    const QByteArray relation_bytes = relation.toUtf8();
+    const QByteArray service_bytes = services->currentData().toString().toUtf8();
+    const QByteArray first_bytes = table->item(row, 0)->data(Qt::UserRole).toString().toUtf8();
+    const QByteArray second_bytes = table->item(row, 1)->data(Qt::UserRole).toString().toUtf8();
+    app_tag_relation_remove(
+        *main,
+        rust::Str(relation_bytes.constData(), relation_bytes.size()),
+        rust::Str(service_bytes.constData(), service_bytes.size()),
+        rust::Str(first_bytes.constData(), first_bytes.size()),
+        rust::Str(second_bytes.constData(), second_bytes.size()));
 }
 
 void HydrusMainWindow::show_tag_relations(const TagRelationsDialogState &typed) {

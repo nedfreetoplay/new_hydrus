@@ -328,17 +328,19 @@ void HydrusDownloaderPage::build_simple_panels(QVBoxLayout *main_layout) {
                 parsing_layout->addWidget(jobs_row);
 
                 const auto push_jobs = [this](bool remove_missing) {
-                    QJsonArray urls;
+                    QStringList urls;
 
                     for (int row = 0; row < simple_jobs->count(); ++row) {
                         urls.append(
                             simple_jobs->item(row)->data(Qt::UserRole).toString());
                     }
 
-                    QJsonObject payload;
-                    payload.insert(QStringLiteral("urls"), urls);
-                    payload.insert(QStringLiteral("remove_missing"), remove_missing);
-                    main->notify(UiAction::DownloaderJobsSet, id, json_payload(payload));
+                    const QByteArray id_bytes = id.toUtf8();
+                    app_downloader_jobs_set(
+                        *main,
+                        rust::Str(id_bytes.constData(), id_bytes.size()),
+                        to_rust_vec(urls),
+                        remove_missing);
                 };
 
                 connect(job_up, &QPushButton::clicked, this, [this, push_jobs]() {

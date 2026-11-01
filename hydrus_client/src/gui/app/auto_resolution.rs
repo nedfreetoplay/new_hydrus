@@ -1,4 +1,4 @@
-//! User-configurable duplicate auto-resolution rules.
+﻿//! User-configurable duplicate auto-resolution rules.
 //!
 //! A rule narrows the duplicate queue with an optional search, then tests each
 //! pair against a selector. The selector is an AND list of comparators; a
@@ -933,10 +933,51 @@ pub fn save_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         return notify(state, "the auto-resolution rule could not be read");
     };
 
+    save_rule_for(state, &mut rule, original_name.as_deref())
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the rule as flat fields plus
+/// flattened selector rows (same `RuleComparatorRow` shape as the forward
+/// seam) instead of a JSON payload.
+#[allow(clippy::too_many_arguments)]
+pub fn save_rule_typed(
+    state: &mut AppState,
+    name: &str,
+    paused: bool,
+    operation_mode: &str,
+    max_pending_pairs: i64,
+    search_query: &str,
+    search_mode: &str,
+    max_distance: i64,
+    selectors: Vec<crate::gui::qt::api::ffi::RuleComparatorRow>,
+    action: &str,
+    delete_a: bool,
+    delete_b: bool,
+    original_name: &str,
+) -> Vec<UiCommand> {
+    let mut rule = rule_from_typed(
+        name,
+        paused,
+        operation_mode,
+        max_pending_pairs,
+        search_query,
+        search_mode,
+        max_distance,
+        selectors,
+        action,
+        delete_a,
+        delete_b,
+    );
+    let original = (!original_name.is_empty()).then(|| original_name.to_string());
+
+    save_rule_for(state, &mut rule, original.as_deref())
+}
+
+fn save_rule_for(state: &mut AppState, rule: &mut AutoResolutionRule, original_name: Option<&str>) -> Vec<UiCommand> {
     rule.normalise();
     rule.name = unique_name(&state.auto_rules, &rule.name, original_name.as_deref());
 
-    if let Some(original) = &original_name {
+    if let Some(original) = original_name {
         state
             .auto_rules
             .retain(|existing| &existing.name != original);
@@ -1027,6 +1068,119 @@ fn unique_name(rules: &[AutoResolutionRule], wanted: &str, original_name: Option
     }
 }
 
+/// Inverse of [`flatten_comparators`]: rebuilds the nested selector tree
+/// from flat depth-tagged rows sent over the typed reverse seam.
+fn unflatten_comparators(
+    rows: &[crate::gui::qt::api::ffi::RuleComparatorRow],
+) -> Vec<Comparator> {
+    fn drain(
+        rows: &[crate::gui::qt::api::ffi::RuleComparatorRow],
+        pos: &mut usize,
+        depth: i64,
+    ) -> Vec<Comparator> {
+        let mut out = Vec::new();
+
+        while *pos < rows.len() && rows[*pos].depth >= depth {
+            if rows[*pos].depth > depth {
+                break;
+            }
+
+            let row = &rows[*pos];
+
+            if row.kind == "group" {
+                *pos += 1;
+                let children = drain(rows, pos, depth + 1);
+                let mode = if row.group_mode.is_empty() {
+                    "all".to_string()
+                } else {
+                    row.group_mode.clone()
+                };
+                out.push(Comparator::Group {
+                    mode,
+                    comparators: children,
+                });
+            } else {
+                *pos += 1;
+                out.push(match row.kind.as_str() {
+                    "relative" => Comparator::Relative {
+                        property: row.property.clone(),
+                        operator: if row.op.is_empty() {
+                            ">".to_string()
+                        } else {
+                            row.op.clone()
+                        },
+                        multiplier: row.multiplier,
+                        delta: row.delta,
+                    },
+                    "filetype" => Comparator::Filetype { same: row.same },
+                    _ => Comparator::OneFile {
+                        looking_at: if row.looking_at.is_empty() {
+                            "a".to_string()
+                        } else {
+                            row.looking_at.clone()
+                        },
+                        property: row.property.clone(),
+                        operator: if row.op.is_empty() {
+                            ">".to_string()
+                        } else {
+                            row.op.clone()
+                        },
+                        value: row.num_value,
+                        text: row.text_value.clone(),
+                    },
+                });
+            }
+        }
+
+        out
+    }
+
+    let mut pos = 0;
+    drain(rows, &mut pos, 0)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn rule_from_typed(
+    name: &str,
+    paused: bool,
+    operation_mode: &str,
+    max_pending_pairs: i64,
+    search_query: &str,
+    search_mode: &str,
+    max_distance: i64,
+    selectors: Vec<crate::gui::qt::api::ffi::RuleComparatorRow>,
+    action: &str,
+    delete_a: bool,
+    delete_b: bool,
+) -> AutoResolutionRule {
+    AutoResolutionRule {
+        name: name.trim().to_string(),
+        paused,
+        operation_mode: if operation_mode.is_empty() {
+            default_operation_mode()
+        } else {
+            operation_mode.to_string()
+        },
+        max_pending_pairs: max_pending_pairs.max(1),
+        search_query: search_query.trim().to_string(),
+        search_mode: if search_mode.is_empty() {
+            default_search_mode()
+        } else {
+            search_mode.to_string()
+        },
+        max_distance: max_distance.max(0),
+        pair_selector: unflatten_comparators(&selectors),
+        action: if action.is_empty() {
+            default_action()
+        } else {
+            action.to_string()
+        },
+        delete_a,
+        delete_b,
+        comparator: None,
+    }
+}
+
 pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     let Ok(mut value) = serde_json::from_str::<Value>(payload) else {
         return notify(state, "invalid auto-resolution rule");
@@ -1039,6 +1193,45 @@ pub fn preview_rule(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
     let Ok(mut rule) = serde_json::from_value::<AutoResolutionRule>(value) else {
         return notify(state, "the auto-resolution rule could not be read");
     };
+
+    preview_rule_for(state, &mut rule)
+}
+
+/// Typed reverse seam (WS-15.2.4c): same flat fields as
+/// [`save_rule_typed`]; `original_name` is ignored, preview never mutates.
+#[allow(clippy::too_many_arguments)]
+pub fn preview_rule_typed(
+    state: &mut AppState,
+    name: &str,
+    paused: bool,
+    operation_mode: &str,
+    max_pending_pairs: i64,
+    search_query: &str,
+    search_mode: &str,
+    max_distance: i64,
+    selectors: Vec<crate::gui::qt::api::ffi::RuleComparatorRow>,
+    action: &str,
+    delete_a: bool,
+    delete_b: bool,
+) -> Vec<UiCommand> {
+    let mut rule = rule_from_typed(
+        name,
+        paused,
+        operation_mode,
+        max_pending_pairs,
+        search_query,
+        search_mode,
+        max_distance,
+        selectors,
+        action,
+        delete_a,
+        delete_b,
+    );
+
+    preview_rule_for(state, &mut rule)
+}
+
+fn preview_rule_for(state: &mut AppState, rule: &mut AutoResolutionRule) -> Vec<UiCommand> {
 
     rule.normalise();
 

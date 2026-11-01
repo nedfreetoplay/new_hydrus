@@ -351,22 +351,60 @@ void HydrusAutoResolutionRuleDialog::remove_selected_comparator() {
     }
 }
 
-QJsonObject HydrusAutoResolutionRuleDialog::rule_json() const {
-    QJsonObject result;
-    result.insert(QStringLiteral("name"), name->text().trimmed());
-    result.insert(QStringLiteral("paused"), paused->isChecked());
-    result.insert(QStringLiteral("operation_mode"), operation->currentData().toString());
-    result.insert(QStringLiteral("max_pending_pairs"), max_pending->value());
-    result.insert(QStringLiteral("search_query"), search_query->text().trimmed());
-    result.insert(QStringLiteral("search_mode"), search_mode->currentData().toString());
-    result.insert(QStringLiteral("max_distance"), max_distance->value());
-    result.insert(QStringLiteral("pair_selector"), selector);
-    result.insert(QStringLiteral("action"), action->currentData().toString());
-    result.insert(QStringLiteral("delete_a"), delete_a->isChecked());
-    result.insert(QStringLiteral("delete_b"), delete_b->isChecked());
+namespace {
 
-    return result;
+rust::String rust_string(const QString &text) {
+    const QByteArray bytes = text.toUtf8();
+    return rust::String(bytes.constData(), static_cast<size_t>(bytes.size()));
 }
+
+// Flattens the nested pair-selector tree into depth-tagged rows, mirroring
+// flatten_comparators in Rust (WS-15.2.4c). Rust rebuilds the tree with
+// unflatten_comparators; `pretty` is formatted in Rust and left empty here.
+void flatten_selector_into(const QJsonArray &array, int depth, rust::Vec<RuleComparatorRow> &out) {
+    for (const QJsonValue &value : array) {
+        const QJsonObject object = value.toObject();
+        const QString kind = object.value(QStringLiteral("kind")).toString();
+        RuleComparatorRow row;
+        row.kind = rust_string(kind);
+        row.depth = static_cast<int64_t>(depth);
+        row.num_value = 0.0;
+        row.multiplier = 1.0;
+        row.delta = 0.0;
+        row.same = false;
+
+        if (kind == QStringLiteral("group")) {
+            row.group_mode = rust_string(object.value(QStringLiteral("mode")).toString(QStringLiteral("all")));
+            out.push_back(std::move(row));
+            flatten_selector_into(
+                object.value(QStringLiteral("comparators")).toArray(), depth + 1, out);
+        } else if (kind == QStringLiteral("relative")) {
+            row.property = rust_string(object.value(QStringLiteral("property")).toString());
+            row.op = rust_string(object.value(QStringLiteral("operator")).toString(QStringLiteral(">")));
+            row.multiplier = object.value(QStringLiteral("multiplier")).toDouble(1.0);
+            row.delta = object.value(QStringLiteral("delta")).toDouble(0.0);
+            out.push_back(std::move(row));
+        } else if (kind == QStringLiteral("filetype")) {
+            row.same = object.value(QStringLiteral("same")).toBool();
+            out.push_back(std::move(row));
+        } else {
+            row.looking_at = rust_string(object.value(QStringLiteral("looking_at")).toString(QStringLiteral("a")));
+            row.property = rust_string(object.value(QStringLiteral("property")).toString());
+            row.op = rust_string(object.value(QStringLiteral("operator")).toString(QStringLiteral(">")));
+            row.num_value = object.value(QStringLiteral("value")).toDouble(0.0);
+            row.text_value = rust_string(object.value(QStringLiteral("text")).toString());
+            out.push_back(std::move(row));
+        }
+    }
+}
+
+rust::Vec<RuleComparatorRow> flatten_selector(const QJsonArray &array, int depth) {
+    rust::Vec<RuleComparatorRow> out;
+    flatten_selector_into(array, depth, out);
+    return out;
+}
+
+}  // namespace
 
 void HydrusAutoResolutionRuleDialog::run_preview() {
     if (name->text().trimmed().isEmpty()) {
@@ -376,9 +414,24 @@ void HydrusAutoResolutionRuleDialog::run_preview() {
 
     preview_label->setText(QStringLiteral("testing..."));
 
-    QJsonObject payload = rule_json();
-    payload.insert(QStringLiteral("original_name"), original_name);
-    main->notify(UiAction::DuplicatesRulePreview, QString(), json_payload(payload));
+    const QByteArray name_bytes = name->text().trimmed().toUtf8();
+    const QByteArray operation_bytes = operation->currentData().toString().toUtf8();
+    const QByteArray search_query_bytes = search_query->text().trimmed().toUtf8();
+    const QByteArray search_mode_bytes = search_mode->currentData().toString().toUtf8();
+    const QByteArray action_bytes = action->currentData().toString().toUtf8();
+    app_duplicates_rule_preview(
+        *main,
+        rust::Str(name_bytes.constData(), name_bytes.size()),
+        paused->isChecked(),
+        rust::Str(operation_bytes.constData(), operation_bytes.size()),
+        static_cast<int64_t>(max_pending->value()),
+        rust::Str(search_query_bytes.constData(), search_query_bytes.size()),
+        rust::Str(search_mode_bytes.constData(), search_mode_bytes.size()),
+        static_cast<int64_t>(max_distance->value()),
+        flatten_selector(selector, 0),
+        rust::Str(action_bytes.constData(), action_bytes.size()),
+        delete_a->isChecked(),
+        delete_b->isChecked());
 }
 
 void HydrusAutoResolutionRuleDialog::set_preview(const DuplicatesRulePreviewState &preview) {
@@ -447,8 +500,25 @@ void HydrusAutoResolutionRuleDialog::save() {
         return;
     }
 
-    QJsonObject payload = rule_json();
-    payload.insert(QStringLiteral("original_name"), original_name);
-    main->notify(UiAction::DuplicatesRuleSave, QString(), json_payload(payload));
+    const QByteArray name_bytes = name->text().trimmed().toUtf8();
+    const QByteArray operation_bytes = operation->currentData().toString().toUtf8();
+    const QByteArray search_query_bytes = search_query->text().trimmed().toUtf8();
+    const QByteArray search_mode_bytes = search_mode->currentData().toString().toUtf8();
+    const QByteArray action_bytes = action->currentData().toString().toUtf8();
+    const QByteArray original_bytes = original_name.toUtf8();
+    app_duplicates_rule_save(
+        *main,
+        rust::Str(name_bytes.constData(), name_bytes.size()),
+        paused->isChecked(),
+        rust::Str(operation_bytes.constData(), operation_bytes.size()),
+        static_cast<int64_t>(max_pending->value()),
+        rust::Str(search_query_bytes.constData(), search_query_bytes.size()),
+        rust::Str(search_mode_bytes.constData(), search_mode_bytes.size()),
+        static_cast<int64_t>(max_distance->value()),
+        flatten_selector(selector, 0),
+        rust::Str(action_bytes.constData(), action_bytes.size()),
+        delete_a->isChecked(),
+        delete_b->isChecked(),
+        rust::Str(original_bytes.constData(), original_bytes.size()));
     close();
 }

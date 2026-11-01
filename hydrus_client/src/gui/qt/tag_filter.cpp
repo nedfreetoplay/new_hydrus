@@ -77,9 +77,7 @@ void HydrusMainWindow::show_tag_filter(const TagFilterDialogState &typed) {
     whitelist->setPlainText(whitelist_lines.join(QLatin1Char('\n')));
     blacklist->setPlainText(blacklist_lines.join(QLatin1Char('\n')));
 
-    auto collect_rules = [](QPlainTextEdit *edit, const QString &rule) {
-        QJsonArray rules;
-
+    auto collect_rules = [](QPlainTextEdit *edit, const QString &rule, QStringList &slices, QStringList &kinds) {
         for (const QString &line : edit->toPlainText().split(QLatin1Char('\n'))) {
             const QString trimmed = line.trimmed();
 
@@ -95,27 +93,17 @@ void HydrusMainWindow::show_tag_filter(const TagFilterDialogState &typed) {
                 slice = QStringLiteral(":");
             }
 
-            QJsonObject entry;
-            entry.insert(QStringLiteral("slice"), slice);
-            entry.insert(QStringLiteral("rule"), rule);
-            rules.append(entry);
+            slices.append(slice);
+            kinds.append(rule);
         }
-
-        return rules;
     };
 
-    auto build_payload = [&]() {
-        QJsonArray rules = collect_rules(whitelist, QStringLiteral("whitelist"));
-
-        for (const QJsonValue &entry : collect_rules(blacklist, QStringLiteral("blacklist"))) {
-            rules.append(entry);
-        }
-
-        QJsonObject payload;
-        payload.insert(QStringLiteral("service_key"), service_key);
-        payload.insert(QStringLiteral("rules"), rules);
-
-        return payload;
+    auto collect_all = [&]() {
+        QStringList slices;
+        QStringList kinds;
+        collect_rules(whitelist, QStringLiteral("whitelist"), slices, kinds);
+        collect_rules(blacklist, QStringLiteral("blacklist"), slices, kinds);
+        return std::make_pair(slices, kinds);
     };
 
     auto *test_row = new QHBoxLayout();
@@ -127,10 +115,14 @@ void HydrusMainWindow::show_tag_filter(const TagFilterDialogState &typed) {
     test_row->addWidget(test_button);
     layout->addLayout(test_row);
 
-    connect(test_button, &QPushButton::clicked, this, [this, test_input, build_payload]() {
-        QJsonObject payload = build_payload();
-        payload.insert(QStringLiteral("tag"), test_input->text().trimmed());
-        notify(UiAction::TagFilterTest, QString(), json_payload(payload));
+    connect(test_button, &QPushButton::clicked, this, [this, test_input, collect_all]() {
+        const auto [slices, kinds] = collect_all();
+        const QByteArray tag_bytes = test_input->text().trimmed().toUtf8();
+        app_tag_filter_test(
+            *this,
+            to_rust_vec(slices),
+            to_rust_vec(kinds),
+            rust::Str(tag_bytes.constData(), tag_bytes.size()));
     });
     connect(test_input, &QLineEdit::returnPressed, test_button, &QPushButton::click);
 
@@ -179,20 +171,21 @@ void HydrusMainWindow::show_tag_filter(const TagFilterDialogState &typed) {
             return;
         }
 
-        QJsonArray list;
+        QStringList cleaned;
 
         for (const QString &tag : tags) {
             if (!tag.trimmed().isEmpty()) {
-                list.append(tag.trimmed());
+                cleaned.append(tag.trimmed());
             }
         }
 
-        QJsonObject payload;
-        payload.insert(QStringLiteral("service_key"), service_key);
-        payload.insert(QStringLiteral("tags"), list);
-        payload.insert(QStringLiteral("reason"), purge_reason->text().trimmed());
-
-        notify(UiAction::PurgeTags, QString(), json_payload(payload));
+        const QByteArray service_bytes = service_key.toUtf8();
+        const QByteArray reason_bytes = purge_reason->text().trimmed().toUtf8();
+        app_purge_tags(
+            *this,
+            rust::Str(service_bytes.constData(), service_bytes.size()),
+            to_rust_vec(cleaned),
+            rust::Str(reason_bytes.constData(), reason_bytes.size()));
         purge_tags->clear();
         purge_button->setEnabled(false);
     });
@@ -201,7 +194,13 @@ void HydrusMainWindow::show_tag_filter(const TagFilterDialogState &typed) {
     layout->addWidget(buttons);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(buttons, &QDialogButtonBox::accepted, this, [&]() {
-        notify(UiAction::TagFilterSave, QString(), json_payload(build_payload()));
+        const auto [slices, kinds] = collect_all();
+        const QByteArray service_bytes = service_key.toUtf8();
+        app_tag_filter_save(
+            *this,
+            rust::Str(service_bytes.constData(), service_bytes.size()),
+            to_rust_vec(slices),
+            to_rust_vec(kinds));
         dialog.accept();
     });
 

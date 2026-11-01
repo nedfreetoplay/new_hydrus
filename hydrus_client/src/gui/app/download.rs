@@ -214,6 +214,75 @@ pub fn start(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiComman
     update_commands(state, page_id)
 }
 
+/// Field-presence bits for [`start_typed`]: C++ only sends the widgets its
+/// page kind owns; missing fields fall back to the stored page values, exactly
+/// like the omitted JSON keys before.
+pub const START_FIELD_INPUT: i64 = 0x01;
+pub const START_FIELD_URL: i64 = 0x02;
+pub const START_FIELD_QUERY: i64 = 0x04;
+pub const START_FIELD_SITE: i64 = 0x08;
+pub const START_FIELD_FORMULA: i64 = 0x10;
+pub const START_FIELD_SUBJECT: i64 = 0x20;
+pub const START_FIELD_PERIOD: i64 = 0x40;
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the start form as flat fields
+/// plus [`START_FIELD_*`] presence bits instead of a JSON payload.
+#[allow(clippy::too_many_arguments)]
+pub fn start_typed(
+    state: &mut AppState,
+    page_id: &str,
+    input: &str,
+    url: &str,
+    query: &str,
+    site: &str,
+    formula: &str,
+    subject: &str,
+    auto_watch: bool,
+    period: i64,
+    no_limit: bool,
+    file_limit: i64,
+    present: i64,
+) -> Vec<UiCommand> {
+    let mut value = json!({
+        "auto": auto_watch,
+        "no_limit": no_limit,
+        "file_limit": file_limit,
+    });
+    let map = value.as_object_mut().expect("start payload is an object");
+
+    if present & START_FIELD_INPUT != 0 {
+        map.insert("input".to_string(), Value::String(input.to_string()));
+    }
+
+    if present & START_FIELD_URL != 0 {
+        map.insert("url".to_string(), Value::String(url.to_string()));
+    }
+
+    if present & START_FIELD_QUERY != 0 {
+        map.insert("query".to_string(), Value::String(query.to_string()));
+    }
+
+    if present & START_FIELD_SITE != 0 {
+        map.insert("site".to_string(), Value::String(site.to_string()));
+    }
+
+    if present & START_FIELD_FORMULA != 0 {
+        map.insert("formula".to_string(), Value::String(formula.to_string()));
+    }
+
+    if present & START_FIELD_SUBJECT != 0 {
+        map.insert("subject".to_string(), Value::String(subject.to_string()));
+    }
+
+    if present & START_FIELD_PERIOD != 0 {
+        map.insert("period".to_string(), Value::Number(period.into()));
+    }
+
+    let payload = Value::Object(map.clone()).to_string();
+
+    start(state, page_id, &payload)
+}
+
 pub fn pause(state: &mut AppState, page_id: &str) -> Vec<UiCommand> {
     if let Some(page) = state.find_downloader_mut(page_id) {
         page.paused = !page.paused;
@@ -295,6 +364,17 @@ pub fn jobs_set(state: &mut AppState, page_id: &str, payload: &str) -> Vec<UiCom
         .and_then(Value::as_bool)
         .unwrap_or(false);
 
+    jobs_set_typed(state, page_id, urls, remove_missing)
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the job URL list directly
+/// instead of a JSON payload.
+pub fn jobs_set_typed(
+    state: &mut AppState,
+    page_id: &str,
+    urls: Vec<String>,
+    remove_missing: bool,
+) -> Vec<UiCommand> {
     let Some(page) = state.find_downloader_mut(page_id) else {
         return vec![];
     };
@@ -674,17 +754,40 @@ pub fn save_subscription_dialog(
         )];
     };
 
-    let original = value
-        .get("original")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let url = value
-        .get("url")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .trim()
-        .to_string();
+    save_subscription_dialog_typed(
+        state,
+        page_id,
+        value
+            .get("original")
+            .and_then(Value::as_str)
+            .unwrap_or_default(),
+        value.get("name").and_then(Value::as_str).unwrap_or_default(),
+        value.get("url").and_then(Value::as_str).unwrap_or_default(),
+        value.get("query").and_then(Value::as_str).unwrap_or_default(),
+        value.get("site").and_then(Value::as_str).unwrap_or_default(),
+        value.get("filter").and_then(Value::as_str).unwrap_or_default(),
+        value.get("period").and_then(Value::as_i64).unwrap_or(86_400),
+        value.get("paused").and_then(Value::as_bool).unwrap_or(false),
+    )
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the editor fields directly
+/// instead of a JSON payload.
+#[allow(clippy::too_many_arguments)]
+pub fn save_subscription_dialog_typed(
+    state: &mut AppState,
+    page_id: &str,
+    original: &str,
+    name: &str,
+    url: &str,
+    query: &str,
+    site: &str,
+    filter: &str,
+    period: i64,
+    paused: bool,
+) -> Vec<UiCommand> {
+    let original = original.to_string();
+    let url = url.trim().to_string();
 
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         return vec![UiCommand::NotifyMessage(
@@ -692,13 +795,13 @@ pub fn save_subscription_dialog(
         )];
     }
 
-    let name = value
-        .get("name")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| subscription_name_from_url(&url));
+    let name = name
+        .trim();
+    let name = if name.is_empty() {
+        subscription_name_from_url(&url)
+    } else {
+        name.to_string()
+    };
 
     if original != name
         && state
@@ -711,30 +814,10 @@ pub fn save_subscription_dialog(
         ))];
     }
 
-    let query = value
-        .get("query")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let site = value
-        .get("site")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let filter = value
-        .get("filter")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let period = value
-        .get("period")
-        .and_then(Value::as_i64)
-        .unwrap_or(86_400)
-        .max(60);
-    let paused = value
-        .get("paused")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
+    let query = query.to_string();
+    let site = site.to_string();
+    let filter = filter.to_string();
+    let period = period.max(60);
 
     if let Some(entry) = state
         .subscriptions
@@ -773,12 +856,32 @@ pub fn add_subscription(state: &mut AppState, page_id: &str, payload: &str) -> V
         )];
     };
 
-    let url = value
-        .get("url")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .trim()
-        .to_string();
+    add_subscription_typed(
+        state,
+        page_id,
+        value.get("name").and_then(Value::as_str).unwrap_or_default(),
+        value.get("url").and_then(Value::as_str).unwrap_or_default(),
+        value.get("query").and_then(Value::as_str).unwrap_or_default(),
+        value.get("site").and_then(Value::as_str).unwrap_or_default(),
+        value.get("filter").and_then(Value::as_str).unwrap_or_default(),
+        value.get("period").and_then(Value::as_i64).unwrap_or(-1),
+    )
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the add-subscription form
+/// directly instead of a JSON payload. A negative period keeps the configured
+/// `subscription_check_period` default.
+pub fn add_subscription_typed(
+    state: &mut AppState,
+    page_id: &str,
+    name: &str,
+    url: &str,
+    query: &str,
+    site: &str,
+    filter: &str,
+    period: i64,
+) -> Vec<UiCommand> {
+    let url = url.trim().to_string();
 
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         return vec![UiCommand::NotifyMessage(
@@ -786,29 +889,16 @@ pub fn add_subscription(state: &mut AppState, page_id: &str, payload: &str) -> V
         )];
     }
 
-    let name = value
-        .get("name")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
-        .map(str::to_string)
-        .unwrap_or_else(|| subscription_name_from_url(&url));
+    let name = name.trim();
+    let name = if name.is_empty() {
+        subscription_name_from_url(&url)
+    } else {
+        name.to_string()
+    };
 
-    let query = value
-        .get("query")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let filter = value
-        .get("filter")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let site = value
-        .get("site")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
+    let query = query.to_string();
+    let filter = filter.to_string();
+    let site = site.to_string();
     let default_period = state
         .controller
         .options()
@@ -818,11 +908,7 @@ pub fn add_subscription(state: &mut AppState, page_id: &str, payload: &str) -> V
     } else {
         86_400
     };
-    let period = value
-        .get("period")
-        .and_then(Value::as_i64)
-        .unwrap_or(default_period)
-        .max(60);
+    let period = if period < 0 { default_period } else { period }.max(60);
 
     let mut entry = SubscriptionEntry::new(name.clone(), url);
     entry.query = query;
@@ -1363,9 +1449,22 @@ pub fn save_subscription_import_options(state: &mut AppState, payload: &str) -> 
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string();
-    let Some(container) = value.get("container").cloned().and_then(|container| {
-        serde_json::from_value::<crate::importing::ImportOptionsContainer>(container).ok()
-    }) else {
+    let container = value.get("container").cloned().unwrap_or(Value::Null);
+
+    save_subscription_import_options_typed(state, &target, &container.to_string())
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the subscription name plus the
+/// container text directly instead of a JSON payload. The container stays a
+/// single `*_json`-style string: import options are an arbitrary nested dict
+/// (same R1 exception as `SubscriptionDialogRow.import_options_json`).
+pub fn save_subscription_import_options_typed(
+    state: &mut AppState,
+    target: &str,
+    container_json: &str,
+) -> Vec<UiCommand> {
+    let container: Value = serde_json::from_str(container_json).unwrap_or(Value::Null);
+    let Some(container) = serde_json::from_value::<crate::importing::ImportOptionsContainer>(container).ok() else {
         return vec![UiCommand::NotifyMessage(
             "could not read the importer options".to_string(),
         )];

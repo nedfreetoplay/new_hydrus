@@ -205,16 +205,18 @@ pub fn file_seed_action(state: &mut AppState, payload: &str) -> Vec<UiCommand> {
         )];
     };
 
-    let page_id = value
-        .get("page")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let action = value
-        .get("action")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    let urls = selected_urls(&value);
+    file_seed_action_typed(
+        state,
+        value.get("page").and_then(Value::as_str).unwrap_or_default(),
+        value.get("action").and_then(Value::as_str).unwrap_or_default(),
+        selected_urls(&value),
+    )
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the page, action and selected
+/// URLs directly instead of a JSON payload.
+pub fn file_seed_action_typed(state: &mut AppState, page: &str, action: &str, urls: Vec<String>) -> Vec<UiCommand> {
+    let page_id = page.to_string();
 
     let mut retried: Vec<String> = Vec::new();
     let message;
@@ -322,16 +324,23 @@ pub fn gallery_seed_action(state: &mut AppState, payload: &str) -> Vec<UiCommand
         )];
     };
 
-    let page_id = value
-        .get("page")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let action = value
-        .get("action")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    let urls = selected_urls(&value);
+    gallery_seed_action_typed(
+        state,
+        value.get("page").and_then(Value::as_str).unwrap_or_default(),
+        value.get("action").and_then(Value::as_str).unwrap_or_default(),
+        selected_urls(&value),
+    )
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the page, action and selected
+/// URLs directly instead of a JSON payload.
+pub fn gallery_seed_action_typed(
+    state: &mut AppState,
+    page: &str,
+    action: &str,
+    urls: Vec<String>,
+) -> Vec<UiCommand> {
+    let page_id = page.to_string();
 
     let mut retried: Vec<String> = Vec::new();
     let message;

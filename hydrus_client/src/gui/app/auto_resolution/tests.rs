@@ -597,3 +597,60 @@ fn flatten_comparators_keeps_group_depth() {
     assert_eq!(row.operation_label, "semi-automatic");
     assert_eq!(row.search_summary, "all potential duplicate pairs");
 }
+
+#[test]
+fn unflatten_comparators_round_trips_flat_rows() {
+    let rule = rule_with(
+        vec![
+            Comparator::OneFile {
+                looking_at: "a".to_string(),
+                property: "size".to_string(),
+                operator: ">".to_string(),
+                value: 100.0,
+                text: String::new(),
+            },
+            Comparator::Group {
+                mode: "any".to_string(),
+                comparators: vec![
+                    relative("size", ">"),
+                    Comparator::Filetype { same: true },
+                ],
+            },
+            Comparator::Filetype { same: false },
+        ],
+        "better",
+    );
+    let row = rule_row(&rule);
+    let rebuilt = unflatten_comparators(&row.selectors);
+
+    assert_eq!(rebuilt, rule.pair_selector);
+}
+
+#[test]
+fn rule_from_typed_trims_and_defaults() {
+    let rule = rule_from_typed(
+        "  spaced  ",
+        true,
+        "",
+        0,
+        "  system:everything  ",
+        "",
+        -5,
+        Vec::new(),
+        "",
+        true,
+        false,
+    );
+
+    assert_eq!(rule.name, "spaced");
+    assert!(rule.paused);
+    assert_eq!(rule.operation_mode, "semi-automatic");
+    assert_eq!(rule.max_pending_pairs, 1);
+    assert_eq!(rule.search_query, "system:everything");
+    assert_eq!(rule.search_mode, "both");
+    assert_eq!(rule.max_distance, 0);
+    assert!(rule.pair_selector.is_empty());
+    assert_eq!(rule.action, "better");
+    assert!(rule.delete_a);
+    assert!(!rule.delete_b);
+}

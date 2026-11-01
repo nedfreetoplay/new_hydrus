@@ -134,6 +134,58 @@ fn subscription_options_round_trip_and_render() {
 }
 
 #[test]
+fn typed_add_subscription_matches_the_json_path() {
+    let directory = std::env::temp_dir().join(format!(
+        "hydrus_subscription_typed_{}_{}",
+        std::process::id(),
+        rand::random::<u64>()
+    ));
+    let mut state = test_state(&directory);
+    state
+        .root
+        .add(PageNode::Subscriptions(SubscriptionsPage::new("s1")));
+
+    let commands = add_subscription_typed(
+        &mut state,
+        "s1",
+        "  typed  ",
+        "https://example.com/search?q={query}",
+        "blue eyes",
+        "",
+        "",
+        3600,
+    );
+
+    assert_eq!(state.subscriptions.len(), 1);
+    assert_eq!(state.subscriptions[0].name, "typed");
+    assert_eq!(state.subscriptions[0].query, "blue eyes");
+    assert_eq!(state.subscriptions[0].period, 3600);
+    assert!(commands
+        .iter()
+        .any(|command| matches!(command, UiCommand::UpdateSubscriptions(_))));
+
+    let before = state.subscriptions.len();
+    let commands = add_subscription_typed(
+        &mut state,
+        "s1",
+        "bad",
+        "not a url",
+        "",
+        "",
+        "",
+        3600,
+    );
+
+    assert_eq!(state.subscriptions.len(), before);
+    assert!(commands
+        .iter()
+        .any(|command| matches!(command, UiCommand::NotifyMessage(message) if message.contains("http"))));
+
+    drop(state);
+    let _ = std::fs::remove_dir_all(directory);
+}
+
+#[test]
 fn subscription_editor_updates_the_selected_entry() {
     let directory = std::env::temp_dir().join(format!(
         "hydrus_subscription_editor_{}_{}",

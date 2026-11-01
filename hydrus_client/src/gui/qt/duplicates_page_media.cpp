@@ -123,7 +123,11 @@ void HydrusDuplicatesPage::build_media_panel(
     connect(refresh_button, &QPushButton::clicked, this, [this]() { act(UiAction::DuplicatesRefresh); });
     connect(next_batch, &QPushButton::clicked, this, [this]() { act(UiAction::DuplicatesNextBatch); });
     connect(batch, &QSpinBox::valueChanged, this, [this](int value) {
-        main->notify(UiAction::DuplicatesBatchSize, id, QString::number(value));
+        const QByteArray id_bytes = id.toUtf8();
+        app_duplicates_batch_size(
+            *main,
+            rust::Str(id_bytes.constData(), id_bytes.size()),
+            static_cast<int64_t>(value));
     });
     connect(rules, &QPushButton::clicked, this, [this]() {
         main->notify(UiAction::DuplicatesRules);
@@ -185,18 +189,26 @@ void HydrusDuplicatesPage::notify_search_context() {
         search_location_2->setCurrentText(search_location_1->currentText());
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("query_1"), search_query_1->text());
-    payload.insert(QStringLiteral("location_1"), search_location_1->currentText());
-    payload.insert(QStringLiteral("query_2"), search_query_2->text());
-    payload.insert(QStringLiteral("location_2"), search_location_2->currentText());
-    payload.insert(QStringLiteral("dupe_search_type"), search_type);
-    payload.insert(QStringLiteral("pixel_dupes"), pixel_dupes->currentData().toString());
-    payload.insert(QStringLiteral("max_distance"), search_distance->value());
-    payload.insert(QStringLiteral("sort_type"), sort_type->currentData().toString());
-    payload.insert(QStringLiteral("sort_ascending"), sort_ascending->currentData().toBool());
-
-    main->notify(UiAction::DuplicatesSearchContext, id, json_payload(payload));
+    const QByteArray id_bytes = id.toUtf8();
+    const QByteArray query_1_bytes = search_query_1->text().toUtf8();
+    const QByteArray location_1_bytes = search_location_1->currentText().toUtf8();
+    const QByteArray query_2_bytes = search_query_2->text().toUtf8();
+    const QByteArray location_2_bytes = search_location_2->currentText().toUtf8();
+    const QByteArray search_type_bytes = search_type.toUtf8();
+    const QByteArray pixel_dupes_bytes = pixel_dupes->currentData().toString().toUtf8();
+    const QByteArray sort_type_bytes = sort_type->currentData().toString().toUtf8();
+    app_duplicates_search_context(
+        *main,
+        rust::Str(id_bytes.constData(), id_bytes.size()),
+        rust::Str(query_1_bytes.constData(), query_1_bytes.size()),
+        rust::Str(location_1_bytes.constData(), location_1_bytes.size()),
+        rust::Str(query_2_bytes.constData(), query_2_bytes.size()),
+        rust::Str(location_2_bytes.constData(), location_2_bytes.size()),
+        rust::Str(search_type_bytes.constData(), search_type_bytes.size()),
+        rust::Str(pixel_dupes_bytes.constData(), pixel_dupes_bytes.size()),
+        static_cast<int64_t>(search_distance->value()),
+        rust::Str(sort_type_bytes.constData(), sort_type_bytes.size()),
+        sort_ascending->currentData().toBool());
 }
 
 void HydrusDuplicatesPage::update_search_controls() {
@@ -315,10 +327,14 @@ void HydrusDuplicatesPage::show_group_actions(const QString &target, const QPoin
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("kind"), kind);
-    payload.insert(QStringLiteral("target"), target);
-    main->notify(UiAction::DuplicatesGroupAction, id, json_payload(payload));
+    const QByteArray id_bytes = id.toUtf8();
+    const QByteArray kind_bytes = kind.toUtf8();
+    const QByteArray target_bytes = target.toUtf8();
+    app_duplicates_group_action(
+        *main,
+        rust::Str(id_bytes.constData(), id_bytes.size()),
+        rust::Str(kind_bytes.constData(), kind_bytes.size()),
+        rust::Str(target_bytes.constData(), target_bytes.size()));
 }
 
 void HydrusDuplicatesPage::act(UiAction action) {

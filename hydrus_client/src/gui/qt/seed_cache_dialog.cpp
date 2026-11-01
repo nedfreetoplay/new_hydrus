@@ -232,19 +232,21 @@ void HydrusSeedCacheDialog::rebuild() {
 }
 
 void HydrusSeedCacheDialog::send_action(const QString &action) {
-    QJsonObject payload;
-    payload.insert(QStringLiteral("page"), page_id);
-    payload.insert(QStringLiteral("action"), action);
+    const QByteArray page_bytes = page_id.toUtf8();
+    const QByteArray action_bytes = action.toUtf8();
 
-    QJsonArray urls;
-    for (const QString &url : selected_urls()) {
-        urls.append(url);
+    if (gallery) {
+        app_gallery_seed_action(
+            *main,
+            rust::Str(page_bytes.constData(), page_bytes.size()),
+            rust::Str(action_bytes.constData(), action_bytes.size()),
+            to_rust_vec(selected_urls()));
+    } else {
+        app_file_seed_action(
+            *main,
+            rust::Str(page_bytes.constData(), page_bytes.size()),
+            rust::Str(action_bytes.constData(), action_bytes.size()),
+            to_rust_vec(selected_urls()));
     }
-    payload.insert(QStringLiteral("urls"), urls);
-
-    main->notify(gallery ? UiAction::GallerySeedLogAction
-                         : UiAction::FileSeedCacheAction,
-                 QString(),
-                 json_payload(payload));
 }
 

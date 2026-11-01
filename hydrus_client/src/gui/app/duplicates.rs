@@ -316,6 +316,15 @@ pub fn action(
 
     state.duplicate_review = review;
 
+    finish_action(state, page_id, action, queued)
+}
+
+fn finish_action(
+    state: &mut AppState,
+    page_id: &str,
+    action: ffi::UiAction,
+    queued: usize,
+) -> Vec<UiCommand> {
     if queued > 0 {
         let _ = auto_resolution::save_state_review(state);
     }
@@ -327,6 +336,127 @@ pub fn action(
     }
 
     commands
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the batch size as a number
+/// instead of a string payload.
+pub fn batch_size_typed(state: &mut AppState, page_id: &str, requested: i64) -> Vec<UiCommand> {
+    let controller = state.controller.clone();
+    let rules = state.auto_rules.clone();
+    let mut review = std::mem::take(&mut state.duplicate_review);
+    let Some(page) = state.find_duplicates_mut(page_id) else {
+        state.duplicate_review = review;
+
+        return vec![UiCommand::NotifyMessage(
+            "no duplicates page selected".to_string(),
+        )];
+    };
+
+    let size = requested.clamp(MIN_BATCH_SIZE, MAX_BATCH_SIZE);
+    let mut options = controller.options();
+    options.set_integer("duplicate_filter_max_batch_size", size);
+    controller.replace_options(options);
+    let _ = controller.save_options();
+
+    let queued = load_queue(&controller, page, &rules, &mut review).1;
+    page.status = format!("batch size {size}; {}", page.status);
+
+    state.duplicate_review = review;
+
+    finish_action(state, page_id, ffi::UiAction::DuplicatesBatchSize, queued)
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the search context as flat
+/// fields instead of a JSON payload.
+#[allow(clippy::too_many_arguments)]
+pub fn search_context_typed(
+    state: &mut AppState,
+    page_id: &str,
+    query_1: &str,
+    location_1: &str,
+    query_2: &str,
+    location_2: &str,
+    dupe_search_type: &str,
+    pixel_dupes: &str,
+    max_distance: i64,
+    sort_type: &str,
+    sort_ascending: bool,
+) -> Vec<UiCommand> {
+    let mut context = DuplicateSearchContext {
+        query_1: query_1.to_string(),
+        location_1: location_1.to_string(),
+        query_2: query_2.to_string(),
+        location_2: location_2.to_string(),
+        dupe_search_type: dupe_search_type.to_string(),
+        pixel_dupes: pixel_dupes.to_string(),
+        max_distance,
+        sort_type: sort_type.to_string(),
+        sort_ascending,
+        ..Default::default()
+    };
+    context.normalise();
+
+    let controller = state.controller.clone();
+    let rules = state.auto_rules.clone();
+    let mut review = std::mem::take(&mut state.duplicate_review);
+    let Some(page) = state.find_duplicates_mut(page_id) else {
+        state.duplicate_review = review;
+
+        return vec![UiCommand::NotifyMessage(
+            "no duplicates page selected".to_string(),
+        )];
+    };
+
+    page.search_context = context;
+    let queued = load_queue(&controller, page, &rules, &mut review).1;
+
+    state.duplicate_review = review;
+
+    finish_action(
+        state,
+        page_id,
+        ffi::UiAction::DuplicatesSearchContext,
+        queued,
+    )
+}
+
+/// Typed reverse seam (WS-15.2.4c): C++ passes the group action kind and
+/// target instead of a JSON payload.
+pub fn group_action_typed(state: &mut AppState, page_id: &str, kind: &str, target: &str) -> Vec<UiCommand> {
+    let controller = state.controller.clone();
+    let rules = state.auto_rules.clone();
+    let mut review = std::mem::take(&mut state.duplicate_review);
+    let Some(page) = state.find_duplicates_mut(page_id) else {
+        state.duplicate_review = review;
+
+        return vec![UiCommand::NotifyMessage(
+            "no duplicates page selected".to_string(),
+        )];
+    };
+    let Some(pair) = page.current().cloned() else {
+        state.duplicate_review = review;
+
+        return vec![UiCommand::NotifyMessage(
+            "no duplicate pair left".to_string(),
+        )];
+    };
+
+    let max_distance = page.search_context.max_distance;
+    match apply_group_action_typed(&controller, &pair, kind, target, max_distance) {
+        Ok(message) => {
+            let queued = load_queue(&controller, page, &rules, &mut review).1;
+            page.status = format!("{message}; {}", page.status);
+            state.duplicate_review = review;
+
+            finish_action(state, page_id, ffi::UiAction::DuplicatesGroupAction, queued)
+        }
+        Err(error) => {
+            page.status = format!("duplicate action failed: {error}");
+            state.duplicate_review = review;
+
+            finish_action(state, page_id, ffi::UiAction::DuplicatesGroupAction, 0)
+        }
+    }
 }
 
 fn load_queue(
@@ -869,16 +999,29 @@ fn apply_group_action(
     payload: &str,
     max_distance: i64,
 ) -> Result<String, String> {
-    let value: Value = serde_json::from_str(payload)
-        .map_err(|error| format!("invalid duplicate action: {error}"))?;
+    let value: Value = serde_json::from_str(payload).unwrap_or(Value::Null);
     let kind = value
         .get("kind")
         .and_then(Value::as_str)
-        .ok_or_else(|| "missing action".to_string())?;
+        .unwrap_or_default();
     let target = value
         .get("target")
         .and_then(Value::as_str)
         .unwrap_or("both");
+
+    apply_group_action_typed(controller, pair, kind, target, max_distance)
+}
+
+fn apply_group_action_typed(
+    controller: &Controller,
+    pair: &DuplicatePairView,
+    kind: &str,
+    target: &str,
+    max_distance: i64,
+) -> Result<String, String> {
+    if kind.is_empty() {
+        return Err("missing action".to_string());
+    }
 
     let hashes: Vec<&[u8]> = match target {
         "a" => vec![pair.a.as_slice()],

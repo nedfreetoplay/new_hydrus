@@ -2125,6 +2125,154 @@ pub(crate) mod ffi {
             context: &str,
             bandwidth_type: &str,
         );
+        /// Typed reverse seams (WS-15.2.4c): tags, duplicates, subscriptions.
+        fn app_tag_filter_test(
+            window: Pin<&mut HydrusMainWindow>,
+            slices: Vec<String>,
+            rules: Vec<String>,
+            tag: &str,
+        );
+        fn app_tag_filter_save(
+            window: Pin<&mut HydrusMainWindow>,
+            service_key: &str,
+            slices: Vec<String>,
+            rules: Vec<String>,
+        );
+        fn app_purge_tags(
+            window: Pin<&mut HydrusMainWindow>,
+            service_key: &str,
+            tags: Vec<String>,
+            reason: &str,
+        );
+        fn app_tag_relation_add(
+            window: Pin<&mut HydrusMainWindow>,
+            relation: &str,
+            service: &str,
+            first: &str,
+            second: &str,
+        );
+        fn app_tag_relation_remove(
+            window: Pin<&mut HydrusMainWindow>,
+            relation: &str,
+            service: &str,
+            first: &str,
+            second: &str,
+        );
+        fn app_duplicates_batch_size(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            value: i64,
+        );
+        fn app_duplicates_search_context(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            query_1: &str,
+            location_1: &str,
+            query_2: &str,
+            location_2: &str,
+            dupe_search_type: &str,
+            pixel_dupes: &str,
+            max_distance: i64,
+            sort_type: &str,
+            sort_ascending: bool,
+        );
+        fn app_duplicates_group_action(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            kind: &str,
+            target: &str,
+        );
+        fn app_subscription_add(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            name: &str,
+            url: &str,
+            query: &str,
+            site: &str,
+            filter: &str,
+            period: i64,
+        );
+        fn app_subscription_edit_save(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            original: &str,
+            name: &str,
+            url: &str,
+            query: &str,
+            site: &str,
+            filter: &str,
+            period: i64,
+            paused: bool,
+        );
+        /// `container_json` holds the arbitrary nested import options dict
+        /// (same R1 exception as `SubscriptionDialogRow.import_options_json`).
+        fn app_subscription_import_options_save(
+            window: Pin<&mut HydrusMainWindow>,
+            name: &str,
+            container_json: &str,
+        );
+        fn app_file_seed_action(
+            window: Pin<&mut HydrusMainWindow>,
+            page: &str,
+            action: &str,
+            urls: Vec<String>,
+        );
+        fn app_gallery_seed_action(
+            window: Pin<&mut HydrusMainWindow>,
+            page: &str,
+            action: &str,
+            urls: Vec<String>,
+        );
+        fn app_downloader_start(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            input: &str,
+            url: &str,
+            query: &str,
+            site: &str,
+            formula: &str,
+            subject: &str,
+            auto_watch: bool,
+            period: i64,
+            no_limit: bool,
+            file_limit: i64,
+            present: i64,
+        );
+        fn app_downloader_jobs_set(
+            window: Pin<&mut HydrusMainWindow>,
+            page_id: &str,
+            urls: Vec<String>,
+            remove_missing: bool,
+        );
+        fn app_duplicates_rule_save(
+            window: Pin<&mut HydrusMainWindow>,
+            name: &str,
+            paused: bool,
+            operation_mode: &str,
+            max_pending_pairs: i64,
+            search_query: &str,
+            search_mode: &str,
+            max_distance: i64,
+            selectors: Vec<RuleComparatorRow>,
+            action: &str,
+            delete_a: bool,
+            delete_b: bool,
+            original_name: &str,
+        );
+        fn app_duplicates_rule_preview(
+            window: Pin<&mut HydrusMainWindow>,
+            name: &str,
+            paused: bool,
+            operation_mode: &str,
+            max_pending_pairs: i64,
+            search_query: &str,
+            search_mode: &str,
+            max_distance: i64,
+            selectors: Vec<RuleComparatorRow>,
+            action: &str,
+            delete_a: bool,
+            delete_b: bool,
+        );
         fn hydrus_validate_export_phrase(phrase: &str) -> String;
         fn hydrus_static_dir() -> String;
     }
@@ -2420,6 +2568,229 @@ fn app_network_rule_remove(
 ) {
     crate::gui::app::handle_network_rule_remove(
         window.as_mut(), context_type, context, bandwidth_type,
+    );
+}
+
+/// Typed reverse seams (WS-15.2.4c): tags, duplicates, subscriptions.
+fn app_tag_filter_test(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    slices: Vec<String>,
+    rules: Vec<String>,
+    tag: &str,
+) {
+    crate::gui::app::handle_tag_filter_test(window.as_mut(), slices, rules, tag);
+}
+
+fn app_tag_filter_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    service_key: &str,
+    slices: Vec<String>,
+    rules: Vec<String>,
+) {
+    crate::gui::app::handle_tag_filter_save(window.as_mut(), service_key, slices, rules);
+}
+
+fn app_purge_tags(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    service_key: &str,
+    tags: Vec<String>,
+    reason: &str,
+) {
+    crate::gui::app::handle_purge_tags(window.as_mut(), service_key, tags, reason);
+}
+
+fn app_tag_relation_add(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    relation: &str,
+    service: &str,
+    first: &str,
+    second: &str,
+) {
+    crate::gui::app::handle_tag_relation_add(window.as_mut(), relation, service, first, second);
+}
+
+fn app_tag_relation_remove(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    relation: &str,
+    service: &str,
+    first: &str,
+    second: &str,
+) {
+    crate::gui::app::handle_tag_relation_remove(
+        window.as_mut(), relation, service, first, second,
+    );
+}
+
+fn app_duplicates_batch_size(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    value: i64,
+) {
+    crate::gui::app::handle_duplicates_batch_size(window.as_mut(), page_id, value);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn app_duplicates_search_context(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    query_1: &str,
+    location_1: &str,
+    query_2: &str,
+    location_2: &str,
+    dupe_search_type: &str,
+    pixel_dupes: &str,
+    max_distance: i64,
+    sort_type: &str,
+    sort_ascending: bool,
+) {
+    crate::gui::app::handle_duplicates_search_context(
+        window.as_mut(), page_id, query_1, location_1, query_2, location_2,
+        dupe_search_type, pixel_dupes, max_distance, sort_type, sort_ascending,
+    );
+}
+
+fn app_duplicates_group_action(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    kind: &str,
+    target: &str,
+) {
+    crate::gui::app::handle_duplicates_group_action(window.as_mut(), page_id, kind, target);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn app_subscription_add(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    name: &str,
+    url: &str,
+    query: &str,
+    site: &str,
+    filter: &str,
+    period: i64,
+) {
+    crate::gui::app::handle_subscription_add(
+        window.as_mut(), page_id, name, url, query, site, filter, period,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn app_subscription_edit_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    original: &str,
+    name: &str,
+    url: &str,
+    query: &str,
+    site: &str,
+    filter: &str,
+    period: i64,
+    paused: bool,
+) {
+    crate::gui::app::handle_subscription_edit_save(
+        window.as_mut(), page_id, original, name, url, query, site, filter, period, paused,
+    );
+}
+
+fn app_subscription_import_options_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    name: &str,
+    container_json: &str,
+) {
+    crate::gui::app::handle_subscription_import_options_save(
+        window.as_mut(), name, container_json,
+    );
+}
+
+fn app_file_seed_action(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page: &str,
+    action: &str,
+    urls: Vec<String>,
+) {
+    crate::gui::app::handle_file_seed_action(window.as_mut(), page, action, urls);
+}
+
+fn app_gallery_seed_action(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page: &str,
+    action: &str,
+    urls: Vec<String>,
+) {
+    crate::gui::app::handle_gallery_seed_action(window.as_mut(), page, action, urls);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn app_downloader_start(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    input: &str,
+    url: &str,
+    query: &str,
+    site: &str,
+    formula: &str,
+    subject: &str,
+    auto_watch: bool,
+    period: i64,
+    no_limit: bool,
+    file_limit: i64,
+    present: i64,
+) {
+    crate::gui::app::handle_downloader_start(
+        window.as_mut(), page_id, input, url, query, site, formula, subject, auto_watch,
+        period, no_limit, file_limit, present,
+    );
+}
+
+fn app_downloader_jobs_set(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    page_id: &str,
+    urls: Vec<String>,
+    remove_missing: bool,
+) {
+    crate::gui::app::handle_downloader_jobs_set(window.as_mut(), page_id, urls, remove_missing);
+}
+
+#[allow(clippy::too_many_arguments)]
+fn app_duplicates_rule_save(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    name: &str,
+    paused: bool,
+    operation_mode: &str,
+    max_pending_pairs: i64,
+    search_query: &str,
+    search_mode: &str,
+    max_distance: i64,
+    selectors: Vec<ffi::RuleComparatorRow>,
+    action: &str,
+    delete_a: bool,
+    delete_b: bool,
+    original_name: &str,
+) {
+    crate::gui::app::handle_duplicates_rule_save(
+        window.as_mut(), name, paused, operation_mode, max_pending_pairs, search_query,
+        search_mode, max_distance, selectors, action, delete_a, delete_b, original_name,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn app_duplicates_rule_preview(
+    mut window: Pin<&mut ffi::HydrusMainWindow>,
+    name: &str,
+    paused: bool,
+    operation_mode: &str,
+    max_pending_pairs: i64,
+    search_query: &str,
+    search_mode: &str,
+    max_distance: i64,
+    selectors: Vec<ffi::RuleComparatorRow>,
+    action: &str,
+    delete_a: bool,
+    delete_b: bool,
+) {
+    crate::gui::app::handle_duplicates_rule_preview(
+        window.as_mut(), name, paused, operation_mode, max_pending_pairs, search_query,
+        search_mode, max_distance, selectors, action, delete_a, delete_b,
     );
 }
 

@@ -138,15 +138,21 @@ void HydrusSubscriptionsPage::add_subscription() {
         return;
     }
 
-    QJsonObject payload;
-    payload.insert(QStringLiteral("name"), name->text());
-    payload.insert(QStringLiteral("url"), url->text());
-    payload.insert(QStringLiteral("query"), query->text());
-    payload.insert(QStringLiteral("site"), site->currentData().toString());
-    payload.insert(QStringLiteral("filter"), filter->text());
-    payload.insert(QStringLiteral("period"), period->value());
-
-    main->notify(UiAction::SubscriptionAdd, id, json_payload(payload));
+    const QByteArray id_bytes = id.toUtf8();
+    const QByteArray name_bytes = name->text().toUtf8();
+    const QByteArray url_bytes = url->text().toUtf8();
+    const QByteArray query_bytes = query->text().toUtf8();
+    const QByteArray site_bytes = site->currentData().toString().toUtf8();
+    const QByteArray filter_bytes = filter->text().toUtf8();
+    app_subscription_add(
+        *main,
+        rust::Str(id_bytes.constData(), id_bytes.size()),
+        rust::Str(name_bytes.constData(), name_bytes.size()),
+        rust::Str(url_bytes.constData(), url_bytes.size()),
+        rust::Str(query_bytes.constData(), query_bytes.size()),
+        rust::Str(site_bytes.constData(), site_bytes.size()),
+        rust::Str(filter_bytes.constData(), filter_bytes.size()),
+        static_cast<int64_t>(period->value()));
 }
 
 void HydrusSubscriptionsPage::update_state(const SubscriptionsPageState &state) {
@@ -263,19 +269,24 @@ void HydrusSubscriptionEditorDialog::set_state(const SubscriptionEditorState &st
 }
 
 void HydrusSubscriptionEditorDialog::save() {
-    QJsonObject payload;
-    payload.insert(QStringLiteral("original"), original);
-    payload.insert(QStringLiteral("name"), name->text().trimmed());
-    payload.insert(QStringLiteral("url"), url->text().trimmed());
-    payload.insert(QStringLiteral("query"), query->text());
-    payload.insert(QStringLiteral("site"), site->currentData().toString());
-    payload.insert(QStringLiteral("filter"), filter->text());
-    payload.insert(QStringLiteral("period"), period->value());
-    payload.insert(QStringLiteral("paused"), paused->isChecked());
-
-    main->notify(UiAction::SubscriptionEditSave,
-        page_id,
-        json_payload(payload));
+    const QByteArray page_bytes = page_id.toUtf8();
+    const QByteArray original_bytes = original.toUtf8();
+    const QByteArray name_bytes = name->text().trimmed().toUtf8();
+    const QByteArray url_bytes = url->text().trimmed().toUtf8();
+    const QByteArray query_bytes = query->text().toUtf8();
+    const QByteArray site_bytes = site->currentData().toString().toUtf8();
+    const QByteArray filter_bytes = filter->text().toUtf8();
+    app_subscription_edit_save(
+        *main,
+        rust::Str(page_bytes.constData(), page_bytes.size()),
+        rust::Str(original_bytes.constData(), original_bytes.size()),
+        rust::Str(name_bytes.constData(), name_bytes.size()),
+        rust::Str(url_bytes.constData(), url_bytes.size()),
+        rust::Str(query_bytes.constData(), query_bytes.size()),
+        rust::Str(site_bytes.constData(), site_bytes.size()),
+        rust::Str(filter_bytes.constData(), filter_bytes.size()),
+        static_cast<int64_t>(period->value()),
+        paused->isChecked());
 
     close();
 }

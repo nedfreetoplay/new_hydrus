@@ -336,6 +336,138 @@ void app_network_rule_remove(
     rust::Str context,
     rust::Str bandwidth_type) noexcept;
 
+// Typed reverse seams (WS-15.2.4c): tags, duplicates, subscriptions.
+void app_tag_filter_test(
+    HydrusMainWindow &window,
+    rust::Vec<rust::String> slices,
+    rust::Vec<rust::String> rules,
+    rust::Str tag) noexcept;
+void app_tag_filter_save(
+    HydrusMainWindow &window,
+    rust::Str service_key,
+    rust::Vec<rust::String> slices,
+    rust::Vec<rust::String> rules) noexcept;
+void app_purge_tags(
+    HydrusMainWindow &window,
+    rust::Str service_key,
+    rust::Vec<rust::String> tags,
+    rust::Str reason) noexcept;
+void app_tag_relation_add(
+    HydrusMainWindow &window,
+    rust::Str relation,
+    rust::Str service,
+    rust::Str first,
+    rust::Str second) noexcept;
+void app_tag_relation_remove(
+    HydrusMainWindow &window,
+    rust::Str relation,
+    rust::Str service,
+    rust::Str first,
+    rust::Str second) noexcept;
+void app_duplicates_batch_size(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    int64_t value) noexcept;
+void app_duplicates_search_context(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Str query_1,
+    rust::Str location_1,
+    rust::Str query_2,
+    rust::Str location_2,
+    rust::Str dupe_search_type,
+    rust::Str pixel_dupes,
+    int64_t max_distance,
+    rust::Str sort_type,
+    bool sort_ascending) noexcept;
+void app_duplicates_group_action(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Str kind,
+    rust::Str target) noexcept;
+void app_subscription_add(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Str name,
+    rust::Str url,
+    rust::Str query,
+    rust::Str site,
+    rust::Str filter,
+    int64_t period) noexcept;
+void app_subscription_edit_save(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Str original,
+    rust::Str name,
+    rust::Str url,
+    rust::Str query,
+    rust::Str site,
+    rust::Str filter,
+    int64_t period,
+    bool paused) noexcept;
+// `container_json` holds the arbitrary nested import options dict (same R1
+// exception as `SubscriptionDialogRow.import_options_json`).
+void app_subscription_import_options_save(
+    HydrusMainWindow &window,
+    rust::Str name,
+    rust::Str container_json) noexcept;
+void app_file_seed_action(
+    HydrusMainWindow &window,
+    rust::Str page,
+    rust::Str action,
+    rust::Vec<rust::String> urls) noexcept;
+void app_gallery_seed_action(
+    HydrusMainWindow &window,
+    rust::Str page,
+    rust::Str action,
+    rust::Vec<rust::String> urls) noexcept;
+void app_downloader_start(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Str input,
+    rust::Str url,
+    rust::Str query,
+    rust::Str site,
+    rust::Str formula,
+    rust::Str subject,
+    bool auto_watch,
+    int64_t period,
+    bool no_limit,
+    int64_t file_limit,
+    int64_t present) noexcept;
+void app_downloader_jobs_set(
+    HydrusMainWindow &window,
+    rust::Str page_id,
+    rust::Vec<rust::String> urls,
+    bool remove_missing) noexcept;
+void app_duplicates_rule_save(
+    HydrusMainWindow &window,
+    rust::Str name,
+    bool paused,
+    rust::Str operation_mode,
+    int64_t max_pending_pairs,
+    rust::Str search_query,
+    rust::Str search_mode,
+    int64_t max_distance,
+    rust::Vec<RuleComparatorRow> selectors,
+    rust::Str action,
+    bool delete_a,
+    bool delete_b,
+    rust::Str original_name) noexcept;
+void app_duplicates_rule_preview(
+    HydrusMainWindow &window,
+    rust::Str name,
+    bool paused,
+    rust::Str operation_mode,
+    int64_t max_pending_pairs,
+    rust::Str search_query,
+    rust::Str search_mode,
+    int64_t max_distance,
+    rust::Vec<RuleComparatorRow> selectors,
+    rust::Str action,
+    bool delete_a,
+    bool delete_b) noexcept;
+
 // Implemented in Rust: the Python VetoException text for an invalid export
 // filename phrase, or an empty string when the phrase parses.
 rust::String hydrus_validate_export_phrase(rust::Str phrase) noexcept;

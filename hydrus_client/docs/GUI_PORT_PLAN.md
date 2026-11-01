@@ -1198,7 +1198,7 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
 - [ ] 13.9 Charts (file history, statistics).
 - [x] 13.10 Полноценный About window.
 - [~] 13.11 Command palette/locator.
-- [~] 13.12 Application commands и настраиваемые shortcut sets.
+- [x] 13.12 Application commands и настраиваемые shortcut sets.
   Модель наборов + дефолтный набор + активный набор + конфликты/валидация/
   импорт-экспорт + хранение в опциях (`shortcuts`) + применение активного
   набора как `QShortcut` без перезапуска + диалог `file -> shortcuts ->
@@ -1207,12 +1207,28 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   выбор активного с немедленным применением, редактирование привязок
   (изменить/очистить через запятую-список, вето дубликатов с текстом Python),
   импорт/экспорт файла `{name, bindings}` через QFileDialog с понятными
-  ошибками, сохранение в опции сразу после изменения. Упрощение vs Python:
-  один набор главного окна (QKeySequence-строки) вместо мультиконтекстных
-  reserved/custom сетов ShortcutsPanel и без mouse-shortcut виджетов —
-  это остаётся за WS-13.13. Поэтому флаг `[~]`, а не `[x]`: раскладка диалога
-  и набор действий в нём совпадают с Python, но модель контекстов ещё нет.
-- [ ] 13.13 Mouse shortcuts и press/release/double-click/drag.
+  ошибками, сохранение в опции сразу после изменения. Мультиконтекстная модель
+  (WS-13.13): контексты `main_gui/media/thumbnails/media_viewer/
+  preview_media_window/media_viewer_media_window` с наследованием
+  `thumbnails/media_viewer -> media -> main_gui`; набор хранит keyboard-строки
+  и mouse-жесты (`mouse_sets` в той же группе опций), диалог переключает
+  контекст комбобоксом. Упрощение vs Python: keyboard-привязки пока одни на
+  набор (не per-context), mouse-виджеты — текстовые gesture-строки, а не
+  Python ShortcutControl. Раскладка диалога и набор действий совпадают с Python.
+- [~] 13.13 Mouse shortcuts и press/release/double-click/drag.
+  Сделано: жесты `press/release/double/drag` + модификаторы ctrl/alt/shift/meta
+  (`parse_mouse_gesture`, текст `<модификаторы+>кнопка тип`, кнопки
+  left/right/middle/back/forward/task/scroll up-down-left-right — как Python
+  `shortcut_mouse_string_lookup` + `shortcut_press_type_str_lookup`),
+  редактирование в manage shortcuts с валидацией и вето конфликтов текстом
+  Python, дефолты canvas (zoom/scroll/fullscreen/prev-next) и сетки
+  (select/range/toggle/open/context menu) как в Python, canvas и thumbnail grid
+  резолвят жест через Rust (`hydrus_mouse_gesture_action`) по активному набору
+  и цепочке контекстов. Остаток: release/drag парсятся и хранятся, но canvas
+  не различает их поведением (pan — всегда ScrollHandDrag); `previous/next
+  file` резолвятся, но навигацию вьюера не вызывают; `open_new_page` сетки
+  шлёт DuplicatePage; keyboard-привязки не разложены по контекстам; smoke
+  вручную не проводился (нет GUI-сессии).
 - [ ] 13.14 Drag & drop страниц/вкладок/файлов между окнами.
 - [ ] 13.15 Colours/style/theming как в Hydrus.
 - [ ] 13.16 Полные меню: sessions, petitions, pending, services admin,

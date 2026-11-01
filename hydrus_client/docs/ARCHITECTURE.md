@@ -103,6 +103,25 @@ mouse-shortcut виджеты — за WS-13.13.
 `shortcut_action_for()`/`shortcut_fire()`, пункт меню в
 `render::menus` при необходимости.
 
+### Mouse shortcuts и контексты (WS-13.13)
+
+Контексты (`shortcut_names_sorted` в Python, у нас подмножество):
+`main_gui`, `media`, `thumbnails`, `media_viewer`, `preview_media_window`,
+`media_viewer_media_window`. Наследование: `thumbnails`/`media_viewer` →
+`media` → `main_gui`. Один именованный набор хранит keyboard-привязки и
+mouse-жесты; mouse-строки живут в той же группе опций `shortcuts` под ключом
+`mouse_sets` (`{set, context, action, gestures}` — фиксированная схема, без
+R1-исключения). Текстовый формат жеста: `[ctrl+alt+shift+meta+]кнопка
+press|release|double|drag` (кнопки `left/right/middle/back/forward/task/
+scroll up/down/left/right`). Разбор/нормализация/валидация/конфликты/резолв
+(`resolve` идёт по контексту вверх) — чистые функции в `shortcut_sets.rs` с
+unit-тестами. Qt только доставляет событие: canvas (`media_viewer_media_window`)
+и сетка (`thumbnails`) строят текст жеста из `QMouseEvent`/`QWheelEvent` и
+спрашивают `hydrus_mouse_gesture_action(context, gesture)`; диалог показывает
+mouse-таблицу выбранного контекста и редактирует её теми же save/clear с вето
+конфликтов. Обратные швы — типизированные `app_shortcut_mouse_save`,
+`app_shortcut_context_open`, `hydrus_mouse_gesture_action` (R1).
+
 Граница cxx — один модуль `#[cxx::bridge] mod ffi` в `gui/qt/api.rs` с одним
 `include!("bridge.hpp")`: агрегатор подтягивает все заголовки, поэтому
 разделять мост на `ffi_pages`/`ffi_dialogs` не понадобилось. Rust-шимы

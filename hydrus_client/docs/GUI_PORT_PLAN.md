@@ -655,8 +655,15 @@ WS-15.2 закрыт: `parse_object(` и `json_payload(` в `gui/qt` остал�
     `gui/qt/avail.hpp`, `bridge_api.hpp` ужата 620→599); C++-дубли условий
     удалены, новое поле шва `LocalImportReviewDialogState.good_count`
     (продюсер `local_import.rs` через `local_import_can_import`).
-  - [ ] 15.3.2c Метрики раскладки (таблица № 5, 7, 19–24, 38: ширины колонок
+  - [x] 15.3.2c Метрики раскладки (таблица № 5, 7, 19–24, 27, 38: ширины колонок
     gallery/watcher/export/import/review, кламп лимита, gauge-проценты).
+    Закрыт: новый `gui/app/layout_metrics.rs` (10 чистых функций + 6 тестов,
+    всего 772 unit); `render::progress_percent` делегирует
+    `layout_metrics::files_progress_percent` (один источник истины); 10 тонких
+    геттеров `hydrus_metric_*` в `api.rs` (объявления — `avail.hpp`);
+    C++-литералы ширин/клампов удалены. `bridge_api.hpp` 627→449 строк:
+    блок show/update-объявлений и forward-структур вынесен в новый
+    `gui/qt/bridge_decls.hpp` (186 строк), семантика не менялась.
   - [ ] 15.3.2d Сортировка/группировка и сводные ячейки (таблица № 11, 36:
     числа компараторов, ячейки files/checking; плюс сортировка seed cache и
     файловых списков по мере переноса).

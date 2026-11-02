@@ -162,6 +162,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::NotificationsDialog(state) => {
             ffi::hydrus_show_notifications(window.as_mut(), &state);
         }
+        UiCommand::ExceptionReport(state) => {
+            ffi::hydrus_show_exception(window.as_mut(), &state);
+        }
         UiCommand::ViewingStatsDialog(state) => {
             ffi::hydrus_show_viewing_stats(window.as_mut(), &state);
         }

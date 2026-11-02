@@ -1452,6 +1452,20 @@ pub(crate) mod ffi {
         entries: Vec<NotificationRow>,
     }
 
+    /// Exception report dialog contents (WS-13.8). All strings are final:
+    /// `title` is the dialog caption, `display_text` the (possibly
+    /// truncated) body, `traceback_text` the full trace for the toggle, and
+    /// `clipboard_text` the `v{ver}, {platform}, {build}` header plus body
+    /// that `copy traceback information` puts on the clipboard. C++ only
+    /// assigns them and reuses one dialog instance across repeated errors.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct ExceptionReportState {
+        title: String,
+        display_text: String,
+        traceback_text: String,
+        clipboard_text: String,
+    }
+
     /// One export-review file row (WS-15.2.4b). `tags_text` is the joined
     /// `", "` list, `relative` the destination trimmed of the folder root,
     /// `note` the ready/source-missing/unsafe/will-be-updated verdict and
@@ -2007,6 +2021,7 @@ pub(crate) mod ffi {
             window: Pin<&mut HydrusMainWindow>,
             state: &NotificationsDialogState,
         );
+        fn hydrus_show_exception(window: Pin<&mut HydrusMainWindow>, state: &ExceptionReportState);
         fn hydrus_show_viewing_stats(window: Pin<&mut HydrusMainWindow>, state: &ViewingStats);
         fn hydrus_show_about(window: Pin<&mut HydrusMainWindow>, state: &AboutInfo);
         fn hydrus_export_downloader(window: Pin<&mut HydrusMainWindow>, page_id: &str);

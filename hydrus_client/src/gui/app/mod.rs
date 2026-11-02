@@ -27,6 +27,7 @@ pub mod commands;
 pub mod download;
 pub mod downloader_export;
 pub mod duplicates;
+pub mod exception_report;
 pub mod export;
 pub mod favourites;
 pub mod file_locations;
@@ -2310,6 +2311,12 @@ pub fn handle_tick(mut window: Pin<&mut ffi::HydrusMainWindow>) {
     }
 
     let commands = with_state_mut(maintenance_tick);
+
+    for command in commands {
+        panels::execute(window.as_mut(), command);
+    }
+
+    let commands = with_state_mut(exception_report::drain_pending_commands);
 
     for command in commands {
         panels::execute(window.as_mut(), command);

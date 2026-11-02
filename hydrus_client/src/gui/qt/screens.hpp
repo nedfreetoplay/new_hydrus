@@ -30,6 +30,7 @@
 
 #include "timestamps_dialog.hpp"
 #include "notifications_dialog.hpp"
+#include "exception_dialog.hpp"
 #include "page_chooser.hpp"
 #include "local_import_review.hpp"
 #include "local_import_tagging.hpp"

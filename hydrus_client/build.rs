@@ -69,6 +69,7 @@ fn main() {
                 "src/gui/qt/manage_tags_dialog.cpp",
                 "src/gui/qt/timestamps_dialog.cpp",
                 "src/gui/qt/notifications_dialog.cpp",
+                "src/gui/qt/exception_dialog.cpp",
                 "src/gui/qt/page_chooser.cpp",
                 "src/gui/qt/local_import_review.cpp",
                 "src/gui/qt/local_import_tagging.cpp",

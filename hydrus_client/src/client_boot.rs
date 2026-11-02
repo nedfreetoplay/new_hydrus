@@ -30,6 +30,11 @@ pub fn boot() -> HydrusResult<()> {
     let logger = HydrusLogger::new(db_dir, "client")?;
     let _ = LOGGER.set(logger);
 
+    // WS-13.8: uncaught Rust panics are logged to the client log and queued
+    // for the exception dialog instead of killing the process silently
+    // (Python: CatchExceptionClient / ShowExceptionClient).
+    crate::gui::app::exception_report::install_panic_hook();
+
     let _ = hydrus_core::hydrus_temp::initialise_hydrus_temp_dir();
     let _ = ctrlc::set_handler(crate::gui::request_quit);
 

@@ -584,6 +584,18 @@ variable-height masonry (QListWidget с неоднородными size hint), �
 текст) с кнопкой очистки; лог ограничен 200 записями и живёт в `AppState`.
 Лимит истории читается из `popup_message_max_messages`, а запись статистики
 просмотров отключается опцией `file_viewing_statistics_active`.
+Неперехваченные ошибки Rust (`std::panic::set_hook` в `client_boot::boot`,
+Python: `CatchExceptionClient`/`ShowExceptionClient`) пишутся в клиентский лог
+(`client - YYYY-MM.log`, тот же формат `DebugPrint`, что
+`HydrusData.PrintExceptionTuple`) и складываются в очередь
+`gui/app/exception_report.rs`; тик Qt (`handle_tick`) превращает их в
+типизированный `UiCommand::ExceptionReport`, а `exception_dialog.cpp`
+показывает немодальный синглтон-диалог (`hydrus exception`): текст, кнопка
+`show/hide traceback`, `copy traceback information` (формат
+`v{ver}, {platform}, frozen|source` + `ToString`, как `CopyTB`) и `Close`;
+повторная ошибка обновляет то же окно. Одноразовый failsafe paint-событий —
+`handle_paint_event_exception` (текст дословно из
+`ClientGUIExceptionHandling`).
 Help → about собирает `render::about` (SOFTWARE_VERSION, NETWORK_VERSION,
 CLIENT_API_VERSION, db version, SQLite/Qt/Rust, пути и счётчики сервисов) и
 показывает вкладки overview/license/credits с кнопкой открытия сайта.

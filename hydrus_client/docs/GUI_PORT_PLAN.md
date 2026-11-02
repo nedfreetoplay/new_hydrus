@@ -1194,7 +1194,15 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
 - [x] 13.5 Popup message manager и job status queue.
 - [x] 13.6 System tray icon и меню.
 - [x] 13.7 Splash screen UI.
-- [ ] 13.8 Exception handling window.
+- [x] 13.8 Exception handling window: глобальный panic-hook пишет отчёт в
+  client-лог и ставит в очередь; тик Qt показывает немодальный
+  синглтон-диалог `hydrus exception` (текст, show/hide traceback,
+  `copy traceback information`, Close; повтор обновляет то же окно).
+  Форматирование и тексты — дословно из Python (`JobStatus.ToString`,
+  `CopyTB`, `_ProcessText` с `TEXT_CUTOFF=1024`, `HandlePaintEventException`);
+  логика в `gui/app/exception_report.rs` с unit-тестами. Проверено вживую:
+  окно, toggle traceback, копирование в буфер (`v689, win32, frozen…`),
+  процесс жив, отчёт в `client - YYYY-MM.log`.
 - [ ] 13.9 Charts (file history, statistics).
 - [x] 13.10 Полноценный About window.
 - [~] 13.11 Command palette/locator.

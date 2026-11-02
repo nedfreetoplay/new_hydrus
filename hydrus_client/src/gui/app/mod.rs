@@ -7,10 +7,15 @@ use std::sync::Arc;
 
 use hydrus_core::hydrus_constants::{ContentStatus, TimestampType, dirs};
 use hydrus_core::hydrus_time;
+use hydrus_core::hydrus_paths;
 use serde_json::Value;
 
+use crate::client_paths;
 use crate::controller::Controller;
-use crate::db::{files_storage, files_timestamps, files_viewing_stats, mappings, master_tags};
+use crate::db::{
+    files_metadata, files_storage, files_timestamps, files_viewing_stats, mappings, master_tags,
+    similar_files,
+};
 use crate::gui::qt::api::ffi;
 use crate::gui::qt::panels;
 
@@ -371,6 +376,11 @@ impl ffi::UiAction {
         ffi::UiAction::CloseOtherPages => "close_other_pages",
         ffi::UiAction::ClosePage => "close_page",
         ffi::UiAction::CommandPalette => "command_palette",
+        ffi::UiAction::CopyFile => "copy_file",
+        ffi::UiAction::CopyFileHash => "copy_file_hash",
+        ffi::UiAction::CopyFileId => "copy_file_id",
+        ffi::UiAction::CopyFilePath => "copy_file_path",
+        ffi::UiAction::CopyKnownUrl => "copy_known_url",
         ffi::UiAction::CopyTags => "copy_tags",
         ffi::UiAction::CreatePage => "create_page",
         ffi::UiAction::Css => "css",
@@ -393,6 +403,7 @@ impl ffi::UiAction {
         ffi::UiAction::DeleteAllContent => "delete_all_content",
         ffi::UiAction::DeleteBoth => "delete_both",
         ffi::UiAction::DeleteFiles => "delete_files",
+        ffi::UiAction::DeleteFilesFromService => "delete_files_from_service",
         ffi::UiAction::DeleteHashes => "delete_hashes",
         ffi::UiAction::Desired => "desired",
         ffi::UiAction::DifferentSearches => "different_searches",
@@ -615,7 +626,11 @@ impl ffi::UiAction {
         ffi::UiAction::Ogg => "ogg",
         ffi::UiAction::Older => "older",
         ffi::UiAction::OpenDbDir => "open_db_dir",
+        ffi::UiAction::OpenFileInFileBrowser => "open_file_in_file_browser",
+        ffi::UiAction::OpenFileInNativeProperties => "open_file_in_native_properties",
+        ffi::UiAction::OpenFileInWebBrowser => "open_file_in_web_browser",
         ffi::UiAction::OpenInstallDir => "open_install_dir",
+        ffi::UiAction::OpenKnownUrl => "open_known_url",
         ffi::UiAction::OpenSelectionInNewPage => "open_selection_in_new_page",
         ffi::UiAction::OpenViewer => "open_viewer",
         ffi::UiAction::Options => "options",
@@ -749,6 +764,7 @@ impl ffi::UiAction {
         ffi::UiAction::TwoWayMerge => "two_way_merge",
         ffi::UiAction::Unban => "unban",
         ffi::UiAction::UnclosePageAt => "unclose_page_at",
+        ffi::UiAction::UndeleteFiles => "undelete_files",
         ffi::UiAction::Undo => "undo",
         ffi::UiAction::UndoPredAdd => "undo_pred_add",
         ffi::UiAction::UndoPredRemove => "undo_pred_remove",
@@ -839,6 +855,11 @@ pub(crate) fn action_from_str(action: &str) -> ffi::UiAction {
             "close_other_pages" => ffi::UiAction::CloseOtherPages,
             "close_page" => ffi::UiAction::ClosePage,
             "command_palette" => ffi::UiAction::CommandPalette,
+            "copy_file" => ffi::UiAction::CopyFile,
+            "copy_file_hash" => ffi::UiAction::CopyFileHash,
+            "copy_file_id" => ffi::UiAction::CopyFileId,
+            "copy_file_path" => ffi::UiAction::CopyFilePath,
+            "copy_known_url" => ffi::UiAction::CopyKnownUrl,
             "copy_tags" => ffi::UiAction::CopyTags,
             "create_page" => ffi::UiAction::CreatePage,
             "css" => ffi::UiAction::Css,
@@ -861,6 +882,7 @@ pub(crate) fn action_from_str(action: &str) -> ffi::UiAction {
             "delete_all_content" => ffi::UiAction::DeleteAllContent,
             "delete_both" => ffi::UiAction::DeleteBoth,
             "delete_files" => ffi::UiAction::DeleteFiles,
+            "delete_files_from_service" => ffi::UiAction::DeleteFilesFromService,
             "delete_hashes" => ffi::UiAction::DeleteHashes,
             "desired" => ffi::UiAction::Desired,
             "different_searches" => ffi::UiAction::DifferentSearches,
@@ -1083,7 +1105,11 @@ pub(crate) fn action_from_str(action: &str) -> ffi::UiAction {
             "ogg" => ffi::UiAction::Ogg,
             "older" => ffi::UiAction::Older,
             "open_db_dir" => ffi::UiAction::OpenDbDir,
+            "open_file_in_file_browser" => ffi::UiAction::OpenFileInFileBrowser,
+            "open_file_in_native_properties" => ffi::UiAction::OpenFileInNativeProperties,
+            "open_file_in_web_browser" => ffi::UiAction::OpenFileInWebBrowser,
             "open_install_dir" => ffi::UiAction::OpenInstallDir,
+            "open_known_url" => ffi::UiAction::OpenKnownUrl,
             "open_selection_in_new_page" => ffi::UiAction::OpenSelectionInNewPage,
             "open_viewer" => ffi::UiAction::OpenViewer,
             "options" => ffi::UiAction::Options,
@@ -1217,6 +1243,7 @@ pub(crate) fn action_from_str(action: &str) -> ffi::UiAction {
             "two_way_merge" => ffi::UiAction::TwoWayMerge,
             "unban" => ffi::UiAction::Unban,
             "unclose_page_at" => ffi::UiAction::UnclosePageAt,
+            "undelete_files" => ffi::UiAction::UndeleteFiles,
             "undo" => ffi::UiAction::Undo,
             "undo_pred_add" => ffi::UiAction::UndoPredAdd,
             "undo_pred_remove" => ffi::UiAction::UndoPredRemove,
@@ -1570,9 +1597,15 @@ pub fn viewer_menu_for(viewer: &str) -> ffi::MenuBar {
         let inbox = query::hash_id_for(&controller, &context.hash)
             .and_then(|hash_id| files_storage::is_inbox(controller.db().db(), hash_id).ok())
             .unwrap_or(true);
-        let info_title = query::file_info_for(&controller, &context.hash)
+        let hash_id = query::hash_id_for(&controller, &context.hash);
+        let info = query::file_info_for(&controller, &context.hash);
+        let info_title = info
+            .as_ref()
             .map(|info| format!("{}, {}", info.mime.as_str(), render::human_size(info.size)))
             .unwrap_or_else(|| "file".to_string());
+        let local_path = query::file_path(&controller, &context.hash);
+        let options = controller.options();
+
         viewer_menu::viewer_menu(&viewer_menu::ViewerMenuFacts {
             has_media: true,
             inbox,
@@ -1581,6 +1614,31 @@ pub fn viewer_menu_for(viewer: &str) -> ffi::MenuBar {
             info_title,
             page_id: context.page_id.clone(),
             hash_hex: query::hex(&context.hash),
+            hash_id,
+            blurhash: hash_id.and_then(|hash_id| {
+                files_metadata::get_blurhash(controller.db().db(), hash_id).ok().flatten()
+            }),
+            pixel_hash_hex: hash_id
+                .and_then(|hash_id| {
+                    similar_files::get_pixel_hash(controller.db().db(), hash_id).ok().flatten()
+                })
+                .map(|pixel_hash| query::hex(&pixel_hash)),
+            urls: query::urls_for(&controller, &context.hash),
+            local_file_services: query::local_file_services_for(&controller, &context.hash),
+            is_trashed: query::file_in_trash(&controller, &context.hash),
+            can_post_ratings: query::can_post_ratings(&controller),
+            is_local: local_path.is_some(),
+            has_static_image: info.as_ref().is_some_and(|info| {
+                hydrus_core::hydrus_constants::IMAGES.contains(&info.mime)
+            }),
+            image_width: info.as_ref().and_then(|info| info.width),
+            image_height: info.as_ref().and_then(|info| info.height),
+            mime_has_thumbnails: info.as_ref().is_some_and(|info| {
+                hydrus_core::hydrus_constants::mimes_with_thumbnails().contains(&info.mime)
+            }),
+            advanced_mode: options.get_boolean("advanced_mode"),
+            global_mute: options.get_boolean("global_audio_mute"),
+            viewer_mute: options.get_boolean("media_viewer_audio_mute"),
         })
     })
 }
@@ -3139,6 +3197,26 @@ impl AppState {
             ffi::UiAction::ArchiveActive => self.set_inbox_active(false),
             ffi::UiAction::InboxActive => self.set_inbox_active(true),
             ffi::UiAction::DeleteFiles => self.delete_files(target, payload),
+            ffi::UiAction::DeleteFilesFromService => {
+                self.delete_files_from_service(target, payload)
+            }
+            ffi::UiAction::UndeleteFiles => self.undelete_files(payload),
+            ffi::UiAction::CopyFileHash => self.copy_file_hash(target, payload),
+            ffi::UiAction::CopyFilePath => self.copy_file_path(payload),
+            ffi::UiAction::CopyFileId => self.copy_file_id(payload),
+            ffi::UiAction::CopyKnownUrl | ffi::UiAction::OpenKnownUrl => {
+                let url = payload.trim().to_string();
+                if action == ffi::UiAction::CopyKnownUrl {
+                    vec![UiCommand::SetClipboard(url)]
+                } else {
+                    vec![UiCommand::OpenUrl(url)]
+                }
+            }
+            ffi::UiAction::OpenFileInWebBrowser => self.open_file_in_web_browser(payload),
+            ffi::UiAction::OpenFileInFileBrowser => self.open_file_in_file_browser(payload),
+            ffi::UiAction::OpenFileInNativeProperties => {
+                self.open_file_in_native_properties(payload)
+            }
             ffi::UiAction::ImportFiles | ffi::UiAction::ReviewLocalImports => local_import::open(self),
             ffi::UiAction::LocalImportOpenPaths => local_import::open_paths(self, payload),
             ffi::UiAction::LocalImportAddPaths => local_import::add_paths(self, payload),
@@ -4692,6 +4770,203 @@ impl AppState {
         self.message = "file moved to trash".to_string();
         let _ = page_id;
         self.refresh_commands()
+    }
+
+    /// WS-13.13: `delete from <service>` / `delete` submenu items from
+    /// `CanvasPanel.ShowMenuFromSignal`.
+    fn delete_files_from_service(
+        &mut self,
+        service_name: &str,
+        hash_hex: &str,
+    ) -> Vec<UiCommand> {
+        let Some(hash) = query::unhex(hash_hex) else {
+            return vec![];
+        };
+
+        let Some(hash_id) = query::hash_id_for(&self.controller, &hash) else {
+            return vec![];
+        };
+
+        let services = self.controller.services();
+        let Some(service) = services.get_service_key_from_name(service_name) else {
+            return vec![UiCommand::NotifyMessage(format!(
+                "unknown service '{service_name}'"
+            ))];
+        };
+        let service_id = services
+            .get_service(service)
+            .map(|service| service.service_id);
+
+        let db = self.controller.db().db();
+
+        if let Some(service_id) = service_id {
+            let _ =
+                files_storage::remove_files(db, service_id, ContentStatus::Current, &[hash_id]);
+        }
+
+        if let Some(trash) = query::trash_service_id(&self.controller) {
+            let _ = files_storage::add_files(
+                db,
+                trash,
+                ContentStatus::Current,
+                &[hash_id],
+                Some(hydrus_time::get_now()),
+            );
+        }
+
+        let _ = files_storage::set_inbox(db, &[hash_id], false);
+
+        self.message = format!("file deleted from {service_name}");
+        self.refresh_commands()
+    }
+
+    /// WS-13.13: the trashed-file `undelete` item (Python takes the file out
+    /// of the trash and returns it to its original file service; the port
+    /// keeps one local file domain, so it goes back to it).
+    fn undelete_files(&mut self, hash_hex: &str) -> Vec<UiCommand> {
+        let Some(hash) = query::unhex(hash_hex) else {
+            return vec![];
+        };
+
+        let Some(hash_id) = query::hash_id_for(&self.controller, &hash) else {
+            return vec![];
+        };
+
+        let db = self.controller.db().db();
+        let my_files = query::local_file_service_id(&self.controller, "my files");
+
+        if let Some(trash) = query::trash_service_id(&self.controller) {
+            let _ = files_storage::remove_files(db, trash, ContentStatus::Current, &[hash_id]);
+        }
+
+        if let Some(service) = my_files {
+            let _ = files_storage::add_files(
+                db,
+                service,
+                ContentStatus::Current,
+                &[hash_id],
+                Some(hydrus_time::get_now()),
+            );
+        }
+
+        self.message = "file undeleted".to_string();
+        self.refresh_commands()
+    }
+
+    /// WS-13.13: `share` -> `copy hash` items (Python
+    /// `SIMPLE_COPY_FILE_HASHES`: sha256/md5/sha1/sha512/blurhash/pixel hash).
+    fn copy_file_hash(&mut self, algo: &str, hash_hex: &str) -> Vec<UiCommand> {
+        let hash = query::unhex(hash_hex);
+
+        match (algo, hash) {
+            ("sha256", Some(hash)) => vec![UiCommand::SetClipboard(query::hex(&hash))],
+            ("blurhash", Some(hash)) => {
+                let Some(hash_id) = query::hash_id_for(&self.controller, &hash) else {
+                    return vec![UiCommand::NotifyMessage("file not found".to_string())];
+                };
+
+                match files_metadata::get_blurhash(self.controller.db().db(), hash_id) {
+                    Ok(Some(blurhash)) => vec![UiCommand::SetClipboard(blurhash)],
+                    _ => vec![UiCommand::NotifyMessage("this file has no blurhash".to_string())],
+                }
+            }
+            ("pixel_hash", Some(hash)) => {
+                let Some(hash_id) = query::hash_id_for(&self.controller, &hash) else {
+                    return vec![UiCommand::NotifyMessage("file not found".to_string())];
+                };
+
+                match similar_files::get_pixel_hash(self.controller.db().db(), hash_id) {
+                    Ok(Some(pixel_hash)) => vec![UiCommand::SetClipboard(query::hex(&pixel_hash))],
+                    _ => vec![UiCommand::NotifyMessage("this file has no pixel hash".to_string())],
+                }
+            }
+            _ => {
+                vec![UiCommand::NotifyMessage(format!(
+                    "the port does not store {algo} hashes yet"
+                ))]
+            }
+        }
+    }
+
+    /// WS-13.13: `share` -> `copy path` (Python `SIMPLE_COPY_FILE_PATHS` on
+    /// the focused file).
+    fn copy_file_path(&mut self, hash_hex: &str) -> Vec<UiCommand> {
+        let Some(hash) = query::unhex(hash_hex) else {
+            return vec![];
+        };
+
+        match query::file_path(&self.controller, &hash) {
+            Some(path) => vec![UiCommand::SetClipboard(path.to_string_lossy().to_string())],
+            None => vec![UiCommand::NotifyMessage(
+                "this file has no local path".to_string(),
+            )],
+        }
+    }
+
+    /// WS-13.13: `share` -> `copy file id (...)` (Python `GetHashId()`).
+    fn copy_file_id(&mut self, hash_hex: &str) -> Vec<UiCommand> {
+        let Some(hash) = query::unhex(hash_hex) else {
+            return vec![];
+        };
+
+        let Some(hash_id) = query::hash_id_for(&self.controller, &hash) else {
+            return vec![UiCommand::NotifyMessage("file not found".to_string())];
+        };
+
+        vec![UiCommand::SetClipboard(hash_id.to_string())]
+    }
+
+    /// WS-13.13: `open` -> `in web browser` (Python
+    /// `SIMPLE_OPEN_FILE_IN_WEB_BROWSER`).
+    fn open_file_in_web_browser(&self, hash_hex: &str) -> Vec<UiCommand> {
+        let Some(hash) = query::unhex(hash_hex) else {
+            return vec![];
+        };
+
+        match query::file_path(&self.controller, &hash) {
+            Some(path) => vec![UiCommand::OpenPath(path.to_string_lossy().to_string())],
+            None => vec![UiCommand::NotifyMessage(
+                "this file has no local path".to_string(),
+            )],
+        }
+    }
+
+    /// WS-13.13: `open` -> `in file browser` (Python
+    /// `SIMPLE_OPEN_FILE_IN_FILE_EXPLORER` -> `ClientPaths.open_file_location`).
+    fn open_file_in_file_browser(&self, hash_hex: &str) -> Vec<UiCommand> {
+        let Some(hash) = query::unhex(hash_hex) else {
+            return vec![];
+        };
+
+        let Some(path) = query::file_path(&self.controller, &hash) else {
+            return vec![UiCommand::NotifyMessage(
+                "this file has no local path".to_string(),
+            )];
+        };
+
+        hydrus_paths::open_file_location(&path);
+
+        vec![]
+    }
+
+    /// WS-13.13: `open` -> `properties` (Python
+    /// `SIMPLE_NATIVE_OPEN_FILE_PROPERTIES`).
+    fn open_file_in_native_properties(&self, hash_hex: &str) -> Vec<UiCommand> {
+        let Some(hash) = query::unhex(hash_hex) else {
+            return vec![];
+        };
+
+        let Some(path) = query::file_path(&self.controller, &hash) else {
+            return vec![UiCommand::NotifyMessage(
+                "this file has no local path".to_string(),
+            )];
+        };
+
+        if let Err(error) = client_paths::open_native_file_properties(&path) {
+            return vec![UiCommand::NotifyMessage(format!("could not open properties: {error}"))];
+        }
+
+        vec![]
     }
 
     fn import_paths(&mut self, payload: &str) -> Vec<UiCommand> {

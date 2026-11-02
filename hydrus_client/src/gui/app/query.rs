@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use hydrus_core::files::hydrus_file_handling::FileInfo;
 use hydrus_core::hydrus_constants::{ContentStatus, ServiceType};
+use hydrus_core::hydrus_db_base::DBBase;
 
 use crate::controller::Controller;
 use crate::db::{files_metadata, files_storage, mappings, master, url_map};
@@ -453,6 +454,74 @@ pub fn urls_for(controller: &Controller, hash: &[u8]) -> Vec<String> {
     };
 
     url_map::get_urls(controller.db().db(), hash_id).unwrap_or_default()
+}
+
+/// Names of the local file domains the file is currently in, sorted by name
+/// (WS-13.13 viewer menu: `locations_manager.GetCurrent()` ∩ local file
+/// services).
+pub fn local_file_services_for(controller: &Controller, hash: &[u8]) -> Vec<String> {
+    let Some(hash_id) = hash_id_for(controller, hash) else {
+        return Vec::new();
+    };
+
+    let db = controller.db().db();
+
+    let mut names: Vec<String> = controller
+        .services()
+        .get_services(Some(&[ServiceType::LocalFileDomain]))
+        .into_iter()
+        .filter(|service| file_in_service(db, service.service_id, hash_id))
+        .map(|service| service.name.clone())
+        .collect();
+
+    names.sort();
+    names
+}
+
+/// True when the file is currently in the trash (WS-13.13 viewer menu:
+/// `locations_manager.IsTrashed()`).
+pub fn file_in_trash(controller: &Controller, hash: &[u8]) -> bool {
+    let Some(hash_id) = hash_id_for(controller, hash) else {
+        return false;
+    };
+
+    let Some(service_id) = trash_service_id(controller) else {
+        return false;
+    };
+
+    file_in_service(controller.db().db(), service_id, hash_id)
+}
+
+fn file_in_service(db: &DBBase, service_id: i64, hash_id: i64) -> bool {
+    if files_storage::create_tables(db, service_id).is_err() {
+        return false;
+    }
+
+    let present: Option<i64> = db
+        .query_one(
+            &format!("SELECT EXISTS( SELECT 1 FROM current_files_{service_id} WHERE hash_id = ? )"),
+            &[&hash_id],
+            |row| row.get(0),
+        )
+        .ok()
+        .flatten();
+
+    present.unwrap_or(0) != 0
+}
+
+/// True when any ratings service exists (WS-13.13 viewer menu: Python builds
+/// this from `HC.RATINGS_SERVICES`).
+pub fn can_post_ratings(controller: &Controller) -> bool {
+    !controller
+        .services()
+        .get_services(Some(&[
+            ServiceType::LocalRatingLike,
+            ServiceType::LocalRatingNumerical,
+            ServiceType::LocalRatingIncDec,
+            ServiceType::RatingLikeRepository,
+            ServiceType::RatingNumericalRepository,
+        ]))
+        .is_empty()
 }
 
 pub fn selection_tags(controller: &Controller, hash: &[u8]) -> Vec<String> {

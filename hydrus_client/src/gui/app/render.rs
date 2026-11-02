@@ -547,6 +547,16 @@ pub fn menus(state: &AppState) -> MenuBar {
         "",
         true,
     );
+    menu_action(
+        &mut entries,
+        2,
+        "view file history",
+        "file_history",
+        "",
+        "",
+        "See a chart of your file import history.",
+        true,
+    );
 
     menu_title(&mut entries, "&network");
     menu_action(

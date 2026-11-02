@@ -281,6 +281,7 @@ pub(crate) mod ffi {
         FewerTags,
         File,
         FileFiltering,
+        FileHistory,
         FileId,
         FileSeedCache,
         FileSeedCacheAction,
@@ -1466,6 +1467,59 @@ pub(crate) mod ffi {
         clipboard_text: String,
     }
 
+    /// One cumulative point of a file-history series (WS-13.9): unix seconds
+    /// plus the file count at that time. C++ only draws these values.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct FileHistoryPoint {
+        timestamp: i64,
+        count: i64,
+    }
+
+    /// One drawn series of the file-history chart (WS-13.9): name and colour
+    /// come from `gui/app/charts.rs` (Python `setName` values and the QtCharts
+    /// Light-theme pen order), `visible` from the panel checkboxes.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct FileHistorySeries {
+        name: String,
+        color: String,
+        visible: bool,
+        points: Vec<FileHistoryPoint>,
+    }
+
+    /// `database -> view file history` dialog contents (WS-13.9). All labels,
+    /// ranges and series are computed in Rust (`gui/app/charts.rs`); C++ only
+    /// assigns widgets and paints the series. `empty` selects the no-data
+    /// state instead of the chart.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct FileHistoryDialogState {
+        title: String,
+        status: String,
+        empty: bool,
+        show_all: bool,
+        show_inbox: bool,
+        show_archive: bool,
+        show_deleted: bool,
+        min_y: i64,
+        max_y: i64,
+        start_date: i64,
+        end_date: i64,
+        has_range: bool,
+        series: Vec<FileHistorySeries>,
+    }
+
+    /// Refit result of the file-history chart (WS-13.9, R2): `min_y` is always
+    /// 0 and `max_y` at least 1 (Python `AutoSetYRange`); `start`/`end` are
+    /// unix seconds of the visible data (`AutoSetXRange`), valid only when
+    /// `has_range` is set.
+    #[derive(Clone, Debug, PartialEq, Default)]
+    struct FileHistoryRange {
+        min_y: i64,
+        max_y: i64,
+        start: i64,
+        end: i64,
+        has_range: bool,
+    }
+
     /// One export-review file row (WS-15.2.4b). `tags_text` is the joined
     /// `", "` list, `relative` the destination trimmed of the folder root,
     /// `note` the ready/source-missing/unsafe/will-be-updated verdict and
@@ -2022,6 +2076,7 @@ pub(crate) mod ffi {
             state: &NotificationsDialogState,
         );
         fn hydrus_show_exception(window: Pin<&mut HydrusMainWindow>, state: &ExceptionReportState);
+        fn hydrus_show_file_history(window: Pin<&mut HydrusMainWindow>, state: &FileHistoryDialogState);
         fn hydrus_show_viewing_stats(window: Pin<&mut HydrusMainWindow>, state: &ViewingStats);
         fn hydrus_show_about(window: Pin<&mut HydrusMainWindow>, state: &AboutInfo);
         fn hydrus_export_downloader(window: Pin<&mut HydrusMainWindow>, page_id: &str);
@@ -2621,6 +2676,20 @@ pub(crate) mod ffi {
             names: Vec<String>,
             texts: Vec<String>,
         );
+        /// Typed reverse seam (WS-13.9): recompute the file-history axis range
+        /// from the visible series (Python `AutoSetXRange`/`AutoSetYRange`).
+        /// Each series travels as its drawn points; C++ keeps no logic.
+        #[allow(clippy::too_many_arguments)]
+        fn hydrus_file_history_auto_range(
+            all: Vec<FileHistoryPoint>,
+            inbox: Vec<FileHistoryPoint>,
+            archive: Vec<FileHistoryPoint>,
+            deleted: Vec<FileHistoryPoint>,
+            show_all: bool,
+            show_inbox: bool,
+            show_archive: bool,
+            show_deleted: bool,
+        ) -> FileHistoryRange;
         fn hydrus_validate_export_phrase(phrase: &str) -> String;
         fn hydrus_static_dir() -> String;
         /// Thin typed getters for static status/empty-state text (WS-15.3.2a,
@@ -3521,6 +3590,54 @@ fn app_notes_save(
     texts: Vec<String>,
 ) {
     crate::gui::app::handle_notes_save(window.as_mut(), hash, &names, &texts);
+}
+
+/// Refit helper for the file-history chart (WS-13.9, R2): mirrors Python
+/// `AutoSetXRange`/`AutoSetYRange` over the visible series.
+#[allow(clippy::too_many_arguments)]
+fn hydrus_file_history_auto_range(
+    all: Vec<ffi::FileHistoryPoint>,
+    inbox: Vec<ffi::FileHistoryPoint>,
+    archive: Vec<ffi::FileHistoryPoint>,
+    deleted: Vec<ffi::FileHistoryPoint>,
+    show_all: bool,
+    show_inbox: bool,
+    show_archive: bool,
+    show_deleted: bool,
+) -> ffi::FileHistoryRange {
+    use crate::gui::app::charts;
+
+    let points = |series: &Vec<ffi::FileHistoryPoint>| {
+        series.iter().map(|p| (p.timestamp, p.count)).collect::<Vec<_>>()
+    };
+    let all = points(&all);
+    let inbox = points(&inbox);
+    let archive = points(&archive);
+    let deleted = points(&deleted);
+
+    let max_y = charts::auto_y_max(
+        &all, &inbox, &archive, &deleted, show_all, show_inbox, show_archive, show_deleted,
+    );
+    let range = charts::auto_x_range(
+        &all, &inbox, &archive, &deleted, show_all, show_inbox, show_archive, show_deleted,
+    );
+
+    match range {
+        Some((start, end)) => ffi::FileHistoryRange {
+            min_y: 0,
+            max_y,
+            start,
+            end,
+            has_range: true,
+        },
+        None => ffi::FileHistoryRange {
+            min_y: 0,
+            max_y,
+            start: 0,
+            end: 0,
+            has_range: false,
+        },
+    }
 }
 
 /// Returns the Python `VetoException` text for an invalid export filename

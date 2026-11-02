@@ -15,6 +15,7 @@ pub mod content_updates;
 pub mod definitions_cache;
 pub mod duplicates;
 pub mod files_inbox;
+pub mod file_history;
 pub mod files_metadata;
 pub mod files_physical_storage;
 pub mod files_storage;

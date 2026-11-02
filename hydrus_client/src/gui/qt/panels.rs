@@ -165,6 +165,9 @@ pub(crate) fn execute(mut window: Window<'_>, command: UiCommand) {
         UiCommand::ExceptionReport(state) => {
             ffi::hydrus_show_exception(window.as_mut(), &state);
         }
+        UiCommand::FileHistoryDialog(state) => {
+            ffi::hydrus_show_file_history(window.as_mut(), &state);
+        }
         UiCommand::ViewingStatsDialog(state) => {
             ffi::hydrus_show_viewing_stats(window.as_mut(), &state);
         }

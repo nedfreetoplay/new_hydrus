@@ -13,8 +13,8 @@ use serde_json::Value;
 use crate::client_paths;
 use crate::controller::Controller;
 use crate::db::{
-    files_metadata, files_storage, files_timestamps, files_viewing_stats, mappings, master_tags,
-    similar_files,
+    file_history, files_metadata, files_storage, files_timestamps, files_viewing_stats, mappings,
+    master_tags, similar_files,
 };
 use crate::gui::qt::api::ffi;
 use crate::gui::qt::panels;
@@ -23,6 +23,7 @@ pub mod api_permissions;
 pub mod auto_resolution;
 pub mod availability;
 pub mod backup;
+pub mod charts;
 pub mod commands;
 pub mod download;
 pub mod downloader_export;
@@ -492,6 +493,7 @@ impl ffi::UiAction {
         ffi::UiAction::FewerTags => "fewer_tags",
         ffi::UiAction::File => "file",
         ffi::UiAction::FileFiltering => "file_filtering",
+        ffi::UiAction::FileHistory => "file_history",
         ffi::UiAction::FileId => "file_id",
         ffi::UiAction::FileSeedCache => "file_seed_cache",
         ffi::UiAction::FileSeedCacheAction => "file_seed_cache_action",
@@ -971,6 +973,7 @@ pub(crate) fn action_from_str(action: &str) -> ffi::UiAction {
             "fewer_tags" => ffi::UiAction::FewerTags,
             "file" => ffi::UiAction::File,
             "file_filtering" => ffi::UiAction::FileFiltering,
+            "file_history" => ffi::UiAction::FileHistory,
             "file_id" => ffi::UiAction::FileId,
             "file_seed_cache" => ffi::UiAction::FileSeedCache,
             "file_seed_cache_action" => ffi::UiAction::FileSeedCacheAction,
@@ -3587,6 +3590,7 @@ impl AppState {
                     ),
                 )]
             }
+            ffi::UiAction::FileHistory => vec![file_history_dialog(&self.controller)],
             ffi::UiAction::Pending => vec![UiCommand::NotifyMessage(
                 "there is no pending upload in this local-only build".to_string(),
             )],
@@ -5159,6 +5163,112 @@ fn scalar_i64(db: &hydrus_core::hydrus_db_base::DBBase, query: &str) -> i64 {
         .ok()
         .flatten()
         .unwrap_or(0)
+}
+
+/// Builds the `database -> view file history` dialog state (WS-13.9).
+/// Domain is "all known files" (Python default `system:everything`): the
+/// local file service plus the trash service. Failures and missing services
+/// yield the explicit empty state, never a crash.
+fn file_history_dialog(controller: &Controller) -> UiCommand {
+    let empty = |status: String| {
+        UiCommand::FileHistoryDialog(ffi::FileHistoryDialogState {
+            title: "file history".to_string(),
+            status,
+            empty: true,
+            show_all: true,
+            show_inbox: true,
+            show_archive: true,
+            show_deleted: true,
+            min_y: 0,
+            max_y: 1,
+            start_date: 0,
+            end_date: 0,
+            has_range: false,
+            series: Vec::new(),
+        })
+    };
+    let Some(my_files) = query::local_file_service_id(controller, "my files") else {
+        return empty("the 'my files' service is missing".to_string());
+    };
+    let Some(trash) = query::trash_service_id(controller) else {
+        return empty("the trash service is missing".to_string());
+    };
+
+    let history = match file_history::collect(
+        controller.db().db(),
+        my_files,
+        trash,
+        file_history::NUM_STEPS,
+    ) {
+        Ok(history) => history,
+        Err(error) => return empty(format!("could not load file history: {error}")),
+    };
+
+    let points = |series: &[(i64, i64)]| {
+        series
+            .iter()
+            .map(|(timestamp, count)| ffi::FileHistoryPoint {
+                timestamp: *timestamp,
+                count: *count,
+            })
+            .collect::<Vec<_>>()
+    };
+    let tuples = |series: &[(i64, i64)]| series.to_vec();
+    let max_y = charts::auto_y_max(
+        &tuples(&history.current),
+        &tuples(&history.inbox),
+        &tuples(&history.archive),
+        &tuples(&history.deleted),
+        true,
+        true,
+        true,
+        true,
+    );
+    let range = charts::auto_x_range(
+        &tuples(&history.current),
+        &tuples(&history.inbox),
+        &tuples(&history.archive),
+        &tuples(&history.deleted),
+        true,
+        true,
+        true,
+        true,
+    );
+    let has_data = range.is_some();
+    let (start_date, end_date) = range.unwrap_or((0, 0));
+
+    let series = |name: &str, color: &str, data: &[(i64, i64)]| ffi::FileHistorySeries {
+        name: name.to_string(),
+        color: color.to_string(),
+        visible: true,
+        points: points(data),
+    };
+
+    UiCommand::FileHistoryDialog(ffi::FileHistoryDialogState {
+        title: "file history".to_string(),
+        status: if has_data {
+            String::new()
+        } else {
+            "no file history yet".to_string()
+        },
+        empty: !has_data,
+        show_all: true,
+        show_inbox: true,
+        show_archive: true,
+        show_deleted: true,
+        min_y: 0,
+        // Python applies `applyNiceNumbers` on top of the initial range.
+        max_y: charts::nice_ceiling(max_y),
+        start_date,
+        end_date,
+        has_range: has_data,
+        series: vec![
+            series(charts::SERIES_ALL, charts::COLOR_ALL, &history.current),
+            series(charts::SERIES_INBOX, charts::COLOR_INBOX, &history.inbox),
+            series(charts::SERIES_ARCHIVE, charts::COLOR_ARCHIVE, &history.archive),
+            series(charts::SERIES_DELETED, charts::COLOR_DELETED, &history.deleted),
+        ],
+    })
 }
 
 fn human_bytes(bytes: u64) -> String {

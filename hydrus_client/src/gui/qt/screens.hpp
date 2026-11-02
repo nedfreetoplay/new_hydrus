@@ -39,3 +39,5 @@
 #include "account_types.hpp"
 #include "orphan_files.hpp"
 #include "database_backup.hpp"
+#include "file_history_chart.hpp"
+#include "file_history_dialog.hpp"

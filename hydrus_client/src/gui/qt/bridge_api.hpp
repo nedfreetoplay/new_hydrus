@@ -456,6 +456,16 @@ void app_notes_save(
     rust::Str hash,
     rust::Vec<rust::String> names,
     rust::Vec<rust::String> texts) noexcept;
+// Typed reverse seam (WS-13.9): file-history refit maths live in Rust.
+FileHistoryRange hydrus_file_history_auto_range(
+    rust::Vec<FileHistoryPoint> all,
+    rust::Vec<FileHistoryPoint> inbox,
+    rust::Vec<FileHistoryPoint> archive,
+    rust::Vec<FileHistoryPoint> deleted,
+    bool show_all,
+    bool show_inbox,
+    bool show_archive,
+    bool show_deleted) noexcept;
 
 // Implemented in Rust (WS-15.3.2b): scalar getters and
 // availability/visibility predicates live in avail.hpp.

@@ -1070,7 +1070,16 @@ Rust-цели: `gui/app/mod.rs`, `db/maintenance.rs`, `files/maintenance_executo
 - [x] 11.9 Job scheduler и file maintenance jobs.
 - [x] 11.10 Clear orphan files.
 - [x] 11.11 Fix missing archive times.
-- [ ] 11.12 File history chart.
+- [x] 11.12 File history chart. `database -> maintenance -> view file history`
+  (`See a chart of your file import history.`) открывает диалог `file history`
+  с QPainter-графиком четырёх кумулятивных рядов (`all files`, `inbox`,
+  `archive`, `deleted`, `num_steps = 7680`): чекбоксы `show ...`, спиннеры
+  `min/max y`, кнопки `refit y/x axis` с тултипами Python, два `QDateEdit`,
+  минимум графика 720x480. Данные — `db/file_history.rs` (домен «all known
+  files»), логика осей — `gui/app/charts.rs` с unit-тестами, шов —
+  `FileHistoryDialogState` (R1). Упрощения записаны в `ARCHITECTURE.md`:
+  секунды вместо ms, без `original_timestamp_ms` у удалённых, без
+  произвольного file search context (панель поиска слева — заглушка).
 - [x] 11.13 «How boned am I?».
 - [ ] 11.14 Embedded metadata review.
 - [x] 11.15 Repair file system: `repair file locations...` в меню database,
@@ -1203,7 +1212,14 @@ Rust-цели: `gui/splash.rs`, `gui/style.rs`, `gui/shortcuts.rs`,
   логика в `gui/app/exception_report.rs` с unit-тестами. Проверено вживую:
   окно, toggle traceback, копирование в буфер (`v689, win32, frozen…`),
   процесс жив, отчёт в `client - YYYY-MM.log`.
-- [ ] 13.9 Charts (file history, statistics).
+- [~] 13.9 Charts (file history done, statistics pending). График истории
+  файлов работает (см. 11.12): окно, ряды, refit осей, пустое состояние.
+  Остаток: `BarChartBandwidthHistory` из `ClientGUINetwork` (помесячные бары
+  bandwidth) — панели network usage в порте нет; статистика просмотров живёт
+  отдельным диалогом (`viewing stats`). По file history осталось: произвольный
+  file search context (домен зафиксирован на all known files, слева заглушка),
+  `original_timestamp_ms` удалённых (ранняя история `current` без их вклада),
+  визуальная сверка скриншотом с живым Python v692.
 - [x] 13.10 Полноценный About window.
 - [~] 13.11 Command palette/locator.
 - [x] 13.12 Application commands и настраиваемые shortcut sets.

@@ -155,6 +155,29 @@ WS-13.13-доделка 2: диалог показывает для выбран
 метрики живут в `gui/app/**` с unit-тестами, C++ только применяет значения;
 R3 — новый файл не больше 600 строк, иначе делится по экрану или слою.
 
+### File history chart (WS-13.9 / WS-11.12)
+
+Данные — `db/file_history.rs` (порт `_GetFileHistoryFromTable` для домена
+«all known files»: `current_files_<my files>.timestamp`,
+`deleted_files_<trash>.timestamp`, `file_inbox`, `archive_timestamps`;
+`NUM_STEPS = 7680`, те же шаговые циклы). Отличия схемы порта честно
+упрощены: `timestamp` в секундах (не `_ms`), у удалённых строк нет
+`original_timestamp_ms` — их вклад в раннюю историю `current` опущен, ряд
+сходится к текущему числу файлов; произвольный file search context Python
+(`TooComplicatedM8`) не портирован. Чистая логика — `gui/app/charts.rs`
+(имена/цвета рядов в порядке QtCharts Light, `auto_y_max`/`auto_x_range`,
+`nice_ceiling`, `yyyy-MM-dd`/`%i`, тексты/тултипы/лимиты панели) с
+unit-тестами; шов — `FileHistoryDialogState` + `UiCommand::FileHistoryDialog`
+(R1), refit — `hydrus_file_history_auto_range`. QtCharts в сборке нет,
+поэтому рисование — `QPainter`-виджет `file_history_chart.{hpp,cpp}`
+(белый фон, серая сетка, оси слева/снизу, даты под 90°, легенда сверху,
+линии 2px), окно — `file_history_dialog.{hpp,cpp}` (`file history`,
+чекбоксы `show ...`, спиннеры `min/max y` 0…1000000000, кнопки
+`refit y/x axis` с тултипами Python, два `QDateEdit`, минимум графика
+720x480). Левая панель поиска — упрощённая заглушка с тем же местом:
+полноценного autocomplete-виджета порта сюда не подключали (потянул бы
+половину WS-02).
+
 ### Как добавить новое UI-действие (WS-15.2.4)
 
 1. Добавить вариант в `enum UiAction` в `hydrus_client/src/gui/qt/api.rs`
